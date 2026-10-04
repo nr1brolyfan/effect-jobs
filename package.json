@@ -1,0 +1,30 @@
+{
+  "name": "effect-jobs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Effect-native durable, transaction-bound background jobs.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "packageManager": "bun@1.4.2",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "check": "tsc --project tsconfig.json --noEmit",
+    "build": "tsc --project tsconfig.build.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "peerDependencies": {
+    "effect": "4.0.0-rc.115"
+  },
+  "devDependencies": {
+    "effect": "4.0.0-rc.115",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}
