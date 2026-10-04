@@ -1,0 +1,10 @@
+{
+  "$schema": "./node_modules/@effect/tsgo/oxlint-schema.json",
+  "extends": ["./node_modules/@effect/tsgo/oxlint-presets/correctness.json"],
+  "rules": {
+    "curly": ["error", "all"],
+    "effecttsgo/floating-effect": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-floating-promises": "off"
+  }
+}

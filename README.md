@@ -31,12 +31,28 @@ Use Bun 1.4.2. Effect is pinned to the same RC as the current `effect-auth`.
 ```sh
 bun install
 bun run check
+bun run lint
+bun run format
+bun run format:check
 bun run build
 bun run test
+bun run verify
 ```
 
-Tests will live under `tests/`. The test command currently permits an empty suite;
-this is not conformance evidence.
+Type checking and declaration builds use the native TypeScript-Go compiler patched
+by `@effect/tsgo`. The `tsc` command is the patched entrypoint, not the JavaScript
+TypeScript compiler. Installation runs `prepare`, and check/build/lint/test also
+apply the version-validated patch so that a skipped installation script cannot
+silently disable Effect diagnostics.
+
+Oxlint uses the Effect correctness preset, rejects floating Effects and explicit
+`any`, and fails on warnings. Oxfmt follows the formatting conventions of
+`effect-auth`. VS Code uses the native TypeScript language service after setup;
+do not run a second TypeScript-Go language server alongside it.
+
+Tests under `tests/` currently verify the toolchain, including negative controls
+for Effect diagnostics and ordinary type errors. They do not qualify a queue
+implementation.
 
 ## License
 

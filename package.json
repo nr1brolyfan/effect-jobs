@@ -13,17 +13,32 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "check": "tsc --project tsconfig.json --noEmit",
-    "build": "tsc --project tsconfig.build.json",
-    "test": "vitest run --passWithNoTests"
+    "prepare": "bun run toolchain:setup",
+    "toolchain:setup": "effect-tsgo patch --typescript --oxlint",
+    "check": "bun run toolchain:setup && tsc --project tsconfig.json --noEmit && tsc --project tsconfig.build.json --noEmit",
+    "build": "bun run toolchain:setup && tsc --project tsconfig.build.json",
+    "lint": "bun run toolchain:setup && oxlint --deny-warnings src tests",
+    "format": "oxfmt --config .oxfmtrc.json --write .",
+    "format:check": "oxfmt --config .oxfmtrc.json --check .",
+    "test": "bun run toolchain:setup && vitest run",
+    "verify": "bun run check && bun run lint && bun run format:check && bun run build && bun run test"
   },
   "peerDependencies": {
     "effect": "4.0.0-rc.115"
   },
   "devDependencies": {
+    "@effect/tsgo": "0.48.0",
+    "@types/node": "26.4.1",
     "effect": "4.0.0-rc.115",
+    "oxfmt": "0.71.0",
+    "oxlint": "1.86.0",
+    "oxlint-tsgolint": "7.0.2003",
     "typescript": "7.0.2",
     "vitest": "4.1.11"
   }
