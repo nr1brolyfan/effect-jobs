@@ -26,7 +26,12 @@ initial scaffold.
 
 ## Development
 
-Use Bun 1.4.2. Effect is pinned to the same RC as the current `effect-auth`.
+Use Bun 1.4.2. Effect is pinned to the stable `4.0.0` release in both peer and
+development dependencies. RC releases are not supported by this scaffold.
+
+`effect-auth` is a separate repository and still needs stable-Effect compatibility
+qualification before it can consume this package; its dependencies are not
+changed by this scaffold.
 
 ```sh
 bun install
@@ -51,8 +56,9 @@ Oxlint uses the Effect correctness preset, rejects floating Effects and explicit
 do not run a second TypeScript-Go language server alongside it.
 
 Tests under `tests/` currently verify the toolchain, including negative controls
-for Effect diagnostics and ordinary type errors. They do not qualify a queue
-implementation.
+for Effect diagnostics and ordinary type errors, and smoke-test stable Effect
+services, Schema decoding, and scoped resource cleanup. They do not qualify a
+queue implementation.
 
 ## License
 

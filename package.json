@@ -30,12 +30,12 @@
     "verify": "bun run check && bun run lint && bun run format:check && bun run build && bun run test"
   },
   "peerDependencies": {
-    "effect": "4.0.0-rc.115"
+    "effect": "4.0.0"
   },
   "devDependencies": {
     "@effect/tsgo": "0.48.0",
     "@types/node": "26.4.1",
-    "effect": "4.0.0-rc.115",
+    "effect": "4.0.0",
     "oxfmt": "0.71.0",
     "oxlint": "1.86.0",
     "oxlint-tsgolint": "7.0.2003",
