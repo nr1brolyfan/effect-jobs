@@ -1,8 +1,10 @@
-# PostgreSQL backend — phase-B checkpoint
+# PostgreSQL backend — qualified source, integration blocked
 
-This is an **unfinished, local implementation checkpoint**, not a shipped or fully
-qualified backend. Phase A remains preserved at `301c4143c7bc54011a8aa024588be89780fa30c3`.
-Do not push, publish, open a PR or dispatch review from this checkpoint.
+The production source and concrete application-manager fixture passed phase-B
+real-PostgreSQL qualification on both pinned runtimes. Package integration and
+installed-artifact qualification remain **blocked**, so this is not a shipped or
+fully qualified package. Phase A remains preserved at
+`301c4143c7bc54011a8aa024588be89780fa30c3`. No push, PR, publication or author-dispatched review.
 
 ## Public module boundaries
 
@@ -53,10 +55,9 @@ failures must not contain SQL, parameters, DSNs or provider Causes.
 The phase-B fixture adapts the retained concrete `pg@8.23.0` application manager.
 It reads that manager's actual ambient handle for the owned-operation guard.
 The phase-A receipt remains evidence for its historical snapshot only; phase A
-was not rerun for confirmation. Phase B subsequently qualified the new guard on
-real PG. The final fixture-manager delta additionally rejects a COMMIT command
-tag of ROLLBACK; that delta still lacks real-PG qualification after another
-runtime outage. No auth, Effect SQL or Drizzle adapter is claimed.
+was not rerun for confirmation. Phase B qualified the new guard and the final
+fixture-manager delta rejecting a COMMIT command tag of ROLLBACK on real PG.
+No auth, Effect SQL or Drizzle transaction adapter is claimed.
 
 READ COMMITTED is required for producer conflict comparison: the statement after
 `INSERT ... ON CONFLICT DO NOTHING` must see the committed winner. A concurrent
@@ -87,9 +88,8 @@ ciphertext. Changed content is `JobIntegrityConflict`. A genuine same-connection
 PostgreSQL error additionally aborts the producer transaction, so catching that
 typed error cannot commit preceding domain writes. An application manager must
 also classify a COMMIT command tag of ROLLBACK as a NotCommitted failure rather
-than advertise successful business commit. The final fixture regression checks
-both durable rollback and that response classification; its current stronger
-oracle is pending real-PG execution.
+than advertise successful business commit. The final fixture regression passed
+both durable rollback and that response classification on Node and Bun.
 
 Omitted availability uses a genuine server-time sample. Supplied availability
 is persisted separately as the immutable initial envelope field. Due eligibility
@@ -137,7 +137,35 @@ required columns, PK/UNIQUE/FK/cascade and valid partial indexes. It does not ru
 DDL or claim to audit every application migration/data constraint. The readiness
 correction passed the recovered-resource phase-B runs on both runtimes.
 
-## Qualification status and blockers
+## Current qualification and integration blockers
+
+On `2026-10-05T15:56Z`, the current production source and final COMMIT-tag manager
+passed **27/27 on Node 24.15.0 and 27/27 on Bun 1.4.2**, against PostgreSQL 16.15,
+pg 8.23.0 and Effect 4.0.0. Each run includes 25 production-backend real-PG tests
+and 2 optional Drizzle declaration tests; no PG tests skipped. Existing tests
+already covered retry-notAfter and lease-reserve equality and +/-1 ms neighbors;
+they were not reimplemented. The only test-code continuation change pins the
+new coordinator-authorized exact container ID. Phase A was not rerun.
+
+Both sanitized receipts confirm zero remaining fixture schemas/roles, restored
+TEMP, zero runtime DDL and zero savepoints. Runtime fixture objects remain limited
+to `effect_jobs_d6.backend_fixture` and `backend_fixture_runtime`. The coordinator
+owns container `6afbcddb555e2b546b0b6783a2196e9d8efae6f23950800b2ad1738117217526`,
+loopback port 59465, deadline `2026-10-05T19:28:03.993972Z`. Author PG use ended
+after the two synchronous test runs; no container lifecycle action was performed.
+
+Fixture types and root lint passed. Current root check/build **FAIL** because
+root Drizzle resolution is missing and build `types: []` excludes Node types.
+No shared files were edited, and failed build output is not a qualified installed
+artifact. Root exports/optional peer/lock/Node build types and fixture/installed
+gate registration remain coordinator prerequisites. No push or PR is permitted
+until these shared changes and the final integrated local gates pass.
+
+Current logs, sanitized runtime/time-boundary evidence and a byte-bound receipt
+are retained in `tests/postgresql/artifacts/`. Historical matrices below remain
+historical only; current evidence does not rewrite phase A.
+
+### Preserved earlier qualification history
 
 The exploratory Node run at approximately `2026-10-05T10:51Z` exercised production
 source modules against real PostgreSQL 16.15: **22 passed, 2 failed, overall FAIL**.
@@ -158,7 +186,7 @@ owned expiry, recovery expiry, lease reserve and retry-notAfter. Both runs
 confirmed zero remaining fixture schemas/roles, restored TEMP, zero runtime DDL
 and zero savepoints. This did not repeat phase A.
 
-Those results precede the last fixture-manager COMMIT-tag correction. Its affected
+Those historical results precede the last fixture-manager COMMIT-tag correction. Its affected
 rerun at `11:37Z` failed before setup with ECONNREFUSED; Docker/WSL integration was
 also unavailable. No final PASS is claimed for that delta. Historical phase-B
 receipts are explicitly named `*-before-commit-tag-*`; the failed final attempt
@@ -188,25 +216,22 @@ PG runs reached cleanup, including both recovered-resource 27/27 runs. Failed
 connection attempts created no new fixture objects; they cannot certify server
 state while the container is offline.
 
-Concrete coordinator prerequisites:
+Remaining coordinator prerequisites:
 
-1. Restore availability of the exact authorized PostgreSQL resource before the
-   unchanged `2026-10-05T13:01:34.951397Z` deadline. Do not start a replacement or
-   extend the deadline through this author.
-2. Register exports for the four public PostgreSql modules, preserving core's
+1. Register exports for the four public PostgreSql modules, preserving core's
    backend-peer-free graph. Add optional `drizzle-orm@0.45.1` peer metadata and
    pinned development dependency/lock needed for root type/build/test resolution.
    The current build config excludes Node types: enable its already-pinned Node
    declarations for backend `node:crypto`/`node:buffer` imports, or agree a separate
    backend build project. Production runtime has no direct `pg` import;
    applications own that driver.
-3. Integrate fixture qualification commands/installed-artifact checks through the
+2. Integrate fixture qualification commands/installed-artifact checks through the
    coordinator-owned registrars. Fixture-local aliases are not a replacement for
    root/package integration. Complete final local gates before any authorized push.
-4. Resume this author on this same issue/branch for the final COMMIT-tag regression
-   and affected gates/receipts. No reviewer or triage dispatch from this partial
-   checkpoint. Preserve both historical phase-B matrices; do not rerun unchanged
-   work merely to confirm it.
+3. Preserve the final source/fixture receipts and historical matrices. The final
+   COMMIT-tag regression is now qualified; do not dispatch confirmation-only work.
+   Run affected integrated gates on exact shared configuration/artifact bytes,
+   then the coordinator chooses the single frozen review set. No author dispatch.
 
 ## Finite reproduction
 
