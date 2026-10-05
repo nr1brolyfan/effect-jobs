@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer"
 import { Result } from "effect"
 import { expect, it } from "vitest"
 import { validateClaimArtifact } from "../../../src/internal/lifecycle/Artifacts.js"
@@ -24,6 +25,20 @@ it("validates claimed metadata and copies retained byte arrays", () => {
   expect(decoded.encoded.semanticProjectionBytes).not.toBe(
     artifact.encoded.semanticProjectionBytes
   )
+  artifact.encoded.payloadBytes.fill(0)
+  artifact.encoded.semanticProjectionBytes.fill(0)
+  expect([...decoded.encoded.payloadBytes]).toEqual([123, 125])
+  expect([...decoded.encoded.semanticProjectionBytes]).toEqual([123, 125])
+})
+it("accepts Buffer artifacts and copies both retained byte arrays without aliasing", () => {
+  const artifact = prepared()
+  artifact.encoded.payloadBytes = Buffer.from("{}")
+  artifact.encoded.semanticProjectionBytes = Buffer.from("{}")
+  const result = validateClaimArtifact({ ...claimed(), prepared: artifact })
+  expect(Result.isSuccess(result)).toBe(true)
+  const decoded = Result.getOrThrow(result)
+  expect([...decoded.encoded.payloadBytes]).toEqual([123, 125])
+  expect([...decoded.encoded.semanticProjectionBytes]).toEqual([123, 125])
   artifact.encoded.payloadBytes.fill(0)
   artifact.encoded.semanticProjectionBytes.fill(0)
   expect([...decoded.encoded.payloadBytes]).toEqual([123, 125])
