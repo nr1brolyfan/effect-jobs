@@ -11,7 +11,14 @@ The first implementation will extract the jobs substrate from `effect-auth`.
 Domain-specific job definitions, handlers, and auth producer transactions will
 remain in `effect-auth`; this package must not depend on it.
 
-## Intended initial scope
+## Accepted initial scope
+
+The owner accepted a focused extraction for the first alpha, shipped as one
+`effect-jobs` package with public subpaths and an isolated optional PostgreSQL
+backend. See [D1](specs/architecture-decisions.md) for the scope and ownership
+boundary and the accepted D1–D8 contracts. Exact signatures and exports still
+require implementation and qualification; illustrative snippets are not current
+support claims.
 
 - Schema-defined, versioned jobs and logical queues.
 - Atomic enqueue within an application-owned transaction.
