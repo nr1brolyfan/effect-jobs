@@ -51,11 +51,12 @@ timeouts. Uncertain COMMIT or response delivery is `PostgreSqlFailure` with
 failures must not contain SQL, parameters, DSNs or provider Causes.
 
 The phase-B fixture adapts the retained concrete `pg@8.23.0` application manager.
-It now reads that manager's actual ambient handle for the owned-operation guard;
-the two-line introspection addition changes the current fixture bytes, so the
-phase-A receipt remains evidence for its historical snapshot only. Its unchanged
-transaction algorithm was not rerun for confirmation. The new guard still needs
-its pending real-PG regression. No auth, Effect SQL or Drizzle adapter is claimed.
+It reads that manager's actual ambient handle for the owned-operation guard.
+The phase-A receipt remains evidence for its historical snapshot only; phase A
+was not rerun for confirmation. Phase B subsequently qualified the new guard on
+real PG. The final fixture-manager delta additionally rejects a COMMIT command
+tag of ROLLBACK; that delta still lacks real-PG qualification after another
+runtime outage. No auth, Effect SQL or Drizzle adapter is claimed.
 
 READ COMMITTED is required for producer conflict comparison: the statement after
 `INSERT ... ON CONFLICT DO NOTHING` must see the committed winner. A concurrent
@@ -84,10 +85,11 @@ payload format and canonical projection bytes, including protected fingerprints;
 it returns the first ID without changing policy, availability or randomized
 ciphertext. Changed content is `JobIntegrityConflict`. A genuine same-connection
 PostgreSQL error additionally aborts the producer transaction, so catching that
-typed error cannot commit preceding domain writes. An application manager should
-also check a COMMIT response reporting ROLLBACK rather than advertise it as a
-successful business commit. The fixture's caught-conflict test verifies durable
-rollback, not that additional response classification.
+typed error cannot commit preceding domain writes. An application manager must
+also classify a COMMIT command tag of ROLLBACK as a NotCommitted failure rather
+than advertise successful business commit. The final fixture regression checks
+both durable rollback and that response classification; its current stronger
+oracle is pending real-PG execution.
 
 Omitted availability uses a genuine server-time sample. Supplied availability
 is persisted separately as the immutable initial envelope field. Due eligibility
@@ -132,8 +134,8 @@ adapter; this generic port is neither installed nor executed automatically.
 
 Readiness is explicit, bounded introspection of only the configured relations:
 required columns, PK/UNIQUE/FK/cascade and valid partial indexes. It does not run
-DDL or claim to audit every application migration/data constraint. The most recent
-readiness correction is not yet real-PG qualified.
+DDL or claim to audit every application migration/data constraint. The readiness
+correction passed the recovered-resource phase-B runs on both runtimes.
 
 ## Qualification status and blockers
 
@@ -145,7 +147,23 @@ could not connect because the coordinator container was stopped at `11:03:11Z`.
 Do not attribute those 22 intermediate passes to final checkpoint bytes. Earlier
 exploratory runs also exposed and fixed duplicate pg module identity and the
 server-version packaging suffix assertion. No intermediate failed run is a gate
-PASS. Full final Node/Bun/backend/installed-artifact gates remain unqualified.
+PASS.
+
+The coordinator recovered the exact same label/image-verified resource at
+`11:28Z`, recorded readiness and updated its private loopback port mapping. The
+expanded phase-B suite then passed **27/27 on Node and 27/27 on Bun** at about
+`11:30Z`: 25 production-backend real-PG tests plus 2 Drizzle declaration tests.
+Receipts include exact actual DB-time equality and +/-1 ms neighbors for due,
+owned expiry, recovery expiry, lease reserve and retry-notAfter. Both runs
+confirmed zero remaining fixture schemas/roles, restored TEMP, zero runtime DDL
+and zero savepoints. This did not repeat phase A.
+
+Those results precede the last fixture-manager COMMIT-tag correction. Its affected
+rerun at `11:37Z` failed before setup with ECONNREFUSED; Docker/WSL integration was
+also unavailable. No final PASS is claimed for that delta. Historical phase-B
+receipts are explicitly named `*-before-commit-tag-*`; the failed final attempt
+has its own log. Root check/build still fail on coordinator-owned peer/Node-type
+registration, and installed-artifact gates remain unqualified.
 
 The expanded tests cover atomic invoice/job/payload/receipt writes and real CHECK
 failures, concurrent duplicate/conflict producers, protected equality, actual held
@@ -156,10 +174,9 @@ Due boundary fixture DML occurs after a genuine production server-time read;
 expiry tests observe actual clock results in a finite 90-operation budget without
 replacing SQL/time. No timing neighbor is skipped or passed if unobserved.
 COMMIT faults are bounded application-manager injection around actual transactions,
-**not** network proxy/server-crash qualification. Retry-notAfter and lease-reserve
-exact real-PG neighbors still need explicit behavioral tests; their pure core
-protocol has not changed. Installed backend exports and Drizzle-generated migration
-execution are not yet qualified.
+**not** network proxy/server-crash qualification. The pure core protocol is
+unchanged. Installed backend exports and Drizzle-generated migration execution
+are not yet qualified.
 
 The exact container is coordinator-owned; it was only inspected, not started,
 stopped, removed or replaced by this author. Author fixtures use only
@@ -167,12 +184,13 @@ stopped, removed or replaced by this author. Author fixtures use only
 four owned relations. Runtime has CONNECT/USAGE/DML, no admin/CREATE/TRUNCATE/TEMP.
 Setup tracks objects and PUBLIC TEMP changes, closes application pools, removes
 only owned fixtures, and restores TEMP in cleanup. Prior completed exploratory
-PG runs reached cleanup. The failed connection attempt created no new fixture
-objects; it cannot certify server state while the container is offline.
+PG runs reached cleanup, including both recovered-resource 27/27 runs. Failed
+connection attempts created no new fixture objects; they cannot certify server
+state while the container is offline.
 
 Concrete coordinator prerequisites:
 
-1. Decide restoration of the exact authorized PostgreSQL resource before the
+1. Restore availability of the exact authorized PostgreSQL resource before the
    unchanged `2026-10-05T13:01:34.951397Z` deadline. Do not start a replacement or
    extend the deadline through this author.
 2. Register exports for the four public PostgreSql modules, preserving core's
@@ -185,8 +203,10 @@ Concrete coordinator prerequisites:
 3. Integrate fixture qualification commands/installed-artifact checks through the
    coordinator-owned registrars. Fixture-local aliases are not a replacement for
    root/package integration. Complete final local gates before any authorized push.
-4. Resume this author on this same issue/branch for remaining behavioral tests and
-   final receipts. No reviewer or triage dispatch from this partial checkpoint.
+4. Resume this author on this same issue/branch for the final COMMIT-tag regression
+   and affected gates/receipts. No reviewer or triage dispatch from this partial
+   checkpoint. Preserve both historical phase-B matrices; do not rerun unchanged
+   work merely to confirm it.
 
 ## Finite reproduction
 

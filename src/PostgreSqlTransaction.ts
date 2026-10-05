@@ -28,6 +28,7 @@ export interface TransactionQuery {
  * withTransaction delegates join-or-establish to the application's manager.
  * ownedTransaction must reject ambient transactions, commit before returning, and
  * report uncertain COMMIT/response delivery as Unknown. No automatic replay.
+ * A COMMIT command tag of ROLLBACK is a NotCommitted failure, not success.
  * All acquisition/query/control/release paths must have finite application bounds.
  * The application owns rollback, pool lifetime, readiness and migrations.
  */

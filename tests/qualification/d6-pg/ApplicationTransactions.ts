@@ -98,10 +98,18 @@ export const transaction = <A, E, R>(
           Effect.tryPromise({
             try: async () => {
               source.counters.sql.push(text)
-              await client.query(text)
+              return await client.query(text)
             },
             catch: () => new PgFailure({ commitKnowledge: knowledge })
-          })
+          }).pipe(
+            Effect.flatMap((result) =>
+              // PostgreSQL acknowledges COMMIT of an aborted transaction as ROLLBACK.
+              // A caught producer integrity error must not become business success.
+              text === "COMMIT" && result.command === "ROLLBACK"
+                ? Effect.fail(new PgFailure({ commitKnowledge: "NotCommitted" }))
+                : Effect.void
+            )
+          )
         return Effect.gen(function* () {
           yield* control("BEGIN", "NotCommitted")
           const pid = yield* handle.query<{ pid: number }>(

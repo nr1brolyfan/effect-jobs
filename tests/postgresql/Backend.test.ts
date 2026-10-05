@@ -71,7 +71,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     delta: number
   }> = []
   const role = "backend_fixture_runtime"
-  const make = (integration: Adapter.FixtureAdapter) =>
+  const make = (integration: ApplicationAdapter) =>
     Effect.runPromise(
       Jobs.make({ ...mapping, operationResponseBudgetMillis: 100 }).pipe(
         Effect.provideService(PostgreSqlApplication, integration)
@@ -448,20 +448,25 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     const again = await enqueue("duplicate", "same", changed, 2)
     expect(again).toMatchObject({ _tag: "AlreadyPresent", jobId: first.jobId })
     expect(await row("duplicate")).toEqual(before)
-    await Effect.runPromise(
-      adapter.applicationTransaction((handle) =>
-        backend.joinTransaction(handle, (tx) =>
-          Effect.gen(function* () {
-            yield* handle.query(
-              "INSERT INTO backend_fixture.invoices VALUES ('conflict')"
-            )
-            yield* definition
-              .enqueue(tx, input("duplicate", "different"))
-              .pipe(Effect.catchTag("JobIntegrityConflict", () => Effect.void))
-          })
+    await expect(
+      Effect.runPromise(
+        adapter.applicationTransaction((handle) =>
+          backend.joinTransaction(handle, (tx) =>
+            Effect.gen(function* () {
+              yield* handle.query(
+                "INSERT INTO backend_fixture.invoices VALUES ('conflict')"
+              )
+              yield* definition
+                .enqueue(tx, input("duplicate", "different"))
+                .pipe(Effect.catchTag("JobIntegrityConflict", () => Effect.void))
+            })
+          )
         )
       )
-    )
+    ).rejects.toMatchObject({
+      _tag: "PostgreSqlFailure",
+      commitKnowledge: "NotCommitted"
+    })
     expect(
       (await observer.query("SELECT * FROM backend_fixture.invoices WHERE id='conflict'"))
         .rows
@@ -651,6 +656,154 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     }
     // Finite observation budget; inability to observe any exact neighbor is FAIL,
     // not a skipped timing test. Clock SQL/results are entirely unmodified.
+    expect([...observed].sort((a, b) => a - b)).toEqual([-1, 0, 1])
+  }, 30000)
+  test("expiry recovery equality and neighbors use the genuine selection snapshot", async () => {
+    for (const delta of [-1, 0, 1]) {
+      await clear()
+      await enqueue(`recovery-boundary-${delta}`)
+      const claimed = await claim()
+      let sampled = 0
+      const controlled: ApplicationAdapter = {
+        ...adapter,
+        ownedTransaction: (body) =>
+          adapter.ownedTransaction((query) =>
+            body({
+              query: (sql, values) =>
+                query.query(sql, values).pipe(
+                  Effect.tap((rows) => {
+                    if (sql.includes(" AS now") && sampled === 0) {
+                      sampled = Number(rows[0]?.now)
+                      return query.query(
+                        "UPDATE backend_fixture.tasks SET lease_expires_at=$2 WHERE id=$1",
+                        [claimed.ownership.jobId, sampled + delta]
+                      )
+                    }
+                    return Effect.void
+                  })
+                )
+            })
+          )
+      }
+      const controlledBackend = await make(controlled)
+      expect(await Effect.runPromise(controlledBackend.store.recoverExpired(1))).toBe(
+        delta <= 0 ? 1 : 0
+      )
+      expect((await row(`recovery-boundary-${delta}`)).state).toBe(
+        delta <= 0 ? "Pending" : "Active"
+      )
+      boundaries.push({
+        operation: "recovery",
+        expiry: sampled + delta,
+        dbNow: sampled,
+        delta
+      })
+    }
+  })
+  test("lease reserve equality and neighbors reconcile using actual PostgreSQL time", async () => {
+    const observed = new Set<number>()
+    let lag = 2
+    for (let i = 0; i < 90 && observed.size < 3; i++) {
+      await clear()
+      await enqueue(`reserve-boundary-${i}`)
+      const claimed = await claim()
+      const setup = await serverNow()
+      const target = [-1, 0, 1][i % 3]!
+      const reserve = claimed.snapshot.policy.attemptTimeoutMillis + 100
+      const expiry = setup + reserve + lag + target
+      await observer.query(
+        "UPDATE backend_fixture.tasks SET lease_expires_at=$2 WHERE id=$1",
+        [claimed.ownership.jobId, expiry]
+      )
+      let now = 0
+      const measured: ApplicationAdapter = {
+        ...adapter,
+        ownedTransaction: (body) =>
+          adapter.ownedTransaction((query) =>
+            body({
+              query: (sql, values) =>
+                query.query(sql, values).pipe(
+                  Effect.tap((rows) =>
+                    Effect.sync(() => {
+                      if (sql.includes(" AS db_now")) {
+                        now = Number(rows[0]?.db_now)
+                      }
+                    })
+                  )
+                )
+            })
+          )
+      }
+      const measuredBackend = await make(measured)
+      const result = await Effect.runPromise(
+        measuredBackend.store.reconcileClaim(claimed.ownership.leaseToken)
+      )
+      const delta = expiry - now - reserve
+      expect(now).toBeGreaterThan(0)
+      expect(result._tag).toBe(delta >= 0 ? "Owned" : "InsufficientLease")
+      if (delta >= -1 && delta <= 1) {
+        observed.add(delta)
+        boundaries.push({ operation: "reserve", expiry, dbNow: now, delta })
+      }
+      lag = Math.max(0, now - setup)
+    }
+    expect([...observed].sort((a, b) => a - b)).toEqual([-1, 0, 1])
+  }, 30000)
+  test("retry notAfter equality and neighbors preserve the exact persisted scheduling rule", async () => {
+    const observed = new Set<number>()
+    let lag = 2
+    for (let i = 0; i < 90 && observed.size < 3; i++) {
+      await clear()
+      await enqueue(`retry-boundary-${i}`)
+      const claimed = await claim()
+      const setup = await serverNow()
+      const target = [-1, 0, 1][i % 3]!
+      const notAfter =
+        setup + claimed.snapshot.policy.retrySchedule.delayMillis + lag + target
+      let now = 0
+      const measured: ApplicationAdapter = {
+        ...adapter,
+        ownedTransaction: (body) =>
+          adapter.ownedTransaction((query) =>
+            body({
+              query: (sql, values) =>
+                query.query(sql, values).pipe(
+                  Effect.tap((rows) =>
+                    Effect.sync(() => {
+                      if (sql.includes(" AS now")) {
+                        now = Number(rows[0]?.now)
+                      }
+                    })
+                  )
+                )
+            })
+          )
+      }
+      const measuredBackend = await make(measured)
+      await Effect.runPromise(
+        measuredBackend.store.finalize({
+          ownership: claimed.ownership,
+          before: claimed.snapshot,
+          finalization: { _tag: "Retry", code: "temporary", notAfter }
+        })
+      )
+      const next = now + claimed.snapshot.policy.retrySchedule.delayMillis
+      const delta = notAfter - next
+      expect(now).toBeGreaterThan(0)
+      expect((await row(`retry-boundary-${i}`)).state).toBe(
+        delta <= 0 ? "Dead" : "RetryScheduled"
+      )
+      if (delta >= -1 && delta <= 1) {
+        observed.add(delta)
+        boundaries.push({
+          operation: "retryNotAfter",
+          expiry: notAfter,
+          dbNow: now,
+          delta
+        })
+      }
+      lag = Math.max(0, now - setup)
+    }
     expect([...observed].sort((a, b) => a - b)).toEqual([-1, 0, 1])
   }, 30000)
   test("stale/expired owner cannot finalize; bounded recovery changes version and respects stall limits", async () => {
