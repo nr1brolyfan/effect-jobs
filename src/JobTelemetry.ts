@@ -40,51 +40,54 @@ export const observe =
   <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
     Effect.uninterruptibleMask((restore) =>
       Effect.gen(function* () {
-        const started = yield* Clock.currentTimeMillis
-        const exit = yield* Effect.exit(restore(effect))
-        const ended = yield* Clock.currentTimeMillis
-        const reasons = Exit.isFailure(exit) ? exit.cause.reasons : []
-        const kinds = new Set(
-          reasons.map((reason) =>
-            Cause.isFailReason(reason)
-              ? "failure"
-              : Cause.isDieReason(reason)
-                ? "defect"
-                : "interrupted"
+        // Allocate per execution, including concurrent runs of the same Effect.
+        let exit!: Exit.Exit<A, E>
+        yield* Effect.gen(function* () {
+          const started = yield* Clock.currentTimeMillis
+          exit = yield* Effect.exit(restore(effect))
+          const ended = yield* Clock.currentTimeMillis
+          const reasons = Exit.isFailure(exit) ? exit.cause.reasons : []
+          const kinds = new Set(
+            reasons.map((reason) =>
+              Cause.isFailReason(reason)
+                ? "failure"
+                : Cause.isDieReason(reason)
+                  ? "defect"
+                  : "interrupted"
+            )
           )
-        )
-        const [reason] = reasons
-        const outcome: Outcome = Exit.isSuccess(exit)
-          ? successOutcome(exit.value)
-          : reasons.length === 1 &&
-              reason !== undefined &&
-              Cause.isFailReason(reason) &&
-              reason.error instanceof Cause.TimeoutError
-            ? "timeout"
-            : kinds.size === 1 && kinds.has("interrupted")
-              ? "interrupted"
-              : "failure"
-        const fields = {
-          "jobs.operation": operation,
-          "jobs.phase": phase,
-          "jobs.outcome": outcome,
-          ...(reasons.length === 0
-            ? {}
-            : {
-                "jobs.cause_kind": kinds.size > 1 ? "mixed" : [...kinds][0]!,
-                "jobs.reason_count_bucket":
-                  reasons.length === 1 ? "1" : reasons.length === 2 ? "2" : "3+"
-              })
-        }
-        yield* Effect.annotateCurrentSpan(fields)
-        yield* Metric.update(Metric.withAttributes(total, fields), 1)
-        yield* Metric.update(
-          Metric.withAttributes(duration, fields),
-          Math.max(0, ended - started)
-        )
-        yield* Effect.logInfo("effect-jobs operation completed", fields)
-        // The observed span ends successfully with an Exit *value*, never a raw
-        // failure Cause. Re-emit the original channel outside the telemetry span.
+          const [reason] = reasons
+          const outcome: Outcome = Exit.isSuccess(exit)
+            ? successOutcome(exit.value)
+            : reasons.length === 1 &&
+                reason !== undefined &&
+                Cause.isFailReason(reason) &&
+                reason.error instanceof Cause.TimeoutError
+              ? "timeout"
+              : kinds.size === 1 && kinds.has("interrupted")
+                ? "interrupted"
+                : "failure"
+          const fields = {
+            "jobs.operation": operation,
+            "jobs.phase": phase,
+            "jobs.outcome": outcome,
+            ...(reasons.length === 0
+              ? {}
+              : {
+                  "jobs.cause_kind": kinds.size > 1 ? "mixed" : [...kinds][0]!,
+                  "jobs.reason_count_bucket":
+                    reasons.length === 1 ? "1" : reasons.length === 2 ? "2" : "3+"
+                })
+          }
+          yield* Effect.annotateCurrentSpan(fields)
+          yield* Metric.update(Metric.withAttributes(total, fields), 1)
+          yield* Metric.update(
+            Metric.withAttributes(duration, fields),
+            Math.max(0, ended - started)
+          )
+          yield* Effect.logInfo("effect-jobs operation completed", fields)
+          // Span completion must contain neither the operation value nor its Cause.
+        }).pipe(Effect.withSpan(`effect-jobs.${operation}`))
         return exit
-      }).pipe(Effect.withSpan(`effect-jobs.${operation}`))
+      })
     ).pipe(Effect.flatMap((exit) => exit))
