@@ -40,6 +40,14 @@
       "types": "./dist/JobConsumer.d.ts",
       "import": "./dist/JobConsumer.js"
     },
+    "./JobPayload": {
+      "types": "./dist/JobPayload.d.ts",
+      "import": "./dist/JobPayload.js"
+    },
+    "./JobPayloadCodec": {
+      "types": "./dist/JobPayloadCodec.d.ts",
+      "import": "./dist/JobPayloadCodec.js"
+    },
     "./JobId": {
       "types": "./dist/JobId.d.ts",
       "import": "./dist/JobId.js"
