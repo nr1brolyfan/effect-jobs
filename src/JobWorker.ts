@@ -145,20 +145,22 @@ export const make = <E, R>(store: JobStoreService<E, R>, options: JobWorkerOptio
     const capability: RuntimeCapability = {
       ready,
       permits: (consumer) =>
-        Effect.gen(function* () {
+        Effect.suspend(() => {
           const existing = permits.get(consumer.queue.name)
           if (existing !== undefined) {
             if (existing.concurrency !== consumer.localConcurrency) {
-              return yield* new JobWorkerConfigurationError({ field: "consumer" })
+              return Effect.fail(new JobWorkerConfigurationError({ field: "consumer" }))
             }
-            return existing.semaphore
+            return Effect.succeed(existing.semaphore)
           }
-          const semaphore = yield* Semaphore.make(consumer.localConcurrency)
+          // Lookup/create/register is synchronous: no fiber can observe a missing
+          // entry while another first drain is creating this queue's semaphore.
+          const semaphore = Semaphore.makeUnsafe(consumer.localConcurrency)
           permits.set(consumer.queue.name, {
             concurrency: consumer.localConcurrency,
             semaphore
           })
-          return semaphore
+          return Effect.succeed(semaphore)
         }),
       claim: (queue) =>
         Effect.gen(function* () {
