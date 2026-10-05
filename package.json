@@ -118,6 +118,7 @@
     "check:postgresql": "tsc --project tests/postgresql/tsconfig.json --noEmit",
     "test:postgresql:node": "PG_EXPECT_RUNTIME=node node node_modules/vitest/vitest.mjs run --config tests/postgresql/vitest.config.ts",
     "test:postgresql:bun": "PG_EXPECT_RUNTIME=bun bun --bun node_modules/vitest/vitest.mjs run --config tests/postgresql/vitest.config.ts",
+    "qualify:postgresql:installed": "node scripts/qualify-postgresql.mjs",
     "verify": "bun run check && bun run lint && bun run format:check && bun run build && bun run test"
   },
   "peerDependencies": {
