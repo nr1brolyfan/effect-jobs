@@ -12,6 +12,26 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./Job": {
+      "types": "./dist/Job.d.ts",
+      "import": "./dist/Job.js"
+    },
+    "./JobQueue": {
+      "types": "./dist/JobQueue.d.ts",
+      "import": "./dist/JobQueue.js"
+    },
+    "./JobProducer": {
+      "types": "./dist/JobProducer.d.ts",
+      "import": "./dist/JobProducer.js"
+    },
+    "./JobRegistry": {
+      "types": "./dist/JobRegistry.d.ts",
+      "import": "./dist/JobRegistry.js"
+    },
+    "./JobConsumer": {
+      "types": "./dist/JobConsumer.d.ts",
+      "import": "./dist/JobConsumer.js"
+    },
     "./JobId": {
       "types": "./dist/JobId.d.ts",
       "import": "./dist/JobId.js"
