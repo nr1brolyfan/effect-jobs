@@ -12,6 +12,14 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./JobLifecycle": {
+      "types": "./dist/JobLifecycle.d.ts",
+      "import": "./dist/JobLifecycle.js"
+    },
+    "./JobStore": {
+      "types": "./dist/JobStore.d.ts",
+      "import": "./dist/JobStore.js"
+    },
     "./Job": {
       "types": "./dist/Job.d.ts",
       "import": "./dist/Job.js"
