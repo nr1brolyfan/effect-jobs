@@ -8,6 +8,18 @@
   "sideEffects": false,
   "packageManager": "bun@1.4.2",
   "exports": {
+    "./JobWorker": {
+      "types": "./dist/JobWorker.d.ts",
+      "import": "./dist/JobWorker.js"
+    },
+    "./JobWorkerRuntime": {
+      "types": "./dist/JobWorkerRuntime.d.ts",
+      "import": "./dist/JobWorkerRuntime.js"
+    },
+    "./PollingJobWorker": {
+      "types": "./dist/PollingJobWorker.d.ts",
+      "import": "./dist/PollingJobWorker.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
