@@ -62,8 +62,8 @@ export const validateClaimArtifact = (
         : { availableAt: prepared.availableAt }),
       encoded: Object.freeze({
         ...prepared.encoded,
-        payloadBytes: prepared.encoded.payloadBytes.slice(),
-        semanticProjectionBytes: prepared.encoded.semanticProjectionBytes.slice()
+        payloadBytes: new Uint8Array(prepared.encoded.payloadBytes),
+        semanticProjectionBytes: new Uint8Array(prepared.encoded.semanticProjectionBytes)
       })
     })
   })
