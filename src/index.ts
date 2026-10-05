@@ -1,5 +1,6 @@
 /**
  * effect-jobs package entrypoint.
- * Runtime capabilities will be added as the jobs substrate is extracted.
+ * Use focused JobId/JobIdentity/JobPolicy/JobFailure/JobContract/JobTransaction
+ * subpaths. The root intentionally does not load an all-modules barrel.
  */
 export {}

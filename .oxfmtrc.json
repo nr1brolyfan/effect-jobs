@@ -20,6 +20,14 @@
     "**/dist/**",
     "**/coverage/**",
     "**/.toolchain/**",
-    "**/bun.lock"
+    "**/bun.lock",
+    "/.multica/daemon_task_context.json",
+    "/.multica/project/resources.json",
+    "/.opencode/skills/multica-platform/SKILL.md",
+    "/.opencode/skills/multica-platform/references/agents.md",
+    "/.opencode/skills/multica-platform/references/issues.md",
+    "/.opencode/skills/multica-platform/references/mentions.md",
+    "/.opencode/skills/multica-platform/references/skill-import.md",
+    "/AGENTS.md"
   ]
 }
