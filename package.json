@@ -122,7 +122,7 @@
     "verify": "bun run check && bun run lint && bun run format:check && bun run build && bun run test"
   },
   "peerDependencies": {
-    "drizzle-orm": "0.45.1",
+    "drizzle-orm": "1.0.0-rc.5-169397b",
     "effect": "4.0.0"
   },
   "peerDependenciesMeta": {
@@ -133,7 +133,7 @@
   "devDependencies": {
     "@effect/tsgo": "0.48.0",
     "@types/node": "26.4.1",
-    "drizzle-orm": "0.45.1",
+    "drizzle-orm": "1.0.0-rc.5-169397b",
     "effect": "4.0.0",
     "oxfmt": "0.71.0",
     "oxlint": "1.86.0",
