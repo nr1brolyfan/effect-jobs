@@ -89,9 +89,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     )
     const ownership = JSON.parse(readFileSync(`${directory}/ownership.json`, "utf8"))
     expect(ownership.container_id).toBe(
-      "6afbcddb555e2b546b0b6783a2196e9d8efae6f23950800b2ad1738117217526"
+      "7ee5ccb0bf30e1ff2bf6e06b2948edf68bafa2cb5754392d7692f052fe7922a6"
     )
-    expect(new Date().getTime()).toBeLessThan(Date.parse(ownership.deadline) - 30000)
+    expect(new Date().getTime()).toBeLessThan(Date.parse(ownership.deadline) - 60000)
     expect(env.POSTGRES_DB).toBe("effect_jobs_d6")
     const config: PoolConfig = {
       host: "127.0.0.1",

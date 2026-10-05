@@ -66,7 +66,7 @@ run("bun", [
   "add",
   "--ignore-scripts",
   "pg@8.23.0",
-  "drizzle-orm@0.45.1",
+  `drizzle-orm@${manifest.peerDependencies["drizzle-orm"]}`,
   "vitest@4.1.11",
   "typescript@7.0.2",
   "@types/node@26.4.1",
@@ -132,9 +132,9 @@ writeFileSync(
   })
 )
 run("node", ["node_modules/typescript/bin/tsc", "-p", "tsconfig.json"])
-// Match the repository's Drizzle consumer setting. Drizzle 0.45.1's own
-// declarations fail skipLibCheck:false (including unrelated optional drivers).
-// Keep strict full declaration checking above for the non-Drizzle backend.
+// Match the repository's Drizzle consumer setting. This does not qualify
+// upstream Drizzle declarations with skipLibCheck:false. Keep strict full
+// declaration checking above for the non-Drizzle backend.
 writeFileSync(
   join(directory, "drizzle-types.ts"),
   `
