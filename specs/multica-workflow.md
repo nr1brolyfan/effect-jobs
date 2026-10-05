@@ -8,14 +8,14 @@ Ten dokument opisuje docelowe zasady pracy w projektach effect-auth, effect-jobs
 
 Każdy projekt ma własny podstawowy roster sześciu wielorazowych profili:
 
-| Rola | Odpowiedzialność |
-| --- | --- |
-| Implementor | Implementacja, lokalne testy, handoff i zaakceptowane poprawki na tej samej gałęzi. |
-| Reviewer DX / Standardization | Ergonomia, overengineering, spójność, SRP i składanie Layerów. |
-| Reviewer Security / Persistence / Concurrency | Granice zaufania, bezpieczeństwo danych oraz trwałość i współbieżność. |
-| Reviewer Correctness / Effect / Tests / Observability / Performance | Poprawność, Effect, testy, diagnostyka i rzeczywisty koszt kodu/importów. |
-| Findings Triage | Jedna krytyczna ocena wszystkich raportów i jedna lista zaakceptowanych poprawek. |
-| Coordinator | Rozdział zadań, zależności i ownership, zlecanie etapów, odbiór wyników, kontrola bramek i autoryzowany merge. |
+| Rola                                                                | Odpowiedzialność                                                                                                                                           |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Implementor                                                         | Implementacja, lokalne testy, handoff i zaakceptowane poprawki na tej samej gałęzi.                                                                        |
+| Reviewer DX / Standardization                                       | Ergonomia, overengineering, spójność, SRP i składanie Layerów.                                                                                             |
+| Reviewer Security / Persistence / Concurrency                       | Granice zaufania, bezpieczeństwo danych oraz trwałość i współbieżność.                                                                                     |
+| Reviewer Correctness / Effect / Tests / Observability / Performance | Poprawność, Effect, testy, diagnostyka i rzeczywisty koszt kodu/importów.                                                                                  |
+| Findings Triage                                                     | Jedna krytyczna ocena wszystkich raportów i jedna lista zaakceptowanych poprawek.                                                                          |
+| Coordinator                                                         | Rozdział zadań, zależności i ownership, dobór potrzebnych reviews do ryzyka zmiany, zlecanie etapów, odbiór wyników, kontrola bramek i autoryzowany merge. |
 
 **Profil agenta jest stałą rolą, nie pojedynczym taskiem.** Nowe zadanie oznacza osobne issue i wykonanie, nie nowego agenta nazwanego numerem PR-a. Ten sam profil może obsługiwać kilka niezależnych wykonań, każde z własnym kontekstem i worktree. Konfiguracja concurrency nie jest gwarancją przepustowości hosta.
 
@@ -41,14 +41,14 @@ Nie dodajemy do nazw modelu, reasoning, numeru issue/PR-a, nazwy funkcjonalnośc
 
 ## 3. Gdzie przechowujemy informacje
 
-| Miejsce | Co tam należy |
-| --- | --- |
-| System prompt / instrukcje agenta | Krótka, stabilna rola, granica projektu, zasady bezpieczeństwa, aktualny workflow i odsyłacze do źródeł kontekstu. |
-| Projekt Multica | Repozytorium, roster, trwałe ograniczenia, autoryzacje i odsyłacze do zaakceptowanych decyzji/specyfikacji. |
-| Opis issue | Cel, zakres i wykluczenia, ownership, zależności, snapshot/baseline oraz skończone kryteria akceptacji. |
-| Komentarze i załączniki issue | Dyskusja, decyzje dla tego zadania, reprodukcje, raporty, logi i handoff. |
-| Metadata issue | Mały checkpoint: faza, IDs wykonania/raportów, base/head/tree, blocker, następny krok i cursor odebranych wiadomości. |
-| Dokumentacja repo | Normatywne API, architektura, zaakceptowane decyzje i powtarzalne polecenia testowe. |
+| Miejsce                           | Co tam należy                                                                                                         |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| System prompt / instrukcje agenta | Krótka, stabilna rola, granica projektu, zasady bezpieczeństwa, aktualny workflow i odsyłacze do źródeł kontekstu.    |
+| Projekt Multica                   | Repozytorium, roster, trwałe ograniczenia, autoryzacje i odsyłacze do zaakceptowanych decyzji/specyfikacji.           |
+| Opis issue                        | Cel, zakres i wykluczenia, ownership, zależności, snapshot/baseline oraz skończone kryteria akceptacji.               |
+| Komentarze i załączniki issue     | Dyskusja, decyzje dla tego zadania, reprodukcje, raporty, logi i handoff.                                             |
+| Metadata issue                    | Mały checkpoint: faza, IDs wykonania/raportów, base/head/tree, blocker, następny krok i cursor odebranych wiadomości. |
+| Dokumentacja repo                 | Normatywne API, architektura, zaakceptowane decyzje i powtarzalne polecenia testowe.                                  |
 
 ### Higiena system promptów
 
@@ -80,9 +80,19 @@ Lokalna checklista zależy od projektu i aktualnego CI; obejmuje wymagane format
 
 Implementor przygotowuje PR, jeśli push/PR są autoryzowane; w przeciwnym razie lokalny handoff. Nie wykonuje self-merge. Commity są zgodne z Conventional Commits.
 
-## 5. Dokładnie jedna runda trzech blind reviews
+## 5. Dobór review do ryzyka — od zera do trzech reviewerów
 
-Po zakończeniu implementacji i lokalnej kwalifikacji koordynator zamraża **ten sam base/head/tree** dla trzech niezależnych review. Wszystkie startują równolegle na **Sol Medium**. Przy kilku implementorach kończących w podobnym czasie review różnych implementacji również pracują równolegle.
+**Koordynator decyduje dla konkretnego PR-a, czy review AI jest potrzebne i które zakresy uruchomić: 0, 1, 2 albo 3 reviewerów.** Nie uruchamiamy całej trójki automatycznie. Decyzja opiera się na rzeczywistym diffie, ryzyku, zmianie kontraktów i istniejących dowodach — nie na liczbie plików lub samej etykiecie taska.
+
+- **0 reviews:** prosta korekta Markdown, redakcyjna aktualizacja dokumentacji lub mała test-only zmiana z jednoznacznym oracle i lokalnym dowodem, bez zmiany zachowania/kontraktu lub osłabiania bramek. To poprawny zwykły wybór koordynatora, nie wyjątek wymagający każdorazowej zgody właściciela.
+- **1–2 reviews:** ograniczona zmiana wymagająca oceny tylko wybranych aspektów; uruchamiamy właściwe role, nie brakujących reviewerów „dla kompletu”.
+- **3 reviews:** zalecane dla istotnych zmian runtime, publicznego API, granic bezpieczeństwa, persistence/transakcji lub współbieżności, gdy wszystkie trzy perspektywy są przydatne.
+
+Markdown może zmieniać normatywny kontrakt bezpieczeństwa, a testy mogą zmieniać oracle, usuwać negatywne kontrole lub ukrywać regresję. Takie PR-y nie są automatycznie low-risk. Jawne wymagania właściciela/projektu dotyczące konkretnej zmiany pozostają wiążące; oszczędność tokenów nie jest powodem do ich obejścia.
+
+Przed dispatch koordynator zapisuje w issue krótko: wybrane role albo `no AI review`, uzasadnienie oraz snapshot. Dobór może zostać skorygowany po zobaczeniu finalnego diffu, ale nie służy odrzucaniu niewygodnych findings lub uruchamianiu kolejnej rundy po poprawkach.
+
+Jeśli review jest potrzebne, koordynator zamraża **ten sam base/head/tree** dla wszystkich wybranych reviewerów. Startują równolegle na **Sol Medium**; przy kilku implementacjach reviews również mogą pracować równolegle. Obowiązuje **maksymalnie jedna runda**, bez drugiego/delta/final review po poprawkach. Przy zerze reviews przechodzimy bezpośrednio do testów i bramek integracji/merge, bez pustych wykonań review lub triage.
 
 ### DX / Overengineering / Standardization
 
@@ -103,16 +113,16 @@ Poprawność kodu i testów, właściwe wykorzystanie Effect, Schema, tagged err
 - Preferencje i opcjonalne sugestie są jawnie nieblokujące. **Zero findingów jest poprawnym wynikiem.**
 - Błąd setupu nie jest zerem findings. Naprawiamy setup i kończymy ten sam pierwszy review; nie tworzymy nowej rundy.
 - Kompletny raport pozostaje użyteczny mimo późniejszego EOF/błędu platformy. Najpierw odbieramy dowody, nie powtarzamy ukończonego review.
-- Review odbywa się **tylko raz bezpośrednio po implementacji**. Nie ma drugiego review, delta review ani dodatkowego final reviewer po poprawkach.
-- Jawny wyjątek właściciela może wyłączyć review dla konkretnego zadania. Wyjątek zapisujemy w issue, nie w system promptcie; nie znosi wymaganych testów i bramek merge.
+- Jeśli review zostało wybrane, odbywa się **tylko raz bezpośrednio po implementacji**. Nie ma drugiego review, delta review ani dodatkowego final reviewer po poprawkach.
+- Wybór mniejszej liczby reviewerów lub brak review nie znosi wymaganych testów, lokalnej kwalifikacji, checks, autoryzacji ani bramek merge.
 
 ## 6. Krytyczny triage i poprawki
 
-Po odebraniu **wszystkich trzech pełnych raportów** koordynator zleca jednemu agentowi triage krytyczną ocenę zgłoszeń. Nie wysyła implementorowi surowych findings przed triage.
+Po odebraniu **wszystkich zaplanowanych pełnych raportów**, jeśli zgłoszono findings do rozstrzygnięcia, koordynator zleca jednemu agentowi triage ich krytyczną ocenę. Nie wysyła implementorowi surowych findings przed triage. Przy braku review lub findings nie uruchamiamy pustego triage tylko dla potwierdzenia; zapisujemy ten wynik i przechodzimy do wymaganych bramek.
 
 Triage deduplikuje przyczyny, weryfikuje dowody i klasyfikuje zgłoszenia jako accepted/rejected/deferred z uzasadnieniem. Odrzuca false positives, uwagi zbyt nieistotne, overengineering, security theatre i szkodliwe DX. To nie głosowanie ani mechaniczne połączenie raportów; zero zaakceptowanych poprawek jest poprawnym wynikiem.
 
-Tylko accepted findings wracają do **tego samego implementora, issue i gałęzi/PR-a**. Lista jest skończona, z kryteriami weryfikacji. Po poprawkach uruchamiamy oryginalne reprodukcje i dotknięte testy/bramki, **bez kolejnego AI review**. Koordynator sprawdza dowody i integrację; nie staje się czwartym reviewerem z nowym blanket audytem.
+Tylko accepted findings wracają do **tego samego implementora, issue i gałęzi/PR-a**. Lista jest skończona, z kryteriami weryfikacji. Po poprawkach uruchamiamy oryginalne reprodukcje i dotknięte testy/bramki, **bez kolejnego AI review**. Koordynator sprawdza dowody i integrację; nie staje się dodatkowym reviewerem z nowym blanket audytem.
 
 Nowy rzeczywisty błąd integracji wymaga konkretnej reprodukcji i wąskiej poprawki autora, nie restartu całego pipeline. Nowa, odrębna implementacja może mieć własny cykl, ale nie tworzymy nowego PR-a tylko po to, żeby obejść zasadę jednej rundy.
 
@@ -140,7 +150,7 @@ Handoff obejmuje: projekt/issue, zakres i wykluczenia, ownership, repo/branch/wo
 Przed merge koordynator potwierdza:
 
 1. Właściwy projekt, autoryzację i skończone kryteria akceptacji.
-2. Jeden ukończony cykl review/triage albo jawny task-specific wyjątek.
+2. Zapisaną decyzję o zakresie review (również zero) i ukończenie wszystkich wybranych reviews oraz triage, jeśli były findings do rozstrzygnięcia.
 3. Zamknięcie accepted findings i lokalne dowody dla finalnego kodu.
 4. Integrację z aktualnym target branch, bez utraty zmian innych autorów; testy adekwatne do rzeczywistej delty integracji.
 5. Wymagane hosted checks dla właściwego snapshotu — nie wyniki starego headu.
