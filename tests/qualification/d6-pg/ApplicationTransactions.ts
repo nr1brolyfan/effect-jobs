@@ -24,6 +24,8 @@ const handles = new WeakMap<Handle, State>()
 const Current = Context.Reference<Option.Option<Handle>>("d6/Current", {
   defaultValue: Option.none
 })
+/** Phase-B owned-operation guard reads the manager's real ambient invocation. */
+export const activeHandle = Current
 export interface Counters {
   borrows: number
   readonly sql: Array<string>
