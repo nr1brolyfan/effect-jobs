@@ -1,0 +1,12 @@
+{
+  "name": "effect-jobs-postgresql-qualification",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "drizzle-orm": "0.45.1",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.20.0"
+  }
+}

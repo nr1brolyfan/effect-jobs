@@ -1,0 +1,12 @@
+{
+  "name": "effect-jobs-d6-pg-qualification",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "effect": "4.0.0",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.20.0"
+  }
+}

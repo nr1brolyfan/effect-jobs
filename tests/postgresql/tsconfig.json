@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "drizzle-orm": ["./node_modules/drizzle-orm/index.d.ts"],
+      "drizzle-orm/*": ["./node_modules/drizzle-orm/*/index.d.ts"]
+    }
+  },
+  "include": ["../../src/**/*.ts", "./*.ts"]
+}
