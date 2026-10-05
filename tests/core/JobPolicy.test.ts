@@ -3,6 +3,44 @@ import { describe, expect, it } from "vitest"
 import * as JobPolicy from "../../src/JobPolicy.js"
 
 describe("complete immutable policy", () => {
+  it.each([
+    0n,
+    -1_000_000n,
+    500_000n,
+    31_536_000_000_000_001n,
+    253_402_300_800_000_000_000n
+  ])("rejects invalid nanoseconds before conversion loses precision", (nanos) => {
+    for (const field of [
+      "leaseDuration",
+      "attemptTimeout",
+      "retryDelay",
+      "completedRetention",
+      "deadRetention"
+    ] as const) {
+      expect(() => JobPolicy.make({ [field]: Duration.nanos(nanos) })).toThrow(
+        expect.objectContaining({ _tag: "JobPolicyConfigurationError", field })
+      )
+    }
+  })
+  it("accepts exact maximum nanoseconds without rounding integer milliseconds", () => {
+    const maximum = Duration.nanos(253_402_300_799_999_000_000n)
+    const policy = JobPolicy.make({
+      leaseDuration: maximum,
+      attemptTimeout: Duration.nanos(1_000_000n),
+      retryDelay: maximum,
+      completedRetention: maximum,
+      deadRetention: maximum
+    })
+    expect(policy.leaseDurationMillis).toBe(JobPolicy.maximumMillis)
+    expect(policy.attemptTimeoutMillis).toBe(1)
+    expect(policy.retrySchedule.delayMillis).toBe(JobPolicy.maximumMillis)
+    expect(policy.completedRetention).toEqual({
+      _tag: "Duration",
+      millis: JobPolicy.maximumMillis
+    })
+    expect(policy.deadRetention).toEqual(policy.completedRetention)
+    expect(Schema.is(JobPolicy.PersistedJobPolicy)(policy)).toBe(true)
+  })
   it("does not convert finite oversized nanoseconds into Forever retention", () => {
     const tooLarge = Duration.nanos(10n ** 400n)
     expect(Duration.isFinite(tooLarge)).toBe(true)

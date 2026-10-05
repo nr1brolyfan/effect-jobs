@@ -53,7 +53,17 @@ export class JobPolicyConfigurationError extends Data.TaggedError(
 }> {}
 
 const millis = (value: Duration.Duration, field: keyof JobPolicyOptions): number => {
-  const n = Duration.toMillis(value)
+  const n = Duration.match(value, {
+    onMillis: (n) => n,
+    onNanos: (nanos) =>
+      nanos % 1_000_000n === 0n &&
+      nanos > 0n &&
+      nanos <= BigInt(maximumMillis) * 1_000_000n
+        ? Number(nanos / 1_000_000n)
+        : NaN,
+    onInfinity: () => Infinity,
+    onNegativeInfinity: () => -Infinity
+  })
   if (!Schema.is(PositiveMillis)(n)) {
     throw new JobPolicyConfigurationError({
       field,
