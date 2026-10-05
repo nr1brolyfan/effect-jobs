@@ -153,7 +153,23 @@ The factory is immutable configuration, not a service or running producer.
 `operation` retains its literal type; `slot` is inferred as the union of declared
 literals. `operationId` is a bounded opaque string; application-branded strings
 are accepted without requiring an additional library brand. Validate external
-values at boundaries. Exact length limits remain to be specified.
+values at boundaries.
+
+The owner subsequently accepted these identifier boundaries and diagnostics:
+
+- `operationId` is 1–256 UTF-8 bytes, contains valid Unicode scalar values and
+  no NUL, and is compared exactly without trimming, case folding or normalization.
+- `operation` and each `slot` are 1–128 ASCII characters matching
+  `^[a-z][a-z0-9.-]*$`. The simple regular expression is accepted.
+- Invalid declaration names fail immediately when creating the producer, not
+  later during enqueue. Ordinary TypeScript string types do not validate this
+  grammar; inferred slot unions still reject undeclared slots statically.
+- Configuration errors identify the exact field (including a slot index), the
+  invalid declaration name, and the expected length/format so callers can fix it.
+  Invalid operation IDs report the violated rule and, for length violations, the
+  actual UTF-8 byte length without echoing the potentially sensitive value.
+- Tests must cover these boundaries and actionable diagnostics. These accepted
+  rules do not claim that runtime validation has already been implemented.
 
 Start with `identity({ operationId, slot })`; fluent `forOperation(...).slot(...)`
 is not required for the initial implementation. Do not introduce a mutable
@@ -279,9 +295,91 @@ immediate rerun of the handler.
 Only explicit bounded failure codes are persisted, not arbitrary error messages
 or raw `Cause.pretty`. Preserve the existing persisted FixedDelayV1 retry and
 bounded recovery protocol during extraction rather than adding exponential retry.
-Exact constructor spellings, attempt counting, and deadline boundary behavior
-must be specified and qualified before implementation; no unbounded retry or
+The owner subsequently accepted preserving the existing attempt-counting protocol:
+`context.attemptNumber = attemptsMade + 1`. Claim/release do not increment
+`attemptsMade`; a confirmed, fenced Complete/Retry/Dead/Isolate transition
+increments it exactly once. An unknown outcome leaves it unchanged; recovery
+uses a separate `stalledCount` and limit. Thus the exposed one-based attempt number
+may repeat after an unknown outcome and recovery. It is neither an external
+idempotency key nor a count of all handler invocations. `maxAttempts` bounds
+finalized attempts, while `maxStalledCount` separately bounds uncertain recovery.
+This accepts counter semantics, not unpresented exact time-boundary comparisons.
+
+The owner subsequently accepted preserving these exact time boundaries:
+
+- A job is due when `availableAt <= dbNow`.
+- Fenced owned writes require `leaseExpiresAt > dbNow`; expiry recovery is
+  eligible when `leaseExpiresAt <= dbNow`.
+- `attemptTimeoutMillis < leaseDurationMillis` is required.
+- A claim or reconciled lease is usable only with remaining lease time
+  `>= attemptTimeoutMillis + operationResponseBudgetMillis`.
+- A retry whose computed next availability is `>= notAfter` becomes Dead rather
+  than being scheduled. `notAfter` limits retry scheduling, not handler execution
+  or initial availability.
+- Durable transitions use one database-time snapshot rather than process time.
+  Tests must exercise equality and immediately neighboring values.
+
+Exact constructor spellings and remaining boundary details must be specified,
+and the accepted behavior must be qualified before implementation; no unbounded retry or
 new lifecycle status is approved. Acceptance does not authorize dispatch.
+
+### Accepted policy input refinement
+
+The owner accepted `JobPolicy.make` with all configuration fields optional and
+documented defaults, including retention. Public callers do not manually write
+internal tagged retry/retention objects or use choice callbacks.
+
+- Counters use integer numbers.
+- Timeout, lease duration and fixed retry delay use finite Effect `Duration`
+  values. Exact valid numeric ranges and execution defaults still need explicit
+  specification and qualification; example values are not approved defaults.
+- Completed and Dead retention accept finite Effect `Duration` values or
+  `Duration.infinity`. Default Completed retention is 90 days; default Dead
+  retention is infinite. Retention is measured from terminal completion, not an
+  absolute timestamp. `availableAt` remains a separate enqueue input.
+- The helper resolves a complete validated policy, including cross-field checks,
+  and the backend persists those resolved values in its versioned internal
+  representation. Updated defaults do not alter already stored jobs.
+- Purging Completed jobs can remove deduplication evidence after the retention
+  period. Infinite retention avoids automatic expiry but can grow storage.
+
+Illustrative public input:
+
+```ts
+const policy = JobPolicy.make({
+  maxAttempts: 3,
+  retryDelay: Duration.seconds(5),
+  completedRetention: Duration.days(90),
+  deadRetention: Duration.infinity
+})
+```
+
+`JobPolicy.make()` also resolves the documented defaults. This decision changes
+the earlier proposal requiring explicit retention; it does not introduce
+exponential retry, automatic Isolated cleanup, or unlimited Pending/Active cleanup.
+
+The owner accepted these execution defaults (public names remain illustrative):
+
+```ts
+{
+  leaseDuration: Duration.seconds(90),
+  attemptTimeout: Duration.seconds(30),
+  retryDelay: Duration.seconds(5),
+  maxAttempts: 3,
+  maxStalledCount: 1
+}
+```
+
+The attempt limit includes the first finalized attempt, not three additional
+retries. One stalled recovery is permitted by default; a subsequent recovery
+exceeding the stored limit ends the job as Dead. Unknown outcomes can repeat an
+attempt number and lead to additional handler invocations. An attempt timeout
+does not prove that external effects did not occur.
+
+The owner reaffirmed fixed-delay retry for this extraction. Exponential backoff
+with jitter is recorded as a future strategy, not activated implementation scope.
+Its multiplier, cap, jitter distribution and persisted/versioned representation
+must be specified and qualified separately before adding it.
 
 ## D5 — explicit application-owned protection and codec boundaries
 
@@ -306,6 +404,27 @@ without requiring key access. Application producers and handler adapters need
 the protection service and its key configuration via ordinary Effect/Layer
 composition. They may run in the same process as the queue; this is a dependency
 and responsibility boundary, not a physical security isolation claim.
+
+The owner subsequently selected protected representation option A: the
+application defines the envelope and fingerprint Schemas. The protected marker
+requires an own `fingerprint` field with a validated canonical JSON
+representation; semantic equality uses that fingerprint and excludes the rest
+of the marked subtree, including randomized ciphertext. The library does not
+mandate a fixed encrypted-envelope format or a caller-supplied fingerprint
+projection callback. The application remains responsible for sealing, opening
+and cryptographic validation; the marker does not prove protection.
+
+```ts
+const Protected = JobPayload.protected(
+  Schema.Struct({
+    envelope: MyEncryptedEnvelope,
+    fingerprint: MyFingerprint
+  })
+)
+```
+
+This API spelling is illustrative until implementation qualification. Existing
+codec support and explicit unsupported-shape requirements below still apply.
 
 Rationale: explicit encryption/decryption points, application control of keyring
 or KMS, reusable protection services, and less new generic crypto machinery in
@@ -443,6 +562,24 @@ implementation, or agent dispatch is authorized by acceptance.
 
 Status: composition contract accepted by the owner on 2026-10-04. Tracked in
 Multica as UPVE-858. Concrete shipped adapter coverage still needs qualification.
+
+The owner subsequently selected the backend callback join approach (option A).
+The core transaction capability has a private constructor; a qualified backend
+bridge provides it inside a callback joining the application's active transaction:
+
+```ts
+appDatabase.transaction((appTx) =>
+  PostgreSqlJobs.joinTransaction(appTx, (jobsTx) => definition.enqueue(jobsTx, input))
+)
+```
+
+These names remain illustrative. The bridge uses the same active connection and
+source, without a fallback connection, new transaction, savepoint, independent
+commit or replay. The capability is invalidated when the callback scope ends,
+including interruption; later enqueue must fail with an actionable error.
+Custom backend adapters need an explicit documented extension contract and
+qualification, not a public core constructor accepting any insert callback.
+This is lifetime/atomicity correctness, not a sandbox for trusted application code.
 
 ### Two distinct capabilities
 
