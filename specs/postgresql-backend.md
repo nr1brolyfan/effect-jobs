@@ -1,10 +1,11 @@
-# PostgreSQL backend — qualified source, integration blocked
+# PostgreSQL backend — qualification and integration
 
-The production source and concrete application-manager fixture passed phase-B
-real-PostgreSQL qualification on both pinned runtimes. Package integration and
-installed-artifact qualification remain **blocked**, so this is not a shipped or
-fully qualified package. Phase A remains preserved at
-`301c4143c7bc54011a8aa024588be89780fa30c3`. No push, PR, publication or author-dispatched review.
+PR #6 was integrated at `0525adda1384788124b273ea5ee8eac17c40413a` after its
+completed original review set. The phase-B integration-blocked statements and
+receipts below describe their historical snapshots. Current Drizzle dependency
+compatibility qualification is recorded separately in
+[drizzle-compatibility.md](./drizzle-compatibility.md); it preserves those receipts
+and does not restart their review or qualify arbitrary transaction adapters.
 
 ## Public module boundaries
 
@@ -27,8 +28,9 @@ compose workers. Ordinary caller Effect value/error/environment/interruption
 channels pass through the callback bridge. Enqueue results are provisional until
 the application owner commits.
 
-The root package still lacks these four exports and the optional Drizzle peer.
-Those shared registrars belong to the coordinator, not this author.
+The root package now registers these four exports and the optional exact Drizzle
+peer. Shared registrars remain coordinator-owned. Their earlier missing state
+in the historical receipts below is not the current package configuration.
 
 ## Explicit application adapter contract
 
@@ -137,7 +139,7 @@ required columns, PK/UNIQUE/FK/cascade and valid partial indexes. It does not ru
 DDL or claim to audit every application migration/data constraint. The readiness
 correction passed the recovered-resource phase-B runs on both runtimes.
 
-## Current qualification and integration blockers
+## Historical phase-B qualification and integration blockers
 
 On `2026-10-05T15:56Z`, the current production source and final COMMIT-tag manager
 passed **27/27 on Node 24.15.0 and 27/27 on Bun 1.4.2**, against PostgreSQL 16.15,
