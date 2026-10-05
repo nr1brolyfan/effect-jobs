@@ -31,7 +31,7 @@ assert.notDeepEqual(first.payloadBytes, second.payloadBytes)
 assert.deepEqual(first.semanticProjectionBytes, second.semanticProjectionBytes)
 assert.equal(
   new TextDecoder().decode(first.semanticProjectionBytes),
-  '{"amount":"1.5","kind":"secret","value":{"$protected":{"fingerprint":"stable","path":"/value"}}}'
+  '{"data":{"amount":"1.5","kind":"secret","value":null},"protected":{"/value":"stable"}}'
 )
 assert.deepEqual(await Effect.runPromise(decodeJobPayload(Payload, first)), input)
 const error = await Effect.runPromise(

@@ -67,6 +67,7 @@ export const project = (ast: SchemaAST.AST, value: unknown) =>
   Effect.try({
     try: () => {
       let count = 0
+      const protectedFields: Array<readonly [string, unknown]> = []
       const visit = (node: SchemaAST.AST, item: unknown, path: string): unknown => {
         if (encoder.encode(path).byteLength > maximumJobPayloadSchemaPathBytes) {
           throw new JobPayloadCodecError({ reason: "schema-path-too-long" })
@@ -92,7 +93,8 @@ export const project = (ast: SchemaAST.AST, value: unknown) =>
           ) {
             throw new JobPayloadCodecError({ reason: "invalid-json-value" })
           }
-          return { $protected: { path, fingerprint: fingerprint.value } }
+          protectedFields.push([path, fingerprint.value])
+          return null
         }
         if (SchemaAST.isUnion(node)) {
           const branch = node.types.find(
@@ -138,7 +140,11 @@ export const project = (ast: SchemaAST.AST, value: unknown) =>
         }
         return item
       }
-      return visit(ast, value, "")
+      // Application JSON is always inside data, never interpreted as metadata.
+      // null placeholders preserve positions; the separate path map distinguishes
+      // protected nodes from public nulls, including inside Schema.Unknown.
+      const data = visit(ast, value, "")
+      return { data, protected: Object.fromEntries(protectedFields) }
     },
     catch: (error) =>
       error instanceof JobPayloadCodecError

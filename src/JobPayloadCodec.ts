@@ -55,7 +55,9 @@ export const encodeJobPayload: JobPayloadEncoder = Effect.fnUntraced(function* <
   const semanticProjectionBytes = yield* canonicalBytes(
     projection,
     maximumJobSemanticProjectionBytes,
-    "projection-too-large"
+    "projection-too-large",
+    // The representation envelope is not an application-data depth level.
+    -1
   )
   return { formatVersion: jobPayloadFormatVersion, payloadBytes, semanticProjectionBytes }
 })
@@ -116,7 +118,8 @@ export const decodeJobPayload: JobPayloadDecoder = Effect.fnUntraced(function* <
   const suppliedBytes = yield* canonicalBytes(
     suppliedProjection,
     maximumJobSemanticProjectionBytes,
-    "projection-too-large"
+    "projection-too-large",
+    -1
   )
   if (
     !bytesEqual(payloadBytes, snapshot.payloadBytes) ||
@@ -134,7 +137,8 @@ export const decodeJobPayload: JobPayloadDecoder = Effect.fnUntraced(function* <
   const projectionBytes = yield* canonicalBytes(
     projection,
     maximumJobSemanticProjectionBytes,
-    "projection-too-large"
+    "projection-too-large",
+    -1
   )
   if (!bytesEqual(projectionBytes, snapshot.semanticProjectionBytes)) {
     return yield* new JobPayloadCodecError({ reason: "projection-mismatch" })

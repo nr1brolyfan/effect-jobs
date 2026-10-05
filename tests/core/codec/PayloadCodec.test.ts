@@ -7,7 +7,10 @@ import { decodeJobPayload, encodeJobPayload } from "../../../src/JobPayloadCodec
 
 const text = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
 const bytes = (value: string) => new TextEncoder().encode(value)
-const artifact = (payload: string, projection = payload): EncodedJobPayload => ({
+const artifact = (
+  payload: string,
+  projection = `{"data":${payload},"protected":{}}`
+): EncodedJobPayload => ({
   formatVersion: 1,
   payloadBytes: bytes(payload),
   semanticProjectionBytes: bytes(projection)
@@ -43,7 +46,10 @@ it("emits exact canonical golden bytes, locale-independent keys, finite fraction
   assert.equal(a.formatVersion, 1)
   assert.equal(text(a.payloadBytes), '{"Z":"é","a":[true,null,0],"z":1.5}')
   assert.deepEqual(a.payloadBytes, b.payloadBytes)
-  assert.deepEqual(a.payloadBytes, a.semanticProjectionBytes)
+  assert.equal(
+    text(a.semanticProjectionBytes),
+    '{"data":{"Z":"é","a":[true,null,0],"z":1.5},"protected":{}}'
+  )
   assert.notEqual(a.payloadBytes, a.semanticProjectionBytes)
   assert.deepEqual(await Effect.runPromise(decodeJobPayload(Schema.Unknown, a)), {
     Z: "é",
@@ -85,7 +91,7 @@ it("projects selected Union branches through structs, arrays and optional fields
   assert.deepEqual(a.semanticProjectionBytes, b.semanticProjectionBytes)
   assert.equal(
     text(a.semanticProjectionBytes),
-    '{"items":[{"tag":"public","value":"visible"},{"tag":"secret","value":{"$protected":{"fingerprint":{"keyId":"fingerprint-key","value":"stable"},"path":"/items/1/value"}}}]}'
+    '{"data":{"items":[{"tag":"public","value":"visible"},{"tag":"secret","value":null}]},"protected":{"/items/1/value":{"keyId":"fingerprint-key","value":"stable"}}}'
   )
   assert.deepEqual(await Effect.runPromise(decodeJobPayload(Payload, a)), input)
   for (const changed of [
@@ -104,7 +110,10 @@ it("projects selected Union branches through structs, arrays and optional fields
   const publicOnly = await Effect.runPromise(
     encodeJobPayload(Item, { tag: "public", value: "visible" })
   )
-  assert.deepEqual(publicOnly.payloadBytes, publicOnly.semanticProjectionBytes)
+  assert.equal(
+    text(publicOnly.semanticProjectionBytes),
+    '{"data":{"tag":"public","value":"visible"},"protected":{}}'
+  )
 })
 
 it("requires own canonical fingerprints, ignores all other protected bytes, and escapes schema paths", async () => {
@@ -142,7 +151,7 @@ it("requires own canonical fingerprints, ignores all other protected bytes, and 
   assert.deepEqual(a.semanticProjectionBytes, b.semanticProjectionBytes)
   assert.equal(
     text(a.semanticProjectionBytes),
-    '{"a~/b":{"$protected":{"fingerprint":{"a":true,"z":1.5},"path":"/a~0~1b"}}}'
+    '{"data":{"a~/b":null},"protected":{"/a~0~1b":{"a":true,"z":1.5}}}'
   )
   await failure(
     encodeJobPayload(Protected, {
@@ -151,6 +160,87 @@ it("requires own canonical fingerprints, ignores all other protected bytes, and 
     } as never),
     "invalid-schema"
   )
+})
+
+it("separates protected metadata from public JSON at root, struct, array and optional positions", async () => {
+  const Secret = JobPayload.protected(
+    Schema.Struct({ ciphertext: Schema.String, fingerprint: Schema.String })
+  )
+  // Disjoint from Secret; Unknown also exercises nested arbitrary application keys.
+  const Choice = Schema.Union([
+    Secret,
+    Schema.Struct({ $protected: Schema.Unknown }),
+    Schema.Struct({ data: Schema.Unknown, protected: Schema.Unknown }),
+    Schema.Null
+  ])
+  const secret = { ciphertext: "one", fingerprint: "stable" }
+  const wrappers = [
+    { schema: Choice, wrap: (value: unknown) => value, path: "" },
+    {
+      schema: Schema.Struct({ value: Choice }),
+      wrap: (value: unknown) => ({ value }),
+      path: "/value"
+    },
+    { schema: Schema.Array(Choice), wrap: (value: unknown) => [value], path: "/0" },
+    {
+      schema: Schema.Struct({ value: Schema.optionalKey(Choice) }),
+      wrap: (value: unknown) => ({ value }),
+      path: "/value"
+    }
+  ]
+  for (const { schema, wrap, path } of wrappers) {
+    const first = await Effect.runPromise(encodeJobPayload(schema, wrap(secret) as never))
+    const rotated = await Effect.runPromise(
+      encodeJobPayload(schema, wrap({ ...secret, ciphertext: "two" }) as never)
+    )
+    assert.deepEqual(first.semanticProjectionBytes, rotated.semanticProjectionBytes)
+    for (const value of [
+      { $protected: { path, fingerprint: "stable" } },
+      { data: null, protected: { [path]: "stable" } },
+      null,
+      { ...secret, fingerprint: "changed" }
+    ]) {
+      const input = wrap(value)
+      const encoded = await Effect.runPromise(encodeJobPayload(schema, input as never))
+      assert.notDeepEqual(first.semanticProjectionBytes, encoded.semanticProjectionBytes)
+      assert.deepEqual(await Effect.runPromise(decodeJobPayload(schema, encoded)), input)
+    }
+    assert.deepEqual(
+      await Effect.runPromise(decodeJobPayload(schema, first)),
+      wrap(secret)
+    )
+    // A fully public Unknown may contain the entire new representation verbatim.
+    const imitation = JSON.parse(text(first.semanticProjectionBytes))
+    const publicEncoded = await Effect.runPromise(
+      encodeJobPayload(Schema.Unknown, imitation)
+    )
+    assert.notDeepEqual(
+      first.semanticProjectionBytes,
+      publicEncoded.semanticProjectionBytes
+    )
+    assert.deepEqual(
+      await Effect.runPromise(decodeJobPayload(Schema.Unknown, publicEncoded)),
+      imitation
+    )
+  }
+  const UnknownChoice = Schema.Union([Secret, Schema.Unknown])
+  const protectedEncoded = await Effect.runPromise(
+    encodeJobPayload(UnknownChoice, secret)
+  )
+  for (const value of [
+    { $protected: { path: "", fingerprint: "stable" } },
+    { data: null, protected: { "": "stable" } }
+  ]) {
+    const encoded = await Effect.runPromise(encodeJobPayload(UnknownChoice, value))
+    assert.notDeepEqual(
+      protectedEncoded.semanticProjectionBytes,
+      encoded.semanticProjectionBytes
+    )
+    assert.deepEqual(
+      await Effect.runPromise(decodeJobPayload(UnknownChoice, encoded)),
+      value
+    )
+  }
 })
 
 it("preserves the original root Union regression oracle and optional marked fields", async () => {
@@ -171,7 +261,7 @@ it("preserves the original root Union regression oracle and optional marked fiel
   assert.deepEqual(encoded.semanticProjectionBytes, reencrypted.semanticProjectionBytes)
   assert.equal(
     text(encoded.semanticProjectionBytes),
-    '{"label":"original","tag":"secret","value":{"$protected":{"fingerprint":{"keyId":"fingerprint-key","value":"stable"},"path":"/value"}}}'
+    '{"data":{"label":"original","tag":"secret","value":null},"protected":{"/value":{"keyId":"fingerprint-key","value":"stable"}}}'
   )
   for (const changed of [
     { ...input, label: "changed" },
@@ -256,13 +346,25 @@ it("rejects cycles, nonfinite/non-JSON values, arbitrary objects, accessors and 
 })
 
 it("enforces precise payload/projection byte, depth, subtree count and UTF-8 path bounds", async () => {
+  const PayloadBound = JobPayload.protected(
+    Schema.Struct({ ciphertext: Schema.String, fingerprint: Schema.String })
+  )
+  const payloadOverhead = bytes('{"ciphertext":"","fingerprint":"x"}').length
   const exact = await Effect.runPromise(
-    encodeJobPayload(Schema.String, "x".repeat(65534))
+    encodeJobPayload(PayloadBound, {
+      ciphertext: "x".repeat(65536 - payloadOverhead),
+      fingerprint: "x"
+    })
   )
   assert.equal(exact.payloadBytes.length, 65536)
   await failure(encodeJobPayload(Schema.String, "x".repeat(65535)), "payload-too-large")
   const multi = await Effect.runPromise(
-    encodeJobPayload(Schema.String, "é".repeat(32767))
+    encodeJobPayload(PayloadBound, {
+      ciphertext:
+        "é".repeat(Math.floor((65536 - payloadOverhead) / 2)) +
+        "x".repeat((65536 - payloadOverhead) % 2),
+      fingerprint: "x"
+    })
   )
   assert.equal(multi.payloadBytes.length, 65536)
   await failure(encodeJobPayload(Schema.String, "é".repeat(32768)), "payload-too-large")
@@ -325,11 +427,21 @@ it("enforces precise payload/projection byte, depth, subtree count and UTF-8 pat
   const RootProtected = JobPayload.protected(
     Schema.Struct({ fingerprint: Schema.String })
   )
-  const overhead = bytes('{"$protected":{"fingerprint":"","path":""}}').length
+  const overhead = bytes('{"data":null,"protected":{"":""}}').length
   const projected = await Effect.runPromise(
     encodeJobPayload(RootProtected, { fingerprint: "x".repeat(65536 - overhead) })
   )
   assert.equal(projected.semanticProjectionBytes.length, 65536)
+  await Effect.runPromise(decodeJobPayload(RootProtected, projected))
+  const publicOverhead = bytes('{"data":"","protected":{}}').length
+  const publicExact = await Effect.runPromise(
+    encodeJobPayload(Schema.String, "x".repeat(65536 - publicOverhead))
+  )
+  assert.equal(publicExact.semanticProjectionBytes.length, 65536)
+  await failure(
+    encodeJobPayload(Schema.String, "x".repeat(65537 - publicOverhead)),
+    "projection-too-large"
+  )
   await failure(
     encodeJobPayload(RootProtected, { fingerprint: "x".repeat(65537 - overhead) }),
     "projection-too-large"
@@ -482,7 +594,7 @@ it("persists validated encoded domain transforms, explicitly rejects unsupported
   )
   assert.equal(
     text(transformed.semanticProjectionBytes),
-    '{"$protected":{"fingerprint":"1.5","path":""}}'
+    '{"data":null,"protected":{"":"1.5"}}'
   )
   assert.deepEqual(
     await Effect.runPromise(decodeJobPayload(TransformedFingerprint, transformed)),
@@ -563,7 +675,10 @@ it("propagates separate runtime services and snapshots artifacts before applicat
     encodeJobPayload(Schema.Unknown, { value: "before" })
   )
   first.payloadBytes.fill(0)
-  assert.equal(text(first.semanticProjectionBytes), '{"value":"before"}')
+  assert.equal(
+    text(first.semanticProjectionBytes),
+    '{"data":{"value":"before"},"protected":{}}'
+  )
   const next = await Effect.runPromise(
     encodeJobPayload(Schema.Unknown, { value: "before" })
   )

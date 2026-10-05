@@ -17,7 +17,8 @@ const validScalars = (value: string): boolean => {
 export const canonicalText = (
   value: unknown,
   maximum: number,
-  reason: "payload-too-large" | "projection-too-large"
+  reason: "payload-too-large" | "projection-too-large",
+  rootDepth = 0
 ): string => {
   const seen = new Set<object>()
   let length = 0
@@ -119,17 +120,18 @@ export const canonicalText = (
     }
     throw new JobPayloadCodecError({ reason: "invalid-json-value" })
   }
-  return visit(value, 0)
+  return visit(value, rootDepth)
 }
 
 export const canonicalBytes = (
   value: unknown,
   maximum: number,
-  reason: "payload-too-large" | "projection-too-large"
+  reason: "payload-too-large" | "projection-too-large",
+  rootDepth = 0
 ) =>
   Effect.try({
     try: () => {
-      const bytes = encoder.encode(canonicalText(value, maximum, reason))
+      const bytes = encoder.encode(canonicalText(value, maximum, reason, rootDepth))
       if (bytes.byteLength > maximum) {
         throw new JobPayloadCodecError({ reason })
       }
