@@ -11,6 +11,30 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./JobId": {
+      "types": "./dist/JobId.d.ts",
+      "import": "./dist/JobId.js"
+    },
+    "./JobIdentity": {
+      "types": "./dist/JobIdentity.d.ts",
+      "import": "./dist/JobIdentity.js"
+    },
+    "./JobPolicy": {
+      "types": "./dist/JobPolicy.d.ts",
+      "import": "./dist/JobPolicy.js"
+    },
+    "./JobFailure": {
+      "types": "./dist/JobFailure.d.ts",
+      "import": "./dist/JobFailure.js"
+    },
+    "./JobContract": {
+      "types": "./dist/JobContract.d.ts",
+      "import": "./dist/JobContract.js"
+    },
+    "./JobTransaction": {
+      "types": "./dist/JobTransaction.d.ts",
+      "import": "./dist/JobTransaction.js"
     }
   },
   "files": [
