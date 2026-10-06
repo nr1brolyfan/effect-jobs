@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs"
 import { randomBytes, randomUUID } from "node:crypto"
-import { Effect, Exit, Duration, Schema, Deferred, Fiber } from "effect"
+import { Effect, Exit, Duration, Schema, Deferred, Fiber, Layer } from "effect"
 import type { PoolConfig } from "pg"
 import { Pool } from "../qualification/d6-pg/PgDriver.js"
 import { beforeAll, afterAll, describe, expect, test } from "vitest"
@@ -17,7 +17,13 @@ import {
 import type { ApplicationAdapter } from "../../src/PostgreSqlTransaction.js"
 import * as Payload from "../../src/JobPayload.js"
 import { encodeJobPayload, decodeJobPayload } from "../../src/JobPayloadCodec.js"
-import { validateClaimArtifact } from "../../src/internal/lifecycle/Artifacts.js"
+import * as Registry from "../../src/JobRegistry.js"
+import * as Consumer from "../../src/JobConsumer.js"
+import * as Worker from "../../src/JobWorker.js"
+import { drain } from "../../src/JobWorkerRuntime.js"
+import { JobFailures, type JobFailure } from "../../src/JobFailure.js"
+import type { HandlerInput } from "../../src/JobContract.js"
+import { readQualificationResource } from "../qualification/Resource.mjs"
 import type { ClaimedJob } from "../../src/JobStore.js"
 import type { JobsTransaction } from "../../src/JobTransaction.js"
 import * as App from "../qualification/d6-pg/ApplicationTransactions.js"
@@ -87,10 +93,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
           return [s.slice(0, i), s.slice(i + 1)]
         })
     )
-    const ownership = JSON.parse(readFileSync(`${directory}/ownership.json`, "utf8"))
-    expect(ownership.container_id).toBe(
-      "7ee5ccb0bf30e1ff2bf6e06b2948edf68bafa2cb5754392d7692f052fe7922a6"
-    )
+    const ownership = readQualificationResource(`${directory}`)
     expect(new Date().getTime()).toBeLessThan(Date.parse(ownership.deadline) - 60000)
     expect(env.POSTGRES_DB).toBe("effect_jobs_d6")
     const config: PoolConfig = {
@@ -227,6 +230,30 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         finalization
       })
     )
+  const runWorker = (
+    execute: (
+      input: HandlerInput<{ readonly invoiceId: string }>
+    ) => Effect.Effect<void, JobFailure>
+  ) =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          yield* Layer.build(definition.handlerLayer(execute, decodeJobPayload))
+          const worker = yield* Worker.make(backend.store, {
+            catalog: [definition],
+            operationResponseBudgetMillis: 100
+          })
+          const consumer = yield* Consumer.make(definition.queue, {
+            localConcurrency: 1,
+            claimLimitPerRun: 1,
+            recoveryLimitPerRun: 1
+          })
+          return yield* drain(consumer).pipe(
+            Effect.provideService(Worker.JobWorker, worker)
+          )
+        }).pipe(Effect.provide(Registry.layer))
+      )
+    )
   const clear = async () => {
     await observer.query("DELETE FROM backend_fixture.receipts")
     await observer.query("DELETE FROM backend_fixture.invoices")
@@ -300,6 +327,75 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       (await observer.query("SELECT count(*)::int AS n FROM backend_fixture.receipts"))
         .rows[0].n
     ).toBe(1)
+  })
+  test("installed neutral transaction through worker retry, unknown recovery, completion and bounded cleanup", async () => {
+    await clear()
+    const id = "pipeline"
+    const produced = await Effect.runPromise(
+      adapter.applicationTransaction((handle) =>
+        backend.joinTransaction(handle, (tx) =>
+          Effect.gen(function* () {
+            yield* handle.query("INSERT INTO backend_fixture.invoices(id) VALUES ($1)", [
+              id
+            ])
+            const result = yield* definition.enqueue(tx, input(id))
+            yield* handle.query(
+              "INSERT INTO backend_fixture.receipts(id,job_id) VALUES ($1,$2)",
+              [id, result.jobId]
+            )
+            return result
+          })
+        )
+      )
+    )
+    const seen: Array<number> = []
+    const execute = (value: HandlerInput<{ readonly invoiceId: string }>) =>
+      Effect.suspend((): Effect.Effect<void, JobFailure> => {
+        expect(value.payload.invoiceId).toBe(id)
+        expect(value.context.jobId).toBe(produced.jobId)
+        seen.push(value.context.attemptNumber)
+        if (seen.length === 1) {
+          return Effect.fail(JobFailures.Retry({ code: "temporary" }))
+        }
+        if (seen.length === 2) {
+          return Effect.fail(JobFailures.OutcomeUnknown({ code: "response_lost" }))
+        }
+        return Effect.void
+      })
+    await runWorker(execute)
+    const retry = await row(id)
+    expect(retry.state).toBe("RetryScheduled")
+    expect(Number(retry.available_at) - Number(retry.updated_at)).toBe(5000)
+    await observer.query("UPDATE backend_fixture.tasks SET available_at=1 WHERE id=$1", [
+      produced.jobId
+    ])
+    await runWorker(execute)
+    expect(await row(id)).toMatchObject({ state: "Active" })
+    expect(Number((await row(id)).attempts_made)).toBe(1)
+    await observer.query(
+      "UPDATE backend_fixture.tasks SET lease_expires_at=1 WHERE id=$1",
+      [produced.jobId]
+    )
+    expect(await Effect.runPromise(backend.store.recoverExpired(1))).toBe(1)
+    await observer.query("UPDATE backend_fixture.tasks SET available_at=1 WHERE id=$1", [
+      produced.jobId
+    ])
+    await runWorker(execute)
+    expect(seen).toEqual([1, 2, 2])
+    expect(await row(id)).toMatchObject({ state: "Completed" })
+    expect(Number((await row(id)).attempts_made)).toBe(2)
+    expect(Number((await row(id)).stalled_count)).toBe(1)
+    // Application owns removal of its receipt before selecting generic cleanup.
+    await observer.query("DELETE FROM backend_fixture.receipts WHERE id=$1", [id])
+    expect(await Effect.runPromise(backend.cleanup.cleanup(1))).toBe(1)
+    expect(
+      (
+        await observer.query(
+          "SELECT count(*)::int AS n FROM backend_fixture.task_artifacts WHERE job_id=$1",
+          [produced.jobId]
+        )
+      ).rows[0].n
+    ).toBe(0)
   })
   test("explicit readiness validates relations/constraints/indexes; missing mapping fails finitely without DDL", async () => {
     await Effect.runPromise(backend.ready)
@@ -865,22 +961,13 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       "UPDATE backend_fixture.task_artifacts SET payload=convert_to('{','UTF8') WHERE job_id=$1",
       [inserted.jobId]
     )
-    const claimed = await claim()
-    const artifact = validateClaimArtifact(claimed)
-    expect(artifact._tag).toBe("Success")
-    if (artifact._tag !== "Success") {
-      throw new Error("unexpected structural artifact failure")
-    }
-    await expect(
-      Effect.runPromise(decodeJobPayload(definition.payload, artifact.success.encoded))
-    ).rejects.toMatchObject({ _tag: "JobPayloadCodecError" })
-    await Effect.runPromise(
-      backend.store.finalize({
-        ownership: claimed.ownership,
-        before: claimed.snapshot,
-        finalization: { _tag: "Isolate", code: "invalid_artifact" }
+    let dispatched = 0
+    await runWorker(() =>
+      Effect.sync(() => {
+        dispatched++
       })
     )
+    expect(dispatched).toBe(0)
     expect((await claim()).prepared).toBeDefined()
     expect(await row("malformed")).toMatchObject({ state: "Isolated" })
   })

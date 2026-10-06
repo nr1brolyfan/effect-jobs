@@ -1,7 +1,7 @@
 {
   "name": "effect-jobs",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0-alpha.0",
+  "private": false,
   "description": "Effect-native durable, transaction-bound background jobs.",
   "license": "MIT",
   "type": "module",
@@ -104,10 +104,15 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md",
+    "specs/architecture-decisions.md",
+    "specs/core-contract.md",
+    "specs/postgresql-backend.md",
+    "specs/drizzle-compatibility.md",
+    "specs/release-qualification.md"
   ],
   "scripts": {
-    "prepare": "bun run toolchain:setup",
     "toolchain:setup": "effect-tsgo patch --typescript --oxlint",
     "check": "bun run toolchain:setup && tsc --project tsconfig.json --noEmit && tsc --project tsconfig.build.json --noEmit",
     "build": "bun run toolchain:setup && tsc --project tsconfig.build.json",
@@ -120,7 +125,10 @@
     "test:postgresql:bun": "PG_EXPECT_RUNTIME=bun bun --bun node_modules/vitest/vitest.mjs run --config tests/postgresql/vitest.config.ts",
     "qualify:postgresql:installed": "node scripts/qualify-postgresql.mjs",
     "qualify:drizzle:native": "node tests/qualification/drizzle-native/Run.mjs",
-    "verify": "bun run check && bun run lint && bun run format:check && bun run build && bun run test"
+    "verify": "bun run check && bun run lint && bun run format:check && bun run build && bun run test",
+    "release:pack": "node scripts/pack-release.mjs",
+    "release:check": "node scripts/check-release.mjs",
+    "qualify:release": "node scripts/qualify-release.mjs"
   },
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.5-169397b",
@@ -141,5 +149,21 @@
     "oxlint-tsgolint": "7.0.2003",
     "typescript": "7.0.2",
     "vitest": "4.1.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nr1brolyfan/effect-jobs.git"
+  },
+  "homepage": "https://github.com/nr1brolyfan/effect-jobs#readme",
+  "bugs": {
+    "url": "https://github.com/nr1brolyfan/effect-jobs/issues"
+  },
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org",
+    "tag": "alpha"
   }
 }

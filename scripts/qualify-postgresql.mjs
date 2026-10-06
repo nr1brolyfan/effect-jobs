@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os"
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, symlinkSync } from "node:fs"
@@ -10,12 +11,13 @@ const resources = process.env.D6_RESOURCE_DIRECTORY
 assert(resources, "D6_RESOURCE_DIRECTORY is required; skipped PG is not qualification")
 const ownership = JSON.parse(readFileSync(join(resources, "ownership.json"), "utf8"))
 assert(Date.now() < Date.parse(ownership.deadline) - 60000, "PG deadline reached")
-const directory = mkdtempSync("/tmp/opencode/effect-jobs-installed-pg-")
+mkdirSync(join(root, ".toolchain"), { recursive: true })
+const directory = mkdtempSync(join(tmpdir(), "effect-jobs-UPVE864-installed-pg-"))
 const run = (command, args, cwd = directory, extra = {}) => {
   const output = execFileSync(command, args, {
     cwd,
     env: { ...process.env, ...extra },
-    timeout: 300000,
+    timeout: 60000,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"]
   })
@@ -23,13 +25,17 @@ const run = (command, args, cwd = directory, extra = {}) => {
   return output
 }
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
-run("bun", ["run", "build"], root)
-const archive = join(directory, "effect-jobs.tgz")
-run("bun", ["pm", "pack", "--ignore-scripts", "--filename", archive], root)
+const archive = resolve(process.env.EFFECT_JOBS_ARCHIVE ?? "")
+assert(
+  process.env.EFFECT_JOBS_ARCHIVE,
+  "EFFECT_JOBS_ARCHIVE must name the immutable qualified tarball"
+)
 const entries = run("tar", ["-tzf", archive]).trim().split("\n")
 assert(
   entries.every((entry) =>
-    /^package\/(dist\/|package.json$|README.md$|LICENSE$)/.test(entry)
+    /^package\/(dist\/|specs\/|package.json$|README.md$|CHANGELOG.md$|LICENSE$)/.test(
+      entry
+    )
   )
 )
 for (const target of Object.values(manifest.exports)) {
@@ -74,21 +80,22 @@ run("bun", [
 ])
 
 // Reuse the author's unchanged real-PG oracle against packed production bytes.
-// Only imports change; private artifact inspection is not a public export claim.
+// Only production imports change; runtime tests use public package exports.
 for (const path of [
+  "tests/qualification/Resource.mjs",
+  "tests/qualification/Resource.d.mts",
   "tests/postgresql/Backend.test.ts",
+  "tests/core/codec/PayloadCodec.test.ts",
   "tests/postgresql/Adapter.ts",
   "tests/qualification/d6-pg/ApplicationTransactions.ts",
   "tests/qualification/d6-pg/PgDriver.ts"
 ]) {
   const destination = join(directory, path)
   mkdirSync(resolve(destination, ".."), { recursive: true })
-  const source = readFileSync(join(root, path), "utf8")
-    .replaceAll(
-      '"../../src/internal/lifecycle/Artifacts.js"',
-      '"../../node_modules/effect-jobs/dist/internal/lifecycle/Artifacts.js"'
-    )
-    .replace(/"\.\.\/\.\.\/src\/([^"/]+)\.js"/g, '"effect-jobs/$1"')
+  const source = readFileSync(join(root, path), "utf8").replace(
+    /"(?:\.\.\/){2,3}src\/([^"/]+)\.js"/g,
+    '"effect-jobs/$1"'
+  )
   writeFileSync(destination, source)
 }
 symlinkSync(
@@ -99,7 +106,7 @@ symlinkSync(
 writeFileSync(
   join(directory, "vitest.config.ts"),
   `import { defineConfig } from "vitest/config"
-export default defineConfig({ test: { include: ["tests/postgresql/Backend.test.ts"] } })\n`
+export default defineConfig({ test: { include: ["tests/postgresql/Backend.test.ts", "tests/core/codec/PayloadCodec.test.ts"] } })\n`
 )
 writeFileSync(
   join(directory, "types.ts"),

@@ -1,3 +1,4 @@
+import { readQualificationResource } from "../Resource.mjs"
 // Native low-level SQL APIs are intentionally pinned to 4.0.0 by the consumer runner.
 // @effect-diagnostics unstableApiUsage:off
 import assert from "node:assert/strict"
@@ -45,11 +46,7 @@ import * as Application from "./NativeApplication.mjs"
 
 const resource = process.env.D6_RESOURCE_DIRECTORY
 assert(resource, "private resource directory required")
-const ownership = JSON.parse(readFileSync(`${resource}/ownership.json`, "utf8"))
-assert.equal(
-  ownership.container_id,
-  "7ee5ccb0bf30e1ff2bf6e06b2948edf68bafa2cb5754392d7692f052fe7922a6"
-)
+const ownership = readQualificationResource(resource)
 assert(Date.now() < Date.parse(ownership.deadline) - 60000, "resource deadline")
 const env = Object.fromEntries(
   readFileSync(`${resource}/postgres.env`, "utf8")

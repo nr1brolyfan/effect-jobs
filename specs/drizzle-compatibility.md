@@ -58,6 +58,7 @@ From the repository, with the private resource directory in
 timeout 60s bun install --frozen-lockfile
 # Run each fixture install in its directory, also with --frozen-lockfile.
 timeout 300s bun run build
+export EFFECT_JOBS_ARCHIVE=/path/to/immutable-versioned-effect-jobs.tgz
 timeout 300s node tests/qualification/drizzle-native/Run.mjs
 timeout 600s bun run verify
 timeout 300s bun run check:postgresql
@@ -66,8 +67,8 @@ timeout 300s bun run test:postgresql:bun
 timeout 600s bun run qualify:postgresql:installed
 ```
 
-The new runner builds and packs the current package, creates a fresh ignored
-consumer, and installs the archive with npm's normal peer resolver alongside
+The release runner consumes the immutable `EFFECT_JOBS_ARCHIVE`, creates a fresh
+independent consumer, and installs that same archive with npm's normal peer resolver alongside
 the exact pins. It uses no force or legacy-peer-deps. It retains a lockfile,
 archive hash, root manifest hash, logs, consumer declarations and sanitized
 runtime receipts. Each child command is foreground and bounded to 60 seconds.
@@ -94,8 +95,9 @@ The 17 native assertions per runtime cover:
 - Escaped capability rejection after success/failure/defect/interruption and
   interruption after all four writes rolling back the complete operation.
 
-The source PostgreSQL matrix passes 27 tests per runtime; installed production
-qualification passes 25 real-PG tests per runtime. The root test gate passes
+The original compatibility source PostgreSQL matrix passed 27 tests per runtime;
+installed production qualification passed 25 real-PG tests per runtime. The alpha
+release adds a public worker pipeline and records its larger final counts separately. The root test gate passes
 388 tests with 47 optional PG tests skipped when it has no PG environment; those
 skips are NotTested in that invocation. The explicit source and installed gates
 above supply the required real-PG evidence. Historical D6 receipts remain tied to
