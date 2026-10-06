@@ -1,3 +1,6 @@
+/**
+ * Opaque invocation-scoped enqueue capabilities supplied by qualified backends.
+ */
 import { Data } from "effect"
 import type { Effect } from "effect"
 import type {
@@ -9,6 +12,11 @@ import type {
 } from "./JobContract.js"
 import type { JobsTransactionTypeId } from "./internal/JobTransaction.js"
 
+/**
+ * Typed failure when enqueue runs after its backend callback has exited.
+ *
+ * @category errors
+ */
 export class JobsTransactionClosed extends Data.TaggedError("JobsTransactionClosed")<{
   readonly reason: "callback-exited"
 }> {
@@ -16,7 +24,13 @@ export class JobsTransactionClosed extends Data.TaggedError("JobsTransactionClos
     return "JobsTransaction is closed; enqueue inside the backend joinTransaction callback"
   }
 }
-/** Backend callback capability. No public constructor or commit/replay operations. */
+/**
+ * Backend callback capability; never fabricate or retain it outside the callback.
+ * E and R preserve backend errors and requirements. No public constructor, SQL,
+ * commit, rollback or replay authority; sequence operations on the same transaction.
+ *
+ * @category models
+ */
 export interface JobsTransaction<E = never, R = never> {
   readonly [JobsTransactionTypeId]: {
     readonly insertOrCompare: (
@@ -24,13 +38,23 @@ export interface JobsTransaction<E = never, R = never> {
     ) => Effect.Effect<EnqueueResult, E | JobIntegrityConflict | JobsTransactionClosed, R>
   }
 }
+/**
+ * Core enqueue failures; backend errors remain in the caller's separate E channel.
+ *
+ * @category models
+ */
 export type JobEnqueueError =
   | InvalidJobInput
   | JobPayloadCodecError
   | JobIntegrityConflict
   | JobsTransactionClosed
 
-/** Implemented by a qualified application manager integration, not a core engine. */
+/**
+ * Qualified application manager port, delegating join-or-establish without a
+ * second transaction engine. The outer application owner controls commit and replay.
+ *
+ * @category models
+ */
 export interface JobTransactionsService<ManagerError, ManagerRequirements = never> {
   readonly withTransaction: <A, E, R>(
     body: (jobsTx: JobsTransaction<ManagerError>) => Effect.Effect<A, E, R>

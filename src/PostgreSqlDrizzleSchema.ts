@@ -1,4 +1,6 @@
-/** Optional migration-only entrypoint. Never imported by core or the PostgreSQL runtime. */
+/**
+ * Optional migration-only Drizzle declarations; core and runtime do not import Drizzle.
+ */
 import { Buffer } from "node:buffer"
 import { sql } from "drizzle-orm"
 import {
@@ -22,7 +24,14 @@ const bytes = customType<{ data: Uint8Array; driverData: Buffer }>({
   toDriver: (value) => Buffer.from(value),
   fromDriver: (value) => new Uint8Array(value)
 })
-/** Fixed column contract, configurable namespace/relation names, application-owned migrations. */
+/**
+ * Creates fixed-column Drizzle declarations for the configured namespace/table names.
+ * Requires optional drizzle-orm@1.0.0-rc.5-169397b. Applications generate/run migrations;
+ * these declarations neither open a connection nor qualify a transaction adapter.
+ * Full upstream strict declaration checking remains an alpha limitation.
+ *
+ * @category constructors
+ */
 export const makeJobTables = (options: TableOptions = {}) => {
   const mapping = tables(options)
   const table: PgTableFn<string | undefined> =

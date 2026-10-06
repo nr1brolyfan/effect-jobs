@@ -1,3 +1,6 @@
+/**
+ * Marks already-protected payload subtrees for semantic comparison; performs no encryption.
+ */
 import type { Schema } from "effect"
 
 /**
@@ -6,6 +9,20 @@ import type { Schema } from "effect"
  * or opens data. Encryption and stable fingerprint keys remain application-owned.
  * The schema may describe any JSON fingerprint; no envelope shape or crypto key
  * manager is imposed. Unsupported protected mappings fail when the codec runs.
+ *
+ * @example
+ * ```ts
+ * import { Schema } from "effect"
+ * import * as Payload from "effect-jobs/JobPayload"
+ *
+ * // Supply actual app-sealed envelopes and keyed fingerprints when producing jobs.
+ * const protectedValue = Payload.protected(Schema.Struct({
+ *   envelope: Schema.String,
+ *   fingerprint: Schema.String
+ * }))
+ * ```
+ *
+ * @category schemas
  */
 const protectedPayload = <S extends Schema.Top>(schema: S): S["Rebuild"] =>
   schema.annotate({ effectJobsProtectedPayload: true })

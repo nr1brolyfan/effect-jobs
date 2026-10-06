@@ -1,6 +1,14 @@
+/**
+ * Validated table mappings and explicit application-owned migration SQL.
+ */
 import { Data } from "effect"
 import { createHash } from "node:crypto"
 
+/**
+ * Thrown for invalid table configuration or returned for invalid backend budget.
+ *
+ * @category errors
+ */
 export class PostgreSqlConfigurationError extends Data.TaggedError(
   "PostgreSqlConfigurationError"
 )<{
@@ -10,11 +18,21 @@ export class PostgreSqlConfigurationError extends Data.TaggedError(
     | "payloadsTable"
     | "operationResponseBudgetMillis"
 }> {}
+/**
+ * Optional lowercase PostgreSQL identifiers; defaults to public.jobs/job_payloads.
+ *
+ * @category models
+ */
 export interface TableOptions {
   readonly schema?: string
   readonly jobsTable?: string
   readonly payloadsTable?: string
 }
+/**
+ * Complete storage mapping shared by backend and application migration generation.
+ *
+ * @category models
+ */
 export interface Tables {
   readonly schema: string
   readonly jobsTable: string
@@ -26,7 +44,12 @@ const identifier = (value: string, field: "schema" | "jobsTable" | "payloadsTabl
   }
   return value
 }
-/** Configuration only; no database access. Names are PostgreSQL identifiers, not SQL. */
+/**
+ * Validates and freezes mapping without database access. Names match
+ * ^[a-z_][a-z0-9_]{0,62}$ and tables must differ; throws PostgreSqlConfigurationError.
+ *
+ * @category constructors
+ */
 export const tables = (options: TableOptions = {}): Tables => {
   const schema = identifier(options.schema ?? "public", "schema")
   const jobsTable = identifier(options.jobsTable ?? "jobs", "jobsTable")
@@ -39,7 +62,12 @@ export const tables = (options: TableOptions = {}): Tables => {
   }
   return Object.freeze({ schema, jobsTable, payloadsTable })
 }
-/** Quote only validated names; never interpolate producer/catalog values. */
+/**
+ * Returns quoted qualified relation names after validating the mapping.
+ * Never interpolate producer or catalog values as identifiers.
+ *
+ * @category operations
+ */
 export const relations = (mapping: Tables) => {
   const checked = tables(mapping)
   return {
@@ -47,10 +75,28 @@ export const relations = (mapping: Tables) => {
     payloads: `"${checked.schema}"."${checked.payloadsTable}"`
   }
 }
-/** Schema-wide index names remain bounded without truncating away table identity. */
+/**
+ * Bounded schema-wide index prefix retaining a hash of the jobs table name.
+ *
+ * @category operations
+ */
 export const indexPrefix = (mapping: Tables): string =>
   `${mapping.jobsTable.slice(0, 32)}_${createHash("sha256").update(mapping.jobsTable).digest("hex").slice(0, 16)}`
-/** Application migration input. Runtime never invokes this DDL. Schema must already exist. */
+/**
+ * Returns DDL for the configured jobs and immutable payload tables and indexes.
+ * The application creates the schema and runs migrations; runtime never invokes DDL.
+ * Use the same mapping for backend construction.
+ *
+ * @example
+ * ```ts
+ * import * as Storage from "effect-jobs/PostgreSqlSchema"
+ *
+ * const mapping = Storage.tables({ schema: "app_jobs" })
+ * const ddl = Storage.migration(mapping) // Run through application-owned migrations.
+ * ```
+ *
+ * @category operations
+ */
 export const migration = (mapping: Tables = tables()): string => {
   const { jobs, payloads } = relations(mapping)
   // Index names are table-local derivatives bounded below PostgreSQL's 63-byte limit.

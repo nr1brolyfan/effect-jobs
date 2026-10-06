@@ -1,3 +1,6 @@
+/**
+ * Constructs inert workers; finite drains and scoped polling start execution explicitly.
+ */
 import { Cause, Context, Effect, Layer, Schema, Semaphore } from "effect"
 import { CatalogIdentity } from "./JobIdentity.js"
 import { EpochMillis } from "./JobPolicy.js"
@@ -16,20 +19,39 @@ import type { CatalogEntry } from "./JobRegistry.js"
 import type { ClaimedJob, JobStoreService } from "./JobStore.js"
 import type { RuntimeCapability } from "./internal/worker/Capability.js"
 
+/** Configuration validation, missing handler readiness, and sanitized store-operation failures. */
 export {
+  /** Invalid catalog, consumer, polling interval or response budget. */
   JobWorkerConfigurationError,
+  /** Required catalog handlers or requested queue are absent. */
   JobWorkerNotReady,
+  /** Store operation failed; provider Causes are not exposed. */
   JobWorkerUnavailable
 } from "./internal/worker/Capability.js"
 
+/**
+ * Sealed runtime service used by drain and polling; no public manual dispatch capability.
+ *
+ * @category models
+ */
 export interface JobWorkerService {
   /** Explicit sealed runtime capability, not a process-global WeakMap. */
   readonly [WorkerCapability]: RuntimeCapability
 }
+/**
+ * Context service required by JobWorkerRuntime.drain and scoped polling.
+ *
+ * @category models
+ */
 export class JobWorker extends Context.Service<JobWorker, JobWorkerService>()(
   "effect-jobs/JobWorker"
 ) {}
 
+/**
+ * Nonempty unique supported catalog and positive response budget matching the store.
+ *
+ * @category models
+ */
 export interface JobWorkerOptions {
   readonly catalog: ReadonlyArray<CatalogEntry>
   /** Must agree with the configured backend's finite response budget. */
@@ -45,8 +67,13 @@ const unavailable = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     )
   )
 
-/** The integrated store is a generic port (no Context tag). Capture its ordinary
- * Effect requirements once here; providers still own pools and transactions. */
+/**
+ * Captures JobRegistry and store requirements R and validates catalog/budget.
+ * Fails with JobWorkerConfigurationError; creates no running worker or pool.
+ * Every catalog entry needs an installed handler before drain or polling is ready.
+ *
+ * @category constructors
+ */
 export const make = <E, R>(store: JobStoreService<E, R>, options: JobWorkerOptions) =>
   Effect.gen(function* () {
     const registry = yield* JobRegistry
@@ -228,5 +255,11 @@ export const make = <E, R>(store: JobStoreService<E, R>, options: JobWorkerOptio
     return JobWorker.of(Object.freeze({ [WorkerCapability]: capability }))
   })
 
+/**
+ * Produces JobWorker, requiring JobRegistry and the store's R services.
+ * Construction validates configuration but starts no drain, polling, migration or pool.
+ *
+ * @category layers
+ */
 export const layer = <E, R>(store: JobStoreService<E, R>, options: JobWorkerOptions) =>
   Layer.effect(JobWorker, make(store, options))

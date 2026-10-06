@@ -1,3 +1,6 @@
+/**
+ * Explicit Node/Bun polling owned by the application Layer Scope.
+ */
 import { Effect, Layer, Random, Schema } from "effect"
 import { JobWorker, JobWorkerConfigurationError } from "./JobWorker.js"
 import { EpochMillis } from "./JobPolicy.js"
@@ -6,6 +9,12 @@ import { WorkerCapability } from "./internal/worker/Capability.js"
 import { drainWithOptions } from "./internal/worker/Drain.js"
 import type { JobPlan, JobConsumer } from "./JobConsumer.js"
 
+/**
+ * Polling configuration; idlePollMillis defaults to 1,000 positive integer
+ * milliseconds. Idle/backoff sleeps include jitter.
+ *
+ * @category models
+ */
 export interface PollingJobWorkerOptions {
   readonly idlePollMillis?: number
 }
@@ -50,7 +59,13 @@ const loop = (consumer: JobConsumer, idlePollMillis: number) =>
     })
   })
 
-/** Explicit scoped Node/Bun polling. Imports and constructors start no work. */
+/**
+ * Starts one scoped loop per consumer when the Layer is built, requiring JobWorker.
+ * Validates the whole plan before forking; Scope closure interrupts the loops.
+ * Build only in the application-owned lifetime; importing or constructing starts no work.
+ *
+ * @category layers
+ */
 export const layerForPlan = (plan: JobPlan, options: PollingJobWorkerOptions = {}) =>
   Layer.effectDiscard(
     Effect.gen(function* () {
