@@ -1,142 +1,160 @@
 # effect-jobs
 
-Effect-native durable jobs with atomic, transaction-bound production. Initial
-alpha: application-defined catalogs, semantic deduplication, fenced fixed leases,
-persisted fixed-delay retries, bounded recovery and explicit scoped workers.
-Applications own database pools, migrations, handlers, protection and domain receipts.
+Durable, transaction-bound jobs for Effect. **Initial alpha.**
 
 ## Install
 
 ```sh
-npm install effect-jobs@alpha effect@4.0.0
-# Only when using the optional migration declarations:
+npm install effect-jobs@0.1.0-alpha.0 effect@4.0.0
+# Optional migration declarations:
 npm install drizzle-orm@1.0.0-rc.5-169397b
 ```
 
-The root export is intentionally empty. Import the focused public modules:
+## Define → enqueue → handle → drain
+
+Snippets omit imports and application wiring. The [executable harness](tests/docs/readme/Prelude.mjs)
+supplies focused subpath imports (the root is empty) and explicit application parameters; [full database setup](tests/qualification/drizzle-native/NativeApplication.mts).
 
 ```ts
-import { Schema } from "effect"
-import * as Job from "effect-jobs/Job"
-import * as JobQueue from "effect-jobs/JobQueue"
-import * as JobProducer from "effect-jobs/JobProducer"
-import * as JobPolicy from "effect-jobs/JobPolicy"
-import { encodeJobPayload } from "effect-jobs/JobPayloadCodec"
-
-export const BillingQueue = JobQueue.make("billing")
-export const InvoiceProducer = JobProducer.make({
-  operation: "billing.issue-invoice",
-  slots: ["generate"]
-})
-export const GenerateInvoice = Job.make({
+const BillingQueue = JobQueue.make("billing")
+const Producer = JobProducer.make({ operation: "billing.invoice", slots: ["generate"] })
+const GenerateInvoice = Job.make({
   queue: BillingQueue,
   kind: "invoice.generate",
   version: 1,
   payload: Schema.Struct({ invoiceId: Schema.String }),
-  encodePayload: encodeJobPayload
+  encodePayload: Codec.encodeJobPayload
 })
-export const invoiceInput = (operationId: string, invoiceId: string) => ({
-  producer: InvoiceProducer.identity({ operationId, slot: "generate" }),
-  payload: { invoiceId },
-  policy: JobPolicy.make()
-})
+// backend and renderInvoice are supplied by the application.
+const enqueue = (operationId: string, invoiceId: string) =>
+  backend.withTransaction((tx) =>
+    GenerateInvoice.enqueue(tx, {
+      producer: Producer.identity({ operationId, slot: "generate" }),
+      payload: { invoiceId },
+      policy: JobPolicy.make()
+    })
+  )
+const HandlerLayer = GenerateInvoice.handlerLayer(renderInvoice, Codec.decodeJobPayload)
+const WorkerLayer = Worker.layer(backend.store, {
+  catalog: [GenerateInvoice],
+  operationResponseBudgetMillis: 100 // Match the backend.
+}).pipe(Layer.provideMerge(HandlerLayer), Layer.provide(Registry.layer))
+const drain = Effect.gen(function* () {
+  yield* backend.ready // Application migrations have already run.
+  const consumer = yield* Consumer.make(BillingQueue, {
+    localConcurrency: 2,
+    claimLimitPerRun: 20,
+    recoveryLimitPerRun: 20
+  })
+  return yield* Runtime.drain(consumer).pipe(Effect.provide(WorkerLayer))
+}) // Run enqueue and drain explicitly at your application boundary.
 ```
 
-Declare producers once and reuse a stable operation ID across business retries.
-`GenerateInvoice.enqueue(jobsTx, invoiceInput(...))` requires the explicit scoped
-transaction capability supplied by your backend's join callback. The library
-assigns the job ID; a matching duplicate returns the original ID and retains its
-first policy and availability. Changed catalog or semantic payload conflicts.
-Results are provisional until the application's transaction commits.
+Reuse the operation ID on retries; matching duplicates keep the first job/config,
+changed content conflicts. Enqueue is provisional until commit. Handlers receive
+payload/context, without SQL authority. [Transaction contract](specs/postgresql-backend.md).
 
-## PostgreSQL setup
-
-`effect-jobs/PostgreSqlTransaction` defines the `PostgreSqlApplication` service
-and trusted `ApplicationAdapter` contract. Your adapter must bind registered
-handles to the exact active source, connection and lifetime. A query-shaped object
-or matching DSN is insufficient. It delegates transaction ownership to your
-application; joined enqueue must not borrow, open a savepoint, commit or replay.
-Worker and cleanup transactions must commit before returning and reject an
-ambient transaction. See the shipped [backend contract](specs/postgresql-backend.md).
+## Own the migration
 
 ```ts
-import { Effect, Layer } from "effect"
-import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
-import * as PostgreSqlSchema from "effect-jobs/PostgreSqlSchema"
-import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
-
 const tables = PostgreSqlSchema.tables({ schema: "billing" })
-// During application migration, after creating the schema:
 const migrationSql = PostgreSqlSchema.migration(tables)
-// applicationAdapter implements the full qualified contract above.
-const jobsLayer = PostgreSqlJobs.layerNoDeps({
-  ...tables,
-  operationResponseBudgetMillis: 100
-}).pipe(Layer.provide(Layer.succeed(PostgreSqlApplication, applicationAdapter)))
+// Application migration credentials execute this DDL; runtime never does.
+// Configure the backend with the same mapping.
 ```
 
-The application executes `migrationSql` with its migration credentials, supplies
-its adapter, and explicitly invokes backend `ready`. Runtime construction runs
-no DDL and creates or closes no pool. Optional
-`PostgreSqlDrizzleSchema.makeJobTables(tables)` supplies migration declarations;
-it does not supply a universal Drizzle transaction adapter. The concrete native
-qualification application is documented in
-[Drizzle compatibility](specs/drizzle-compatibility.md).
+Optional Drizzle declarations reuse that mapping:
 
-## Handlers, workers and retention
+```ts
+const jobTables = makeJobTables(tables)
+// Migration declarations only; no transaction adapter is supplied.
+```
 
-Install handlers with `definition.handlerLayer(execute, decodeJobPayload)` into
-`JobRegistry.layer`. Handler input is `{ payload, context }`; context contains
-job ID, catalog, producer and one-based attempt number. Provide handler services
-through ordinary Layers. Map domain errors to `JobFailures.Retry`, `Dead`,
-`Isolate` or `OutcomeUnknown` from `effect-jobs/JobFailure`.
+[Qualified Effect-native Drizzle integration](specs/drizzle-compatibility.md).
 
-Compose `JobWorker.layer(store, options)` with the registry and store, then call
-`JobWorkerRuntime.drain(consumer)` for bounded work, or explicitly install
-`PollingJobWorker.layerForPlan(plan, options)` in an application-owned Scope.
-Use the same local concurrency for a queue across invocations. Imports and
-handler installation do not start workers or cleanup.
+## Join a business transaction
 
-Execution is at least once. Unknown outcomes and lease recovery can repeat a
-handler; external effects need application idempotency or reconciliation. An
-attempt number may repeat after recovery. Leases do not renew. No exactly-once
-external delivery, server-crash coverage or Cloudflare coordinator is promised.
+Inside the owning manager's active callback, use its registered `handle` and
+validated same-connection `query`; the application owns invoice/receipt tables.
 
-Default policy: 90-second lease, 30-second attempt timeout, 5-second fixed retry,
-3 finalized attempts, 1 stalled recovery, 90-day Completed retention and infinite
-Dead retention. Generic cleanup is bounded and explicitly selected. Applications
-with receipts or domain references must replace it with coordinated cleanup.
-Pending, Active and Isolated jobs are never automatically purged. Removing all
-identity evidence ends that job's deduplication window.
+```ts
+const issueInvoice = backend.joinTransaction(handle, (tx) =>
+  Effect.gen(function* () {
+    yield* query.query("INSERT INTO billing.invoices (id) VALUES ($1)", [invoiceId])
+    const job = yield* GenerateInvoice.enqueue(tx, {
+      producer: Producer.identity({ operationId, slot: "generate" }),
+      payload: { invoiceId },
+      policy: JobPolicy.make()
+    })
+    yield* query.query("INSERT INTO billing.receipts (id, job_id) VALUES ($1, $2)", [
+      operationId,
+      job.jobId
+    ])
+    return job
+  })
+) // All three writes commit or roll back together under the outer owner.
+```
 
-`JobPayload.protected(schema)` marks an already protected envelope with an own
-`fingerprint` field; it does not encrypt. Applications seal/open sensitive data
-and manage separate encryption and stable fingerprint keys. Preserve old
-decryption keys while artifacts remain retained. Telemetry must exclude payloads,
-identifiers, SQL, provider messages and secret material.
+No fallback connection, savepoint or replay. Unknown commit outcomes need
+application reconciliation. [Handle and atomicity requirements](specs/postgresql-backend.md#explicit-application-adapter-contract).
 
-## Support and development
+## Persist retries and retention
 
-Exact qualification pins: Node 24.15.0, Bun 1.4.2, Effect 4.0.0, PostgreSQL 16.15,
-pg 8.23.0 and optional Drizzle 1.0.0-rc.5-169397b. Other versions are unqualified.
-The npm engine range bounds installation to Node 24; it is not evidence for
-every patch release. Full upstream Drizzle declarations fail strict checking;
-the Drizzle consumer uses `skipLibCheck: true`. Non-Drizzle backend declarations
-are separately checked with `skipLibCheck: false`.
+```ts
+const policy = JobPolicy.make({
+  retryDelay: Duration.seconds(5),
+  maxAttempts: 3,
+  completedRetention: Duration.days(90),
+  deadRetention: Duration.infinity
+}) // Other fields use defaults; first enqueue persists the complete policy.
+const rejected = Effect.fail(JobFailures.Retry({ code: "provider_busy" }))
+const uncertain = Effect.fail(JobFailures.OutcomeUnknown({ code: "response_lost" }))
+```
 
-See [release qualification](specs/release-qualification.md) for evidence scope,
-reproduction and limitations, and [accepted decisions](specs/architecture-decisions.md)
-for the full contracts. No recurring schedules, administration APIs, alternative
-backend or deployment is included in this alpha.
+At-least-once execution, fixed nonrenewing leases and database time; a timeout
+cannot prove an external effect failed. Cleanup is explicit and bounded; coordinate
+receipt/OTP retention, never purge Pending/Active/Isolated. Removing identity
+evidence ends deduplication. [Lifecycle and cleanup](specs/architecture-decisions.md#d8--replaceable-cleanup-with-application-domain-retention-integration).
+
+## Mark already protected payloads
+
+```ts
+const ProtectedDocument = JobPayload.protected(
+  Schema.Struct({
+    ciphertext: Schema.String,
+    keyId: Schema.String,
+    fingerprint: Schema.String // Stable keyed semantic equality, excluding ciphertext.
+  })
+)
+const DocumentPayload = Schema.Struct({ document: ProtectedDocument })
+const encodeDocument = (document: typeof ProtectedDocument.Type) =>
+  Codec.encodeJobPayload(DocumentPayload, { document })
+// Supply your app's sealed envelope; open it only in the handler.
+```
+
+The marker does no encryption. Keep separate encryption/fingerprint keys and old
+decryption keys; preserve OTP binding. Never log payloads, IDs, SQL, provider errors
+or keys. [Protection and codec bounds](specs/architecture-decisions.md#d5--explicit-application-owned-protection-and-codec-boundaries).
+
+## Alpha support and development
+
+Qualified: Node 24.15.0 / Bun 1.4.2, Effect 4.0.0, PostgreSQL 16.15 / pg 8.23.0,
+optional Drizzle 1.0.0-rc.5-169397b / @effect/sql-pg 4.0.0.
+[Limits and evidence](specs/release-qualification.md#limits-and-preserved-evidence)
+include upstream Drizzle strict declaration failures, unqualified adapters/versions,
+server crashes, network faults and Cloudflare deployment.
+
+Imports start no workers or cleanup. Applications own pools/migrations; long-lived
+workers explicitly use `PollingJobWorker.layerForPlan` in an application Scope.
+[Worker example](tests/qualification/release/Worker.mjs). Keep concurrency consistent
+per queue. Recurring schedules, admin APIs and other backends are outside this alpha.
 
 ```sh
 bun install --frozen-lockfile
 bun run build
 bun run verify
 bun run check:postgresql
+# Real-PG and installed gates: specs/release-qualification.md
 ```
 
-Fixture dependencies also require frozen installs in `tests/postgresql` and
-`tests/qualification/d6-pg`; native qualification installs its own exact peers.
-Tools are patched explicitly by check/build/lint/test. Published consumers have
-no installation lifecycle scripts. MIT; see [LICENSE](LICENSE).
+No installation lifecycle scripts. [MIT](LICENSE).
