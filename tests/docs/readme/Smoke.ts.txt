@@ -1,0 +1,193 @@
+// Executed against extracted source and installed snippets, on Node and Bun.
+// Test doubles here certify composition only, never durable SQL/atomicity.
+import assert from "node:assert/strict"
+import { Effect, Exit, Layer, Result, Schema } from "effect"
+import { TestClock } from "effect/testing"
+import { BillingQueue, GenerateInvoice, InvoiceProducer, billing } from "./billing.js"
+import { migrationSql, tables } from "./migration.js"
+import { jobTables } from "./drizzle.js"
+import { policy, rejected, uncertain } from "./policy.js"
+import { ProtectedDocument, DocumentPayload, encodeDocument } from "./protection.js"
+import * as Codec from "effect-jobs/JobPayloadCodec"
+import * as Consumer from "effect-jobs/JobConsumer"
+import * as Registry from "effect-jobs/JobRegistry"
+import * as Worker from "effect-jobs/JobWorker"
+import * as Runtime from "effect-jobs/JobWorkerRuntime"
+import * as Lifecycle from "effect-jobs/JobLifecycle"
+import * as Store from "effect-jobs/JobStore"
+import { JobId } from "effect-jobs/JobId"
+import { PostgreSqlFailure } from "effect-jobs/PostgreSqlTransaction"
+
+assert.equal(
+  process.versions.bun ?? process.version,
+  process.versions.bun ? "1.4.2" : "v24.15.0"
+)
+assert.equal(BillingQueue.name, "billing")
+assert.deepEqual(GenerateInvoice.catalog, {
+  queue: "billing",
+  kind: "invoice.generate",
+  version: 1
+})
+assert.deepEqual(
+  InvoiceProducer.identity({ operationId: "operation-1", slot: "generate" }),
+  {
+    operation: "billing.issue-invoice",
+    operationId: "operation-1",
+    slot: "generate"
+  }
+)
+assert.equal(tables.schema, "billing")
+assert.match(migrationSql, /"billing"\."jobs"/)
+assert(jobTables.jobs && jobTables.payloads)
+assert.equal(policy.leaseDurationMillis, 90000)
+assert.equal(policy.attemptTimeoutMillis, 30000)
+assert.equal(policy.maxAttempts, 3)
+assert(policy.completedRetention._tag === "Duration")
+assert.equal(policy.completedRetention.millis, 90 * 86400000)
+assert.equal(policy.deadRetention._tag, "Forever")
+assert.equal(Effect.runSync(Effect.flip(rejected))._tag, "Retry")
+assert.equal(Effect.runSync(Effect.flip(uncertain))._tag, "OutcomeUnknown")
+
+const document = {
+  ciphertext: "test-envelope-a",
+  keyId: "test-key",
+  fingerprint: "test-fingerprint"
+}
+assert(Schema.is(ProtectedDocument)(document))
+const encoded = await Effect.runPromise(encodeDocument(document))
+const rotated = await Effect.runPromise(
+  encodeDocument({ ...document, ciphertext: "test-envelope-b" })
+)
+assert.deepEqual(encoded.semanticProjectionBytes, rotated.semanticProjectionBytes)
+assert.notDeepEqual(encoded.payloadBytes, rotated.payloadBytes)
+assert.deepEqual(
+  await Effect.runPromise(Codec.decodeJobPayload(DocumentPayload, encoded)),
+  { document }
+)
+const changed = await Effect.runPromise(
+  encodeDocument({ ...document, fingerprint: "different" })
+)
+assert.notDeepEqual(encoded.semanticProjectionBytes, changed.semanticProjectionBytes)
+
+let adapterCalls = 0
+const unavailable = () =>
+  Effect.sync(() => {
+    adapterCalls++
+  }).pipe(
+    Effect.andThen(
+      Effect.fail(new PostgreSqlFailure({ commitKnowledge: "NotCommitted" }))
+    )
+  )
+const application = billing(
+  { validate: unavailable, withTransaction: unavailable, ownedTransaction: unavailable },
+  () => Effect.void
+)
+assert.equal(adapterCalls, 0, "Construction must not start work")
+const enqueueExit = await Effect.runPromiseExit(
+  application.enqueue("operation-1", "invoice-1")
+)
+assert(Exit.isFailure(enqueueExit))
+assert.equal(
+  adapterCalls,
+  1,
+  "Explicit enqueue delegates to app manager; no fallback or replay"
+)
+
+// Portable worker harness: actual definition/codec/handler, test-only store.
+const consumer = Effect.runSync(
+  Consumer.make(BillingQueue, {
+    localConcurrency: 2,
+    claimLimitPerRun: 20,
+    recoveryLimitPerRun: 20
+  })
+)
+let executions = 0
+let claims = 0
+let finalizations = 0
+await Effect.runPromise(
+  Effect.scoped(
+    Effect.gen(function* () {
+      const encoded = yield* Codec.encodeJobPayload(GenerateInvoice.payload, {
+        invoiceId: "invoice-1"
+      })
+      const snapshot = Result.getOrThrow(
+        Lifecycle.claim(
+          {
+            jobId: Schema.decodeSync(JobId)("test-job-1"),
+            policy,
+            state: "Pending",
+            availableAt: 100000,
+            updatedAt: 100000,
+            attemptsMade: 0,
+            stalledCount: 0,
+            lifecycleVersion: 0,
+            leaseToken: null,
+            leaseExpiresAt: null,
+            completedAt: null,
+            lastFailureCode: null
+          },
+          "abcd-1234-feed-5678",
+          100000,
+          100
+        )
+      )
+      const ownership = Result.getOrThrow(Lifecycle.ownershipOf(snapshot))
+      const unexpected = () => Effect.die("Unexpected harness operation")
+      const store: Store.JobStoreService = {
+        claim: (request) =>
+          Effect.sync(() => {
+            claims++
+            return claims === 1
+              ? Store.ClaimResults.Claimed({
+                  claim: {
+                    snapshot: { ...snapshot, leaseToken: request.leaseToken },
+                    ownership: { ...ownership, leaseToken: request.leaseToken },
+                    prepared: {
+                      catalog: GenerateInvoice.catalog,
+                      producer: InvoiceProducer.identity({
+                        operationId: "operation-1",
+                        slot: "generate"
+                      }),
+                      policy,
+                      encoded
+                    }
+                  }
+                })
+              : Store.ClaimResults.Empty()
+          }),
+        recoverExpired: () => Effect.succeed(0),
+        finalize: () =>
+          Effect.sync(() => {
+            finalizations++
+            return Store.FinalizationResults.Applied()
+          }),
+        reconcileClaim: unexpected,
+        release: unexpected,
+        reconcileFinalization: unexpected
+      }
+      const HandlerLayer = GenerateInvoice.handlerLayer(
+        ({ payload, context }) =>
+          Effect.sync(() => {
+            assert.equal(payload.invoiceId, "invoice-1")
+            assert.equal(context.attemptNumber, 1)
+            assert.equal("transaction" in context, false)
+            executions++
+          }),
+        Codec.decodeJobPayload
+      )
+      const WorkerLayer = Worker.layer(store, {
+        catalog: [GenerateInvoice],
+        operationResponseBudgetMillis: 100
+      }).pipe(Layer.provideMerge(HandlerLayer), Layer.provide(Registry.layer))
+      assert.equal(executions, 0)
+      const result = yield* Runtime.drain(consumer).pipe(Effect.provide(WorkerLayer))
+      assert.equal(result._tag, "Idle")
+      assert.equal(result.claimed, 1)
+      assert.equal(executions, 1)
+      assert.equal(finalizations, 1)
+    })
+  ).pipe(Effect.provide(TestClock.layer()))
+)
+console.log(
+  "README extracted declarations, protection, inert construction, manager delegation and finite worker harness PASS"
+)
