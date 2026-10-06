@@ -1,3 +1,6 @@
+/**
+ * Defines versioned jobs with transaction-bound production and Layer-installed handlers.
+ */
 import { Data, Effect, Layer, Schema } from "effect"
 import { InvalidJobInput } from "./JobContract.js"
 import type {
@@ -15,10 +18,20 @@ import { JobRegistry, type DuplicateJobHandler } from "./JobRegistry.js"
 import type { JobEnqueueError, JobsTransaction } from "./JobTransaction.js"
 import { insertPrepared } from "./internal/JobTransaction.js"
 
+/**
+ * Thrown synchronously for an invalid catalog identity or payload Schema.
+ *
+ * @category errors
+ */
 export class InvalidJobDefinition extends Data.TaggedError("InvalidJobDefinition")<{
   readonly expected: string
 }> {}
 
+/**
+ * Immutable job declaration. Payload carries decoded data and its Schema service requirements.
+ *
+ * @category models
+ */
 export interface JobDefinition<
   Payload extends Schema.Top = Schema.Top,
   Kind extends string = string,
@@ -30,10 +43,17 @@ export interface JobDefinition<
   readonly queue: JobQueue<Queue>
   readonly payload: Payload
   readonly catalog: CatalogIdentity<Queue, Kind, Version>
+  /** Enqueues in the supplied active backend callback transaction; runs no commit or replay.
+   * Same producer tuple compares catalog and semantic payload, returning the first ID
+   * for a match or JobIntegrityConflict for changed content. Results are provisional
+   * until outer commit; encoding services and backend E/R remain explicit. */
   readonly enqueue: <E, R>(
     tx: JobsTransaction<E, R>,
     input: EnqueueInput<Payload["Type"]>
   ) => Effect.Effect<EnqueueResult, E | JobEnqueueError, R | Payload["EncodingServices"]>
+  /** Installs one decoder/handler in JobRegistry and captures its Effect services.
+   * Requires JobRegistry plus decoding and execute requirements; duplicate installation
+   * fails with DuplicateJobHandler. Receives payload/context, with no SQL authority. */
   readonly handlerLayer: <R>(
     execute: (input: HandlerInput<Payload["Type"]>) => Effect.Effect<void, JobFailure, R>,
     decodePayload: JobPayloadDecoder
@@ -44,7 +64,35 @@ export interface JobDefinition<
   >
 }
 
-/** Codec dependency is explicit until serial integration supplies the qualified implementation. */
+/**
+ * Creates a frozen definition; throws InvalidJobDefinition for invalid declarations.
+ * Supply the qualified codec explicitly. Enqueue requires the Schema's encoding
+ * services; handler installation captures decoding and execution services.
+ *
+ * @example
+ * ```ts
+ * import { Effect, Schema } from "effect"
+ * import * as Job from "effect-jobs/Job"
+ * import * as Queue from "effect-jobs/JobQueue"
+ * import * as Codec from "effect-jobs/JobPayloadCodec"
+ *
+ * const definition = Job.make({
+ *   queue: Queue.make("billing"),
+ *   kind: "invoice.generate",
+ *   version: 1,
+ *   payload: Schema.Struct({ invoiceId: Schema.String }),
+ *   encodePayload: Codec.encodeJobPayload
+ * })
+ * // Provide JobRegistry when building this Layer. Add application services as needed.
+ * // Replace this no-op with an idempotent application handler.
+ * const HandlerLayer = definition.handlerLayer(
+ *   ({ payload, context }) => Effect.void,
+ *   Codec.decodeJobPayload
+ * )
+ * ```
+ *
+ * @category constructors
+ */
 export const make = <
   Payload extends Schema.Top,
   const Kind extends string,

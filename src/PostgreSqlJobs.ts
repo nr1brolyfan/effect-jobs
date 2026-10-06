@@ -1,3 +1,6 @@
+/**
+ * PostgreSQL storage and transaction bridge using application-owned connections.
+ */
 import { Context, Effect, Layer, Schema } from "effect"
 import { EpochMillis } from "./JobPolicy.js"
 import type { JobsTransaction } from "./JobTransaction.js"
@@ -15,28 +18,73 @@ import { insertOrCompare } from "./internal/postgresql/Producer.js"
 import { makeCleanup, makeStore } from "./internal/postgresql/Store.js"
 import { ready } from "./internal/postgresql/Readiness.js"
 
+/**
+ * Storage mapping and positive operation response budget; match the worker budget.
+ *
+ * @category models
+ */
 export interface Options extends TableOptions {
+  /** Positive integer reserve matching Worker options, within the remaining stored lease. */
   readonly operationResponseBudgetMillis: number
 }
+/**
+ * Configured persistence and callback bridge. Readiness, workers and cleanup are
+ * explicit; migrations and pool lifetime remain application-owned.
+ *
+ * @category models
+ */
 export interface Backend {
+  /** Explicit bounded schema/index introspection; never creates or migrates storage. */
   readonly ready: Effect.Effect<void, PostgreSqlError>
   readonly tables: Tables
+  /** Durable worker port; owned operations require acknowledged commit and reject ambient transactions. */
   readonly store: JobStoreService<PostgreSqlError>
   /** Optional, separately selected. Never installed implicitly or run by imports. */
   readonly cleanup: JobCleanupService<PostgreSqlError>
+  /** Joins the adapter-registered exact active source/connection. No BEGIN/savepoint,
+   * independent commit or replay. Sequence enqueue inside this callback; its capability
+   * closes on exit and success remains provisional until outer commit.
+   *
+   * @example
+   * ```ts
+   * import type { Schema } from "effect"
+   * import type { Backend } from "effect-jobs/PostgreSqlJobs"
+   * import type { JobDefinition } from "effect-jobs/Job"
+   * import type { EnqueueInput } from "effect-jobs/JobContract"
+   *
+   * // Call inside the application's owning transaction with its registered handle.
+   * const enqueueInside = <S extends Schema.Top>(
+   *   backend: Backend, handle: unknown,
+   *   definition: JobDefinition<S>, input: EnqueueInput<S["Type"]>
+   * ) => backend.joinTransaction(handle, (tx) => definition.enqueue(tx, input))
+   * ```
+   */
   readonly joinTransaction: <A, E, R>(
     handle: unknown,
     body: (tx: JobsTransaction<PostgreSqlError>) => Effect.Effect<A, E, R>
   ) => Effect.Effect<A, E | PostgreSqlError, R>
+  /** Delegates join-or-establish to the application manager, then supplies the scoped
+   * enqueue capability. Does not reconcile or replay unknown application commits. */
   readonly withTransaction: <A, E, R>(
     body: (tx: JobsTransaction<PostgreSqlError>) => Effect.Effect<A, E, R>
   ) => Effect.Effect<A, E | PostgreSqlError, R>
 }
+/**
+ * Context service produced by make or layerNoDeps; construction starts no SQL.
+ *
+ * @category services
+ */
 export class PostgreSqlJobs extends Context.Service<PostgreSqlJobs, Backend>()(
   "effect-jobs/PostgreSqlJobs"
 ) {}
 
-/** Pure construction: no borrow, transaction, readiness SQL, DDL, worker or pool shutdown. */
+/**
+ * Captures PostgreSqlApplication and validates mapping/budget. Fails with
+ * PostgreSqlConfigurationError; performs no borrowing, readiness SQL, DDL,
+ * worker startup or pool shutdown. Invoke backend.ready explicitly before use.
+ *
+ * @category constructors
+ */
 export const make = (options: Options) =>
   Effect.gen(function* () {
     const adapter = yield* PostgreSqlApplication
@@ -72,5 +120,11 @@ export const make = (options: Options) =>
         adapter.withTransaction((handle) => joinTransaction(handle, body))
     })
   })
+/**
+ * Produces PostgreSqlJobs while requiring PostgreSqlApplication. Supply a qualified
+ * application adapter separately; neither the driver nor a transaction engine is bundled.
+ *
+ * @category layers
+ */
 export const layerNoDeps = (options: Options) =>
   Layer.effect(PostgreSqlJobs, make(options))

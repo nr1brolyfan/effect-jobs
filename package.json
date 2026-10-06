@@ -125,7 +125,9 @@
     "test:postgresql:bun": "PG_EXPECT_RUNTIME=bun bun --bun node_modules/vitest/vitest.mjs run --config tests/postgresql/vitest.config.ts",
     "qualify:postgresql:installed": "node scripts/qualify-postgresql.mjs",
     "qualify:drizzle:native": "node tests/qualification/drizzle-native/Run.mjs",
-    "verify": "bun run check && bun run lint && bun run format:check && bun run build && bun run test",
+    "check:docs:api": "node tests/docs/api/Qualify.mjs",
+    "test:release-imports": "node --test tests/qualification/ReleaseImports.mjs",
+    "verify": "bun run check && bun run lint && bun run format:check && bun run build && bun run test && bun run test:release-imports && bun run check:docs:api",
     "release:pack": "node scripts/pack-release.mjs",
     "release:check": "node scripts/check-release.mjs",
     "qualify:release": "node scripts/qualify-release.mjs"

@@ -1,3 +1,6 @@
+/**
+ * Encodes and validates bounded canonical payloads and protected semantic projections.
+ */
 import { Effect, Schema, SchemaAST } from "effect"
 import {
   JobPayloadCodecError,
@@ -26,6 +29,23 @@ const strict = { onExcessProperty: "error" } as const
  * recursive/custom shapes, records and tuples fail with invalid-schema.
  * Each returned buffer is owned independently by this execution. Receivers must
  * copy buffers before retaining them; readonly properties do not freeze bytes.
+ * Requires the Schema's encoding services; failures are JobPayloadCodecError.
+ * Finite fractional numbers are supported; NaN and infinities are rejected.
+ *
+ * @example
+ * ```ts
+ * import { Effect, Schema } from "effect"
+ * import * as Codec from "effect-jobs/JobPayloadCodec"
+ *
+ * const payload = Schema.Struct({ amount: Schema.Number })
+ * const roundTrip = Effect.gen(function* () {
+ *   const encoded = yield* Codec.encodeJobPayload(payload, { amount: 1.5 })
+ *   return yield* Codec.decodeJobPayload(payload, encoded)
+ * })
+ * ```
+ *
+ * @see {@link decodeJobPayload} for artifact validation and domain decoding
+ * @category encoding
  */
 export const encodeJobPayload: JobPayloadEncoder = Effect.fnUntraced(function* <
   S extends Schema.Top
@@ -101,8 +121,13 @@ const parse = (bytes: Uint8Array) =>
     catch: () => new JobPayloadCodecError({ reason: "invalid-encoding" })
   })
 
-/** Validates canonical format, bounds, schema and semantic projection before
- * invoking domain decoding. Consistent projection bytes are not authenticity. */
+/**
+ * Validates canonical format, bounds, Schema and semantic projection before
+ * domain decoding. Requires the Schema's decoding services; fails with
+ * JobPayloadCodecError. Consistent projection bytes are not authenticity.
+ *
+ * @category decoding
+ */
 export const decodeJobPayload: JobPayloadDecoder = Effect.fnUntraced(function* <
   S extends Schema.Top
 >(schema: S, encoded: EncodedJobPayload) {

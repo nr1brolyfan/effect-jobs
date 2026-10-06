@@ -3,6 +3,7 @@ import { createHash } from "node:crypto"
 import { execFileSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
+import { releaseImports } from "./release-imports.mjs"
 
 assert(process.env.EFFECT_JOBS_ARCHIVE, "EFFECT_JOBS_ARCHIVE is required")
 const archive = resolve(process.env.EFFECT_JOBS_ARCHIVE)
@@ -54,18 +55,20 @@ for (const target of Object.values(manifest.exports)) {
     assert(entries.includes(`package/${path.slice(2)}`))
 }
 const graph = { javascriptFiles: 0, declarationFiles: 0, externalImports: new Set() }
-for (const entry of entries.filter((entry) => /\.(js|d\.ts)$/.test(entry))) {
-  const source = run("tar", ["-xOf", archive, entry])
+const sources = entries
+  .filter((entry) => /\.(js|d\.ts)$/.test(entry))
+  .map((entry) => ({ filename: entry, source: run("tar", ["-xOf", archive, entry]) }))
+const importsByFile = new Map(
+  releaseImports(sources).map(({ filename, imports }) => [filename, imports])
+)
+for (const { filename: entry, source } of sources) {
   if (entry.endsWith(".js")) {
     graph.javascriptFiles++
   } else {
     graph.declarationFiles++
   }
   assert(!/effect-auth/.test(source), `Private auth dependency in ${entry}`)
-  for (const match of source.matchAll(
-    /(?:from\s*|import\s*\(|import\s*)["']([^"']+)["']/g
-  )) {
-    const specifier = match[1]
+  for (const specifier of importsByFile.get(entry)) {
     if (!specifier.startsWith(".")) {
       assert(
         /^(effect(?:\/|$)|node:|drizzle-orm(?:\/|$))/.test(specifier),
