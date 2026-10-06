@@ -1,9 +1,14 @@
 // Executed against extracted source and installed snippets, on Node and Bun.
 // Test doubles here certify composition only, never durable SQL/atomicity.
 import assert from "node:assert/strict"
-import { Effect, Exit, Result, Schema } from "effect"
+import { Deferred, Effect, Fiber, Layer, Result, Schema } from "effect"
 import { TestClock } from "effect/testing"
-import { BillingQueue, GenerateInvoice, Producer, billing, billingWithBackend } from "./billing.js"
+import { BillingQueue, SendReceipt, IssueInvoice } from "./shared.js"
+import { workerLayers } from "./handler.js"
+import { consumerProcess } from "./polling.js"
+import { ReceiptMailer } from "./Services.js"
+import * as Consumer from "effect-jobs/JobConsumer"
+import * as Runtime from "effect-jobs/JobWorkerRuntime"
 import { migrationSql, tables } from "./migration.js"
 import { jobTables } from "./drizzle.js"
 import { policy, rejected, uncertain } from "./policy.js"
@@ -12,24 +17,23 @@ import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Lifecycle from "effect-jobs/JobLifecycle"
 import * as Store from "effect-jobs/JobStore"
 import { JobId } from "effect-jobs/JobId"
-import { PostgreSqlFailure } from "effect-jobs/PostgreSqlTransaction"
 
 assert.equal(
   process.versions.bun ?? process.version,
   process.versions.bun ? "1.4.2" : "v24.15.0"
 )
 assert.equal(BillingQueue.name, "billing")
-assert.deepEqual(GenerateInvoice.catalog, {
+assert.deepEqual(SendReceipt.catalog, {
   queue: "billing",
-  kind: "invoice.generate",
+  kind: "invoice.receipt-email",
   version: 1
 })
 assert.deepEqual(
-  Producer.identity({ operationId: "operation-1", slot: "generate" }),
+  IssueInvoice.identity({ operationId: "operation-1", slot: "receipt" }),
   {
-    operation: "billing.invoice",
+    operation: "billing.issue-invoice",
     operationId: "operation-1",
-    slot: "generate"
+    slot: "receipt"
   }
 )
 assert.equal(tables.schema, "billing")
@@ -65,30 +69,6 @@ const changed = await Effect.runPromise(
 )
 assert.notDeepEqual(encoded.semanticProjectionBytes, changed.semanticProjectionBytes)
 
-let adapterCalls = 0
-const unavailable = () =>
-  Effect.sync(() => {
-    adapterCalls++
-  }).pipe(
-    Effect.andThen(
-      Effect.fail(new PostgreSqlFailure({ commitKnowledge: "NotCommitted" }))
-    )
-  )
-const application = billing(
-  { validate: unavailable, withTransaction: unavailable, ownedTransaction: unavailable },
-  () => Effect.void
-)
-assert.equal(adapterCalls, 0, "Construction must not start work")
-const enqueueExit = await Effect.runPromiseExit(
-  application.enqueue("operation-1", "invoice-1")
-)
-assert(Exit.isFailure(enqueueExit))
-assert.equal(
-  adapterCalls,
-  1,
-  "Explicit enqueue delegates to app manager; no fallback or replay"
-)
-
 // Portable worker harness: actual definition/codec/handler, test-only store.
 let executions = 0
 let claims = 0
@@ -96,7 +76,7 @@ let finalizations = 0
 await Effect.runPromise(
   Effect.scoped(
     Effect.gen(function* () {
-      const encoded = yield* Codec.encodeJobPayload(GenerateInvoice.payload, {
+      const encoded = yield* Codec.encodeJobPayload(SendReceipt.payload, {
         invoiceId: "invoice-1"
       })
       const snapshot = Result.getOrThrow(
@@ -132,10 +112,10 @@ await Effect.runPromise(
                     snapshot: { ...snapshot, leaseToken: request.leaseToken },
                     ownership: { ...ownership, leaseToken: request.leaseToken },
                     prepared: {
-                      catalog: GenerateInvoice.catalog,
-                      producer: Producer.identity({
+                      catalog: SendReceipt.catalog,
+                      producer: IssueInvoice.identity({
                         operationId: "operation-1",
-                        slot: "generate"
+                        slot: "receipt"
                       }),
                       policy,
                       encoded
@@ -154,25 +134,51 @@ await Effect.runPromise(
         release: unexpected,
         reconcileFinalization: unexpected
       }
-      const application = billingWithBackend({
-        store,
-        ready: Effect.void,
-        withTransaction: unexpected
-      }, ({ payload, context }) => Effect.sync(() => {
-        assert.equal(payload.invoiceId, "invoice-1")
-        assert.equal(context.attemptNumber, 1)
-        assert.equal("transaction" in context, false)
-        executions++
-      }))
-      assert.equal(executions, 0)
-      const result = yield* application.drain
+      const sent = yield* Deferred.make<void>()
+      const mailerLayer = Layer.succeed(ReceiptMailer, {
+        send: ({ invoiceId, idempotencyKey }) => Effect.sync(() => {
+          assert.equal(invoiceId, "invoice-1")
+          assert.equal(idempotencyKey, "test-job-1")
+          executions++
+        }).pipe(Effect.andThen(Deferred.succeed(sent, undefined)))
+      })
+      const backend = { store, ready: Effect.void }
+      const { WorkerLayer } = workerLayers(backend, mailerLayer)
+      assert.equal(executions, 0, "Layer construction must not send")
+      const consumer = yield* Consumer.make(BillingQueue, {
+        localConcurrency: 2, claimLimitPerRun: 20, recoveryLimitPerRun: 20
+      })
+      const result = yield* Runtime.drain(consumer).pipe(Effect.provide(WorkerLayer))
       assert.equal(result._tag, "Idle")
       assert.equal(result.claimed, 1)
       assert.equal(executions, 1)
       assert.equal(finalizations, 1)
+
+      // Execute the exact README polling program, then interrupt its owning Scope.
+      claims = 0
+      const polled = yield* Deferred.make<void>()
+      const pollingMailerLayer = Layer.succeed(ReceiptMailer, {
+        send: ({ invoiceId, idempotencyKey }) => Effect.sync(() => {
+          assert.equal(invoiceId, "invoice-1")
+          assert.equal(idempotencyKey, "test-job-1")
+          executions++
+        }).pipe(Effect.andThen(Deferred.succeed(polled, undefined)))
+      })
+      const application = consumerProcess(backend, pollingMailerLayer)
+      assert.equal(executions, 1, "Polling construction must not start work")
+      const fiber = yield* application.runWorker.pipe(Effect.forkScoped)
+      yield* Deferred.await(polled)
+      // Let the handler's fenced finalization and idle sleep settle deterministically.
+      for (let i = 0; i < 20; i++) yield* Effect.yieldNow
+      assert.equal(finalizations, 2)
+      yield* Fiber.interrupt(fiber)
+      const stopped = claims
+      yield* TestClock.adjust(60000)
+      assert.equal(claims, stopped, "Closing the worker Scope must stop polling")
+      assert.equal(executions, 2)
     })
   ).pipe(Effect.provide(TestClock.layer()))
 )
 console.log(
-  "README extracted declarations, protection, inert construction, manager delegation and finite worker harness PASS"
+  "README exact fences: declarations, protection, receipt mail adapter, finite drain and scoped polling shutdown PASS (portable store; PostgreSQL not executed)"
 )

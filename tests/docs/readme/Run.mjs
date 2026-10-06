@@ -5,14 +5,31 @@ import { wrap } from "./Prelude.mjs"
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync
+} from "node:fs"
 import { join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const root = fileURLToPath(new URL("../../../", import.meta.url))
 const readme = readFileSync(join(root, "README.md"), "utf8")
 const snippets = [...readme.matchAll(/```ts\n([\s\S]*?)```/g)].map((match) => match[1])
-const names = ["billing", "migration", "drizzle", "transaction", "policy", "protection"]
+const names = [
+  "shared",
+  "transaction",
+  "handler",
+  "polling",
+  "policy",
+  "protection",
+  "migration",
+  "drizzle"
+]
 assert.equal(
   snippets.length,
   names.length,
@@ -22,6 +39,7 @@ assert.equal(process.version, "v24.15.0")
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex")
 mkdirSync(join(root, ".toolchain/readme"), { recursive: true })
 const evidence = mkdtempSync(join(root, ".toolchain/readme/run-"))
+const sourcePeers = join(evidence, "source-peers")
 const results = []
 const installed = []
 const inputFiles = (directory) =>
@@ -67,6 +85,22 @@ const prepare = (directory, source) => {
       : wrapped
     writeFileSync(join(directory, `${name}.ts`), code)
   }
+  for (const [output, input] of [
+    ["NativePrelude.mts", "tests/docs/readme/NativePrelude.mts"],
+    ["NativeApplication.mts", "tests/qualification/drizzle-native/NativeApplication.mts"],
+    ["Services.ts", "tests/docs/readme/Services.ts.txt"]
+  ]) {
+    let code = readFileSync(join(root, input), "utf8").replace(
+      '"../../qualification/drizzle-native/NativeApplication.mjs"',
+      '"./NativeApplication.mjs"'
+    )
+    if (source) {
+      code = code.replace(/"effect-jobs\/([^"/]+)"/g, (_, module) =>
+        JSON.stringify(`${relative(directory, join(root, "src", module))}.js`)
+      )
+    }
+    writeFileSync(join(directory, output), code)
+  }
   const smokeCode = readFileSync(smoke, "utf8")
   writeFileSync(
     join(directory, "Smoke.ts"),
@@ -76,23 +110,23 @@ const prepare = (directory, source) => {
         )
       : smokeCode
   )
-  const contracts = `import { Effect } from "effect"
-import { billing } from "./billing.js"
-import type { ApplicationAdapter } from "effect-jobs/PostgreSqlTransaction"
-declare const adapter: ApplicationAdapter
-const application = billing(adapter, () => Effect.void)
+  const contracts = `import { Effect, Layer } from "effect"
+import { consumerProcess } from "./polling.js"
+import { ReceiptMailer } from "./Services.js"
+import type { Backend } from "effect-jobs/PostgreSqlJobs"
+declare const backend: Backend
+const application = consumerProcess(backend, Layer.succeed(ReceiptMailer, {
+  send: () => Effect.void
+}))
 const closed = <A, E>(effect: Effect.Effect<A, E, never>) => effect
-closed(application.enqueue("operation-1", "invoice-1"))
-closed(application.drain)
+closed(application.runWorker)
 `
   writeFileSync(
     join(directory, "Contracts.ts"),
     source
       ? contracts.replace(
-          '"effect-jobs/PostgreSqlTransaction"',
-          JSON.stringify(
-            `${relative(directory, join(root, "src/PostgreSqlTransaction"))}.js`
-          )
+          '"effect-jobs/PostgreSqlJobs"',
+          JSON.stringify(`${relative(directory, join(root, "src/PostgreSqlJobs"))}.js`)
         )
       : contracts
   )
@@ -103,13 +137,14 @@ closed(application.drain)
       rootDir: source ? root : directory,
       outDir
     },
-    include: ["*.ts"]
+    include: ["*.ts", "*.mts"]
   }
   // Root's qualified Drizzle resolution is needed for the source consumer too.
   if (source) {
     config.compilerOptions.paths = {
       "drizzle-orm": [join(root, "node_modules/drizzle-orm/index.d.ts")],
-      "drizzle-orm/*": [join(root, "node_modules/drizzle-orm/*/index.d.ts")]
+      "drizzle-orm/*": [join(root, "node_modules/drizzle-orm/*/index.d.ts")],
+      "@effect/sql-pg/*": [join(sourcePeers, "node_modules/@effect/sql-pg/dist/*.d.ts")]
     }
   }
   writeFileSync(join(directory, "tsconfig.json"), JSON.stringify(config, null, 2) + "\n")
@@ -120,7 +155,13 @@ closed(application.drain)
       {
         extends: "./tsconfig.json",
         compilerOptions: { skipLibCheck: false, noEmit: true },
-        exclude: ["drizzle.ts", "Smoke.ts"]
+        exclude: [
+          "drizzle.ts",
+          "transaction.ts",
+          "NativePrelude.mts",
+          "NativeApplication.mts",
+          "Smoke.ts"
+        ]
       },
       null,
       2
@@ -138,6 +179,49 @@ const check = (label, directory, compiled, compiler) => {
   }
 }
 try {
+  // Source-only optional native peers: independent normal npm resolution. This
+  // gate needs no PG resource and never edits root package.json/bun.lock.
+  mkdirSync(sourcePeers, { recursive: true })
+  writeFileSync(
+    join(sourcePeers, "package.json"),
+    JSON.stringify({
+      private: true,
+      type: "module",
+      dependencies: {
+        effect: "4.0.0",
+        "drizzle-orm": "1.0.0-rc.5-169397b",
+        "@effect/sql-pg": "4.0.0"
+      }
+    }) + "\n"
+  )
+  run(
+    "source-native-install",
+    "npm",
+    ["install", "--ignore-scripts", "--no-audit", "--no-fund"],
+    sourcePeers
+  )
+  run("source-native-peers", "npm", ["ls", "--all"], sourcePeers)
+  for (const [peer, version] of [
+    ["effect", "4.0.0"],
+    ["drizzle-orm", "1.0.0-rc.5-169397b"],
+    ["@effect/sql-pg", "4.0.0"]
+  ]) {
+    assert.equal(
+      JSON.parse(
+        readFileSync(join(sourcePeers, "node_modules", peer, "package.json"), "utf8")
+      ).version,
+      version
+    )
+  }
+  // Supply optional peer resolution for repository lint in a fresh checkout.
+  // Existing task-local links remain untouched; installed checks use fresh peers.
+  for (const peer of ["drizzle-orm", "@effect/sql-pg"]) {
+    const link = join(root, "tests/docs/readme/node_modules", peer)
+    if (!existsSync(link)) {
+      mkdirSync(join(link, ".."), { recursive: true })
+      symlinkSync(join(sourcePeers, "node_modules", peer), link)
+    }
+  }
   const source = join(evidence, "source")
   const { compiled } = prepare(source, true)
   // ESM resolution uses root's own, frozen dependency tree.
@@ -160,6 +244,7 @@ try {
             "effect-jobs": target,
             effect: "4.0.0",
             "drizzle-orm": "1.0.0-rc.5-169397b",
+            "@effect/sql-pg": "4.0.0",
             typescript: "7.0.2",
             "@types/node": "26.4.1"
           }
@@ -235,6 +320,15 @@ console.log("All non-Drizzle imports without optional peers: PASS")
         runnerSha256: sha256(readFileSync(fileURLToPath(import.meta.url))),
         smokeSha256: sha256(readFileSync(smoke)),
         preludeSha256: sha256(readFileSync(new URL("Prelude.mjs", import.meta.url))),
+        nativePreludeSha256: sha256(
+          readFileSync(new URL("NativePrelude.mts", import.meta.url))
+        ),
+        nativeBridgeSha256: sha256(
+          readFileSync(
+            join(root, "tests/qualification/drizzle-native/NativeApplication.mts")
+          )
+        ),
+        servicesSha256: sha256(readFileSync(new URL("Services.ts.txt", import.meta.url))),
         node: process.version,
         sourceInputs: inputFiles(join(root, "src")),
         configurationInputs: [
@@ -246,6 +340,9 @@ console.log("All non-Drizzle imports without optional peers: PASS")
           ".oxfmtrc.json"
         ].map((path) => ({ path, sha256: sha256(readFileSync(join(root, path))) })),
         installed,
+        sourceNativeLockSha256: existsSync(join(sourcePeers, "package-lock.json"))
+          ? sha256(readFileSync(join(sourcePeers, "package-lock.json")))
+          : null,
         archiveSha256: process.argv[2]
           ? sha256(readFileSync(resolve(process.argv[2])))
           : null,

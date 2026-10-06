@@ -1,53 +1,62 @@
-// Explicit application wiring around the exact README fences; test doubles live in Smoke.
-// The backend is constructed without SQL. Production supplies a qualified adapter,
-// app-owned pools/migrations, and an idempotent renderInvoice implementation.
-const billingImports = `import { Effect, Layer, Schema } from "effect"
+// Imports and application parameters for EVERY exact README fence.
+// Run.mjs extracts fences; NativePrelude/NativeApplication are real pinned wiring.
+// Smoke.ts.txt supplies portable test doubles, never claims to execute PostgreSQL.
+const sharedImports = `import { Schema } from "effect"
 import * as Job from "effect-jobs/Job"
 import * as JobQueue from "effect-jobs/JobQueue"
 import * as JobProducer from "effect-jobs/JobProducer"
-import * as JobPolicy from "effect-jobs/JobPolicy"
+import * as Codec from "effect-jobs/JobPayloadCodec"
+`
+const consumerImports = `import { Effect, Layer } from "effect"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Consumer from "effect-jobs/JobConsumer"
 import * as Registry from "effect-jobs/JobRegistry"
 import * as Worker from "effect-jobs/JobWorker"
+import * as Polling from "effect-jobs/PollingJobWorker"
 import * as Runtime from "effect-jobs/JobWorkerRuntime"
-import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
-import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
-import type { ApplicationAdapter } from "effect-jobs/PostgreSqlTransaction"
-import type { HandlerInput } from "effect-jobs/JobContract"
-import type { JobFailure } from "effect-jobs/JobFailure"
+import type * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
+import { BillingQueue, SendReceipt } from "./shared.js"
+import { ReceiptMailer } from "./Services.js"
 `
-
 export const wrap = (name, code) => {
-  if (name === "billing") {
-    const boundary = code.indexOf("// backend and renderInvoice")
-    if (boundary < 0) {
-      throw new Error("Missing overview application boundary")
-    }
-    return (
-      billingImports +
-      code.slice(0, boundary) +
-      `
-export { BillingQueue, Producer, GenerateInvoice }
-export const billingWithBackend = (
-  backend: Pick<PostgreSqlJobs.Backend, "store" | "ready" | "withTransaction">,
-  renderInvoice: (input: HandlerInput<typeof GenerateInvoice.payload.Type>) => Effect.Effect<void, JobFailure>
-) => {
-` +
-      code.slice(boundary) +
-      `
-  return { enqueue, drain }
-}
-export const billing = (
-  applicationAdapter: ApplicationAdapter,
-  renderInvoice: (input: HandlerInput<typeof GenerateInvoice.payload.Type>) => Effect.Effect<void, JobFailure>
-) => billingWithBackend(Effect.runSync(PostgreSqlJobs.make({
-  schema: "billing", operationResponseBudgetMillis: 100
-}).pipe(Effect.provideService(PostgreSqlApplication, applicationAdapter))), renderInvoice)
-`
-    )
-  }
   const frames = {
+    shared: [sharedImports, `export { BillingQueue, IssueInvoice, SendReceipt }\n`],
+    transaction: [
+      `import { Effect } from "effect"
+import type * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
+import * as JobPolicy from "effect-jobs/JobPolicy"
+import { SendReceipt, IssueInvoice } from "./shared.js"
+import { transact, invoices, receipts } from "./NativePrelude.mjs"
+import type { NativeDb } from "./NativePrelude.mjs"
+import type { NativeApplication } from "./NativeApplication.mjs"
+export const applicationServer = (
+  db: NativeDb,
+  ApplicationTransactions: NativeApplication,
+  backend: PostgreSqlJobs.Backend
+) => {
+`,
+      `return { issueInvoice }\n}\n`
+    ],
+    handler: [
+      consumerImports +
+        `export const workerLayers = (
+  backend: Pick<PostgreSqlJobs.Backend, "store">,
+  ReceiptMailerLayer: Layer.Layer<ReceiptMailer>
+) => {
+`,
+      `return { HandlerLayer, WorkerLayer }\n}\n`
+    ],
+    polling: [
+      consumerImports +
+        `import { workerLayers } from "./handler.js"
+export const consumerProcess = (
+  backend: Pick<PostgreSqlJobs.Backend, "store" | "ready">,
+  ReceiptMailerLayer: Layer.Layer<ReceiptMailer>
+) => {
+  const { WorkerLayer } = workerLayers(backend, ReceiptMailerLayer)
+`,
+      `return { runWorker }\n}\n`
+    ],
     migration: [
       `import * as PostgreSqlSchema from "effect-jobs/PostgreSqlSchema"\n`,
       `export { tables, migrationSql }\n`
@@ -57,21 +66,6 @@ export const billing = (
 import { tables } from "./migration.js"
 `,
       `export { jobTables }\n`
-    ],
-    transaction: [
-      `import { Effect } from "effect"
-import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
-import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
-import { GenerateInvoice, Producer } from "./billing.js"
-import * as JobPolicy from "effect-jobs/JobPolicy"
-// Called only within the application manager's active callback.
-export const issueInvoice = (handle: unknown, operationId: string, invoiceId: string) =>
-  Effect.gen(function* () {
-    const backend = yield* PostgreSqlJobs
-    const application = yield* PostgreSqlApplication
-    const query = yield* application.validate(handle)
-`,
-      `return yield* issueInvoice\n})\n`
     ],
     policy: [
       `import { Duration, Effect } from "effect"

@@ -1,0 +1,12 @@
+// Application contract, not an email provider implementation. The application
+// loads the invoice, renders its receipt and sends with provider idempotency.
+// Provider-specific failures must be mapped before returning this job adapter.
+import { Context, Effect } from "effect"
+import type { JobFailure } from "effect-jobs/JobFailure"
+
+export class ReceiptMailer extends Context.Service<ReceiptMailer, {
+  readonly send: (input: {
+    readonly invoiceId: string
+    readonly idempotencyKey: string
+  }) => Effect.Effect<void, JobFailure>
+}>()("readme/ReceiptMailer") {}
