@@ -1,18 +1,14 @@
 // Executed against extracted source and installed snippets, on Node and Bun.
 // Test doubles here certify composition only, never durable SQL/atomicity.
 import assert from "node:assert/strict"
-import { Effect, Exit, Layer, Result, Schema } from "effect"
+import { Effect, Exit, Result, Schema } from "effect"
 import { TestClock } from "effect/testing"
-import { BillingQueue, GenerateInvoice, InvoiceProducer, billing } from "./billing.js"
+import { BillingQueue, GenerateInvoice, Producer, billing, billingWithBackend } from "./billing.js"
 import { migrationSql, tables } from "./migration.js"
 import { jobTables } from "./drizzle.js"
 import { policy, rejected, uncertain } from "./policy.js"
 import { ProtectedDocument, DocumentPayload, encodeDocument } from "./protection.js"
 import * as Codec from "effect-jobs/JobPayloadCodec"
-import * as Consumer from "effect-jobs/JobConsumer"
-import * as Registry from "effect-jobs/JobRegistry"
-import * as Worker from "effect-jobs/JobWorker"
-import * as Runtime from "effect-jobs/JobWorkerRuntime"
 import * as Lifecycle from "effect-jobs/JobLifecycle"
 import * as Store from "effect-jobs/JobStore"
 import { JobId } from "effect-jobs/JobId"
@@ -29,9 +25,9 @@ assert.deepEqual(GenerateInvoice.catalog, {
   version: 1
 })
 assert.deepEqual(
-  InvoiceProducer.identity({ operationId: "operation-1", slot: "generate" }),
+  Producer.identity({ operationId: "operation-1", slot: "generate" }),
   {
-    operation: "billing.issue-invoice",
+    operation: "billing.invoice",
     operationId: "operation-1",
     slot: "generate"
   }
@@ -94,13 +90,6 @@ assert.equal(
 )
 
 // Portable worker harness: actual definition/codec/handler, test-only store.
-const consumer = Effect.runSync(
-  Consumer.make(BillingQueue, {
-    localConcurrency: 2,
-    claimLimitPerRun: 20,
-    recoveryLimitPerRun: 20
-  })
-)
 let executions = 0
 let claims = 0
 let finalizations = 0
@@ -144,7 +133,7 @@ await Effect.runPromise(
                     ownership: { ...ownership, leaseToken: request.leaseToken },
                     prepared: {
                       catalog: GenerateInvoice.catalog,
-                      producer: InvoiceProducer.identity({
+                      producer: Producer.identity({
                         operationId: "operation-1",
                         slot: "generate"
                       }),
@@ -165,22 +154,18 @@ await Effect.runPromise(
         release: unexpected,
         reconcileFinalization: unexpected
       }
-      const HandlerLayer = GenerateInvoice.handlerLayer(
-        ({ payload, context }) =>
-          Effect.sync(() => {
-            assert.equal(payload.invoiceId, "invoice-1")
-            assert.equal(context.attemptNumber, 1)
-            assert.equal("transaction" in context, false)
-            executions++
-          }),
-        Codec.decodeJobPayload
-      )
-      const WorkerLayer = Worker.layer(store, {
-        catalog: [GenerateInvoice],
-        operationResponseBudgetMillis: 100
-      }).pipe(Layer.provideMerge(HandlerLayer), Layer.provide(Registry.layer))
+      const application = billingWithBackend({
+        store,
+        ready: Effect.void,
+        withTransaction: unexpected
+      }, ({ payload, context }) => Effect.sync(() => {
+        assert.equal(payload.invoiceId, "invoice-1")
+        assert.equal(context.attemptNumber, 1)
+        assert.equal("transaction" in context, false)
+        executions++
+      }))
       assert.equal(executions, 0)
-      const result = yield* Runtime.drain(consumer).pipe(Effect.provide(WorkerLayer))
+      const result = yield* application.drain
       assert.equal(result._tag, "Idle")
       assert.equal(result.claimed, 1)
       assert.equal(executions, 1)

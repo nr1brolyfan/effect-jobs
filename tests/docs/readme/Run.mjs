@@ -1,6 +1,7 @@
 // Extract every README TypeScript fence; no manually maintained snippet copies.
 // Run: node tests/docs/readme/Run.mjs [absolute immutable archive]
 // Always checks source + published 0.1.0-alpha.0; optional archive adds final-artifact checks.
+import { wrap } from "./Prelude.mjs"
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
@@ -58,11 +59,12 @@ const compilerOptions = {
 const prepare = (directory, source) => {
   mkdirSync(directory, { recursive: true })
   for (const [index, name] of names.entries()) {
+    const wrapped = wrap(name, snippets[index])
     const code = source
-      ? snippets[index].replace(/"effect-jobs\/([^"/]+)"/g, (_, module) =>
+      ? wrapped.replace(/"effect-jobs\/([^"/]+)"/g, (_, module) =>
           JSON.stringify(`${relative(directory, join(root, "src", module))}.js`)
         )
-      : snippets[index]
+      : wrapped
     writeFileSync(join(directory, `${name}.ts`), code)
   }
   const smokeCode = readFileSync(smoke, "utf8")
@@ -232,6 +234,7 @@ console.log("All non-Drizzle imports without optional peers: PASS")
         snippetSha256: snippets.map(sha256),
         runnerSha256: sha256(readFileSync(fileURLToPath(import.meta.url))),
         smokeSha256: sha256(readFileSync(smoke)),
+        preludeSha256: sha256(readFileSync(new URL("Prelude.mjs", import.meta.url))),
         node: process.version,
         sourceInputs: inputFiles(join(root, "src")),
         configurationInputs: [
