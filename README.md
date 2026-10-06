@@ -233,6 +233,7 @@ bun install --frozen-lockfile
 bun run build
 bun run verify
 bun run check:postgresql
+bun run qualify:docs:readme # All snippets against source and the published alpha.
 # Fixture installs and real-PG/installed gates: specs/release-qualification.md
 ```
 
