@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os"
 // Finite packed-consumer gate. Owns only ignored scratch files, never root pins.
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
@@ -12,14 +13,14 @@ import {
   readdirSync,
   writeFileSync
 } from "node:fs"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const root = fileURLToPath(new URL("../../../", import.meta.url))
 assert.equal(process.version, "v24.15.0")
 assert(process.env.D6_RESOURCE_DIRECTORY, "private PG resources required")
 mkdirSync(join(root, ".toolchain"), { recursive: true })
-const consumer = mkdtempSync(join(root, ".toolchain/drizzle-native-consumer-"))
+const consumer = mkdtempSync(join(tmpdir(), "effect-jobs-UPVE864-native-"))
 const run = (
   name,
   command,
@@ -45,9 +46,19 @@ const run = (
   return result.status
 }
 const sha256 = (path) => createHash("sha256").update(readFileSync(path)).digest("hex")
-run("build", "bun", ["run", "build"], root)
-const archive = join(consumer, "effect-jobs.tgz")
-run("pack", "bun", ["pm", "pack", "--ignore-scripts", "--filename", archive], root)
+assert(
+  process.env.EFFECT_JOBS_ARCHIVE,
+  "EFFECT_JOBS_ARCHIVE must name the immutable qualified tarball"
+)
+const archive = resolve(process.env.EFFECT_JOBS_ARCHIVE)
+copyFileSync(
+  join(root, "tests/qualification/Resource.mjs"),
+  join(consumer, "Resource.mjs")
+)
+copyFileSync(
+  join(root, "tests/qualification/Resource.d.mts"),
+  join(consumer, "Resource.d.mts")
+)
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
 assert.equal(manifest.peerDependencies["drizzle-orm"], "1.0.0-rc.5-169397b")
 writeFileSync(
@@ -84,7 +95,13 @@ if (!existsSync(fixtureModules)) {
   }
 }
 for (const file of ["NativeApplication.mts", "NativeQualification.mts"]) {
-  copyFileSync(fileURLToPath(new URL(file, import.meta.url)), join(consumer, file))
+  writeFileSync(
+    join(consumer, file),
+    readFileSync(fileURLToPath(new URL(file, import.meta.url)), "utf8").replace(
+      '"../Resource.mjs"',
+      '"./Resource.mjs"'
+    )
+  )
 }
 writeFileSync(
   join(consumer, "PublicExports.mts"),
@@ -117,6 +134,7 @@ writeFileSync(
   ) + "\n"
 )
 run("consumer-types", "node", ["node_modules/typescript/bin/tsc", "-p", "tsconfig.json"])
+copyFileSync(join(consumer, "Resource.mjs"), join(consumer, "compiled/Resource.mjs"))
 const upstreamDeclarationStatus = run(
   "upstream-declarations",
   "node",
