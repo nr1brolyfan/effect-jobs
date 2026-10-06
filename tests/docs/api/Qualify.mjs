@@ -4,6 +4,9 @@
  * and executable constructor/codec/empty-store portions. The parameterized join
  * example is typechecked only; PostgreSQL qualification uses separate gates.
  * Scratch consumers and receipt.json stay under ignored .toolchain/api-docs.
+ * Optional one-time proof: append --comment-only-base <commit>. The default
+ * qualification needs no historical Git objects; an explicitly requested base
+ * must exist and have identical non-comment source tokens.
  */
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
@@ -13,7 +16,13 @@ import { join, resolve } from "node:path"
 import * as ts from "typescript/unstable/ast"
 
 const root = resolve(import.meta.dirname, "../../..")
-const base = "74f2e672a216841c6b1f4df4f401c2eb117acc41"
+const args = process.argv.slice(2)
+assert(
+  args.length === 0 ||
+    (args.length === 2 && args[0] === "--comment-only-base" && args[1]),
+  "Usage: node tests/docs/api/Qualify.mjs [--comment-only-base <commit>]"
+)
+const base = args[1] ?? null
 const work = join(root, ".toolchain/api-docs")
 mkdirSync(work, { recursive: true })
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
@@ -59,12 +68,14 @@ for (const subpath of Object.keys(manifest.exports)) {
   const name = subpath === "." ? "index" : subpath.slice(2)
   const filename = `src/${name}.ts`
   const source = readFileSync(join(root, filename), "utf8")
-  const original = run("git", ["show", `${base}:${filename}`])
-  assert.deepEqual(
-    tokens(source),
-    tokens(original),
-    `Non-comment source change: ${filename}`
-  )
+  if (base !== null) {
+    const original = run("git", ["show", `${base}:${filename}`])
+    assert.deepEqual(
+      tokens(source),
+      tokens(original),
+      `Non-comment source change: ${filename}`
+    )
+  }
   sourceHashes[filename] = createHash("sha256").update(source).digest("hex")
   const symbols = []
   for (const declaration of source.matchAll(
@@ -259,7 +270,8 @@ const receipt = {
   inventory,
   sourceHashes,
   examples: examples.map(({ name }) => name),
-  commentOnlySource: "PASS token equality",
+  commentOnlySource:
+    base === null ? "NotTested (no baseline requested)" : "PASS token equality",
   sourceTypes: "PASS skipLibCheck:false",
   sourceRuntime: "PASS Node+Bun",
   publishedTypes: "PASS skipLibCheck:false",
