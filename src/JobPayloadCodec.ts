@@ -1,7 +1,7 @@
 /**
  * Encodes and validates bounded canonical payloads and protected semantic projections.
  */
-import { Effect, Schema, SchemaAST } from "effect"
+import { Cause, Effect, Schema, SchemaAST } from "effect"
 import {
   JobPayloadCodecError,
   jobPayloadFormatVersion,
@@ -58,7 +58,11 @@ export const encodeJobPayload: JobPayloadEncoder = Effect.fnUntraced(function* <
     schema,
     strict
   )(payload).pipe(
-    Effect.mapError(() => new JobPayloadCodecError({ reason: "invalid-schema" }))
+    Effect.catchCause((cause) =>
+      Effect.failCause(
+        Cause.map(cause, () => new JobPayloadCodecError({ reason: "invalid-schema" }))
+      )
+    )
   )
   const payloadBytes = yield* canonicalBytes(
     value,
@@ -69,7 +73,11 @@ export const encodeJobPayload: JobPayloadEncoder = Effect.fnUntraced(function* <
     Schema.make<Schema.Codec<unknown>>(ast),
     strict
   )(value).pipe(
-    Effect.mapError(() => new JobPayloadCodecError({ reason: "invalid-schema" }))
+    Effect.catchCause((cause) =>
+      Effect.failCause(
+        Cause.map(cause, () => new JobPayloadCodecError({ reason: "invalid-schema" }))
+      )
+    )
   )
   const projection = yield* project(ast, value)
   const semanticProjectionBytes = yield* canonicalBytes(
@@ -156,7 +164,11 @@ export const decodeJobPayload: JobPayloadDecoder = Effect.fnUntraced(function* <
     Schema.make<Schema.Codec<unknown>>(ast),
     strict
   )(value).pipe(
-    Effect.mapError(() => new JobPayloadCodecError({ reason: "invalid-schema" }))
+    Effect.catchCause((cause) =>
+      Effect.failCause(
+        Cause.map(cause, () => new JobPayloadCodecError({ reason: "invalid-schema" }))
+      )
+    )
   )
   const projection = yield* project(ast, value)
   const projectionBytes = yield* canonicalBytes(
@@ -172,7 +184,11 @@ export const decodeJobPayload: JobPayloadDecoder = Effect.fnUntraced(function* <
     schema,
     strict
   )(value).pipe(
-    Effect.mapError(() => new JobPayloadCodecError({ reason: "invalid-schema" }))
+    Effect.catchCause((cause) =>
+      Effect.failCause(
+        Cause.map(cause, () => new JobPayloadCodecError({ reason: "invalid-schema" }))
+      )
+    )
   )
   yield* checkDecodedContainers(decoded)
   return decoded

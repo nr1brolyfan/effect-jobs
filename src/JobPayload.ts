@@ -1,7 +1,7 @@
 /**
  * Marks already-protected payload subtrees for semantic comparison; performs no encryption.
  */
-import { Data, Effect, Schema, SchemaAST, SchemaGetter, SchemaIssue } from "effect"
+import { Cause, Data, Effect, Schema, SchemaAST, SchemaGetter, SchemaIssue } from "effect"
 import { hasEncryption, registerEncryption } from "./internal/codec/EncryptedBoundary.js"
 
 /**
@@ -163,15 +163,19 @@ export const encrypted = <
     throw new InvalidEncryptedSchema({ reason: "invalid-envelope" })
   }
   // No typed provider details are retained in Schema issues. Defects/interruption
-  // remain in Cause and are not flattened by mapError.
+  // remain in the complete Cause; pinned Effect.mapError drops mixed reasons.
   const issue = () => new SchemaIssue.Forbidden({ message: "payload encryption failed" })
   const result = protectedPayload(codec.envelope).pipe(
     Schema.decodeTo(schema, {
       decode: SchemaGetter.transformEffect((value) =>
-        codec.open(value).pipe(Effect.mapError(issue))
+        codec
+          .open(value)
+          .pipe(Effect.catchCause((cause) => Effect.failCause(Cause.map(cause, issue))))
       ),
       encode: SchemaGetter.transformEffect((value) =>
-        codec.seal(value).pipe(Effect.mapError(issue))
+        codec
+          .seal(value)
+          .pipe(Effect.catchCause((cause) => Effect.failCause(Cause.map(cause, issue))))
       )
     })
   )

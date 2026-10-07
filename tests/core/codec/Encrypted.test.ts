@@ -264,48 +264,59 @@ it("actual worker isolates invalid opened artifacts before the handler under exi
     invoiceId: string
     document: typeof Envelope.Type
   }
-  const bad = await Effect.runPromise(
-    artifact({ ...wire, document: { ...wire.document, tag: "bad" } })
+  const invalidDomain = await run(
+    DocumentEncryption.seal({ recipient: "PRIVATE", total: "not-a-bigint" })
   )
-  let calls = 0
-  const store = harness([
-    {
-      catalog: definition.catalog,
-      producer: { operation: "billing.issue", operationId: "id", slot: "receipt" },
-      policy: Policy.defaultPolicy,
-      encoded: bad
-    }
-  ])
-  await Effect.runPromise(
-    Effect.gen(function* () {
-      yield* Layer.build(
-        definition.handlerLayer(
-          () =>
-            Effect.sync(() => {
-              calls++
-            }),
-          decodeJobPayload
+  for (const document of [
+    { ...wire.document, tag: "bad" },
+    { ...wire.document, ciphertext: "bad" },
+    { ...wire.document, tag: null },
+    invalidDomain
+  ]) {
+    const bad = await Effect.runPromise(artifact({ ...wire, document }))
+    let calls = 0
+    const store = harness([
+      {
+        catalog: definition.catalog,
+        producer: { operation: "billing.issue", operationId: "id", slot: "receipt" },
+        policy: Policy.defaultPolicy,
+        encoded: bad
+      }
+    ])
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* Layer.build(
+          definition.handlerLayer(
+            () =>
+              Effect.sync(() => {
+                calls++
+              }),
+            decodeJobPayload
+          )
         )
+        const worker = yield* Worker.make(store.store, {
+          catalog: [definition],
+          operationResponseBudgetMillis: 100
+        })
+        const consumer = yield* Consumer.make(definition.queue, {
+          localConcurrency: 1,
+          claimLimitPerRun: 1,
+          recoveryLimitPerRun: 1
+        })
+        yield* Runtime.drain(consumer).pipe(
+          Effect.provideService(Worker.JobWorker, worker)
+        )
+      }).pipe(
+        Effect.provide(Layer.mergeAll(configured, Registry.layer, TestClock.layer())),
+        Effect.scoped
       )
-      const worker = yield* Worker.make(store.store, {
-        catalog: [definition],
-        operationResponseBudgetMillis: 100
-      })
-      const consumer = yield* Consumer.make(definition.queue, {
-        localConcurrency: 1,
-        claimLimitPerRun: 1,
-        recoveryLimitPerRun: 1
-      })
-      yield* Runtime.drain(consumer).pipe(Effect.provideService(Worker.JobWorker, worker))
-    }).pipe(
-      Effect.provide(Layer.mergeAll(configured, Registry.layer, TestClock.layer())),
-      Effect.scoped
     )
-  )
-  expect(calls).toBe(0)
-  expect(store.rows[0]!.snapshot).toMatchObject({
-    state: "Isolated",
-    lastFailureCode: "invalid_claimed_artifact",
-    attemptsMade: 1
-  })
+    expect(calls).toBe(0)
+    expect(store.rows[0]!.snapshot).toMatchObject({
+      state: "Isolated",
+      lastFailureCode: "invalid_claimed_artifact",
+      attemptsMade: 1
+    })
+    expect(store.calls.finalizations).toHaveLength(1)
+  }
 })
