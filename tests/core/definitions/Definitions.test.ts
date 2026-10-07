@@ -1,3 +1,4 @@
+import * as FailureCodes from "../../../src/FailureCode.js"
 import { Cause, Context, Effect, Exit, Layer, Schema, SchemaGetter } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Job from "../../../src/Job.js"
@@ -154,7 +155,7 @@ describe("explicit transaction enqueue", () => {
           prepared = value
           return Effect.succeed(EnqueueResults.Inserted({ jobId }))
         },
-        (tx) => definition.enqueue(tx, mutable)
+        (tx) => definition.enqueueInTransaction(tx, mutable)
       )
     )
     expect(prepared).toMatchObject({
@@ -171,7 +172,7 @@ describe("explicit transaction enqueue", () => {
           prepared = value
           return Effect.succeed(EnqueueResults.Inserted({ jobId }))
         },
-        (tx) => job.enqueue(tx, { ...input, availableAt: 12 })
+        (tx) => job.enqueueInTransaction(tx, { ...input, availableAt: 12 })
       )
     )
     expect(result).toEqual(EnqueueResults.Inserted({ jobId }))
@@ -197,7 +198,7 @@ describe("explicit transaction enqueue", () => {
           prepared = value
           return Effect.succeed(EnqueueResults.AlreadyPresent({ jobId }))
         },
-        (tx) => job.enqueue(tx, input)
+        (tx) => job.enqueueInTransaction(tx, input)
       )
     )
     expect(result.jobId).toBe(jobId)
@@ -240,7 +241,7 @@ describe("explicit transaction enqueue", () => {
               calls++
               return Effect.succeed(EnqueueResults.Inserted({ jobId }))
             },
-            (tx) => definition.enqueue(tx, invalid)
+            (tx) => definition.enqueueInTransaction(tx, invalid)
           )
         )
       )
@@ -267,7 +268,7 @@ describe("explicit transaction enqueue", () => {
             inserts++
             return Effect.succeed(EnqueueResults.Inserted({ jobId }))
           },
-          (tx) => definition.enqueue(tx, { ...input, payload: "x" })
+          (tx) => definition.enqueueInTransaction(tx, { ...input, payload: "x" })
         )
       )
     )
@@ -278,7 +279,7 @@ describe("explicit transaction enqueue", () => {
         failure(
           withJoinedTransaction(
             () => Effect.fail("backend-failure"),
-            (tx) => job.enqueue(tx, input)
+            (tx) => job.enqueueInTransaction(tx, input)
           )
         )
       )
@@ -303,11 +304,13 @@ describe("explicit transaction enqueue", () => {
         (tx) =>
           Effect.sync(() => {
             escaped = tx
-            deferred = job.enqueue(tx, input)
+            deferred = job.enqueueInTransaction(tx, input)
           })
       )
     )
-    expect(await Effect.runPromise(failure(job.enqueue(escaped!, input)))).toMatchObject({
+    expect(
+      await Effect.runPromise(failure(job.enqueueInTransaction(escaped!, input)))
+    ).toMatchObject({
       _tag: "JobsTransactionClosed",
       reason: "callback-exited"
     })
@@ -360,7 +363,7 @@ describe("local registry and Layer dependencies", () => {
     await Effect.runPromise(
       withJoinedTransaction(
         () => Effect.succeed(EnqueueResults.Inserted({ jobId })),
-        (tx) => definition.enqueue(tx, { ...input, payload: "payload" })
+        (tx) => definition.enqueueInTransaction(tx, { ...input, payload: "payload" })
       ).pipe(Effect.provideService(Encoding, { prefix: "encoded:" }))
     )
     expect(wire).toBe("encoded:payload")
@@ -497,7 +500,12 @@ describe("local registry and Layer dependencies", () => {
         Effect.mapError(() => new JobPayloadCodecError({ reason: "invalid-schema" }))
       )
     const mapped = job.handlerLayer(
-      () => Effect.fail(JobFailures.OutcomeUnknown({ code: "response_lost" })),
+      () =>
+        Effect.fail(
+          JobFailures.OutcomeUnknown({
+            code: FailureCodes.define({ value: "response_lost" }).value
+          })
+        ),
       decode
     )
     expect(
@@ -508,7 +516,11 @@ describe("local registry and Layer dependencies", () => {
           )
         )
       )
-    ).toEqual(JobFailures.OutcomeUnknown({ code: "response_lost" }))
+    ).toEqual(
+      JobFailures.OutcomeUnknown({
+        code: FailureCodes.define({ value: "response_lost" }).value
+      })
+    )
   })
 
   it("detects duplicate handler installation with catalog diagnostics", async () => {

@@ -154,7 +154,7 @@ try {
             backend.joinTransaction(handle, (jobsTx) =>
               Effect.gen(function* () {
                 yield* tx.insert(domain).values({ id })
-                const result = yield* definition.enqueue(jobsTx, input(id))
+                const result = yield* definition.enqueueInTransaction(jobsTx, input(id))
                 yield* tx.insert(receipts).values({ id, jobId: result.jobId })
                 return result
               })
@@ -191,7 +191,7 @@ try {
             "native duplicate equality and first stored bytes",
             Effect.gen(function* () {
               const duplicate = yield* backend.withTransaction((tx) =>
-                definition.enqueue(tx, input("commit"))
+                definition.enqueueInTransaction(tx, input("commit"))
               )
               assert.equal(duplicate._tag, "AlreadyPresent")
               assert.deepEqual(yield* Effect.promise(() => count("commit")), all)
@@ -210,7 +210,7 @@ try {
                           invocations++
                           yield* tx.insert(domain).values({ id: "caught-conflict" })
                           yield* definition
-                            .enqueue(jobsTx, input("commit", "changed"))
+                            .enqueueInTransaction(jobsTx, input("commit", "changed"))
                             .pipe(
                               Effect.catchTag("JobIntegrityConflict", () => Effect.void)
                             )
@@ -392,7 +392,10 @@ try {
                   | undefined
                 const body = backend.withTransaction((tx) =>
                   Effect.gen(function* () {
-                    escaped = definition.enqueue(tx, input(`escaped-${channel}`))
+                    escaped = definition.enqueueInTransaction(
+                      tx,
+                      input(`escaped-${channel}`)
+                    )
                     if (channel === "failure") {
                       return yield* Effect.fail("caller-error")
                     }

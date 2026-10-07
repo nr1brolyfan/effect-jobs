@@ -1,6 +1,6 @@
 // Extract every README TypeScript fence; no manually maintained snippet copies.
 // Run: node tests/docs/readme/Run.mjs [absolute immutable archive]
-// Always checks source + published 0.1.0-alpha.0; optional archive adds final-artifact checks.
+// Checks source + current packed artifact; no historical-alpha compatibility claim.
 import { wrap } from "./Prelude.mjs"
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
@@ -12,7 +12,15 @@ import { fileURLToPath } from "node:url"
 const root = fileURLToPath(new URL("../../../", import.meta.url))
 const readme = readFileSync(join(root, "README.md"), "utf8")
 const snippets = [...readme.matchAll(/```ts\n([\s\S]*?)```/g)].map((match) => match[1])
-const names = ["billing", "migration", "drizzle", "transaction", "policy", "protection"]
+const names = [
+  "billing",
+  "migration",
+  "drizzle",
+  "transaction",
+  "policy",
+  "encrypted",
+  "protection"
+]
 assert.equal(
   snippets.length,
   names.length,
@@ -143,10 +151,17 @@ try {
   // ESM resolution uses root's own, frozen dependency tree.
   writeFileSync(join(source, "package.json"), '{"type":"module","private":true}\n')
   check("source", source, compiled, join(root, "node_modules/typescript/bin/tsc"))
-  const targets = [["published", "0.1.0-alpha.0"]]
-  if (process.argv[2]) {
-    targets.push(["packed", `file:${resolve(process.argv[2])}`])
+  let archive = process.argv[2] ?? process.env.EFFECT_JOBS_ARCHIVE
+  if (!archive) {
+    run(
+      "pack-current",
+      "npm",
+      ["pack", "--ignore-scripts", "--pack-destination", evidence],
+      root
+    )
+    archive = join(evidence, "effect-jobs-0.1.0-alpha.0.tgz")
   }
+  const targets = [["packed", `file:${resolve(archive)}`]]
   for (const [label, target] of targets) {
     const directory = join(evidence, label)
     const { compiled: output } = prepare(directory, false)

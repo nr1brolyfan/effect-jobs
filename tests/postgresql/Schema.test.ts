@@ -1,4 +1,6 @@
 import { describe, expect, test } from "vitest"
+import { sql } from "drizzle-orm"
+import { index } from "drizzle-orm/pg-core"
 import { getTableConfig } from "drizzle-orm/pg-core"
 import { makeJobTables } from "../../src/PostgreSqlDrizzleSchema.js"
 import * as Schema from "../../src/PostgreSqlSchema.js"
@@ -63,4 +65,39 @@ describe("optional fixed Drizzle declarations", () => {
     expect(Schema.indexPrefix(a)).not.toBe(Schema.indexPrefix(b))
     expect((Schema.indexPrefix(a) + "_terminal").length).toBeLessThanOrEqual(63)
   })
+})
+
+test("jobs-only extra indexes are additive; defaults and baseline migration stay unchanged", () => {
+  const original = makeJobTables({ schema: "billing" })
+  const expanded = makeJobTables({
+    schema: "billing",
+    extraIndexes: (jobs) => [
+      index("app_jobs_by_state")
+        .on(jobs.state.asc(), jobs.id.desc())
+        .where(sql`${jobs.state} = 'Pending'`)
+    ]
+  })
+  const a = getTableConfig(original.jobs)
+  const b = getTableConfig(expanded.jobs)
+  expect(b.columns.map((c) => c.name)).toEqual(a.columns.map((c) => c.name))
+  expect(b.checks.map((c) => c.name)).toEqual(a.checks.map((c) => c.name))
+  expect(b.uniqueConstraints.map((c) => c.columns.map((p) => p.name))).toEqual(
+    a.uniqueConstraints.map((c) => c.columns.map((p) => p.name))
+  )
+  expect(b.indexes.map((i) => i.config.name)).toEqual([
+    ...a.indexes.map((i) => i.config.name),
+    "app_jobs_by_state"
+  ])
+  expect(expanded.mapping).toEqual(original.mapping)
+  expect(Schema.migration(expanded.mapping)).not.toContain("app_jobs_by_state")
+})
+
+test("index-name collisions are not silently removed or advertised as library fail-fast validation", () => {
+  const options = { schema: "billing" }
+  const name = `${Schema.indexPrefix(Schema.tables(options))}_due`
+  const config = getTableConfig(
+    makeJobTables({ ...options, extraIndexes: (jobs) => [index(name).on(jobs.state)] })
+      .jobs
+  )
+  expect(config.indexes.filter((i) => i.config.name === name)).toHaveLength(2)
 })

@@ -1,3 +1,7 @@
+This contract includes the current API refinements in [api-refinements.md](api-refinements.md).
+The native ambient producer and explicit standalone contract replaces mandatory
+transaction-capability arguments for the qualified native integration.
+
 # Shared core contracts
 
 Implemented serial prerequisite for UPVE-1031, against accepted D1–D8 at
@@ -166,15 +170,16 @@ counts. Enforcing those transitions belongs to the lifecycle unit.
 `JobFailure` is a Schema/type union. `JobFailures` supplies checked frozen factories:
 
 ```ts
-JobFailures.Retry({ code: string, notAfter?: number })
-JobFailures.Dead({ code: string })
-JobFailures.Isolate({ code: string })
-JobFailures.OutcomeUnknown({ code: string })
+JobFailures.Retry({ code: FailureCode, notAfter?: number })
+JobFailures.Dead({ code: FailureCode })
+JobFailures.Isolate({ code: FailureCode })
+JobFailures.OutcomeUnknown({ code: FailureCode })
 ```
 
-Codes are 1–64 characters matching `^[a-z0-9][a-z0-9_-]*$`; cutoffs use
-EpochMillis. Invalid factories throw `InvalidJobFailure { field: "code" |
-"notAfter" }`, without recording input text. Domain errors are mapped by ordinary
+Codes are 1–128 characters matching `^[a-z0-9][a-z0-9_-]*$`; cutoffs use
+EpochMillis. Catalog definition validates once and throws an entry-specific `InvalidFailureCode`.
+Dynamic strings use `FailureCode.parse` returning Result; invalid retry cutoffs throw
+`InvalidJobFailure { field: "notAfter" }`, without recording input text. Domain errors are mapped by ordinary
 Effect composition. Unknown is not a seventh lifecycle state; mixed causes,
 defects, interruption or timeout never imply known-safe Retry. Runtime boundaries
 must validate even structurally constructed failure values with `JobFailure`.

@@ -5,6 +5,8 @@ import {
   maximumProtectedJobPayloadSubtrees
 } from "../../JobContract.js"
 
+import { hasEncryption } from "./EncryptedBoundary.js"
+
 const marked = (ast: SchemaAST.AST) =>
   ast.annotations?.effectJobsProtectedPayload === true
 const encoder = new TextEncoder()
@@ -22,6 +24,15 @@ export const prepareProjection = (schema: Schema.Top) =>
       ): void => {
         if (ancestors.has(ast) || SchemaAST.isSuspend(ast)) {
           throw new JobPayloadCodecError({ reason: "invalid-schema" })
+        }
+        if (hasEncryption(ast)) {
+          if (transformed || protectedParent) {
+            throw new JobPayloadCodecError({ reason: "invalid-schema" })
+          }
+          // The helper validates its domain and owns precisely this transform.
+          // The encoded envelope alone participates in fingerprint projection.
+          visit(SchemaAST.toEncoded(ast), false, false, ancestors)
+          return
         }
         const boundary = transformed || ast.encoding !== undefined
         const protectedHere = marked(ast)

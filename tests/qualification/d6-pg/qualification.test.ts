@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs"
 import { randomBytes } from "node:crypto"
 import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Schema } from "effect"
 import { Pool, type PoolConfig } from "pg"
+import { readQualificationResource } from "../Resource.mjs"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import * as Job from "../../../src/Job.js"
 import * as Queue from "../../../src/JobQueue.js"
@@ -53,12 +54,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
         return [line.slice(0, i), line.slice(i + 1)]
       })
     const env = Object.fromEntries(entries)
-    const ownership = JSON.parse(
-      readFileSync(`${resourceDirectory}/ownership.json`, "utf8")
-    )
-    expect(ownership.container_id).toBe(
-      "68404a1de0f5646ec885d62351a2c7b981e5513347617b4974d4b51219d83c84"
-    )
+    const ownership = readQualificationResource(resourceDirectory!)
     const config: PoolConfig = {
       host: "127.0.0.1",
       port: Number(ownership.ports["5432/tcp"][0].HostPort),
@@ -185,7 +181,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
   const flow = (id: string, tx: JobsTransaction<Bridge.Failure>, handle: App.Handle) =>
     Effect.gen(function* () {
       yield* handle.query("INSERT INTO d6_fixture.invoices (id) VALUES ($1)", [id])
-      const result = yield* definition.enqueue(tx, input(id))
+      const result = yield* definition.enqueueInTransaction(tx, input(id))
       yield* handle.query(
         "INSERT INTO d6_fixture.operation_receipts (id,job_id) VALUES ($1,$2)",
         [id, result.jobId]
@@ -325,7 +321,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
     ).rows[0].payload
     const result = await Effect.runPromise(
       integration.withTransaction((tx) =>
-        definition.enqueue(tx, {
+        definition.enqueueInTransaction(tx, {
           ...input("commit"),
           policy: Policy.make({ maxAttempts: 7 })
         })
@@ -350,7 +346,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
           yield* h.query(
             "INSERT INTO d6_fixture.invoices (id) VALUES ('conflict-parent')"
           )
-          return yield* definition.enqueue(tx, input("commit", "changed"))
+          return yield* definition.enqueueInTransaction(tx, input("commit", "changed"))
         })
       )
     )
@@ -442,7 +438,9 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
       const n = source.counters.sql.length
       expect(
         failureTags(
-          await Effect.runPromiseExit(definition.enqueue(retained, input("expired")))
+          await Effect.runPromiseExit(
+            definition.enqueueInTransaction(retained, input("expired"))
+          )
         )
       ).toContain("JobsTransactionClosed")
       expect(source.counters.sql.length).toBe(n)
@@ -501,7 +499,9 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
             )
             expect(
               failureTags(
-                yield* Effect.exit(definition.enqueue(inner, input("inner-expired")))
+                yield* Effect.exit(
+                  definition.enqueueInTransaction(inner, input("inner-expired"))
+                )
               )
             ).toContain("JobsTransactionClosed")
             // The same physical transaction is still active, with its outer capability intact.
@@ -515,7 +515,9 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
     expect(await counts("inner-expired")).toEqual(none)
     expect(
       failureTags(
-        await Effect.runPromiseExit(definition.enqueue(outer, input("outer-expired")))
+        await Effect.runPromiseExit(
+          definition.enqueueInTransaction(outer, input("outer-expired"))
+        )
       )
     ).toContain("JobsTransactionClosed")
   })
@@ -539,7 +541,9 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
           // Explicitly leave the ambient scope: this independent operation commits separately.
           yield* Effect.promise(() =>
             Effect.runPromise(
-              bridge.withTransaction((tx) => definition.enqueue(tx, input("negative")))
+              bridge.withTransaction((tx) =>
+                definition.enqueueInTransaction(tx, input("negative"))
+              )
             )
           )
           return yield* Effect.fail("parent rollback")
