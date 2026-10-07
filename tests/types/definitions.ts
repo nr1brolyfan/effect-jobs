@@ -1,3 +1,4 @@
+import * as FailureCodes from "../../src/FailureCode.js"
 import { Context, Effect, Layer, Schema } from "effect"
 import * as Job from "../../src/Job.js"
 import * as JobConsumer from "../../src/JobConsumer.js"
@@ -70,18 +71,21 @@ export const input = {
   payload: { amount: 1.5 },
   policy: JobPolicy.make()
 }
-export const enqueue = job.enqueue(tx, input)
+export const enqueue = job.enqueueInTransaction(tx, input)
 export const explicitChannels: Effect.Effect<
   EnqueueResult,
   "backend-error" | JobEnqueueError,
   BackendService | EncodeService
 > = enqueue
 // @ts-expect-error Explicit tx is required.
-export const standalone = job.enqueue<never, never>(input)
-// @ts-expect-error A SQL-ish object is not a transaction capability.
-export const arbitrary = job.enqueue<never, never>({ query: () => {} }, input)
+export const standalone = job.enqueueInTransaction<never, never>(input)
+export const arbitrary = job.enqueueInTransaction<never, never>(
+  // @ts-expect-error A SQL-ish object is not a transaction capability.
+  { query: () => {} },
+  input
+)
 // @ts-expect-error Payload is decoded domain data, not its encoded representation.
-export const encodedInput = job.enqueue(tx, { ...input, payload: "encoded" })
+export const encodedInput = job.enqueueInTransaction(tx, { ...input, payload: "encoded" })
 
 export const handler = job.handlerLayer(
   ({ payload, context }) =>
@@ -90,7 +94,9 @@ export const handler = job.handlerLayer(
       const amount: number = payload.amount
       const attempt: number = context.attemptNumber
       if (amount < attempt) {
-        return yield* Effect.fail(JobFailures.Dead({ code: "rejected" }))
+        return yield* Effect.fail(
+          JobFailures.Dead({ code: FailureCodes.define({ value: "rejected" }).value })
+        )
       }
     }),
   decode

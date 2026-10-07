@@ -21,17 +21,15 @@ const Producer = JobProducer.make({ operation: "billing.invoice", slots: ["gener
 const GenerateInvoice = Job.make({
   queue: BillingQueue,
   kind: "invoice.generate",
-  version: 1,
-  payload: Schema.Struct({ invoiceId: Schema.String }),
-  encodePayload: Codec.encodeJobPayload
+  payload: Schema.Struct({ invoiceId: Schema.String })
 })
 // backend and renderInvoice are supplied by the application.
 const enqueue = (operationId: string, invoiceId: string) =>
-  backend.withTransaction((tx) =>
-    GenerateInvoice.enqueue(tx, {
+  backend.withTransaction(() =>
+    GenerateInvoice.enqueue({
       producer: Producer.identity({ operationId, slot: "generate" }),
       payload: { invoiceId },
-      policy: JobPolicy.make()
+      policy: JobPolicy.defaultPolicy
     })
   )
 const HandlerLayer = GenerateInvoice.handlerLayer(renderInvoice, Codec.decodeJobPayload)
@@ -51,7 +49,9 @@ const drain = Effect.gen(function* () {
 ```
 
 Reuse the operation ID on retries; matching duplicates keep the first job/config,
-changed content conflicts. Enqueue is provisional until commit. Handlers receive
+changed content conflicts. Enqueue is provisional until commit. Omitted version is
+exactly 1; incompatible payload changes require an explicit new version and its decoder.
+The standard encoder is the default; `encodePayload` remains an explicit override. Handlers receive
 payload/context, without SQL authority. [Transaction contract](specs/postgresql-backend.md).
 
 ## Own the migration
@@ -67,36 +67,49 @@ Optional Drizzle declarations reuse that mapping:
 
 ```ts
 const jobTables = makeJobTables(tables)
-// Migration declarations only; no transaction adapter is supplied.
+// extraIndexes: (jobs) => [index("app_jobs_by_state").on(jobs.state, jobs.id)]
+// Custom indexes are tracked by application Drizzle migrations.
 ```
 
 [Qualified Effect-native Drizzle integration](specs/drizzle-compatibility.md).
 
 ## Join a business transaction
 
-Inside the owning manager's active callback, use its registered `handle` and
-validated same-connection `query`; the application owns invoice/receipt tables.
+Configure `PostgreSqlNative.layer({ client, operationTimeoutMillis: 2000 })` with
+the same application-owned `PgClient` used by native Drizzle, then provide
+`PostgreSqlJobs.layerNoDeps`. Its Layer supplies the generic `JobEnqueue` service.
+An active transaction of that exact client is required; absence is a typed error.
+Native Drizzle `db.transaction(tx => Effect.gen(...))` joins the same context.
+The application owns invoice/receipt tables, pools, migrations and finite client timeouts.
 
 ```ts
-const issueInvoice = backend.joinTransaction(handle, (tx) =>
-  Effect.gen(function* () {
-    yield* query.query("INSERT INTO billing.invoices (id) VALUES ($1)", [invoiceId])
-    const job = yield* GenerateInvoice.enqueue(tx, {
-      producer: Producer.identity({ operationId, slot: "generate" }),
-      payload: { invoiceId },
-      policy: JobPolicy.make()
+const issueInvoice = client
+  .withTransaction(
+    Effect.gen(function* () {
+      yield* client.unsafe("INSERT INTO billing.invoices (id) VALUES ($1)", [invoiceId])
+      const job = yield* GenerateInvoice.enqueue({
+        producer: Producer.identity({ operationId, slot: "generate" }),
+        payload: { invoiceId },
+        policy: JobPolicy.defaultPolicy
+      })
+      yield* client.unsafe("INSERT INTO billing.receipts (id, job_id) VALUES ($1, $2)", [
+        operationId,
+        job.jobId
+      ])
+      return job
     })
-    yield* query.query("INSERT INTO billing.receipts (id, job_id) VALUES ($1, $2)", [
-      operationId,
-      job.jobId
-    ])
-    return job
-  })
-) // All three writes commit or roll back together under the outer owner.
+  )
+  .pipe(Effect.provideService(JobEnqueue, backend.producer))
+// All writes commit or roll back under the outer owner.
 ```
 
 No fallback connection, savepoint or replay. Unknown commit outcomes need
-application reconciliation. [Handle and atomicity requirements](specs/postgresql-backend.md#explicit-application-adapter-contract).
+application reconciliation. `enqueueStandalone(input)` owns a bounded atomic
+transaction and resolves after acknowledged commit; it rejects an active configured-client
+transaction. `backend.withTransaction(() => job.enqueue(input))` provides the producer
+service explicitly. `enqueueInTransaction(tx, input)` remains the focused primitive for
+qualified explicit-handle adapters, independently of native ambient composition.
+[Handle and atomicity requirements](specs/postgresql-backend.md#explicit-application-adapter-contract).
 
 ## Persist retries and retention
 
@@ -107,14 +120,51 @@ const policy = JobPolicy.make({
   completedRetention: Duration.days(90),
   deadRetention: Duration.infinity
 }) // Other fields use defaults; first enqueue persists the complete policy.
-const rejected = Effect.fail(JobFailures.Retry({ code: "provider_busy" }))
-const uncertain = Effect.fail(JobFailures.OutcomeUnknown({ code: "response_lost" }))
+const Codes = FailureCodes.define({
+  providerBusy: "provider_busy",
+  responseLost: "response_lost"
+})
+const rejected = Effect.fail(JobFailures.Retry({ code: Codes.providerBusy }))
+const uncertain = Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.responseLost }))
 ```
+
+Define catalogs before startup. Codes preserve literals, are branded and accept
+1–128 identifier characters; `FailureCodes.parse(dynamic)` returns a validation Result.
+Storage does not require membership in the current catalog. Valid syntax does not
+prove that a code contains no secrets.
 
 At-least-once execution, fixed nonrenewing leases and database time; a timeout
 cannot prove an external effect failed. Cleanup is explicit and bounded; coordinate
 receipt/OTP retention, never purge Pending/Active/Isolated. Removing identity
 evidence ends deduplication. [Lifecycle and cleanup](specs/architecture-decisions.md#d8--replaceable-cleanup-with-application-domain-retention-integration).
+
+## Encrypt domain fields with application codecs
+
+```ts
+const ReceiptDocument = Schema.Struct({ recipient: Schema.String, amount: Schema.Finite })
+const EncryptedDocument = JobPayload.encrypted({
+  schema: ReceiptDocument,
+  codec: ReceiptEncryption
+})
+const SendReceipt = Job.make({
+  queue: JobQueue.make("billing"),
+  kind: "receipt.send",
+  payload: Schema.Struct({ invoiceId: Schema.String, document: EncryptedDocument })
+})
+// enqueue accepts the domain document; the handler receives validated domain fields.
+```
+
+`ReceiptEncryption` is application-owned: declare its envelope Schema, seal the
+**encoded** domain representation, and open it back to that representation. Its
+Effect service requirements flow through enqueue and handler Layers. Application
+Layers load/validate configured keys before startup; no import or `Job.make` reads
+keys. All encrypted fields open before the handler. Structs, arrays, optionals and
+unions are supported; encrypted-within-encrypted is explicitly rejected.
+Keep stable keyed fingerprints separate from randomized encryption and key rotation.
+The helper supplies no crypto algorithm, AAD or remote KMS retry contract. Malformed
+artifacts follow existing bounded decode/isolation; arbitrary defects/interruption
+keep their existing behavior. Admin listings do not decode automatically.
+[Concrete typed contract and qualification](specs/api-refinements.md).
 
 ## Mark already protected payloads
 

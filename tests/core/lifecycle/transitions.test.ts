@@ -1,3 +1,4 @@
+import * as FailureCodes from "../../../src/FailureCode.js"
 import { Cause, Duration, Result, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as L from "../../../src/JobLifecycle.js"
@@ -12,17 +13,33 @@ const reason = <A>(result: Result.Result<A, L.JobLifecycleError>) => {
 }
 const commands = [
   L.JobFinalizations.Complete(),
-  L.JobFinalizations.Retry({ code: "temporary" }),
-  L.JobFinalizations.Dead({ code: "rejected" }),
-  L.JobFinalizations.Isolate({ code: "malformed" })
+  L.JobFinalizations.Retry({ code: FailureCodes.define({ value: "temporary" }).value }),
+  L.JobFinalizations.Dead({ code: FailureCodes.define({ value: "rejected" }).value }),
+  L.JobFinalizations.Isolate({ code: FailureCodes.define({ value: "malformed" }).value })
 ]
 
 describe("portable lifecycle (not database qualification)", () => {
   it.each([
     [L.JobFinalizations.Complete(), "Completed", null],
-    [L.JobFinalizations.Retry({ code: "temporary" }), "RetryScheduled", "temporary"],
-    [L.JobFinalizations.Dead({ code: "rejected" }), "Dead", "rejected"],
-    [L.JobFinalizations.Isolate({ code: "malformed" }), "Isolated", "malformed"]
+    [
+      L.JobFinalizations.Retry({
+        code: FailureCodes.define({ value: "temporary" }).value
+      }),
+      "RetryScheduled",
+      "temporary"
+    ],
+    [
+      L.JobFinalizations.Dead({ code: FailureCodes.define({ value: "rejected" }).value }),
+      "Dead",
+      "rejected"
+    ],
+    [
+      L.JobFinalizations.Isolate({
+        code: FailureCodes.define({ value: "malformed" }).value
+      }),
+      "Isolated",
+      "malformed"
+    ]
   ] as const)("known $0._tag transition", (command, state, code) => {
     const before = active({ attemptsMade: 1, stalledCount: 1 })
     const after = value(L.finalize(before, ownership(before), command, now + 1))
@@ -171,7 +188,10 @@ describe("portable lifecycle (not database qualification)", () => {
       L.finalize(
         active(),
         ownership(),
-        L.JobFinalizations.Retry({ code: "temporary", notAfter: now + 6 + offset }),
+        L.JobFinalizations.Retry({
+          code: FailureCodes.define({ value: "temporary" }).value,
+          notAfter: now + 6 + offset
+        }),
         now + 1
       )
     )
@@ -188,7 +208,9 @@ describe("portable lifecycle (not database qualification)", () => {
         L.finalize(
           row,
           ownership(row),
-          L.JobFinalizations.Retry({ code: "temporary" }),
+          L.JobFinalizations.Retry({
+            code: FailureCodes.define({ value: "temporary" }).value
+          }),
           row.updatedAt + 1
         )
       )
@@ -243,7 +265,7 @@ describe("portable lifecycle (not database qualification)", () => {
       { _tag: "Timeout" },
       { _tag: "Complete" },
       { _tag: "Retry", code: "x", message: "private" },
-      { _tag: "Retry", code: "x".repeat(65) }
+      { _tag: "Retry", code: "x".repeat(129) }
     ]) {
       expect(reason(L.finalizationFromFailure(input))).toBe("invalid-command")
     }

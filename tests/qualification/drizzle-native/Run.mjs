@@ -6,6 +6,8 @@ import { spawnSync } from "node:child_process"
 import {
   copyFileSync,
   existsSync,
+  lstatSync,
+  unlinkSync,
   symlinkSync,
   mkdirSync,
   mkdtempSync,
@@ -88,13 +90,32 @@ run("npm-tree", "npm", ["ls", "--all"])
 // Resolve optional native fixture types for repository lint after a fresh
 // checkout, without installing into or editing the root package.
 const fixtureModules = fileURLToPath(new URL("node_modules", import.meta.url))
-if (!existsSync(fixtureModules)) {
-  mkdirSync(fixtureModules)
-  for (const entry of readdirSync(join(consumer, "node_modules"))) {
-    symlinkSync(join(consumer, "node_modules", entry), join(fixtureModules, entry))
+mkdirSync(fixtureModules, { recursive: true })
+for (const entry of readdirSync(join(consumer, "node_modules"))) {
+  const target = join(fixtureModules, entry)
+  if (
+    existsSync(target) ||
+    (() => {
+      try {
+        return lstatSync(target).isSymbolicLink()
+      } catch {
+        return false
+      }
+    })()
+  ) {
+    assert(
+      lstatSync(target).isSymbolicLink(),
+      "Never replace caller-owned fixture modules"
+    )
+    unlinkSync(target)
   }
+  symlinkSync(join(consumer, "node_modules", entry), target)
 }
-for (const file of ["NativeApplication.mts", "NativeQualification.mts"]) {
+for (const file of [
+  "NativeApplication.mts",
+  "NativeQualification.mts",
+  "NativeAmbient.mts"
+]) {
   writeFileSync(
     join(consumer, file),
     readFileSync(fileURLToPath(new URL(file, import.meta.url)), "utf8").replace(
@@ -162,7 +183,14 @@ for (const runtime of ["node", "bun"]) {
   assert.equal(receipt.runtimeVersion, runtime === "node" ? "v24.15.0" : "1.4.2")
   assert.equal(receipt.success, true)
   assert.deepEqual(receipt.cleanup, { schemas: 0, roles: 0 })
-  receipts.push(receipt)
+  const ambientEvidence = join(consumer, `${runtime}-ambient-evidence.json`)
+  run(`${runtime}-ambient`, runtime, ["compiled/NativeAmbient.mjs"], consumer, {
+    AMBIENT_EVIDENCE_FILE: ambientEvidence
+  })
+  const ambient = JSON.parse(readFileSync(ambientEvidence, "utf8"))
+  assert.equal(ambient.success, true)
+  assert.equal(ambient.runtime, runtime)
+  receipts.push({ ...receipt, ambient })
 }
 const receipt = {
   archiveSha256: sha256(archive),

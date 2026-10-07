@@ -1,3 +1,4 @@
+import * as FailureCodes from "../../src/FailureCode.js"
 import { Schema } from "effect"
 import { expect, it } from "vitest"
 import { JobId } from "../../src/JobId.js"
@@ -13,35 +14,43 @@ it("returns the same branded ID for inserted and matching existing jobs", () => 
 })
 it("retains distinct validated handler outcome values", () => {
   for (const outcome of [
-    JobFailures.Retry({ code: "temporary", notAfter: maximumMillis }),
-    JobFailures.Dead({ code: "rejected" }),
-    JobFailures.Isolate({ code: "invalid" }),
-    JobFailures.OutcomeUnknown({ code: "response_lost" })
+    JobFailures.Retry({
+      code: FailureCodes.define({ value: "temporary" }).value,
+      notAfter: maximumMillis
+    }),
+    JobFailures.Dead({ code: FailureCodes.define({ value: "rejected" }).value }),
+    JobFailures.Isolate({ code: FailureCodes.define({ value: "invalid" }).value }),
+    JobFailures.OutcomeUnknown({
+      code: FailureCodes.define({ value: "response_lost" }).value
+    })
   ]) {
     expect(Schema.is(JobFailure)(outcome)).toBe(true)
     expect(Object.isFrozen(outcome)).toBe(true)
   }
-  expect(JobFailures.Retry({ code: "a".repeat(64), notAfter: 1 })._tag).toBe("Retry")
+  expect(
+    JobFailures.Retry({
+      code: FailureCodes.define({ value: "a".repeat(128) }).value,
+      notAfter: 1
+    })._tag
+  ).toBe("Retry")
 })
-it.each(["", "A", "message with secrets", "a".repeat(65), "a\n"])(
+it.each(["", "A", "message with secrets", "a".repeat(129), "a\n"])(
   "rejects invalid failure codes without retaining messages",
   (code) => {
-    for (const factory of [
-      JobFailures.Retry,
-      JobFailures.Dead,
-      JobFailures.Isolate,
-      JobFailures.OutcomeUnknown
-    ]) {
-      expect(() => factory({ code })).toThrow(InvalidJobFailure)
-    }
+    expect(() => FailureCodes.define({ value: code })).toThrow(
+      FailureCodes.InvalidFailureCode
+    )
   }
 )
 it.each([0, -1, 0.5, maximumMillis + 1, Infinity, NaN])(
   "rejects invalid retry cutoffs",
   (notAfter) => {
-    expect(() => JobFailures.Retry({ code: "temporary", notAfter })).toThrow(
-      InvalidJobFailure
-    )
+    expect(() =>
+      JobFailures.Retry({
+        code: FailureCodes.define({ value: "temporary" }).value,
+        notAfter
+      })
+    ).toThrow(InvalidJobFailure)
   }
 )
 it("freezes accepted codec bounds without claiming a codec implementation", () => {

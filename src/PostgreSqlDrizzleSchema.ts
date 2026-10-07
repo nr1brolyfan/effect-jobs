@@ -15,7 +15,11 @@ import {
   text,
   unique
 } from "drizzle-orm/pg-core"
-import type { PgTableFn } from "drizzle-orm/pg-core"
+import type {
+  PgTableFn,
+  PgBuildExtraConfigColumns,
+  IndexBuilder
+} from "drizzle-orm/pg-core"
 import { indexPrefix, tables, type TableOptions } from "./PostgreSqlSchema.js"
 import type { JobPolicy } from "./JobPolicy.js"
 
@@ -24,6 +28,42 @@ const bytes = customType<{ data: Uint8Array; driverData: Buffer }>({
   toDriver: (value) => Buffer.from(value),
   fromDriver: (value) => new Uint8Array(value)
 })
+const makeJobsColumns = () => ({
+  id: text("id").primaryKey(),
+  operation: text("operation").notNull(),
+  operationId: text("operation_id").notNull(),
+  slot: text("slot").notNull(),
+  queue: text("queue").notNull(),
+  kind: text("kind").notNull(),
+  version: integer("version").notNull(),
+  policy: jsonb("policy").$type<JobPolicy>().notNull(),
+  initialAvailableAt: bigint("initial_available_at", { mode: "number" }),
+  state: text("state").notNull(),
+  availableAt: bigint("available_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+  attemptsMade: bigint("attempts_made", { mode: "number" }).notNull().default(0),
+  stalledCount: bigint("stalled_count", { mode: "number" }).notNull().default(0),
+  lifecycleVersion: bigint("lifecycle_version", { mode: "number" }).notNull().default(0),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: bigint("lease_expires_at", { mode: "number" }),
+  completedAt: bigint("completed_at", { mode: "number" }),
+  lastFailureCode: text("last_failure_code"),
+  cleanupAt: bigint("cleanup_at", { mode: "number" })
+})
+/** Actual typed required jobs columns supplied to the extraIndexes callback.
+ * @category models
+ */
+export type JobsIndexColumns = PgBuildExtraConfigColumns<
+  ReturnType<typeof makeJobsColumns>
+>
+/** Drizzle-only additive jobs indexes. The application owns unique schema-wide
+ * names and migration generation. Runtime readiness and baseline SQL are unchanged.
+ * @category models
+ */
+export interface Options extends TableOptions {
+  readonly extraIndexes?: (jobs: JobsIndexColumns) => ReadonlyArray<IndexBuilder>
+}
+
 /**
  * Creates fixed-column Drizzle declarations for the configured namespace/table names.
  * Requires optional drizzle-orm@1.0.0-rc.5-169397b. Applications generate/run migrations;
@@ -32,70 +72,44 @@ const bytes = customType<{ data: Uint8Array; driverData: Buffer }>({
  *
  * @category constructors
  */
-export const makeJobTables = (options: TableOptions = {}) => {
+export const makeJobTables = (options: Options = {}) => {
   const mapping = tables(options)
   const table: PgTableFn<string | undefined> =
     mapping.schema === "public" ? pgTable : pgSchema(mapping.schema).table
   const prefix = indexPrefix(mapping)
-  const jobs = table(
-    mapping.jobsTable,
-    {
-      id: text("id").primaryKey(),
-      operation: text("operation").notNull(),
-      operationId: text("operation_id").notNull(),
-      slot: text("slot").notNull(),
-      queue: text("queue").notNull(),
-      kind: text("kind").notNull(),
-      version: integer("version").notNull(),
-      policy: jsonb("policy").$type<JobPolicy>().notNull(),
-      initialAvailableAt: bigint("initial_available_at", { mode: "number" }),
-      state: text("state").notNull(),
-      availableAt: bigint("available_at", { mode: "number" }).notNull(),
-      updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
-      attemptsMade: bigint("attempts_made", { mode: "number" }).notNull().default(0),
-      stalledCount: bigint("stalled_count", { mode: "number" }).notNull().default(0),
-      lifecycleVersion: bigint("lifecycle_version", { mode: "number" })
-        .notNull()
-        .default(0),
-      leaseToken: text("lease_token"),
-      leaseExpiresAt: bigint("lease_expires_at", { mode: "number" }),
-      completedAt: bigint("completed_at", { mode: "number" }),
-      lastFailureCode: text("last_failure_code"),
-      cleanupAt: bigint("cleanup_at", { mode: "number" })
-    },
-    (j) => [
-      unique().on(j.operation, j.operationId, j.slot),
-      unique().on(j.leaseToken),
-      check(
-        `${prefix}_state`,
-        sql`${j.state} IN ('Pending','Active','RetryScheduled','Completed','Dead','Isolated')`
-      ),
-      check(`${prefix}_attempts`, sql`${j.attemptsMade} >= 0`),
-      check(`${prefix}_stalls`, sql`${j.stalledCount} >= 0`),
-      check(`${prefix}_version`, sql`${j.lifecycleVersion} >= 0`),
-      check(
-        `${prefix}_active`,
-        sql`(${j.state} = 'Active') = (${j.leaseToken} IS NOT NULL AND ${j.leaseExpiresAt} IS NOT NULL)`
-      ),
-      check(
-        `${prefix}_unowned`,
-        sql`${j.state} = 'Active' OR (${j.leaseToken} IS NULL AND ${j.leaseExpiresAt} IS NULL)`
-      ),
-      check(
-        `${prefix}_completed`,
-        sql`(${j.state} IN ('Completed','Dead')) = (${j.completedAt} IS NOT NULL)`
-      ),
-      index(`${prefix}_due`)
-        .on(j.queue, j.kind, j.version, j.availableAt, j.id)
-        .where(sql`${j.state} IN ('Pending','RetryScheduled')`),
-      index(`${prefix}_expired`)
-        .on(j.leaseExpiresAt, j.id)
-        .where(sql`${j.state} = 'Active'`),
-      index(`${prefix}_terminal`)
-        .on(j.cleanupAt, j.id)
-        .where(sql`${j.state} IN ('Completed','Dead')`)
-    ]
-  )
+  const jobs = table(mapping.jobsTable, makeJobsColumns(), (j) => [
+    unique().on(j.operation, j.operationId, j.slot),
+    unique().on(j.leaseToken),
+    check(
+      `${prefix}_state`,
+      sql`${j.state} IN ('Pending','Active','RetryScheduled','Completed','Dead','Isolated')`
+    ),
+    check(`${prefix}_attempts`, sql`${j.attemptsMade} >= 0`),
+    check(`${prefix}_stalls`, sql`${j.stalledCount} >= 0`),
+    check(`${prefix}_version`, sql`${j.lifecycleVersion} >= 0`),
+    check(
+      `${prefix}_active`,
+      sql`(${j.state} = 'Active') = (${j.leaseToken} IS NOT NULL AND ${j.leaseExpiresAt} IS NOT NULL)`
+    ),
+    check(
+      `${prefix}_unowned`,
+      sql`${j.state} = 'Active' OR (${j.leaseToken} IS NULL AND ${j.leaseExpiresAt} IS NULL)`
+    ),
+    check(
+      `${prefix}_completed`,
+      sql`(${j.state} IN ('Completed','Dead')) = (${j.completedAt} IS NOT NULL)`
+    ),
+    index(`${prefix}_due`)
+      .on(j.queue, j.kind, j.version, j.availableAt, j.id)
+      .where(sql`${j.state} IN ('Pending','RetryScheduled')`),
+    index(`${prefix}_expired`)
+      .on(j.leaseExpiresAt, j.id)
+      .where(sql`${j.state} = 'Active'`),
+    index(`${prefix}_terminal`)
+      .on(j.cleanupAt, j.id)
+      .where(sql`${j.state} IN ('Completed','Dead')`),
+    ...(options.extraIndexes?.(j) ?? [])
+  ])
   const payloads = table(
     mapping.payloadsTable,
     {

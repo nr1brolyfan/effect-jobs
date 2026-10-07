@@ -1,3 +1,4 @@
+import { define as defineFailureCodes } from "./FailureCode.js"
 /**
  * Pure lifecycle transition plans; backends own atomic fencing and database-time writes.
  */
@@ -407,7 +408,7 @@ export const recoverExpired = (
       lifecycleVersion,
       updatedAt: dbNow,
       completedAt: dead ? dbNow : null,
-      lastFailureCode: dead ? "stall_limit_exceeded" : null,
+      lastFailureCode: dead ? internalCodes.stall_limit_exceeded : null,
       leaseToken: null,
       leaseExpiresAt: null
     }
@@ -460,3 +461,5 @@ export const cleanupEligible = (
     const expiresAt = yield* addTimestamp(stored.completedAt, retention.millis)
     return expiresAt <= dbNow
   })
+
+const internalCodes = defineFailureCodes({ stall_limit_exceeded: "stall_limit_exceeded" })

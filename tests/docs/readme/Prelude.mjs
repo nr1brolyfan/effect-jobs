@@ -60,23 +60,32 @@ import { tables } from "./migration.js"
     ],
     transaction: [
       `import { Effect } from "effect"
-import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
-import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
+import type { SqlClient } from "effect/sql/SqlClient"
+import { JobEnqueue } from "effect-jobs/JobEnqueue"
+import type { Backend } from "effect-jobs/PostgreSqlJobs"
 import { GenerateInvoice, Producer } from "./billing.js"
 import * as JobPolicy from "effect-jobs/JobPolicy"
-// Called only within the application manager's active callback.
-export const issueInvoice = (handle: unknown, operationId: string, invoiceId: string) =>
-  Effect.gen(function* () {
-    const backend = yield* PostgreSqlJobs
-    const application = yield* PostgreSqlApplication
-    const query = yield* application.validate(handle)
+declare const client: SqlClient
+declare const backend: Backend
+declare const operationId: string
+declare const invoiceId: string
 `,
-      `return yield* issueInvoice\n})\n`
+      `export { issueInvoice }\n`
+    ],
+    encrypted: [
+      `import { Schema } from "effect"
+import * as Job from "effect-jobs/Job"
+import * as JobQueue from "effect-jobs/JobQueue"
+import * as JobPayload from "effect-jobs/JobPayload"
+declare const ReceiptEncryption: JobPayload.EncryptionCodec<{ readonly recipient: string; readonly amount: number }, Schema.Struct<{ ciphertext: Schema.String; fingerprint: Schema.String }>>
+`,
+      `export { SendReceipt }\n`
     ],
     policy: [
       `import { Duration, Effect } from "effect"
 import * as JobPolicy from "effect-jobs/JobPolicy"
 import { JobFailures } from "effect-jobs/JobFailure"
+import * as FailureCodes from "effect-jobs/FailureCode"
 `,
       `export { policy, rejected, uncertain }\n`
     ],

@@ -33,7 +33,7 @@ require effect-auth to expose its own catalog to arbitrary application jobs.
 
 ### Initial scope
 
-- Schema-defined, explicitly versioned jobs and logical queues.
+- Schema-defined, versioned jobs (omitted version means 1) and logical queues.
 - Application-defined catalogs and handler installation.
 - Atomic enqueue within an application-owned transaction.
 - Semantic deduplication and the existing durable lifecycle guarantees.
@@ -55,7 +55,7 @@ or a dual-write migration.
 
 ### Deferred features
 
-Standalone enqueue convenience, additional backends, recurring schedules,
+Additional backends, recurring schedules,
 dashboards, flows, pause/resume/cancel/redrive APIs, and a ready-made Cloudflare
 coordinator are outside the first release. Bounded drain alone is not a
 Cloudflare support claim.
@@ -92,7 +92,7 @@ auth API. Tracked in Multica as UPVE-851.
 
 Choose variant B: a definition's payload Schema describes domain data only.
 The library owns the standard envelope Schema, separate from mutable lifecycle
-state. Enqueue accepts an explicit transaction and an input containing producer
+state. Enqueue resolves the configured producer service within an active same-client transaction and accepts input containing producer
 identity, policy, optional initial availability, and decoded domain payload. D3 refines
 the original job-ID example: the library assigns the job ID rather than requiring
 the caller to preserve it across production retries.
@@ -558,145 +558,47 @@ Exact supported-transform diagnostics and service provisioning must be specified
 and tested before implementation is considered qualified. No new runtime API,
 implementation, or agent dispatch is authorized by acceptance.
 
-## D6 — transaction composition and integration boundaries
+## D6 — native ambient transactions and explicit standalone production
 
-Status: composition contract accepted by the owner on 2026-10-04. Tracked in
-Multica as UPVE-858. Concrete shipped adapter coverage still needs qualification.
+Current owner-approved API refinement replaces the earlier mandatory callback
+capability ceremony for the qualified Effect-native PostgreSQL/Drizzle path.
+The owner explicitly accepted this complete scope; no compatibility/migration or
+deprecation machinery is required. Other D1–D8 safety properties remain in force.
 
-The owner subsequently selected the backend callback join approach (option A).
-The core transaction capability has a private constructor; a qualified backend
-bridge provides it inside a callback joining the application's active transaction:
+`definition.enqueue(input)` resolves the generic `JobEnqueue` Effect service.
+The configured native adapter uses the exact application's `PgClient.transactionService`.
+An active transaction of that SAME client is required; missing/foreign context
+fails before preparation. There is no implicit BEGIN, second connection, commit,
+savepoint or replay. Connection strings and a Drizzle `tx` object do not prove binding.
+Native Drizzle and the Effect client manager both establish the supported context.
 
-```ts
-appDatabase.transaction((appTx) =>
-  PostgreSqlJobs.joinTransaction(appTx, (jobsTx) => definition.enqueue(jobsTx, input))
-)
-```
+`PostgreSqlJobs.layerNoDeps` provides storage plus this producer service.
+`backend.withTransaction(() => definition.enqueue(input))` delegates explicit
+join-or-establish behavior to the application's manager and supplies the service.
+`definition.enqueueStandalone(input)` owns a bounded transaction for preparation,
+job/payload insertion and deduplication, and resolves after acknowledged commit.
+It rejects an active transaction of the configured client and never independently
+commits a consequence inside its parent's business transaction.
 
-These names remain illustrative. The bridge uses the same active connection and
-source, without a fallback connection, new transaction, savepoint, independent
-commit or replay. The capability is invalidated when the callback scope ends,
-including interruption; later enqueue must fail with an actionable error.
-Custom backend adapters need an explicit documented extension contract and
-qualification, not a public core constructor accepting any insert callback.
-This is lifetime/atomicity correctness, not a sandbox for trusted application code.
+The outer business owner controls commit, rollback, reconciliation and replay.
+Joined results are provisional. Unknown native control/commit outcomes stay Unknown;
+no whole-operation replay or rollback inference from interruption/timeouts is added.
+Actual source-current real-PG qualification covers atomic commit/rollback, same
+connection/xid, concurrent isolation/deduplication, caller interruption, wrong source,
+standalone failure/active rejection and synthetic response loss after durable COMMIT.
+This is not a network/server-crash guarantee.
 
-### Two distinct capabilities
+Only `PgClient@4.0.0` with native Drizzle `1.0.0-rc.5-169397b` is qualified by the
+native adapter. Its structural client type is an integration port, not a blanket
+guarantee for other drivers. The application owns pool lifetime, migrations and
+finite native acquisition/control/release timeouts. Retaining/forking transaction
+contexts past the owner's callback is unsupported; there is no invented `tx` identity proof.
+Workers and cleanup retain their existing owned-transaction protocols.
 
-Keep `definition.enqueue(jobsTx, input)` as the canonical primitive: it uses the
-supplied transaction and performs no BEGIN, COMMIT, ROLLBACK, connection borrowing,
-or replay of domain operations.
-
-A backend bridge joins an existing application transaction and exposes a scoped
-job transaction capability. It does not open a transaction or create a savepoint.
-Accept qualified transaction handles or an explicitly implemented adapter
-contract, not arbitrary objects merely possessing a query method.
-
-A configured `JobTransactions` integration may expose
-`withTransaction((jobsTx) => body)`: delegate to the application transaction
-manager to join a compatible active transaction or establish one when absent.
-This is not a second transaction engine or a universal SQL client. Exact adapter
-factory names are illustrative until specified and qualified.
-
-### Composition examples
-
-```ts
-const program = Effect.gen(function* () {
-  const transactions = yield* JobTransactions
-  const billing = yield* Billing
-
-  return yield* transactions.withTransaction((jobsTx) =>
-    Effect.gen(function* () {
-      const invoice = yield* billing.insertInvoice(invoiceInput)
-      const result = yield* GenerateInvoiceV1.enqueue(jobsTx, {
-        producer,
-        payload: { invoiceId: invoice.id },
-        policy,
-        availableAt
-      })
-      yield* billing.insertReceipt(operationId, result.jobId)
-      return invoice
-    })
-  )
-})
-```
-
-Billing and the jobs integration must actually share transaction infrastructure;
-wrapping an Effect does not make an independently configured pool join. Running
-this program within a compatible outer transaction joins without another BEGIN,
-savepoint, or independent commit. Otherwise the configured manager establishes
-the transaction.
-
-An application with explicit handles can retain its own transaction runner:
-
-```ts
-const program = appDatabase.transaction((appTx) =>
-  PostgreSqlJobs.joinTransaction(appTx, (jobsTx) =>
-    Effect.gen(function* () {
-      yield* insertInvoice(appTx, invoice)
-      const result = yield* GenerateInvoiceV1.enqueue(jobsTx, input)
-      yield* insertReceipt(appTx, operationId, result.jobId)
-    })
-  )
-)
-```
-
-These examples describe API direction, not existing exports or blanket support
-for every application's transaction handle.
-
-### Auth and other application integrations
-
-The auth adapter delegates join-or-establish behavior to its existing
-`PostgreSqlExecutor`, using the same connection-source service, rather than
-copying the executor into jobs. The current auth implementation joins same-source
-transactions without savepoints and disables local mutation replay/reconciliation
-when joining. Matching connection strings alone do not establish shared scope.
-
-Other applications can supply backend transaction bridges and manager adapters
-without depending on auth. Effect SQL integration must join its actual active
-transaction connection, not call nested `withTransaction` merely to enqueue:
-Effect SQL 4 normally uses savepoints for nested wrappers. Drizzle integration
-must execute and await the Effect within its owning transaction callback.
-These are integration requirements, not claims of qualified adapter support.
-
-### Ownership and failure semantics
-
-The outer owner controls commit, rollback, and replay of the complete business
-operation. Joined operations do not independently replay or reconcile the outer
-commit. Unknown commit knowledge stays unknown and requires application-owned
-workflow reconciliation. Inner success is provisional until outer commit.
-
-Sequence operations sharing a transaction; keep transaction capabilities scoped
-to the owning invocation, not application-lifetime Layers. A bridge must not
-silently fall back to a different connection when asked to join a particular
-transaction. Application-owned pools and migrations remain outside the queue;
-workers must not close borrowed pools or run DDL on startup.
-
-### One-off production and deferred convenience
-
-One-off production can explicitly use the configured wrapper even without domain
-writes to compose:
-
-```ts
-const program = Effect.gen(function* () {
-  const transactions = yield* JobTransactions
-  return yield* transactions.withTransaction((jobsTx) =>
-    GenerateInvoiceV1.enqueue(jobsTx, input)
-  )
-})
-```
-
-The owner withdrew the subsequent `unsafeEnqueue` question and accepted the
-preceding explicit-transaction design. Do not add `unsafeEnqueue`, a one-argument
-enqueue overload, or a non-atomic fast path as part of this decision. D1's
-deferred standalone convenience scope remains unchanged.
-
-Before backend implementation, specify and qualify the concrete driver/bridge,
-Layer construction, scoped-handle behavior, source sharing, commit-loss handling,
-and rollback guarantees. The initial recommendation is to qualify the existing
-auth/pg execution integration first, without making it a dependency of core or
-claiming untested Effect SQL/Drizzle adapter support. No implementation, dispatch,
-or publication is authorized by this decision.
+The focused `enqueueInTransaction(tx, input)` primitive and explicit-handle bridge
+remain independently useful for qualified custom adapters and their scoped lifetime
+checks. They are not required ceremony for native application calls. Core imports
+contain no PG/Drizzle dependency and do not start database or worker activity.
 
 ## D7 — new generic PostgreSQL storage without legacy compatibility
 

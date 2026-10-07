@@ -56,6 +56,8 @@ export interface TransactionQuery {
  * The application owns rollback, pool lifetime, readiness and migrations.
  */
 export interface ApplicationAdapter {
+  /** Native same-client ambient connection; absent for explicit-handle adapters. */
+  readonly ambient?: Effect.Effect<TransactionQuery, PostgreSqlError>
   /** Proves private registration, exact source/connection and active lifetime; rejects structural impostors. */
   readonly validate: (handle: unknown) => Effect.Effect<TransactionQuery, PostgreSqlError>
   /** Joins a compatible active transaction or delegates establishment to the owning manager. */

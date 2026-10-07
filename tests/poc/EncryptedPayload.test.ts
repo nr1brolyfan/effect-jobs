@@ -1,3 +1,4 @@
+import * as FailureCodes from "../../src/FailureCode.js"
 import assert from "node:assert/strict"
 import { createHmac, randomUUID } from "node:crypto"
 import { Context, Effect, Layer, Logger, Schema, SchemaAST } from "effect"
@@ -468,7 +469,10 @@ for (const maxAttempts of [1, 3]) {
               Effect.asVoid,
               Effect.mapError((error) =>
                 containsUnavailable(error)
-                  ? JobFailures.Retry({ code: "payload_key_unavailable" })
+                  ? JobFailures.Retry({
+                      code: FailureCodes.define({ value: "payload_key_unavailable" })
+                        .value
+                    })
                   : new JobPayloadCodecError({ reason: "invalid-schema" })
               ),
               Effect.provideService(ReceiptKeys, keys.service)
@@ -561,7 +565,7 @@ export type TwoFieldServices = True<
 export const enqueueTypeProbe = (
   tx: import("../../src/JobTransaction.js").JobsTransaction
 ) =>
-  definition.enqueue(tx, {
+  definition.enqueueInTransaction(tx, {
     payload: input,
     producer: {
       operation: "poc.issue",

@@ -1,3 +1,4 @@
+import * as FailureCodes from "../../../src/FailureCode.js"
 import { Effect, Result } from "effect"
 import { describe, expect, it } from "vitest"
 import * as L from "../../../src/JobLifecycle.js"
@@ -206,10 +207,15 @@ describe("bounded unknown reconciliation", () => {
   })
   it.each([
     L.JobFinalizations.Complete(),
-    L.JobFinalizations.Retry({ code: "temporary" }),
-    L.JobFinalizations.Retry({ code: "temporary", notAfter: now + 6 }),
-    L.JobFinalizations.Dead({ code: "rejected" }),
-    L.JobFinalizations.Isolate({ code: "malformed" })
+    L.JobFinalizations.Retry({ code: FailureCodes.define({ value: "temporary" }).value }),
+    L.JobFinalizations.Retry({
+      code: FailureCodes.define({ value: "temporary" }).value,
+      notAfter: now + 6
+    }),
+    L.JobFinalizations.Dead({ code: FailureCodes.define({ value: "rejected" }).value }),
+    L.JobFinalizations.Isolate({
+      code: FailureCodes.define({ value: "malformed" }).value
+    })
   ])("exact reconciliation of $._tag", (command) => {
     const input = finalizationRequest(command)
     const applied = value(L.finalize(input.before, input.ownership, command, now + 1))

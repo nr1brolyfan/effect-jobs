@@ -211,3 +211,9 @@ export const make = (options: JobPolicyOptions = {}): JobPolicy => {
     deadRetention: retention(options.deadRetention ?? Duration.infinity, "deadRetention")
   })
 }
+
+/** Deeply immutable shared policy with the same defaults as make().
+ * Caller-owned options are never frozen or mutated.
+ * @category constants
+ */
+export const defaultPolicy: JobPolicy = make()

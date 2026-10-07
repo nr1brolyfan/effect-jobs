@@ -1,6 +1,6 @@
 /**
  * Run: node tests/docs/api/Qualify.mjs (Node 24.15.0, Bun 1.4.2, frozen root install).
- * Extracts the actual JSDoc snippets; checks strict source/published alpha types
+ * Extracts the actual JSDoc snippets; checks strict source/current packed types
  * and executable constructor/codec/empty-store portions. The parameterized join
  * example is typechecked only; PostgreSQL qualification uses separate gates.
  * Scratch consumers and receipt.json stay under ignored .toolchain/api-docs.
@@ -79,9 +79,12 @@ for (const subpath of Object.keys(manifest.exports)) {
   sourceHashes[filename] = createHash("sha256").update(source).digest("hex")
   const symbols = []
   for (const declaration of source.matchAll(
-    /^export (?:const|class|interface|type) (\w+)/gm
+    /^export (?:const|class|interface|type|function) (\w+)/gm
   )) {
     const symbol = declaration[1]
+    if (symbols.includes(symbol) && declaration[0].startsWith("export function")) {
+      continue
+    }
     const prefix = source.slice(0, declaration.index)
     assert(
       /\/\*\*(?:(?!\/\*\*|\*\/)[\s\S])*\*\/\s*$/.test(prefix),
@@ -231,7 +234,10 @@ const built = join(work, "built")
 prepare(built, true, true)
 writeFileSync(join(built, "package.json"), '{"type":"module","private":true}')
 run("node", ["check.ts"], built)
-const installed = join(work, "published")
+if (!process.env.EFFECT_JOBS_ARCHIVE) {
+  run("npm", ["pack", "--ignore-scripts", "--pack-destination", work])
+}
+const installed = join(work, "packed")
 prepare(installed, false)
 writeFileSync(
   join(installed, "package.json"),
@@ -240,7 +246,7 @@ writeFileSync(
       type: "module",
       private: true,
       dependencies: {
-        "effect-jobs": "0.1.0-alpha.0",
+        "effect-jobs": `file:${process.env.EFFECT_JOBS_ARCHIVE ?? join(work, "effect-jobs-0.1.0-alpha.0.tgz")}`,
         effect: "4.0.0",
         typescript: "7.0.2",
         "@types/node": "26.4.1"
@@ -251,12 +257,12 @@ writeFileSync(
   )
 )
 run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"], installed)
-const publishedManifest = JSON.parse(
+const packedManifest = JSON.parse(
   readFileSync(join(installed, "node_modules/effect-jobs/package.json"), "utf8")
 )
-assert.equal(publishedManifest.version, "0.1.0-alpha.0")
-assert.equal(publishedManifest.peerDependencies.effect, "4.0.0")
-assert.equal(publishedManifest.peerDependencies["drizzle-orm"], "1.0.0-rc.5-169397b")
+assert.equal(packedManifest.version, "0.1.0-alpha.0")
+assert.equal(packedManifest.peerDependencies.effect, "4.0.0")
+assert.equal(packedManifest.peerDependencies["drizzle-orm"], "1.0.0-rc.5-169397b")
 assert(
   !readdirSync(join(installed, "node_modules")).includes("drizzle-orm"),
   "Core examples must retain absent optional peer"
@@ -274,15 +280,15 @@ const receipt = {
     base === null ? "NotTested (no baseline requested)" : "PASS token equality",
   sourceTypes: "PASS skipLibCheck:false",
   sourceRuntime: "PASS Node+Bun",
-  publishedTypes: "PASS skipLibCheck:false",
-  publishedRuntime: "PASS Node+Bun",
-  publishedVersion: publishedManifest.version,
-  effectVersion: publishedManifest.peerDependencies.effect,
+  packedTypes: "PASS skipLibCheck:false",
+  packedRuntime: "PASS Node+Bun",
+  packedVersion: packedManifest.version,
+  effectVersion: packedManifest.peerDependencies.effect,
   optionalDrizzle: "ABSENT for core examples",
   limitations:
     "Empty test store proves finite drain/composition only; no PostgreSQL atomicity or handler delivery qualification. Drizzle upstream declarations remain separately limited."
 }
 writeFileSync(join(work, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n")
 console.log(
-  `9 extracted JSDoc examples: source and published alpha strict types, Node/Bun runtime PASS; ${inventory.length} subpaths inventoried`
+  `9 extracted JSDoc examples: source and current packed strict types, Node/Bun runtime PASS; ${inventory.length} subpaths inventoried`
 )
