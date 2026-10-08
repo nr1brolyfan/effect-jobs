@@ -1,0 +1,73 @@
+// Application fixtures used by exact extracted fences. No production connection.
+import { Context, Effect, Layer, Schema } from "effect"
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto"
+import * as Jobs from "effect-jobs/PostgreSqlJobs"
+import { PostgreSqlApplication, PostgreSqlFailure } from "effect-jobs/PostgreSqlTransaction"
+import * as Payload from "effect-jobs/JobPayload"
+import * as Consumer from "effect-jobs/JobConsumer"
+import * as Worker from "effect-jobs/JobWorker"
+import * as Registry from "effect-jobs/JobRegistry"
+import * as Policy from "effect-jobs/JobPolicy"
+import * as Tables from "effect-jobs/PostgreSqlSchema"
+import * as Codec from "effect-jobs/JobPayloadCodec"
+import * as Job from "effect-jobs/Job"
+import type { JobFailure } from "effect-jobs/JobFailure"
+import { BillingQueue, SendReceipt } from "./contracts.js"
+const unavailable = () => Effect.fail(new PostgreSqlFailure({ commitKnowledge: "NotCommitted" }))
+export const ApplicationPostgresLayer = Layer.succeed(PostgreSqlApplication, {
+  ambient: unavailable(), validate: unavailable, withTransaction: unavailable, ownedTransaction: unavailable
+})
+export let jobsStorage = Effect.runSync(Jobs.make({ operationResponseBudgetMillis: 100 }).pipe(Effect.provide(ApplicationPostgresLayer)))
+export const useBackend = (backend: Jobs.Backend) => { jobsStorage = backend }
+export const invoices = { create: (_: { id: string }) => Effect.void, createOnce: (_: { operationId: string; invoiceId: string }) => Effect.void }
+export const operationId = "readme-operation"
+export const invoiceId = "readme-invoice"
+export const deliveryTimeMillis = 100000
+export class ReceiptMailer extends Context.Service<ReceiptMailer, { readonly send: (input: { invoiceId: string; idempotencyKey: string }) => Effect.Effect<void, JobFailure> }>()("readme/ReceiptMailer") {}
+export const ReceiptMailerLayer = Layer.succeed(ReceiptMailer, { send: () => Effect.void })
+export class ReceiptTemplates extends Context.Service<ReceiptTemplates, { readonly load: (id: string) => Effect.Effect<string, "unreadable"> }>()("readme/ReceiptTemplates") {}
+export type ProviderResult = { readonly _tag: "Accepted" } | { readonly _tag: "RateLimited" } | { readonly _tag: "InvalidRecipient" } | { readonly _tag: "CredentialsRejected" } | { readonly _tag: "Unconfirmed" }
+export class EmailProvider extends Context.Service<EmailProvider, { readonly send: (input: { email: string; idempotencyKey: string }) => Effect.Effect<ProviderResult, "response-lost"> }>()("readme/EmailProvider") {}
+export const Document = Schema.Struct({ recipient: Schema.String, invoiceNumber: Schema.String, total: Schema.Struct({ amount: Schema.String, currency: Schema.String }) })
+export const Envelope = Schema.Struct({ keyId: Schema.String, nonce: Schema.String, ciphertext: Schema.String, tag: Schema.String, fingerprint: Schema.String })
+export interface Keyring { readonly active: string; readonly encryption: Readonly<Record<string, Uint8Array>>; readonly fingerprint: Uint8Array }
+export class ReceiptKeys extends Context.Service<ReceiptKeys, Keyring>()("readme/ReceiptKeys") {}
+export const keys = (): Keyring => ({ active: "one", encryption: { one: randomBytes(32), two: randomBytes(32) }, fingerprint: randomBytes(32) })
+export const keysLayer = (ring: Keyring) => Layer.effect(ReceiptKeys, Effect.gen(function* () {
+  if (ring.encryption[ring.active]?.byteLength !== 32 || ring.fingerprint.byteLength !== 32) return yield* new Payload.JobEncryptionError()
+  return ring
+}))
+const canonical = (value: typeof Document.Encoded) => JSON.stringify({ recipient: value.recipient, invoiceNumber: value.invoiceNumber, total: { amount: value.total.amount, currency: value.total.currency } })
+export const ReceiptEncryption: Payload.EncryptionCodec<typeof Document.Encoded, typeof Envelope, ReceiptKeys, ReceiptKeys> = {
+  envelope: Envelope,
+  seal: (value) => Effect.flatMap(ReceiptKeys, (ring) => Effect.try({
+    try: () => {
+      const plain = canonical(value), nonce = randomBytes(12)
+      const cipher = createCipheriv("aes-256-gcm", ring.encryption[ring.active]!, nonce)
+      const ciphertext = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()])
+      return { keyId: ring.active, nonce: nonce.toString("base64"), ciphertext: ciphertext.toString("base64"), tag: cipher.getAuthTag().toString("base64"), fingerprint: createHmac("sha256", ring.fingerprint).update(plain).digest("hex") }
+    }, catch: () => new Payload.JobEncryptionError()
+  })),
+  open: (envelope) => Effect.flatMap(ReceiptKeys, (ring) => Effect.try({
+    try: () => {
+      const key = ring.encryption[envelope.keyId]
+      if (!key) throw new Error("Unknown fixture key")
+      const cipher = createDecipheriv("aes-256-gcm", key, Buffer.from(envelope.nonce, "base64"))
+      cipher.setAuthTag(Buffer.from(envelope.tag, "base64"))
+      const plain = Buffer.concat([cipher.update(Buffer.from(envelope.ciphertext, "base64")), cipher.final()]).toString("utf8")
+      if (createHmac("sha256", ring.fingerprint).update(plain).digest("hex") !== envelope.fingerprint) throw new Error("Fingerprint mismatch")
+      return JSON.parse(plain) as typeof Document.Encoded
+    }, catch: () => new Payload.JobEncryptionError()
+  }))
+}
+export class PrivateReceiptMailer extends Context.Service<PrivateReceiptMailer, { readonly send: (input: { document: typeof Document.Type; idempotencyKey: string }) => Effect.Effect<void, JobFailure> }>()("readme/PrivateReceiptMailer") {}
+export class InvoicePdfRenderer extends Context.Service<InvoicePdfRenderer, { readonly generate: (input: { invoiceId: string; idempotencyKey: string }) => Effect.Effect<void, JobFailure> }>()("readme/InvoicePdfRenderer") {}
+export const InvoicePdfRendererLayer = Layer.succeed(InvoicePdfRenderer, { generate: () => Effect.void })
+export const receiptPolicy = Policy.defaultPolicy
+export const tables = Tables.tables()
+export const ReceiptHandler = SendReceipt.handlerLayer(() => Effect.void, Codec.decodeJobPayload)
+export const SendPrivateReceipt = Job.make({ queue: BillingQueue, kind: "invoice.private-receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: Payload.encrypted({ schema: Document, codec: ReceiptEncryption }) }) })
+export const WorkerLayer = Worker.layer(jobsStorage.store, { catalog: [SendReceipt], operationResponseBudgetMillis: 100 }).pipe(Layer.provideMerge(ReceiptHandler), Layer.provide(Registry.layer))
+export const BillingWorkerLayer = WorkerLayer
+export const billing = Effect.runSync(Consumer.make(BillingQueue, { localConcurrency: 2, claimLimitPerRun: 20, recoveryLimitPerRun: 20 }))
+export const issueInvoice = (operationId: string, invoiceId: string) => jobsStorage.withTransaction(() => SendReceipt.enqueue({ producer: { operation: "billing.issue-invoice", operationId, slot: "receipt" }, payload: { invoiceId }, policy: receiptPolicy }))

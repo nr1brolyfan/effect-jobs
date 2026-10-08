@@ -1,4 +1,44 @@
-# Alpha release qualification
+# Alpha.1 release candidate qualification
+
+The `0.1.0-alpha.1` candidate starts at remote main
+`031cbcdea33e40edaad78605c683d498c86824fe`, tree
+`353745a6aae5c5b07720c1a0d20c444c60c639ae`. It preserves PR12 runtime source
+bytes and its original-author final receipts, including the accepted C1 fix.
+Only README, qualification fixtures/guards, release metadata and this provenance
+are revised. The breaking prerelease API differences from published alpha.0 are
+listed in CHANGELOG.
+
+On 2026-10-08 the registry contained only alpha.0, with both `alpha` and `latest`
+pointing to it. Alpha.1 must be checked free again before publication. Publish the
+exact qualified archive with `--tag alpha`; do not republish alpha.0 or alter
+`latest`. Registry installation/MFA/publication belongs to the owner/coordinator.
+
+Run the current `verify` pipeline and PostgreSQL type/source gates on final inputs,
+then pack once and consume that immutable archive with `EFFECT_JOBS_ARCHIVE` in
+`qualify:docs:readme`, `qualify:release`, `check:docs:api`,
+`qualify:api:installed`, `qualify:postgresql:installed`,
+`qualify:drizzle:native`, `qualify:drizzle:indexes` and `release:check`.
+All are local, finite foreground gates. Optional source PG skips never count as
+PG PASS; use the separate task-owned loopback resource for real PG invocations.
+
+The README qualifier inventories every visible fence. All TypeScript fences are
+extracted exactly and checked against source/current packed declarations. Runtime
+fixtures cover producer/service/slot composition, policy, optional Drizzle indexes,
+handlers, bounded drain and real AES-GCM/HMAC application key services on Node/Bun.
+Native SQL/polling/startup/migration readiness require their separately qualified
+application runtime; Cloudflare external PG, callback execution and deployment
+are NotTested. Alchemy beta.81 declarations are installed and hashed in a separate
+consumer because its optional Drizzle peer pin differs from the library's native
+Drizzle pin. This declaration check is not a combined deployment compatibility claim.
+Shell install fence checks candidate version/command; actual registry installation
+waits for publication. The text topology is conceptual.
+
+Node 24.15.0, Bun 1.4.2 and root frozen tool pins remain required. Archive inventory,
+SHA256/SHA512/integrity, input hashes and sanitized receipts bind the final bytes.
+Full upstream strict Drizzle declaration FAIL and server/network crash/Cloudflare
+NotTested limits remain explicit. No production deployment is included.
+
+## Historical alpha.0 qualification
 
 This release preserves accepted D1–D8 and all production source bytes of main
 `427e9f96db19808b89671c733f8c84edca165ff5` (tree

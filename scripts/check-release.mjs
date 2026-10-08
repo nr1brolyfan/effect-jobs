@@ -81,6 +81,18 @@ for (const { filename: entry, source } of sources) {
     assert(!/process\.env/.test(source), `Environment access in ${entry}`)
   }
 }
+// Payload files match final bytes. npm may normalize package.json whitespace;
+// manifest semantic equality is checked above. Check graph errors first so
+// adversarial import controls exercise that boundary independently.
+for (const entry of entries) {
+  if (entry.endsWith("/") || entry === "package/package.json") continue
+  const packed = execFileSync("tar", ["-xOf", archive, entry], { timeout: 60000 })
+  assert.deepEqual(
+    packed,
+    readFileSync(resolve(import.meta.dirname, "..", entry.slice("package/".length))),
+    `Packed byte mismatch: ${entry}`
+  )
+}
 const dryRun = JSON.parse(
   run("npm", [
     "publish",

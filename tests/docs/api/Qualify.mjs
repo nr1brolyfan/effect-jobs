@@ -246,7 +246,7 @@ writeFileSync(
       type: "module",
       private: true,
       dependencies: {
-        "effect-jobs": `file:${process.env.EFFECT_JOBS_ARCHIVE ?? join(work, "effect-jobs-0.1.0-alpha.0.tgz")}`,
+        "effect-jobs": `file:${process.env.EFFECT_JOBS_ARCHIVE ?? join(work, `effect-jobs-${manifest.version}.tgz`)}`,
         effect: "4.0.0",
         typescript: "7.0.2",
         "@types/node": "26.4.1"
@@ -260,7 +260,7 @@ run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"], installed
 const packedManifest = JSON.parse(
   readFileSync(join(installed, "node_modules/effect-jobs/package.json"), "utf8")
 )
-assert.equal(packedManifest.version, "0.1.0-alpha.0")
+assert.equal(packedManifest.version, manifest.version)
 assert.equal(packedManifest.peerDependencies.effect, "4.0.0")
 assert.equal(packedManifest.peerDependencies["drizzle-orm"], "1.0.0-rc.5-169397b")
 assert(
