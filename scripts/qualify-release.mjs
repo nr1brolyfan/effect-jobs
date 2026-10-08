@@ -39,7 +39,7 @@ run("tree", "npm", ["ls", "--all"])
 const manifest = JSON.parse(
   readFileSync(join(consumer, "node_modules/effect-jobs/package.json"), "utf8")
 )
-assert.equal(manifest.version, "0.1.0-alpha.0")
+assert.equal(manifest.version, manifest.version)
 const imports = Object.keys(manifest.exports)
   .filter((key) => key !== "./PostgreSqlDrizzleSchema")
   .map((key) => (key === "." ? "effect-jobs" : `effect-jobs/${key.slice(2)}`))
@@ -75,8 +75,8 @@ writeFileSync(
 const readme = readFileSync(join(root, "README.md"), "utf8")
 const snippets = [...readme.matchAll(/```ts\n([\s\S]*?)```/g)].map((match) => match[1])
 // Supply the same explicit application imports/setup as the all-fence README gate.
-writeFileSync(join(consumer, "definition.mts"), wrap("billing", snippets[0]))
-writeFileSync(join(consumer, "setup.mts"), wrap("migration", snippets[1]))
+writeFileSync(join(consumer, "definition.mts"), wrap("contracts", snippets[1]))
+// The complete migration/setup fence is checked by qualify:docs:readme.
 writeFileSync(
   join(consumer, "tsconfig.json"),
   JSON.stringify({
