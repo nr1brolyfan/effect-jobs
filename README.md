@@ -1,6 +1,12 @@
 # effect-jobs
 
-Commit the invoice. Let another process send the receipt. Keep the job when your server restarts.
+Background jobs for Effect, stored in your own database. Add a job in the same
+transaction as your application data, so both are saved together or neither is.
+
+PostgreSQL for now, with more databases planned.
+
+For example, save an invoice and enqueue its receipt email in the same transaction,
+then handle delivery in a separate worker.
 
 ```ts
 const SendReceipt = Job.make({
