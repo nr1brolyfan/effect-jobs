@@ -1,0 +1,15 @@
+{
+  "name": "@effect-jobs/playground-worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "effect": "4.0.0",
+    "effect-jobs": "file:../..",
+    "@effect-jobs/playground-contracts": "workspace:*"
+  },
+  "scripts": {
+    "check": "tsc -p tsconfig.json",
+    "build": "bun build src/Worker.ts --target=browser --outdir=dist"
+  }
+}

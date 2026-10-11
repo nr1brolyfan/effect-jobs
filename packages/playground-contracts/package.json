@@ -1,0 +1,48 @@
+{
+  "name": "@effect-jobs/playground-contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "effect": "4.0.0",
+    "effect-jobs": "file:../.."
+  },
+  "scripts": {
+    "check": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "exports": {
+    "./Jobs": {
+      "types": "./src/Jobs.ts",
+      "import": "./dist/Jobs.js"
+    },
+    "./Sandbox": {
+      "types": "./src/Sandbox.ts",
+      "import": "./dist/Sandbox.js"
+    },
+    "./Scenarios": {
+      "types": "./src/Scenarios.ts",
+      "import": "./dist/Scenarios.js"
+    },
+    "./Changes": {
+      "types": "./src/Changes.ts",
+      "import": "./dist/Changes.js"
+    },
+    "./Services": {
+      "types": "./src/Services.ts",
+      "import": "./dist/Services.js"
+    },
+    "./Definitions": {
+      "types": "./src/Definitions.ts",
+      "import": "./dist/Definitions.js"
+    },
+    "./Fixtures": {
+      "types": "./src/Fixtures.ts",
+      "import": "./dist/Fixtures.js"
+    },
+    "./MockLayer": {
+      "types": "./src/MockLayer.ts",
+      "import": "./dist/MockLayer.js"
+    }
+  }
+}

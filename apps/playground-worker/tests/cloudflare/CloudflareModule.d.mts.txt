@@ -1,0 +1,5 @@
+// Probe-only module mapping to Cloudflare's official importable declarations.
+// Avoid combining two incompatible global environments (Node and Workers).
+declare module "cloudflare:workers" {
+  export const DurableObject: typeof import("@cloudflare/workers-types").CloudflareWorkersModule.DurableObject
+}

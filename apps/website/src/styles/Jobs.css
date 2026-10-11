@@ -1,0 +1,161 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, sans-serif;
+  color: #172925;
+  background: #f6f7f2;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+.jobs-app {
+  max-width: 1240px;
+  margin: auto;
+  padding: 32px;
+  line-height: 1.5;
+}
+.jobs-app header {
+  border-bottom: 2px solid #24755b;
+  margin-bottom: 20px;
+}
+.jobs-app h1 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+.jobs-app header > p:first-child {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.jobs-app h2 {
+  font-size: 1.3rem;
+}
+.jobs-app .source {
+  background: #e4eedc;
+  padding: 12px;
+  border-left: 4px solid #24755b;
+}
+.jobs-app .muted {
+  color: #42584e;
+  font-size: 0.9rem;
+}
+.jobs-app form,
+.jobs-app nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin: 16px 0;
+}
+.jobs-app label {
+  display: block;
+  font-size: 0.9rem;
+  margin: 8px 12px 8px 0;
+}
+.jobs-app .jobs-field {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: top;
+  margin-right: 12px;
+  max-width: 100%;
+}
+.jobs-app input,
+.jobs-app select,
+.jobs-app button {
+  font: inherit;
+  border: 1px solid #62756a;
+  border-radius: 6px;
+  padding: 10px 12px;
+  max-width: 100%;
+  min-height: 44px;
+}
+.jobs-app button {
+  background: #fff;
+  color: #172925;
+  cursor: pointer;
+  margin: 4px;
+}
+.jobs-app button:hover:enabled {
+  background: #e4eedc;
+}
+.jobs-app button:disabled {
+  cursor: default;
+  color: #536258;
+  background: #edf0e9;
+}
+.jobs-app button[aria-pressed="true"] {
+  background: #1b624a;
+  color: #fff;
+}
+.jobs-app :focus-visible {
+  outline: 3px solid #ac4b06;
+  outline-offset: 3px;
+}
+.jobs-app a {
+  color: #195c46;
+}
+.jobs-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.jobs-app section {
+  min-width: 0;
+  border: 1px solid #ccd4ca;
+  border-radius: 10px;
+  background: white;
+  padding: 20px;
+  margin: 16px 0;
+}
+.jobs-app .job-list {
+  padding: 0;
+  list-style: none;
+}
+.jobs-app .job-list li {
+  padding: 10px 0;
+  border-bottom: 1px solid #dbe2d8;
+  overflow-wrap: anywhere;
+}
+.jobs-app .job-list p {
+  margin: 4px;
+  font-size: 0.9rem;
+}
+.jobs-app dt {
+  font-size: 0.85rem;
+  color: #42584e;
+  margin-top: 12px;
+}
+.jobs-app dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.jobs-app summary {
+  cursor: pointer;
+  padding: 10px 0;
+  font-weight: 600;
+}
+.jobs-app [role="status"] {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .jobs-app {
+    padding: 16px;
+  }
+  .jobs-layout {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .jobs-app form {
+    align-items: stretch;
+  }
+  .jobs-app form .jobs-field {
+    width: 100%;
+    margin-right: 0;
+  }
+  .jobs-app section {
+    padding: 16px;
+  }
+}

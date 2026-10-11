@@ -1,0 +1,135 @@
+// @effect-diagnostics unstableApiUsage:off
+// Qualification-only native Cloudflare FFI. No public route or deployment registrar.
+import { DurableObject } from "cloudflare:workers"
+import type {
+  DurableObjectNamespace,
+  Request as WorkerRequest
+} from "@cloudflare/workers-types"
+import { Effect, Layer, Redacted, Schema } from "effect"
+import * as Reactivity from "effect/reactivity/Reactivity"
+import * as PgClient from "@effect/sql-pg/PgClient"
+import * as Native from "effect-jobs/PostgreSqlNative"
+import * as Backend from "effect-jobs/PostgreSqlJobs"
+import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
+import { JobEnqueue } from "effect-jobs/JobEnqueue"
+import * as Job from "effect-jobs/Job"
+import * as Codec from "effect-jobs/JobPayloadCodec"
+import * as Queue from "effect-jobs/JobQueue"
+import * as Policy from "effect-jobs/JobPolicy"
+import * as Producer from "effect-jobs/JobProducer"
+import * as Consumer from "effect-jobs/JobConsumer"
+import * as Registry from "effect-jobs/JobRegistry"
+import * as Worker from "effect-jobs/JobWorker"
+import type { JobStoreService } from "effect-jobs/JobStore"
+import * as WakeCycle from "../../src/cloudflare/WakeCycle.js"
+
+// Workerd supplies this global; use its official type instead of Node fetch types.
+declare const Response: typeof import("@cloudflare/workers-types").Response
+
+const queue = Queue.make("cloudflare-probe")
+const producer = Producer.make({ operation: "cloudflare.probe", slots: ["synthetic"] })
+const definition = Job.make({
+  queue,
+  kind: "synthetic",
+  payload: Schema.String,
+  encodePayload: Codec.encodeJobPayload
+})
+
+const nativeProbe = Effect.scoped(
+  Effect.gen(function* () {
+    // Zero eager connections and no SQL: this synthetic URL is never connected.
+    const client = yield* PgClient.make({
+      url: Redacted.make("postgres://synthetic:synthetic@127.0.0.1:1/synthetic"),
+      minConnections: 0,
+      maxConnections: 2,
+      prepare: false,
+      connectTimeout: "1 second",
+      idleTimeout: "1 second"
+    })
+    const adapter = Native.make({ client, operationTimeoutMillis: 1_000 })
+    const backend = yield* Backend.make({ operationResponseBudgetMillis: 100 }).pipe(
+      Effect.provideService(PostgreSqlApplication, adapter)
+    )
+    const result = yield* definition
+      .enqueue({
+        producer: producer.identity({ operationId: "synthetic-1", slot: "synthetic" }),
+        payload: "synthetic",
+        policy: Policy.make()
+      })
+      .pipe(Effect.provideService(JobEnqueue, backend.producer), Effect.result)
+    return result._tag === "Failure" && result.failure._tag === "JobBackendError"
+      ? {
+          noActive: result.failure.reason,
+          commitKnowledge: result.failure.commitKnowledge
+        }
+      : { noActive: "unexpected" }
+  })
+).pipe(Effect.provide(Reactivity.layer), Effect.timeout("3 seconds"))
+
+export class Probe extends DurableObject {
+  async fetch(request: WorkerRequest) {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      if (new URL(request.url).pathname === "/native") {
+        return Response.json(await Effect.runPromise(nativeProbe))
+      }
+      const unexpected = () => Effect.die("Unexpected mock operation")
+      const store: JobStoreService = {
+        claim: () => Effect.succeed({ _tag: "Empty" }),
+        recoverExpired: () => Effect.succeed(0),
+        reconcileClaim: unexpected,
+        release: unexpected,
+        finalize: unexpected,
+        reconcileFinalization: unexpected
+      }
+      const worker = Worker.layer(store, {
+        catalog: [definition],
+        operationResponseBudgetMillis: 100
+      }).pipe(
+        Layer.provide(definition.handlerLayer(() => Effect.void, Codec.decodeJobPayload)),
+        Layer.provide(Registry.layer)
+      )
+      const result = await Effect.runPromise(
+        Consumer.make(queue, {
+          localConcurrency: 2,
+          claimLimitPerRun: 10,
+          recoveryLimitPerRun: 10
+        }).pipe(
+          Effect.flatMap(WakeCycle.run),
+          Effect.provide(worker),
+          Effect.provideService(WakeCycle.WakeSchedule, {
+            read: Effect.succeed({
+              expiresInMillis: 60_000,
+              dueInMillis: 10_000,
+              recoveryInMillis: null
+            })
+          }),
+          Effect.provideService(WakeCycle.WakeAlarm, {
+            set: (at) =>
+              Effect.tryPromise({
+                try: () => this.ctx.storage.setAlarm(at),
+                catch: () => new WakeCycle.WakeUnavailable()
+              }),
+            clear: Effect.tryPromise({
+              try: () => this.ctx.storage.deleteAlarm(),
+              catch: () => new WakeCycle.WakeUnavailable()
+            })
+          })
+        )
+      )
+      const alarm = await this.ctx.storage.getAlarm()
+      await this.ctx.storage.deleteAlarm()
+      return Response.json({ result, alarmSet: alarm !== null })
+    })
+  }
+
+  // This isolated harness deletes alarms after inspection; no real PG handler is wired.
+  async alarm() {
+    await this.ctx.storage.deleteAlarm()
+  }
+}
+
+export default {
+  fetch(request: WorkerRequest, env: { PROBE: DurableObjectNamespace }) {
+    return env.PROBE.get(env.PROBE.idFromName("synthetic")).fetch(request)
+  }
+}

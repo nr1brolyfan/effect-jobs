@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reading durable jobs · Effect Jobs</title>
+    <link rel="stylesheet" href="/Jobs.css" />
+  </head>
+  <body>
+    <main class="jobs-app">
+      <nav aria-label="Documentation">
+        <a href="/jobs">Jobs playground</a><a href="#states">States</a
+        ><a href="#unknown">Unknown outcomes</a><a href="#privacy">Privacy</a>
+      </nav>
+      <header>
+        <p>EFFECT JOBS / GUIDE</p>
+        <h1>Reading durable jobs.</h1>
+        <p>Metadata explains durable work; it cannot prove every external effect.</p>
+      </header>
+      <section id="states">
+        <h2>States, attempts and policy</h2>
+        <p>
+          Pending waits for eligibility. RetryScheduled waits after a finalized retry.
+          Active is owned by a worker. Completed, Dead and Isolated are durable lifecycle
+          states. Isolated is never automatically purged.
+        </p>
+        <p>
+          Finalized attempts are not a complete execution history. Unknown recovery may
+          repeat an attempt number. Lease duration is persisted policy, not proof of
+          current ownership; lease tokens and expiry are unavailable in the public detail
+          API.
+        </p>
+        <p>
+          Availability is not a deadline or a promise of execution at that time. Policy is
+          persisted with the job; new deployment defaults do not rewrite it. Retention can
+          remove deduplication evidence.
+        </p>
+      </section>
+      <section id="pages">
+        <h2>Current pages and live reads</h2>
+        <p>
+          Combine exact state and kind filters. The API orders by job ID ascending with an
+          opaque cursor. Search, due-Pending view and counters describe the current page
+          only. Due uses the browser clock and is not an authoritative DB-time eligibility
+          check.
+        </p>
+        <p>
+          Pages are current reads, not historical snapshots. State changes can move rows
+          across pages. Refresh preserves filters, cursor and selection. Invalid cursors
+          require an explicit First page action. Sandbox generation changes revoke old
+          data and selection while preserving filters.
+        </p>
+        <p>
+          Visible pages reconcile reads every five seconds. Reconnect causes a fresh read.
+          Stale state labels the last successful data as potentially outdated. Global
+          search, alternative sorting, total counts and lease-expiry filters are
+          unavailable.
+        </p>
+      </section>
+      <section id="unknown">
+        <h2>Unknown outcomes and scenarios</h2>
+        <p>
+          A lost response does not prove rollback or success. An unknown command keeps its
+          exact request identity and disables further commands. Check exact request
+          receipt is read-only; receipt absence does not authorize replay.
+        </p>
+        <p>
+          Acknowledged enqueue does not prove handler success or exactly-once external
+          effects. The scenario launcher uses synthetic provider behavior with 1–10 jobs
+          per request. No live email, payment or outbound webhook is sent.
+        </p>
+        <p>
+          Reset changes your sandbox generation and visibility. It does not cancel running
+          jobs or bypass their lease and finalization protocol. Capability flags are
+          hints; the server independently checks authority, origin, CSRF and quotas.
+          Unsupported retry, cancel and redrive controls remain disabled.
+        </p>
+      </section>
+      <section id="privacy">
+        <h2>Privacy, isolation and evidence</h2>
+        <p>
+          List and detail responses expose allowlisted metadata and synthetic application
+          relations only. Payload, ciphertext, fingerprints, protected fields, credentials
+          and raw provider errors are unavailable. Synthetic entity links are examples,
+          not external accounts.
+        </p>
+        <p>
+          Source labels distinguish mock UI fixtures from local, workerd and hosted
+          observations. Missing observations mean unknown. Fixtures provide no durable
+          jobs, authentication or execution qualification. Hosted integration must use
+          real jobs and a server-owned credential cookie.
+        </p>
+        <p>
+          The frozen API has no shared public feed; your private sandbox is never silently
+          published as one. Unknown command identity is kept only for this mount.
+          Reloading loses this UI memory; server receipts and authority remain the
+          integration owner's responsibility.
+        </p>
+      </section>
+      <p><a href="/jobs">Return to jobs playground</a></p>
+    </main>
+  </body>
+</html>
