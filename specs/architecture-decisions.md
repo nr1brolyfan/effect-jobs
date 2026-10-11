@@ -631,6 +631,13 @@ table names. The library defines required columns, constraints, and indexes;
 arbitrary per-column remapping is not required. Core does not depend on Drizzle.
 Backend and migration configuration must agree on the same storage mapping.
 
+Owner decision (2026-10-05): the optional Drizzle integration uses the same
+Effect-native `drizzle-orm` version as effect-auth, currently
+`1.0.0-rc.5-169397b`, rather than `0.45.1`. Qualify the actual schema/driver APIs,
+transaction boundary, and installed consumer with that exact version; do not
+merely widen peer metadata, force installation, or downgrade the auth consumer.
+Drizzle remains optional and outside the core dependency graph.
+
 Proposed API direction, not existing or finalized exports:
 
 ```ts
