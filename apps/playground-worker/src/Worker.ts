@@ -199,7 +199,11 @@ class Queue extends DurableObject {
             Effect.provideService(Executor.ExecutionHints, { reconcile })
           )
         )
-      ).catch(() => undefined)
+      ).catch(() => {
+        // Reject at the native callback boundary so finite alarm retries apply.
+        // Never attach the internal Cause or PostgreSQL configuration.
+        throw new Error("Queue alarm unavailable")
+      })
     })
   }
 }
