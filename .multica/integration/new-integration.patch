@@ -1,0 +1,2714 @@
+diff --git a/apps/playground-worker/build.mjs b/apps/playground-worker/build.mjs
+new file mode 100644
+index 0000000..794fc70
+--- /dev/null
++++ b/apps/playground-worker/build.mjs
+@@ -0,0 +1,9 @@
++import { build } from "esbuild"
++await build({
++  entryPoints: ["src/Worker.ts"],
++  bundle: true,
++  platform: "node",
++  format: "esm",
++  external: ["cloudflare:*", "node:*"],
++  outfile: "dist/Worker.js"
++})
+diff --git a/apps/playground-worker/package.json b/apps/playground-worker/package.json
+index 99aa9bd..2e62bd2 100644
+--- a/apps/playground-worker/package.json
++++ b/apps/playground-worker/package.json
+@@ -6,10 +6,18 @@
+   "dependencies": {
+     "effect": "4.0.0",
+     "effect-jobs": "file:../..",
+-    "@effect-jobs/playground-contracts": "workspace:*"
++    "@effect-jobs/playground-contracts": "workspace:*",
++    "@effect/sql-pg": "4.0.0"
+   },
+   "scripts": {
+     "check": "tsc -p tsconfig.json",
+-    "build": "bun build src/Worker.ts --target=browser --outdir=dist"
++    "build": "node build.mjs"
++  },
++  "devDependencies": {
++    "esbuild": "0.25.12",
++    "miniflare": "5.20261006.1-alpha",
++    "pg": "8.23.0",
++    "@types/pg": "8.15.5",
++    "@playwright/test": "1.56.1"
+   }
+ }
+diff --git a/apps/playground-worker/src/HandlerRegistry.ts b/apps/playground-worker/src/HandlerRegistry.ts
+index ec5c5ec..d054ae0 100644
+--- a/apps/playground-worker/src/HandlerRegistry.ts
++++ b/apps/playground-worker/src/HandlerRegistry.ts
+@@ -1,11 +1,2 @@
+-import type { JobFailure } from "effect-jobs/JobFailure"
+-import type { HandlerInput } from "effect-jobs/JobContract"
+-import type { ScenarioPayload } from "@effect-jobs/playground-contracts/Definitions"
+-import type { Effect } from "effect"
+-
+-// Serial registrar; executor installs handlers only after CF/scenario qualification.
+-export interface HandlerBindings<R = never> {
+-  readonly scenario: (
+-    input: HandlerInput<typeof ScenarioPayload.Type>
+-  ) => Effect.Effect<void, JobFailure, R>
+-}
++export { definitions as catalog } from "./scenarios/Definitions.js"
++export { layerNoDeps as handlersLayerNoDeps } from "./scenarios/Handlers.js"
+diff --git a/apps/playground-worker/src/Worker.ts b/apps/playground-worker/src/Worker.ts
+index b959b74..b5d5f39 100644
+--- a/apps/playground-worker/src/Worker.ts
++++ b/apps/playground-worker/src/Worker.ts
+@@ -1,2 +1,262 @@
+-// Importing the skeleton starts no worker, pool, timer or Durable Object.
+-export const qualification = "not-tested" as const
++// Cloudflare callbacks are the Promise FFI. All database work is scoped Effect.
++// @effect-diagnostics unstableApiUsage:off
++import { DurableObject } from "cloudflare:workers"
++import { Effect, Schema } from "effect"
++import { SqlClient } from "effect/sql/SqlClient"
++import * as Event from "./execution/Event.js"
++import * as Executor from "./execution/Executor.js"
++import { WakeAlarm, WakeUnavailable } from "./cloudflare/WakeCycle.js"
++import * as Live from "./live/SandboxLive.js"
++import * as Http from "../../website/src/server/HttpApplication.js"
++import { objectName } from "../../website/src/server/live/PostCommit.js"
++import { Application } from "../../website/src/server/Services.js"
++import * as Upgrade from "../../website/src/server/live/Upgrade.js"
++import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
++
++interface Stub {
++  fetch(request: Request): Promise<Response>
++  activate(): Promise<void>
++  notifyCommitted(ref: SandboxRef): Promise<void>
++}
++interface Namespace {
++  getByName(name: string): Stub
++}
++interface State extends Live.LiveState {}
++export interface Env {
++  readonly PG: { readonly connectionString: string }
++  readonly SCHEMA: string
++  readonly ORIGIN: string
++  readonly ENCRYPTION_KEY: string
++  readonly FINGERPRINT_KEY: string
++  readonly CURSOR_KEY: string
++  readonly GATEWAY: Namespace
++  readonly COMMUNICATIONS: Namespace
++  readonly MEDIA: Namespace
++  readonly COMMERCE: Namespace
++  readonly PRIVATE: Namespace
++  readonly LIVE: Namespace
++  readonly ASSETS: { fetch(request: Request): Promise<Response> }
++}
++const config = (env: Env): Event.Config => ({
++  connectionString: env.PG.connectionString,
++  schema: env.SCHEMA,
++  encryptionKey: env.ENCRYPTION_KEY,
++  fingerprintKey: env.FINGERPRINT_KEY,
++  cursorKey: env.CURSOR_KEY
++})
++const yieldRef = (row: { sandbox_id: string; generation: string }) =>
++  Schema.decodeUnknownSync(SandboxRef)({
++    sandboxId: row.sandbox_id,
++    generation: Number(row.generation)
++  })
++const queues = (env: Env) => [env.COMMUNICATIONS, env.MEDIA, env.COMMERCE, env.PRIVATE]
++const kick = (env: Env) =>
++  Effect.tryPromise({
++    try: () =>
++      Promise.all(
++        queues(env).map((namespace) => namespace.getByName("shared").activate())
++      ),
++    catch: () => undefined
++  }).pipe(Effect.timeout("1 second"), Effect.ignore)
++const safe = <E>(effect: Effect.Effect<Response, E>) =>
++  Effect.runPromise(effect.pipe(Effect.timeout("8 seconds"))).catch(() =>
++    Http.response({ code: "unavailable" }, 503)
++  )
++
++export class Gateway extends DurableObject {
++  constructor(
++    private readonly ctx: State,
++    private readonly env: Env
++  ) {
++    super(ctx, env)
++  }
++  fetch(request: Request): Promise<Response> {
++    return this.ctx.blockConcurrencyWhile(async () => {
++      const minute = Math.floor(Date.now() / 60000)
++      const previous = await this.ctx.storage.get<{
++        minute: number
++        total: number
++        counts: Record<string, number>
++      }>("rates")
++      const budget =
++        previous?.minute === minute ? previous : { minute, total: 0, counts: {} }
++      const admit = (key: string) => {
++        if (
++          budget.total >= 600 ||
++          (budget.counts[key] ?? 0) >=
++            (key === "issue" ? 5 : key === "request" ? 600 : 120) ||
++          (budget.counts[key] === undefined && Object.keys(budget.counts).length >= 256)
++        ) {
++          return false
++        }
++        budget.total++
++        budget.counts[key] = (budget.counts[key] ?? 0) + 1
++        return true
++      }
++      if (!admit("request")) {
++        await this.ctx.storage.put("rates", budget)
++        return Http.response({ code: "limit-reached" }, 429)
++      }
++      const env = this.env
++      const operation =
++        new URL(request.url).pathname === "/api/changes"
++          ? Effect.gen(function* () {
++              const app = yield* Application
++              return yield* Upgrade.upgrade(request, env.ORIGIN, env.LIVE, (req) =>
++                Http.authenticate(req).pipe(
++                  Effect.provideService(Application, app),
++                  Effect.map((access) => access.sandbox)
++                )
++              )
++            })
++          : Http.handle(request, this.env.ORIGIN, admit)
++      const response = await safe(Event.run(config(this.env), kick(this.env), operation))
++      await this.ctx.storage.put("rates", budget)
++      return response
++    })
++  }
++}
++
++class Queue extends DurableObject {
++  constructor(
++    private readonly ctx: State,
++    private readonly env: Env,
++    private readonly queue: Executor.QueueName
++  ) {
++    super(ctx, env)
++  }
++  activate(): Promise<void> {
++    return this.ctx.blockConcurrencyWhile(async () => {
++      const at = Date.now() + 400
++      const previous = await this.ctx.storage.getAlarm()
++      if (previous === null || previous > at) {
++        await this.ctx.storage.setAlarm(at)
++      }
++    })
++  }
++  alarm(): Promise<void> {
++    return this.ctx.blockConcurrencyWhile(async () => {
++      const alarm = {
++        set: (at: number) =>
++          Effect.tryPromise({
++            try: () => this.ctx.storage.setAlarm(at),
++            catch: () => new WakeUnavailable()
++          }),
++        clear: Effect.tryPromise({
++          try: () => this.ctx.storage.deleteAlarm(),
++          catch: () => new WakeUnavailable()
++        })
++      }
++      const env = this.env
++      const storage = this.ctx.storage
++      const reconcile = Effect.gen(function* () {
++        const sql = yield* SqlClient
++        const rows = yield* sql.unsafe<{
++          sandbox_id: string
++          generation: string
++          signature: string
++        }>(
++          `WITH viewers AS MATERIALIZED (
++            SELECT sandbox_id,generation FROM "${env.SCHEMA}"."sandboxes"
++            WHERE viewer_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint
++              AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint
++            ORDER BY sandbox_id LIMIT 100
++          ) SELECT v.sandbox_id,v.generation,
++            count(j.id)::text || ':' || coalesce(sum(j.lifecycle_version),0)::text AS signature
++          FROM viewers v LEFT JOIN "${env.SCHEMA}"."associations" a
++            ON a.sandbox_id=v.sandbox_id AND a.generation=v.generation
++          LEFT JOIN "${env.SCHEMA}"."jobs" j ON j.id=a.job_id
++          GROUP BY v.sandbox_id,v.generation ORDER BY v.sandbox_id`
++        )
++        // No terminal deletion exists: count + monotone lifecycle versions detect
++        // changes without payload reads. Persist a bounded hint cache, not authority.
++        const previous = yield* Effect.promise(() =>
++          storage.get<Record<string, string>>("hints")
++        )
++        const current = Object.fromEntries(
++          rows.map((row) => [objectName(yieldRef(row)), row.signature])
++        )
++        yield* Effect.forEach(
++          rows.filter((row) => previous?.[objectName(yieldRef(row))] !== row.signature),
++          (row) =>
++            Effect.tryPromise({
++              try: () => {
++                const ref = yieldRef(row)
++                return env.LIVE.getByName(objectName(ref)).notifyCommitted(ref)
++              },
++              catch: () => undefined
++            }),
++          { concurrency: 4, discard: true }
++        ).pipe(Effect.timeout("1 second"), Effect.ignore)
++        yield* Effect.promise(() => storage.put("hints", current))
++      }).pipe(Effect.ignore)
++      await Effect.runPromise(
++        Event.run(
++          config(this.env),
++          Effect.void,
++          Executor.run(this.env.SCHEMA, this.queue).pipe(
++            Effect.provideService(WakeAlarm, alarm),
++            Effect.provideService(Executor.ExecutionHints, { reconcile })
++          )
++        )
++      ).catch(() => undefined)
++    })
++  }
++}
++export class Communications extends Queue {
++  constructor(ctx: State, env: Env) {
++    super(ctx, env, "playground-communications")
++  }
++}
++export class Media extends Queue {
++  constructor(ctx: State, env: Env) {
++    super(ctx, env, "playground-media")
++  }
++}
++export class Commerce extends Queue {
++  constructor(ctx: State, env: Env) {
++    super(ctx, env, "playground-commerce")
++  }
++}
++export class Private extends Queue {
++  constructor(ctx: State, env: Env) {
++    super(ctx, env, "playground-private")
++  }
++}
++export class SandboxLive extends Live.makeDurableObject<Env, State>(
++  {
++    origin: (env) => env.ORIGIN,
++    authorize: (request, env) =>
++      Event.run(
++        config(env),
++        Effect.void,
++        Http.authenticate(request).pipe(Effect.map((access) => access.sandbox))
++      ).pipe(Effect.mapError(() => new HttpError({ code: "unavailable" }))),
++    isCurrent: (ref, env) =>
++      Event.run(
++        config(env),
++        Effect.void,
++        Effect.gen(function* () {
++          const sql = yield* SqlClient
++          const rows = yield* sql.unsafe(
++            `SELECT sandbox_id FROM "${env.SCHEMA}"."sandboxes" WHERE sandbox_id=$1 AND generation=$2 AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint`,
++            [ref.sandboxId, ref.generation]
++          )
++          return rows.length === 1
++        })
++      ).pipe(Effect.mapError(() => new HttpError({ code: "unavailable" })))
++  },
++  DurableObject
++) {}
++import { PlaygroundError as HttpError } from "@effect-jobs/playground-contracts/Services"
++export default {
++  fetch(request: Request, env: Env): Promise<Response> {
++    const url = new URL(request.url)
++    if (url.pathname.startsWith("/api/")) {
++      return env.GATEWAY.getByName("shared")
++        .fetch(request)
++        .catch(() => Http.response({ code: "unavailable" }, 503))
++    }
++    return env.ASSETS.fetch(request)
++  }
++}
+diff --git a/apps/playground-worker/src/execution/Event.ts b/apps/playground-worker/src/execution/Event.ts
+new file mode 100644
+index 0000000..82ae7cf
+--- /dev/null
++++ b/apps/playground-worker/src/execution/Event.ts
+@@ -0,0 +1,142 @@
++// @effect-diagnostics unstableApiUsage:off
++import * as Reactivity from "effect/reactivity/Reactivity"
++import { JobWorker } from "effect-jobs/JobWorker"
++import { CommandPersistence } from "../persistence/commands/Transactions.js"
++import { Effect, Layer, Redacted } from "effect"
++import * as Pg from "@effect/sql-pg/PgClient"
++import { SqlClient } from "effect/sql/SqlClient"
++import * as Native from "effect-jobs/PostgreSqlNative"
++import * as Backend from "effect-jobs/PostgreSqlJobs"
++import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
++import { JobEnqueue } from "effect-jobs/JobEnqueue"
++import {
++  SandboxAuthority,
++  PlaygroundError
++} from "@effect-jobs/playground-contracts/Services"
++import * as Authority from "../persistence/authority/PostgreSqlAuthority.js"
++import * as Commands from "../persistence/commands/Persistence.js"
++import * as Executor from "./Executor.js"
++import { DocumentKeys } from "../scenarios/PrivateDocument.js"
++import * as Read from "../../../website/src/server/read/PostgreSqlRead.js"
++import * as ReadDatabase from "../../../website/src/server/read/NativeReadDatabase.js"
++import * as Cursor from "../../../website/src/server/read/CursorCodec.js"
++import * as Guarded from "../../../website/src/server/commands/GuardedScenarios.js"
++import * as Application from "../../../website/src/server/Services.js"
++
++export interface Config {
++  readonly connectionString: string
++  readonly schema: string
++  // Fresh task-owned configuration retained for the lifetime of synthetic jobs.
++  readonly encryptionKey: string
++  readonly fingerprintKey: string
++  readonly cursorKey: string
++}
++export const mapping = (schema: string) => ({
++  schema,
++  jobsTable: "jobs",
++  sandboxesTable: "sandboxes",
++  associationsTable: "associations"
++})
++const bytes = (hex: string) => {
++  if (!/^[0-9a-f]{64}$/.test(hex)) {
++    throw new Error("Invalid synthetic key configuration")
++  }
++  return Uint8Array.from(hex.match(/../g)!, (byte) => Number.parseInt(byte, 16))
++}
++const keys = (config: Config) =>
++  Effect.tryPromise({
++    try: async () => ({
++      encryption: await crypto.subtle.importKey(
++        "raw",
++        bytes(config.encryptionKey),
++        "AES-GCM",
++        false,
++        ["encrypt", "decrypt"]
++      ),
++      fingerprint: await crypto.subtle.importKey(
++        "raw",
++        bytes(config.fingerprintKey),
++        { name: "HMAC", hash: "SHA-256" },
++        false,
++        ["sign", "verify"]
++      ),
++      cursor: await crypto.subtle.importKey(
++        "raw",
++        bytes(config.cursorKey),
++        { name: "HMAC", hash: "SHA-256" },
++        false,
++        ["sign", "verify"]
++      )
++    }),
++    catch: () => new PlaygroundError({ code: "unavailable" })
++  })
++
++// One native client/backend per serialized event. Scope closes before return.
++export const run = <A, E>(
++  config: Config,
++  kick: Effect.Effect<void>,
++  operation: Effect.Effect<
++    A,
++    E,
++    | Application.Application
++    | SqlClient
++    | Backend.PostgreSqlJobs
++    | DocumentKeys
++    | CommandPersistence
++    | JobWorker
++  >
++) =>
++  Effect.scoped(
++    Effect.gen(function* () {
++      const client = yield* Pg.make({
++        url: Redacted.make(config.connectionString),
++        minConnections: 0,
++        maxConnections: 2,
++        prepare: false,
++        connectTimeout: "2 seconds",
++        idleTimeout: "1 second"
++      })
++      const backend = yield* Backend.make({
++        schema: config.schema,
++        operationResponseBudgetMillis: 500
++      }).pipe(
++        Effect.provideService(
++          PostgreSqlApplication,
++          Native.make({ client, operationTimeoutMillis: 2000 })
++        )
++      )
++      yield* backend.ready
++      const stable = yield* keys(config)
++      const authority = (yield* Authority.make(config.schema).pipe(
++        Effect.provideService(SqlClient, client)
++      )).authority
++      const activeAuthority = Layer.succeed(SandboxAuthority, {
++        ...authority,
++        describe: (access) => authority.describe(access).pipe(Effect.tap(() => kick))
++      })
++      const commands = Commands.layerNoDeps.pipe(
++        Layer.provide(Authority.transactionsLayerNoDeps(config.schema)),
++        Layer.provide(Layer.succeed(JobEnqueue, backend.producer))
++      )
++      const worker = Executor.workerLayerNoDeps(config.schema).pipe(
++        Layer.provide(Layer.succeed(Backend.PostgreSqlJobs, backend))
++      )
++      const read = Read.layerNoDeps(mapping(config.schema)).pipe(
++        Layer.provide(ReadDatabase.layerNoDeps),
++        Layer.provide(Cursor.layer(stable.cursor))
++      )
++      const guarded = Guarded.layerNoDeps.pipe(
++        Layer.provide(Layer.mergeAll(activeAuthority, commands))
++      )
++      const app = Application.layerNoDeps.pipe(
++        Layer.provide(Layer.mergeAll(activeAuthority, read, guarded))
++      )
++      return yield* operation.pipe(
++        Effect.provide(app),
++        Effect.provide(Layer.mergeAll(worker, commands)),
++        Effect.provideService(SqlClient, client),
++        Effect.provideService(Backend.PostgreSqlJobs, backend),
++        Effect.provideService(DocumentKeys, stable)
++      )
++    })
++  ).pipe(Effect.provide(Reactivity.layer))
+diff --git a/apps/playground-worker/src/integration/Cloudflare.d.ts b/apps/playground-worker/src/integration/Cloudflare.d.ts
+new file mode 100644
+index 0000000..989af8d
+--- /dev/null
++++ b/apps/playground-worker/src/integration/Cloudflare.d.ts
+@@ -0,0 +1,5 @@
++declare module "cloudflare:workers" {
++  export class DurableObject {
++    constructor(ctx: object, env: object)
++  }
++}
+diff --git a/apps/playground-worker/src/persistence/MigrationRegistry.ts b/apps/playground-worker/src/persistence/MigrationRegistry.ts
+index 20da262..85b118a 100644
+--- a/apps/playground-worker/src/persistence/MigrationRegistry.ts
++++ b/apps/playground-worker/src/persistence/MigrationRegistry.ts
+@@ -1,7 +1,25 @@
+-// App-owned descriptor registry only. No SQL or automatic migration execution.
++import { createHash } from "node:crypto"
++import * as Jobs from "effect-jobs/PostgreSqlSchema"
++import * as Authority from "./authority/Schema.js"
++
++// App-owned descriptors. Only explicit setup runs these; never event code.
+ export interface MigrationDescriptor {
+   readonly id: string
+   readonly checksum: string
+   readonly sql: string
+ }
+-export const migrations: ReadonlyArray<MigrationDescriptor> = Object.freeze([])
++export const migrations = (schema: string): ReadonlyArray<MigrationDescriptor> => {
++  const sql =
++    Jobs.migration(Jobs.tables({ schema })) +
++    Authority.proposal(schema) +
++    `
++    ALTER TABLE "${schema}"."sandboxes"
++      ADD CHECK (length(sandbox_id) BETWEEN 1 AND 128),
++      ADD CHECK (expires_at BETWEEN 1 AND 253402300799999);
++    ALTER TABLE "${schema}"."associations"
++      ADD CHECK (generation BETWEEN 1 AND 9007199254740991),
++      ADD CHECK (jsonb_typeof(relations)='object');`
++  return Object.freeze([
++    { id: "playground-v1", sql, checksum: createHash("sha256").update(sql).digest("hex") }
++  ])
++}
+diff --git a/apps/playground-worker/tests/integration/Admit.ts b/apps/playground-worker/tests/integration/Admit.ts
+new file mode 100644
+index 0000000..76e9c78
+--- /dev/null
++++ b/apps/playground-worker/tests/integration/Admit.ts
+@@ -0,0 +1,56 @@
++// Test-only app fixture. Use the public native transaction/enqueue APIs; never write lifecycle SQL.
++// @effect-diagnostics unstableApiUsage:off
++import { Duration, Effect, Redacted } from "effect"
++import { SqlClient } from "effect/sql/SqlClient"
++import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
++import * as Policy from "effect-jobs/JobPolicy"
++import * as Event from "../../src/execution/Event.js"
++import * as Plan from "../../src/scenarios/Plan.js"
++import { Application } from "../../../website/src/server/Services.js"
++export const delayed = (config: Event.Config, credential: string, requestId: string) =>
++  Event.run(
++    config,
++    Effect.void,
++    Effect.gen(function* () {
++      const app = yield* Application
++      const access = yield* app.authenticate(Redacted.make(credential))
++      const backend = yield* PostgreSqlJobs
++      const sql = yield* SqlClient
++      return yield* backend.withTransaction(() =>
++        Effect.gen(function* () {
++          const rows = yield* sql.unsafe<{ now: string }>(
++            `SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now FROM "${config.schema}".sandboxes WHERE sandbox_id=$1 AND generation=$2 AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint FOR UPDATE`,
++            [access.sandbox.ref.sandboxId, access.sandbox.ref.generation]
++          )
++          if (!rows.length) {
++            return yield* Effect.die("fixture authority unavailable")
++          }
++          const [job] = yield* Plan.plan(
++            { sandbox: access.sandbox.ref, requestId, scenario: "success", count: 1 },
++            access.sandbox.ref,
++            0,
++            Number(rows[0]!.now) + 2000
++          )
++          const policy = Policy.make({
++            leaseDuration: Duration.millis(1800),
++            attemptTimeout: Duration.millis(200),
++            retryDelay: Duration.millis(500),
++            maxAttempts: 3
++          })
++          const result = yield* Plan.enqueue({ ...job!, policy })
++          const reserved = yield* sql.unsafe(
++            `UPDATE "${config.schema}".sandboxes SET retained_jobs=retained_jobs+1 WHERE sandbox_id=$1 AND retained_jobs<100 RETURNING sandbox_id`,
++            [access.sandbox.ref.sandboxId]
++          )
++          if (!reserved.length) {
++            return yield* Effect.die("fixture quota unavailable")
++          }
++          yield* sql.unsafe(
++            `INSERT INTO "${config.schema}".associations VALUES ($1,$2,$3,'{}'::jsonb)`,
++            [access.sandbox.ref.sandboxId, access.sandbox.ref.generation, result.jobId]
++          )
++          return result.jobId
++        })
++      )
++    })
++  )
+diff --git a/apps/playground-worker/tests/integration/Build.mjs b/apps/playground-worker/tests/integration/Build.mjs
+new file mode 100644
+index 0000000..73ebfab
+--- /dev/null
++++ b/apps/playground-worker/tests/integration/Build.mjs
+@@ -0,0 +1,108 @@
++// Explicit local build FFI. Library remains packed independently of private apps.
++import { execFileSync } from "node:child_process"
++import { createHash } from "node:crypto"
++import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
++import { resolve } from "node:path"
++const root = resolve(import.meta.dirname, "../../../..")
++const evidence = resolve(root, ".multica/integration")
++mkdirSync(evidence, { recursive: true })
++const run = (label, args) => {
++  const at = new Date().toISOString()
++  try {
++    const output = execFileSync(args[0], args.slice(1), {
++      cwd: root,
++      timeout: 600000,
++      encoding: "utf8",
++      stdio: ["ignore", "pipe", "pipe"]
++    })
++    writeFileSync(`${evidence}/${label}.log`, output)
++    return { label, at, exit: 0, output }
++  } catch (error) {
++    writeFileSync(
++      `${evidence}/${label}.log`,
++      String(error.stdout ?? "") + String(error.stderr ?? "")
++    )
++    throw new Error(`${label} failed`)
++  }
++}
++const commands = [
++  run("library-build", ["bun", "run", "build"]),
++  run("refresh-file-dependency", [
++    "bun",
++    "install",
++    "--frozen-lockfile",
++    "--ignore-scripts",
++    "--force"
++  ]),
++  run("apps-build", ["bun", "run", "playground:build"]),
++  run("apps-types", ["bun", "run", "playground:check"])
++]
++run("test-worker-bundle", [
++  "apps/playground-worker/node_modules/.bin/esbuild",
++  "apps/playground-worker/tests/integration/TestWorker.ts",
++  "--bundle",
++  "--platform=node",
++  "--format=esm",
++  "--external:cloudflare:*",
++  "--external:node:*",
++  "--outfile=.multica/integration/TestWorker.js"
++])
++run("fixture-bundle", [
++  "apps/playground-worker/node_modules/.bin/esbuild",
++  "apps/playground-worker/tests/integration/Admit.ts",
++  "--bundle",
++  "--platform=node",
++  "--format=esm",
++  "--external:node:*",
++  "--outfile=.multica/integration/Admit.mjs"
++])
++run("migration-bundle", [
++  "apps/playground-worker/node_modules/.bin/esbuild",
++  "apps/playground-worker/tests/integration/SchemaEntry.ts",
++  "--bundle",
++  "--platform=node",
++  "--format=esm",
++  "--external:effect",
++  "--external:effect/*",
++  "--external:effect-jobs/*",
++  "--outfile=.multica/integration/Migrations.mjs"
++])
++process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY = mkdtempSync(`${evidence}/artifact-`)
++const packed = run("pack", ["node", "scripts/pack-release.mjs"]).output.trim()
++delete process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY
++const inventory = run("inventory", ["tar", "-tzf", packed]).output.split("\n")
++if (inventory.some((path) => /package\/(apps|packages|node_modules)\//.test(path))) {
++  throw new Error("Private app leaked into library")
++}
++for (const path of inventory.filter(
++  (p) => p.startsWith("package/dist/") && !p.endsWith("/")
++)) {
++  const actual = execFileSync("tar", ["-xOf", packed, path], { timeout: 60000 })
++  if (!actual.equals(readFileSync(resolve(root, path.slice(8))))) {
++    throw new Error("Packed byte mismatch")
++  }
++}
++const hash = (path) => createHash("sha256").update(readFileSync(path)).digest("hex")
++const receipt = {
++  at: new Date().toISOString(),
++  commands: commands.map(({ label, at, exit }) => ({ label, at, exit })),
++  archive: packed,
++  archiveSha256: hash(packed),
++  workerSha256: hash(`${root}/apps/playground-worker/dist/Worker.js`),
++  testWorkerSha256: hash(`${evidence}/TestWorker.js`),
++  fixtureSha256: hash(`${evidence}/Admit.mjs`),
++  migrationSha256: hash(`${evidence}/Migrations.mjs`),
++  workerd: execFileSync(
++    "node",
++    [
++      "-e",
++      "console.log(require('./apps/playground-worker/node_modules/miniflare/package.json').version)"
++    ],
++    { cwd: root, encoding: "utf8" }
++  ).trim(),
++  clientSha256: hash(`${root}/apps/website/dist/Client.js`),
++  node: process.version,
++  bun: execFileSync("bun", ["--version"], { encoding: "utf8" }).trim()
++}
++writeFileSync(`${evidence}/build-receipt.json`, JSON.stringify(receipt, null, 2) + "\n")
++console.log(JSON.stringify(receipt))
+diff --git a/apps/playground-worker/tests/integration/Harness.mjs b/apps/playground-worker/tests/integration/Harness.mjs
+new file mode 100644
+index 0000000..a7655a3
+--- /dev/null
++++ b/apps/playground-worker/tests/integration/Harness.mjs
+@@ -0,0 +1,583 @@
++// Real PG + local workerd + Chromium integration. Assertions inspect persisted facts.
++import assert from "node:assert/strict"
++import { readFileSync, writeFileSync } from "node:fs"
++import { resolve } from "node:path"
++import { Pool } from "pg"
++import { Effect } from "effect"
++import { chromium } from "@playwright/test"
++import { createLocal } from "./Local.mjs"
++const root = resolve(import.meta.dirname, "../../../..")
++const evidence = resolve(root, ".multica/integration")
++const { migrations } = await import(`${evidence}/Migrations.mjs`)
++const cfg = JSON.parse(readFileSync(process.env.PLAYGROUND_PRIVATE_CONFIG, "utf8"))
++const pool = new Pool({
++  host: "127.0.0.1",
++  port: cfg.port,
++  user: cfg.user,
++  password: cfg.password,
++  database: cfg.database,
++  connectionTimeoutMillis: 2000,
++  statement_timeout: 5000
++})
++const schema = cfg.schema
++const report = {
++  at: new Date().toISOString(),
++  checks: [],
++  observations: {},
++  hosted: "NotTested",
++  runtime: process.version
++}
++const sql = async (text, values = []) => (await pool.query(text, values)).rows
++const check = (name) => report.checks.push({ name, at: new Date().toISOString() })
++const until = async (test, label, budget = 15000) => {
++  const deadline = Date.now() + budget
++  for (;;) {
++    if (await test()) {
++      return
++    }
++    if (Date.now() >= deadline) {
++      throw new Error(label)
++    }
++    await new Promise((done) => setTimeout(done, 250))
++  }
++}
++let mf, browser, local
++try {
++  assert.match((await sql("SHOW server_version"))[0].server_version, /^16\.15/)
++  await sql("CREATE EXTENSION pg_stat_statements")
++  await sql(`CREATE SCHEMA "${schema}"`)
++  for (const migration of migrations(schema)) {
++    await sql(migration.sql)
++  }
++  cfg.connectionString = `postgres://${cfg.user}:${cfg.password}@127.0.0.1:${cfg.port}/${cfg.database}`
++  local = await createLocal(cfg, { instrument: true })
++  mf = local.mf
++  const dispatch = (path, options = {}) => mf.dispatchFetch(local.origin + path, options)
++  const post = (path, cookie, token, body) =>
++    dispatch(path, {
++      method: "POST",
++      headers: {
++        Origin: local.origin,
++        "Content-Type": "application/json",
++        ...(cookie ? { Cookie: cookie, "X-Playground-CSRF": token } : {})
++      },
++      ...(body === undefined ? {} : { body: JSON.stringify(body) })
++    })
++  const issue = async () => {
++    const response = await post("/api/sandbox/issue")
++    assert.equal(response.status, 200)
++    const cookies = response.headers.getSetCookie()
++    assert(
++      cookies.some(
++        (value) =>
++          value.includes("HttpOnly") &&
++          value.includes("Secure") &&
++          value.includes("SameSite=Strict")
++      )
++    )
++    const cookie = cookies.map((value) => value.split(";")[0]).join("; ")
++    const token = cookies
++      .find((value) => value.startsWith("__Host-playground-csrf="))
++      .split(";")[0]
++      .split("=")[1]
++    return { sandbox: await response.json(), cookie, token }
++  }
++  assert.equal(
++    (
++      await dispatch("/api/sandbox/issue", {
++        method: "POST",
++        headers: { Origin: "https://foreign.invalid", "Content-Type": "application/json" }
++      })
++    ).status,
++    400
++  )
++  const a = await issue(),
++    b = await issue()
++  const run = async (who, id, scenario = "success", count = 6) => {
++    const response = await post("/api/scenarios", who.cookie, who.token, {
++      sandbox: who.sandbox.ref,
++      requestId: id,
++      scenario,
++      count
++    })
++    const result = await response.json()
++    assert.equal(response.status, 200)
++    assert.equal(result._tag, "Committed")
++    return result
++  }
++  const describe = (who) => post("/api/sandbox", who.cookie, who.token)
++  const query = (who, extra = "") =>
++    `/api/jobs?sandboxId=${who.sandbox.ref.sandboxId}&generation=${who.sandbox.ref.generation}&limit=5${extra}`
++  assert.equal((await post("/api/scenarios", a.cookie, "wrong", {})).status, 400)
++  assert.equal((await dispatch(query(a), { headers: { Cookie: b.cookie } })).status, 404)
++  const initial = await run(a, "http-atomic")
++  const replay = await run(a, "http-atomic")
++  assert.deepEqual(replay.jobIds, initial.jobIds)
++  const receipt = await post("/api/scenarios/receipt", a.cookie, a.token, {
++    sandbox: a.sandbox.ref,
++    requestId: "http-atomic"
++  })
++  assert.deepEqual((await receipt.json()).jobIds, initial.jobIds)
++  const counts = (
++    await sql(
++      `SELECT (SELECT count(*) FROM "${schema}".associations WHERE sandbox_id=$1) AS jobs,(SELECT count(*) FROM "${schema}".command_receipts WHERE sandbox_id=$1) AS receipts,(SELECT count(*) FROM "${schema}".command_admission WHERE sandbox_id=$1) AS admissions`,
++      [a.sandbox.ref.sandboxId]
++    )
++  )[0]
++  assert.deepEqual(Object.values(counts).map(Number), [6, 1, 1])
++  check("actual HTTP guarded command / atomic jobs associations receipt / exact replay")
++  const view = await describe(a)
++  assert.equal(view.status, 200)
++  await until(
++    async () =>
++      (
++        await sql(
++          `SELECT count(*)::int AS n FROM "${schema}".jobs WHERE id=ANY($1) AND state='Completed'`,
++          [initial.jobIds]
++        )
++      )[0].n === 6,
++    "four queues did not complete six real handlers"
++  )
++  check("four registered native DOs / automatic local alarms / six real handlers")
++  const first = await (await dispatch(query(a), { headers: { Cookie: a.cookie } })).json()
++  assert.equal(first.items.length, 5)
++  assert(first.nextCursor)
++  assert(
++    !/ciphertext|fingerprint|payload|leaseToken|synthetic private export/.test(
++      JSON.stringify(first)
++    )
++  )
++  const second = await (
++    await dispatch(query(a, `&cursor=${first.nextCursor}`), {
++      headers: { Cookie: a.cookie }
++    })
++  ).json()
++  assert.equal(second.items.length, 1)
++  assert(
++    !first.items.some((job) => second.items.some((other) => other.jobId === job.jobId))
++  )
++  const privateJob = (
++    await sql(
++      `SELECT id FROM "${schema}".jobs WHERE kind='playground.private-data-export' LIMIT 1`
++    )
++  )[0]
++  const detail = await (
++    await dispatch(
++      `/api/jobs/detail?sandboxId=${a.sandbox.ref.sandboxId}&generation=1&jobId=${privateJob.id}`,
++      { headers: { Cookie: a.cookie } }
++    )
++  ).json()
++  assert.equal(detail.job.jobId, privateJob.id)
++  assert(
++    !/ciphertext|fingerprint|payload|synthetic private export/.test(
++      JSON.stringify(detail)
++    )
++  )
++  check(
++    "real SELECT-only projection / keyset pages / private detail / no decrypt on list"
++  )
++  browser = await chromium.launch({
++    headless: true,
++    args: ["--ignore-certificate-errors"]
++  })
++  const context = await browser.newContext({ ignoreHTTPSErrors: true })
++  const page = await context.newPage()
++  let reads = 0,
++    describes = 0,
++    ws = 0,
++    readyFrames = 0,
++    changedFrames = 0
++  page.on("request", (req) => {
++    if (req.url().includes("/api/jobs?")) {
++      reads++
++    }
++    if (req.url().endsWith("/api/sandbox")) {
++      describes++
++    }
++  })
++  page.on("websocket", (socket) => {
++    ws++
++    socket.on("framereceived", ({ payload }) => {
++      try {
++        const signal = JSON.parse(String(payload))
++        if (signal.kind === "ready") {
++          readyFrames++
++        }
++        if (signal.reason === "jobs-changed") {
++          changedFrames++
++        }
++      } catch {
++        /* Protocol rejects invalid data in the application. */
++      }
++    })
++  })
++  await page.goto(local.origin + "/jobs")
++  await page.getByRole("heading", { name: "Durable work, visible." }).waitFor()
++  await until(
++    () => Promise.resolve(readyFrames > 0),
++    "browser received no live ready frame",
++    10000
++  )
++  await page.getByLabel("Jobs (1–10)").fill("6")
++  await page.getByRole("button", { name: "Run scenario", exact: true }).click()
++  await page.getByText(/Enqueue acknowledged for/).waitFor()
++  await page.locator(".job-list button").first().waitFor()
++  await until(
++    async () =>
++      (await page.locator(".job-list li p").allTextContents()).some((text) =>
++        text.includes("Completed")
++      ),
++    "browser did not reconcile persisted completion",
++    15000
++  )
++  await page.locator(".job-list button").first().click()
++  await page.getByText("Retry delay", { exact: true }).waitFor()
++  assert.equal(
++    await page.evaluate(() => document.cookie.includes("__Host-playground=")),
++    false
++  )
++  page.once("dialog", (dialog) => dialog.accept())
++  await page.getByRole("button", { name: "Reset my sandbox" }).click()
++  await page.getByText(/New sandbox generation/).waitFor({ timeout: 10000 })
++  const readsBeforeDisconnect = reads
++  await context.setOffline(true)
++  await page.waitForTimeout(500)
++  await context.setOffline(false)
++  await until(
++    () => Promise.resolve(reads > readsBeforeDisconnect),
++    "browser did not reconcile after reconnect",
++    10000
++  )
++  await until(() => Promise.resolve(ws >= 2), "reset did not reconnect live scope", 10000)
++  const secondPage = await context.newPage()
++  await secondPage.goto(local.origin + "/jobs")
++  await secondPage.getByRole("heading", { name: "Durable work, visible." }).waitFor()
++  await secondPage.close()
++  report.observations.browser = {
++    reads,
++    describes,
++    webSockets: ws,
++    readyFrames,
++    changedFrames,
++    viewers: 2,
++    chromium: browser.version(),
++    reconnectRead: reads > readsBeforeDisconnect
++  }
++  assert(ws > 0)
++  await until(
++    () => Promise.resolve(readyFrames >= 2),
++    "new scope did not deliver live ready",
++    10000
++  )
++  await until(
++    () => Promise.resolve(changedFrames > 0),
++    "no post-commit live invalidation received",
++    10000
++  )
++  await page.screenshot({ path: `${evidence}/browser.png`, fullPage: true })
++  check("actual Chromium UI/read/command/detail/reset/live")
++  await context.close()
++  // Keep authorized viewers alive during retry and unknown recovery; heartbeat kicks every queue.
++  let heartbeatError
++  const heartbeat = setInterval(() => {
++    void Promise.all([describe(a), describe(b)]).catch((error) => {
++      heartbeatError = error.constructor.name
++    })
++  }, 5000)
++  try {
++    const retry = await run(a, "http-retry", "retry-then-success")
++    await until(
++      async () =>
++        (
++          await sql(
++            `SELECT count(*)::int AS n FROM "${schema}".jobs WHERE id=ANY($1) AND state='Completed' AND attempts_made=2`,
++            [retry.jobIds]
++          )
++        )[0].n === 6,
++      "retry did not persist then complete",
++      20000
++    )
++    const dead = await run(b, "http-dead", "terminal-failure")
++    await until(
++      async () =>
++        (
++          await sql(
++            `SELECT count(*)::int AS n FROM "${schema}".jobs WHERE id=ANY($1) AND state='Dead'`,
++            [dead.jobIds]
++          )
++        )[0].n === 6,
++      "terminal scenario not persisted"
++    )
++    const unknown = await run(b, "http-unknown", "unknown-outcome")
++    await until(
++      async () =>
++        (
++          await sql(
++            `SELECT count(*)::int AS n FROM "${schema}".jobs WHERE id=ANY($1) AND state='Active'`,
++            [unknown.jobIds]
++          )
++        )[0].n === 6,
++      "unknown not Active"
++    )
++    await until(
++      async () =>
++        (
++          await sql(
++            `SELECT count(*)::int AS n FROM "${schema}".jobs WHERE id=ANY($1) AND state='Completed' AND stalled_count=1`,
++            [unknown.jobIds]
++          )
++        )[0].n === 6,
++      "unknown recovery did not complete",
++      110000
++    )
++    assert.equal(
++      (
++        await sql(
++          `SELECT max(invocations) AS n FROM "${schema}".provider_ledger WHERE job_id=ANY($1)`,
++          [unknown.jobIds]
++        )
++      )[0].n,
++      2
++    )
++    assert.equal(heartbeatError, undefined)
++    check(
++      "integrated persisted retry/dead/unknown/lease recovery / idempotent provider ledger"
++    )
++  } finally {
++    clearInterval(heartbeat)
++  }
++  const old = a.sandbox.ref
++  const reset = await post("/api/sandbox/reset", a.cookie, a.token, {
++    sandbox: old,
++    requestId: "reset-http"
++  })
++  assert.equal(reset.status, 200)
++  a.sandbox.ref = (await reset.json()).current
++  assert.equal(
++    (
++      await post("/api/scenarios", a.cookie, a.token, {
++        sandbox: old,
++        requestId: "stale-http",
++        scenario: "success",
++        count: 1
++      })
++    ).status,
++    409
++  )
++  const resetReceipt = await post("/api/sandbox/reset/receipt", a.cookie, a.token, {
++    sandbox: old,
++    requestId: "reset-http"
++  })
++  assert.equal(resetReceipt.status, 200)
++  assert(
++    (
++      await sql(
++        `SELECT count(*)::int AS n FROM "${schema}".associations WHERE sandbox_id=$1 AND generation=1`,
++        [old.sandboxId]
++      )
++    )[0].n >= 12
++  )
++  check("reset fences old generation / retains jobs and quota / old exact receipt")
++  const { delayed } = await import(`${evidence}/Admit.mjs`)
++  const credential = a.cookie
++    .split("; ")
++    .find((part) => part.startsWith("__Host-playground="))
++    .split("=")[1]
++  const delayedId = await Effect.runPromise(delayed(cfg, credential, "delayed-native"))
++  assert.equal(
++    (await sql(`SELECT state FROM "${schema}".jobs WHERE id=$1`, [delayedId]))[0].state,
++    "Pending"
++  )
++  await sql(`UPDATE "${schema}".sandboxes SET viewer_until=1 WHERE sandbox_id=$1`, [
++    a.sandbox.ref.sandboxId
++  ])
++  await describe(b)
++  await until(
++    async () =>
++      (await sql(`SELECT state FROM "${schema}".jobs WHERE id=$1`, [delayedId]))[0]
++        .state === "Completed",
++    "admitted unattended delayed work did not complete",
++    8000
++  )
++  check(
++    "public native enqueue fixture / delayed scheduling / another sandbox viewer permits admitted unattended work"
++  )
++  // Larger bounded retained backlog; no lifecycle SQL mutation or deletions.
++  await sql(`UPDATE "${schema}".sandboxes SET next_generation_at=expires_at`)
++  const beforeCost = (
++    await sql(
++      "SELECT sum(calls)::bigint AS calls, sum(total_exec_time)::float8 AS millis FROM pg_stat_statements WHERE dbid=(SELECT oid FROM pg_database WHERE datname=current_database())"
++    )
++  )[0]
++  const beforeQueues = await (await dispatch("/_integration/queues")).json()
++  const larger = []
++  let mutationPage
++  for (let batch = 0; batch < 12; batch++) {
++    const retained = (
++      await sql(`SELECT retained_jobs FROM "${schema}".sandboxes WHERE sandbox_id=$1`, [
++        a.sandbox.ref.sandboxId
++      ])
++    )[0].retained_jobs
++    if (retained === 100) {
++      break
++    }
++    const result = await run(
++      a,
++      `backlog-${batch}`,
++      "success",
++      Math.min(10, 100 - retained)
++    )
++    larger.push(...result.jobIds)
++    if (batch === 0) {
++      mutationPage = await (
++        await dispatch(query(a), { headers: { Cookie: a.cookie } })
++      ).json()
++    } else if (batch === 1 && mutationPage.nextCursor) {
++      const afterMutation = await (
++        await dispatch(query(a, `&cursor=${mutationPage.nextCursor}`), {
++          headers: { Cookie: a.cookie }
++        })
++      ).json()
++      assert(
++        !mutationPage.items.some((job) =>
++          afterMutation.items.some((next) => job.jobId === next.jobId)
++        )
++      )
++      assert(
++        afterMutation.items.every((job) => job.jobId > mutationPage.items.at(-1).jobId)
++      )
++      check(
++        "real keyset pagination retained across concurrent admission and lifecycle mutation"
++      )
++    }
++  }
++  assert(larger.length >= 50)
++  await until(
++    async () =>
++      (
++        await sql(
++          `SELECT count(*)::int AS n FROM "${schema}".jobs WHERE id=ANY($1) AND state='Completed'`,
++          [larger]
++        )
++      )[0].n === larger.length,
++    "bounded backlog not completed",
++    25000
++  )
++  const quota = await post("/api/scenarios", a.cookie, a.token, {
++    sandbox: a.sandbox.ref,
++    requestId: "quota-full",
++    scenario: "success",
++    count: 1
++  })
++  assert.equal(quota.status, 429)
++  const afterCost = (
++    await sql(
++      "SELECT sum(calls)::bigint AS calls, sum(total_exec_time)::float8 AS millis FROM pg_stat_statements WHERE dbid=(SELECT oid FROM pg_database WHERE datname=current_database())"
++    )
++  )[0]
++  const afterQueues = await (await dispatch("/_integration/queues")).json()
++  report.observations.backlog = {
++    inserted: larger.length,
++    retainedQuota: 100,
++    queryCalls: Number(afterCost.calls) - Number(beforeCost.calls),
++    queryMillis: afterCost.millis - beforeCost.millis,
++    queueAlarmCallbacks: afterQueues.map((q, i) => q.calls - beforeQueues[i].calls),
++    queueActivations: afterQueues.map(
++      (q, i) => q.activations - beforeQueues[i].activations
++    )
++  }
++  const filtered = await (
++    await dispatch(query(a, "&state=Completed&kind=playground.welcome-email"), {
++      headers: { Cookie: a.cookie }
++    })
++  ).json()
++  assert(
++    filtered.items.every(
++      (job) =>
++        job.state === "Completed" && job.catalog.kind === "playground.welcome-email"
++    )
++  )
++  if (filtered.nextCursor) {
++    assert.equal(
++      (
++        await dispatch(
++          query(
++            a,
++            `&state=Dead&kind=playground.welcome-email&cursor=${filtered.nextCursor}`
++          ),
++          { headers: { Cookie: a.cookie } }
++        )
++      ).status,
++      400
++    )
++  }
++  check(
++    "bounded larger backlog / multiple sandboxes / retained quota / filters / measured PG and DO costs"
++  )
++  // One authorized viewer keeps all four shared queues alive; zero viewers retires all.
++  await sql(`UPDATE "${schema}".sandboxes SET viewer_until=1`)
++  await describe(b)
++  const alive = await (await dispatch("/_integration/queues")).json()
++  assert(alive.every((queue) => queue.alarm !== null))
++  await sql(`UPDATE "${schema}".sandboxes SET viewer_until=1`)
++  await until(
++    async () =>
++      (await (await dispatch("/_integration/queues")).json()).every(
++        (queue) => queue.alarm === null
++      ),
++    "all shared queues did not retire",
++    8000
++  )
++  const retired = await (await dispatch("/_integration/queues")).json()
++  await describe(b)
++  const resumed = await (await dispatch("/_integration/queues")).json()
++  assert(resumed.every((queue) => queue.alarm !== null))
++  assert(resumed.every((queue, i) => queue.activations > retired[i].activations))
++  await sql(`UPDATE "${schema}".sandboxes SET expires_at=1 WHERE sandbox_id=$1`, [
++    b.sandbox.ref.sandboxId
++  ])
++  assert.equal((await describe(b)).status, 401)
++  assert.equal((await dispatch(query(b), { headers: { Cookie: b.cookie } })).status, 401)
++  check(
++    "global last-viewer retirement / describe resumes ALL four queues / DB-time expiry"
++  )
++  report.status = "PASS"
++} catch (error) {
++  report.status = "FAIL"
++  report.failureClass = error.constructor.name
++  if (error.code === "ERR_ASSERTION") {
++    report.assertion = {
++      actual: error.actual,
++      expected: error.expected,
++      operator: error.operator
++    }
++  }
++  report.frames = String(error.stack ?? "")
++    .split("\n")
++    .filter((line) => line.trim().startsWith("at "))
++    .map((line) => line.replace(/postgres[^ ]*/g, "[redacted]"))
++  process.exitCode = 1
++} finally {
++  if (browser) {
++    await browser.close()
++  }
++  if (mf) {
++    await mf.dispose()
++  }
++  report.remainingSessions = (
++    await sql(
++      "SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()"
++    )
++  )[0].n
++  if (report.remainingSessions !== 0) {
++    report.status = "FAIL"
++    process.exitCode = 1
++  }
++  await pool.end()
++  report.finishedAt = new Date().toISOString()
++  writeFileSync(
++    `${evidence}/integrated-receipt.json`,
++    JSON.stringify(report, null, 2) + "\n"
++  )
++  console.log(JSON.stringify(report))
++}
+diff --git a/apps/playground-worker/tests/integration/Local.mjs b/apps/playground-worker/tests/integration/Local.mjs
+new file mode 100644
+index 0000000..dda1ced
+--- /dev/null
++++ b/apps/playground-worker/tests/integration/Local.mjs
+@@ -0,0 +1,90 @@
++// Local workerd FFI. All inputs are fresh synthetic configuration; no .env access.
++import { Miniflare, convertV4MiniflareOptions } from "miniflare"
++import { readFileSync } from "node:fs"
++import { resolve } from "node:path"
++import { createServer } from "node:net"
++const root = resolve(import.meta.dirname, "../../../..")
++export const reservePort = () =>
++  new Promise((done, reject) => {
++    const server = createServer()
++    server.once("error", reject)
++    server.listen(0, "127.0.0.1", () => {
++      const port = server.address().port
++      server.close(() => done(port))
++    })
++  })
++export const createLocal = async (cfg, { instrument = false } = {}) => {
++  const port = await reservePort()
++  const origin = `https://127.0.0.1:${port}`
++  const page =
++    '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Effect Jobs Playground</title><link rel="stylesheet" href="/Jobs.css"></head><body><main id="jobs"></main><script type="module" src="/Client.js"></script></body></html>'
++  const assets = {
++    "/": [page, "text/html"],
++    "/jobs": [page, "text/html"],
++    "/Client.js": [
++      readFileSync(`${root}/apps/website/dist/Client.js`),
++      "text/javascript"
++    ],
++    "/Jobs.css": [readFileSync(`${root}/apps/website/src/styles/Jobs.css`), "text/css"],
++    "/docs/jobs": [
++      readFileSync(`${root}/apps/website/content/docs/Jobs.html`),
++      "text/html"
++    ]
++  }
++  const mf = new Miniflare(
++    convertV4MiniflareOptions({
++      host: "127.0.0.1",
++      port,
++      https: true,
++      modules: true,
++      script: readFileSync(
++        instrument
++          ? `${root}/.multica/integration/TestWorker.js`
++          : `${root}/apps/playground-worker/dist/Worker.js`,
++        "utf8"
++      ),
++      compatibilityDate: "2026-10-01",
++      compatibilityFlags: ["nodejs_compat"],
++      durableObjects: Object.fromEntries(
++        ["Gateway", "Communications", "Media", "Commerce", "Private", "SandboxLive"].map(
++          (className, index) => [
++            ["GATEWAY", "COMMUNICATIONS", "MEDIA", "COMMERCE", "PRIVATE", "LIVE"][index],
++            {
++              className:
++                instrument && index > 0 && index < 5 ? className + "Probe" : className,
++              useSQLite: true
++            }
++          ]
++        )
++      ),
++      durableObjectsPersist: false,
++      hyperdrives: { PG: cfg.connectionString },
++      bindings: {
++        ORIGIN: origin,
++        SCHEMA: cfg.schema,
++        ENCRYPTION_KEY: cfg.encryptionKey,
++        FINGERPRINT_KEY: cfg.fingerprintKey,
++        CURSOR_KEY: cfg.cursorKey
++      },
++      serviceBindings: {
++        ASSETS: (request) => {
++          const entry = assets[new URL(request.url).pathname]
++          return entry
++            ? new Response(entry[0], {
++                headers: {
++                  "Content-Type": entry[1],
++                  "Cache-Control": "no-store",
++                  "Content-Security-Policy":
++                    "default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'",
++                  "X-Content-Type-Options": "nosniff"
++                }
++              })
++            : new Response("Not found", { status: 404 })
++        }
++      },
++      outboundService: () => new Response("Outbound HTTP denied", { status: 403 })
++    })
++  )
++  await mf.ready
++  return { mf, origin }
++}
+diff --git a/apps/playground-worker/tests/integration/Preview.mjs b/apps/playground-worker/tests/integration/Preview.mjs
+new file mode 100644
+index 0000000..f711188
+--- /dev/null
++++ b/apps/playground-worker/tests/integration/Preview.mjs
+@@ -0,0 +1,62 @@
++// User-invoked foreground preview; expiry and Ctrl-C dispose workerd and scoped DB use.
++import { readFileSync } from "node:fs"
++import { resolve } from "node:path"
++import { Pool } from "pg"
++import { createLocal } from "./Local.mjs"
++const root = resolve(import.meta.dirname, "../../../..")
++const { migrations } = await import(`${root}/.multica/integration/Migrations.mjs`)
++const cfg = JSON.parse(readFileSync(process.env.PLAYGROUND_PRIVATE_CONFIG, "utf8"))
++const pool = new Pool({
++  host: "127.0.0.1",
++  port: cfg.port,
++  user: cfg.user,
++  password: cfg.password,
++  database: cfg.database,
++  connectionTimeoutMillis: 2000,
++  statement_timeout: 5000
++})
++let mf
++let poolEnded = false
++try {
++  await pool.query(`CREATE SCHEMA "${cfg.schema}"`)
++  for (const migration of migrations(cfg.schema)) {
++    await pool.query(migration.sql)
++  }
++  await pool.end()
++  poolEnded = true
++  cfg.connectionString = `postgres://${cfg.user}:${cfg.password}@127.0.0.1:${cfg.port}/${cfg.database}`
++  const local = await createLocal(cfg)
++  mf = local.mf
++  console.log(
++    JSON.stringify({
++      url: local.origin + "/jobs",
++      expires: process.env.PLAYGROUND_DEADLINE,
++      stop: "Ctrl-C in this foreground command; wrapper removes its exact PG container",
++      tls: "local self-signed certificate",
++      hosted: "NotTested"
++    })
++  )
++  const remaining = Math.max(
++    0,
++    new Date(process.env.PLAYGROUND_DEADLINE).getTime() - Date.now() - 10000
++  )
++  await new Promise((done) => {
++    const timer = setTimeout(done, remaining)
++    const stop = () => {
++      clearTimeout(timer)
++      done()
++    }
++    process.once("SIGINT", stop)
++    process.once("SIGTERM", stop)
++  })
++} catch (error) {
++  console.log(JSON.stringify({ status: "FAIL", failureClass: error.constructor.name }))
++  process.exitCode = 1
++} finally {
++  if (mf) {
++    await mf.dispose()
++  }
++  if (!poolEnded) {
++    await pool.end()
++  }
++}
+diff --git a/apps/playground-worker/tests/integration/RunOwned.py b/apps/playground-worker/tests/integration/RunOwned.py
+new file mode 100644
+index 0000000..3bb4103
+--- /dev/null
++++ b/apps/playground-worker/tests/integration/RunOwned.py
+@@ -0,0 +1,77 @@
++# Foreground native resource FFI; exact-ID cleanup on every exit, no existing DB access.
++import subprocess, json, secrets, os, pathlib, datetime, hashlib, time, sys
++root = pathlib.Path(__file__).resolve().parents[4]
++evidence = root / '.multica/integration'
++evidence.mkdir(parents=True, exist_ok=True)
++image = 'postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea'
++now = lambda: datetime.datetime.now(datetime.timezone.utc).isoformat()
++expiry = os.environ.get('PLAYGROUND_DEADLINE', '2026-10-11T22:18:50Z')
++receipt = {'owner':'UPVE-1872 / Implementor','startedAt':now(),'expiry':expiry,'image':image,'storage':'tmpfs; no volume','commands':[]}
++cid = None
++private = evidence / ('private-' + secrets.token_hex(6) + '.json')
++def run(label, args, env=None, timeout=60):
++    start = now()
++    result = subprocess.run(args, cwd=root, env=env, stdout=None if label=='preview' else subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout)
++    receipt['commands'].append({'label':label,'start':start,'end':now(),'exit':result.returncode})
++    if label not in ['create','port']:
++        (evidence / (label+'.log')).write_text((result.stdout or '')+(result.stderr or ''))
++    if result.returncode: raise RuntimeError(label+' failed; see bounded evidence')
++    return (result.stdout or '').strip()
++try:
++    deadline = datetime.datetime.fromisoformat(expiry.replace('Z','+00:00'))
++    if datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(minutes=8)>deadline: raise RuntimeError('insufficient finite resource window')
++    if '--preview' in sys.argv and deadline-datetime.datetime.now(datetime.timezone.utc)>datetime.timedelta(minutes=30): raise RuntimeError('preview expiry must be within 30 minutes')
++    previous = ['31d8e343ea817a4504b93f912759b36ec3057813e7e70b2482a810a1dbacca37','18fd83acfe26704faa4fa4831c311fc2f6506d46c9902afc86b79f09439a4eab','04a25e4d9457d93c327875341cc076cad651f6799fbf942f9c7170b8aa5fe7cf','840685eeadb8b0ef083d08dac0caae25d33c26dfa9ca1ab43e937b3769078b87','4005e807c4d3372f523f8077b8170e43e7cf3aa486e72879eed1cd3196e75a9d','22c1b1d2ca07fc7e1e58d75f3293b317bbe55fb1eefeb90ec3030526449a9f56']
++    # If this integration attempt itself is continued, verify its exact previous resource.
++    prior_receipt = evidence/'owned-resource-receipt.json'
++    if prior_receipt.exists():
++        old=json.loads(prior_receipt.read_text())
++        if old.get('containerId'): previous.append(old['containerId'])
++        (evidence/('prior-attempt-'+secrets.token_hex(4)+'.json')).write_text(prior_receipt.read_text())
++    checks=[]
++    for identifier in previous:
++        r=subprocess.run(['docker','inspect','--format','{{.Id}}',identifier],capture_output=True,text=True,timeout=10)
++        absent=r.returncode!=0 and 'no such object' in r.stderr.lower()
++        checks.append({'id':identifier,'absent':absent})
++        if not absent: raise RuntimeError('previous owned resource not absent')
++    receipt['previousResources']=checks
++    files=subprocess.check_output(['git','ls-files','-co','--exclude-standard','src','apps','packages/playground-contracts','package.json','bun.lock','tsconfig.playground.json'],cwd=root,text=True).splitlines()
++    inputs={p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in sorted(set(files)) if (root/p).is_file()}
++    (evidence/'gate-inputs.json').write_text(json.dumps(inputs,indent=2)+'\n')
++    receipt['gateInputsSha256']=hashlib.sha256((evidence/'gate-inputs.json').read_bytes()).hexdigest()
++    env=os.environ.copy();env.update(POSTGRES_USER='integration_probe',POSTGRES_DB='integration_probe',POSTGRES_PASSWORD=secrets.token_hex(32))
++    name='upve-1872-pg-'+secrets.token_hex(6)
++    cid=run('create',['docker','create','--name',name,'--label','task=UPVE-1872','--label','expires='+expiry,'--publish','127.0.0.1::5432','--tmpfs','/var/lib/postgresql/data:rw','-e','POSTGRES_USER','-e','POSTGRES_DB','-e','POSTGRES_PASSWORD',image,'postgres','-c','shared_preload_libraries=pg_stat_statements'],env=env)
++    receipt.update(containerId=cid,containerName=name,cleanupHandle=['docker','rm','--force',cid])
++    run('start',['docker','start',cid])
++    ports=json.loads(run('port',['docker','inspect','--format','{{json .NetworkSettings.Ports}}',cid]));receipt['ports']=ports
++    for attempt in range(30):
++        result=subprocess.run(['docker','exec',cid,'pg_isready','-U','integration_probe','-d','integration_probe'],capture_output=True,timeout=5)
++        if result.returncode==0: break
++        time.sleep(0.5)
++    else: raise RuntimeError('bounded readiness failed')
++    receipt['readyAt']=now()
++    cfg={'user':env['POSTGRES_USER'],'database':env['POSTGRES_DB'],'password':env['POSTGRES_PASSWORD'],'port':int(ports['5432/tcp'][0]['HostPort']),'schema':'integration_pg','encryptionKey':secrets.token_hex(32),'fingerprintKey':secrets.token_hex(32),'cursorKey':secrets.token_hex(32)}
++    fd=os.open(private,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
++    with os.fdopen(fd,'w') as out: json.dump(cfg,out)
++    testenv=os.environ.copy();testenv['PLAYGROUND_PRIVATE_CONFIG']=str(private);testenv['PLAYGROUND_DEADLINE']=expiry
++    preview='--preview' in sys.argv
++    program='Preview.mjs' if preview else 'Harness.mjs'
++    timeout=min(1800,max(1,(deadline-datetime.datetime.now(datetime.timezone.utc)).total_seconds()-5)) if preview else 450
++    run('preview' if preview else 'integrated',['node','apps/playground-worker/tests/integration/'+program],env=testenv,timeout=timeout)
++    receipt['status']='PASS'
++except KeyboardInterrupt:
++    receipt.update(status='Stopped',reason='foreground preview interrupted by caller')
++except Exception as error:
++    receipt.update(status='FAIL',failureClass=type(error).__name__)
++finally:
++    if cid:
++        r=subprocess.run(['docker','rm','--force',cid],capture_output=True,text=True,timeout=30)
++        receipt['cleanup']={'exit':r.returncode,'removedId':r.stdout.strip(),'at':now()}
++        r=subprocess.run(['docker','inspect','--format','{{.Id}}',cid],capture_output=True,text=True,timeout=10)
++        receipt['cleanup']['absentVerified']=r.returncode!=0 and 'no such object' in r.stderr.lower()
++    if private.exists(): private.unlink()
++    receipt['privateConfigRemoved']=not private.exists();receipt['finishedAt']=now()
++    (evidence/'owned-resource-receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
++    print(json.dumps(receipt,indent=2))
++    if receipt.get('status') not in ['PASS','Stopped']: raise SystemExit(1)
+diff --git a/apps/playground-worker/tests/integration/SchemaEntry.ts b/apps/playground-worker/tests/integration/SchemaEntry.ts
+new file mode 100644
+index 0000000..96102b2
+--- /dev/null
++++ b/apps/playground-worker/tests/integration/SchemaEntry.ts
+@@ -0,0 +1 @@
++export { migrations } from "../../src/persistence/MigrationRegistry.js"
+diff --git a/apps/playground-worker/tests/integration/TestWorker.ts b/apps/playground-worker/tests/integration/TestWorker.ts
+new file mode 100644
+index 0000000..56c5df0
+--- /dev/null
++++ b/apps/playground-worker/tests/integration/TestWorker.ts
+@@ -0,0 +1,128 @@
++// Test-only observation wrapper. Production Worker has no diagnostic HTTP routes.
++import Worker, {
++  Communications,
++  Media,
++  Commerce,
++  Private,
++  Gateway,
++  SandboxLive,
++  type Env
++} from "../../src/Worker.js"
++import type { LiveState } from "../../src/live/SandboxLive.js"
++export { Gateway, SandboxLive }
++export class CommunicationsProbe extends Communications {
++  calls = 0
++  activations = 0
++  constructor(
++    private readonly testState: LiveState,
++    env: Env
++  ) {
++    super(testState, env)
++  }
++  async alarm(): Promise<void> {
++    this.calls++
++    await super.alarm()
++  }
++  async activate(): Promise<void> {
++    this.activations++
++    await super.activate()
++  }
++  async inspect(): Promise<{ calls: number; activations: number; alarm: number | null }> {
++    return {
++      calls: this.calls,
++      activations: this.activations,
++      alarm: await this.testState.storage.getAlarm()
++    }
++  }
++}
++export class MediaProbe extends Media {
++  calls = 0
++  activations = 0
++  constructor(
++    private readonly testState: LiveState,
++    env: Env
++  ) {
++    super(testState, env)
++  }
++  async alarm(): Promise<void> {
++    this.calls++
++    await super.alarm()
++  }
++  async activate(): Promise<void> {
++    this.activations++
++    await super.activate()
++  }
++  async inspect(): Promise<{ calls: number; activations: number; alarm: number | null }> {
++    return {
++      calls: this.calls,
++      activations: this.activations,
++      alarm: await this.testState.storage.getAlarm()
++    }
++  }
++}
++export class CommerceProbe extends Commerce {
++  calls = 0
++  activations = 0
++  constructor(
++    private readonly testState: LiveState,
++    env: Env
++  ) {
++    super(testState, env)
++  }
++  async alarm(): Promise<void> {
++    this.calls++
++    await super.alarm()
++  }
++  async activate(): Promise<void> {
++    this.activations++
++    await super.activate()
++  }
++  async inspect(): Promise<{ calls: number; activations: number; alarm: number | null }> {
++    return {
++      calls: this.calls,
++      activations: this.activations,
++      alarm: await this.testState.storage.getAlarm()
++    }
++  }
++}
++export class PrivateProbe extends Private {
++  calls = 0
++  activations = 0
++  constructor(
++    private readonly testState: LiveState,
++    env: Env
++  ) {
++    super(testState, env)
++  }
++  async alarm(): Promise<void> {
++    this.calls++
++    await super.alarm()
++  }
++  async activate(): Promise<void> {
++    this.activations++
++    await super.activate()
++  }
++  async inspect(): Promise<{ calls: number; activations: number; alarm: number | null }> {
++    return {
++      calls: this.calls,
++      activations: this.activations,
++      alarm: await this.testState.storage.getAlarm()
++    }
++  }
++}
++export default {
++  async fetch(request: Request, env: Env): Promise<Response> {
++    if (new URL(request.url).pathname === "/_integration/queues") {
++      const queues = [env.COMMUNICATIONS, env.MEDIA, env.COMMERCE, env.PRIVATE]
++      const result = await Promise.all(
++        queues.map((namespace) =>
++          (
++            namespace.getByName("shared") as unknown as { inspect(): Promise<unknown> }
++          ).inspect()
++        )
++      )
++      return Response.json(result)
++    }
++    return Worker.fetch(request, env)
++  }
++}
+diff --git a/apps/website/package.json b/apps/website/package.json
+index 71cf09c..422fb3b 100644
+--- a/apps/website/package.json
++++ b/apps/website/package.json
+@@ -10,6 +10,6 @@
+   },
+   "scripts": {
+     "check": "tsc -p tsconfig.json",
+-    "build": "bun build src/Client.ts --target=browser --outdir=dist"
++    "build": "bun build src/Client.ts --target=browser --outfile=dist/Client.js"
+   }
+ }
+diff --git a/apps/website/src/Client.ts b/apps/website/src/Client.ts
+index f27f8b2..f6a40aa 100644
+--- a/apps/website/src/Client.ts
++++ b/apps/website/src/Client.ts
+@@ -1,2 +1,60 @@
+-// Composition anchor; dashboard implementation owns src/features/jobs/.
+-export const paths = Object.freeze({ docs: "/docs", jobs: "/jobs" })
++import { Effect } from "effect"
++import { JobsClient } from "./features/jobs/Adapter.js"
++import * as Http from "./integration/HttpClient.js"
++import * as View from "./features/jobs/View.js"
++import * as Live from "./live/BrowserLive.js"
++const root = document.getElementById("jobs")
++if (root) {
++  const controller = new AbortController()
++  void Effect.runPromise(
++    document.cookie.includes("__Host-playground-csrf=")
++      ? Http.client.describe()
++      : Http.issue(),
++    { signal: controller.signal }
++  ).then(
++    (sandbox) => {
++      let generation = sandbox.ref.generation
++      let live: ReturnType<typeof Live.start> | undefined
++      const view = View.mount(root, Http.client, sandbox, {
++        poll: false,
++        changed: (state) => {
++          if (live && state.sandbox.ref.generation !== generation) {
++            generation = state.sandbox.ref.generation
++            live.dispose()
++            live = connect(state.sandbox)
++            live?.setVisible(document.visibilityState !== "hidden")
++          }
++        }
++      })
++      const connect = (current: typeof sandbox) =>
++        Live.start({
++          sandbox: current,
++          url: `${location.origin.replace("https:", "wss:").replace("http:", "ws:")}/api/changes`,
++          snapshot: () =>
++            view.controller.refresh.pipe(
++              Effect.provideService(JobsClient, Http.client),
++              Effect.map(() => view.controller.snapshot())
++            ),
++          render: () => undefined,
++          unavailable: () => view.controller.connection("stale")
++        })
++      live = connect(sandbox)
++      const visible = () => live?.setVisible(document.visibilityState !== "hidden")
++      document.addEventListener("visibilitychange", visible)
++      visible()
++      window.addEventListener(
++        "pagehide",
++        () => {
++          document.removeEventListener("visibilitychange", visible)
++          live?.dispose()
++          view.dispose()
++          controller.abort()
++        },
++        { once: true }
++      )
++    },
++    () => {
++      root.textContent = "Sandbox unavailable. Reload to reconcile authority."
++    }
++  )
++}
+diff --git a/apps/website/src/features/jobs/View.ts b/apps/website/src/features/jobs/View.ts
+index d1d23c9..8e6aea4 100644
+--- a/apps/website/src/features/jobs/View.ts
++++ b/apps/website/src/features/jobs/View.ts
+@@ -42,7 +42,10 @@ export const mount = (
+   root: HTMLElement,
+   client: Client,
+   sandbox: SandboxView,
+-  options: { readonly poll?: boolean } = {}
++  options: {
++    readonly poll?: boolean
++    readonly changed?: (state: Controller.State) => void
++  } = {}
+ ) => {
+   const lifecycle = new AbortController()
+   const layer = Layer.succeed(JobsClient, client)
+@@ -434,7 +437,11 @@ export const mount = (
+     notice.textContent = state.notice
+     capabilities.textContent = `Scenario: ${state.sandbox.capabilities.runScenario ? "available" : "unavailable"}; reset: ${state.sandbox.capabilities.resetSandbox ? "available" : "unavailable"}. Retry/cancel/redrive are not wired to any supported command in this UI.`
+   }
+-  const controller = Controller.make(sandbox, render)
++  const publish = (state: Controller.State) => {
++    render(state)
++    options.changed?.(state)
++  }
++  const controller = Controller.make(sandbox, publish)
+   const localFilter = () => renderRows(controller.snapshot())
+   search.addEventListener("input", localFilter)
+   due.addEventListener("change", localFilter)
+diff --git a/apps/website/src/integration/HttpClient.ts b/apps/website/src/integration/HttpClient.ts
+new file mode 100644
+index 0000000..bcf6c39
+--- /dev/null
++++ b/apps/website/src/integration/HttpClient.ts
+@@ -0,0 +1,86 @@
++import { Effect, Schema } from "effect"
++import { JobDetail, JobPage } from "@effect-jobs/playground-contracts/Jobs"
++import { SandboxView } from "@effect-jobs/playground-contracts/Sandbox"
++import { ScenarioResult, ResetResult } from "@effect-jobs/playground-contracts/Scenarios"
++import { PlaygroundError, PublicError } from "@effect-jobs/playground-contracts/Services"
++import type { Client } from "../features/jobs/Adapter.js"
++
++const csrf = () =>
++  document.cookie
++    .split(";")
++    .map((part) => part.trim())
++    .find((part) => part.startsWith("__Host-playground-csrf="))
++    ?.split("=")[1] ?? ""
++const request = <S extends Schema.Top & { readonly DecodingServices: never }>(
++  path: string,
++  schema: S,
++  method = "GET",
++  body?: unknown
++) =>
++  Effect.tryPromise({
++    try: (signal) =>
++      fetch(path, {
++        method,
++        credentials: "same-origin",
++        signal,
++        headers:
++          method === "POST"
++            ? { "Content-Type": "application/json", "X-Playground-CSRF": csrf() }
++            : {},
++        ...(body === undefined ? {} : { body: JSON.stringify(body) })
++      }),
++    catch: () => new PlaygroundError({ code: "unavailable" })
++  }).pipe(
++    Effect.flatMap((response) =>
++      Effect.tryPromise({
++        try: () => response.json() as Promise<unknown>,
++        catch: () => new PlaygroundError({ code: "unavailable" })
++      }).pipe(
++        Effect.flatMap((raw) =>
++          response.ok
++            ? Schema.decodeUnknownEffect(schema)(raw, { onExcessProperty: "error" }).pipe(
++                Effect.mapError(() => new PlaygroundError({ code: "unavailable" }))
++              )
++            : Schema.decodeUnknownEffect(PublicError)(raw).pipe(
++                Effect.mapError(() => new PlaygroundError({ code: "unavailable" })),
++                Effect.flatMap((error) => Effect.fail(new PlaygroundError(error)))
++              )
++        )
++      )
++    ),
++    Effect.timeoutOrElse({
++      duration: "8 seconds",
++      orElse: () => Effect.fail(new PlaygroundError({ code: "unavailable" }))
++    })
++  )
++const params = (
++  input: { sandbox: { sandboxId: string; generation: number } },
++  extra: Record<string, string | undefined> = {}
++) =>
++  new URLSearchParams({
++    sandboxId: input.sandbox.sandboxId,
++    generation: String(input.sandbox.generation),
++    ...Object.fromEntries(
++      Object.entries(extra).filter(
++        (entry): entry is [string, string] => entry[1] !== undefined
++      )
++    )
++  }).toString()
++export const issue = () => request("/api/sandbox/issue", SandboxView, "POST")
++export const client: Client = {
++  source: "workerd",
++  describe: () => request("/api/sandbox", SandboxView, "POST"),
++  list: (input) =>
++    request(
++      `/api/jobs?${params(input, { state: input.filters.state, kind: input.filters.kind, limit: String(input.limit), cursor: input.cursor })}`,
++      JobPage
++    ),
++  detail: (input) =>
++    request(`/api/jobs/detail?${params(input, { jobId: input.jobId })}`, JobDetail),
++  run: (input) => request("/api/scenarios", ScenarioResult, "POST", input),
++  reset: (input) => request("/api/sandbox/reset", ResetResult, "POST", input),
++  scenarioReceipt: (input) =>
++    request("/api/scenarios/receipt", ScenarioResult, "POST", input),
++  resetReceipt: (input) =>
++    request("/api/sandbox/reset/receipt", ResetResult, "POST", input)
++}
+diff --git a/apps/website/src/server/HttpApplication.ts b/apps/website/src/server/HttpApplication.ts
+new file mode 100644
+index 0000000..98bdc30
+--- /dev/null
++++ b/apps/website/src/server/HttpApplication.ts
+@@ -0,0 +1,184 @@
++import { Cause, Effect, Redacted } from "effect"
++import {
++  PlaygroundError,
++  JobsRead,
++  Scenarios
++} from "@effect-jobs/playground-contracts/Services"
++import { routes } from "./Routes.js"
++import { Application } from "./Services.js"
++import * as Commands from "./commands/HttpCommands.js"
++import * as Read from "./read/HttpRead.js"
++
++export const credentialCookie = "__Host-playground"
++export const csrfCookie = "__Host-playground-csrf"
++export const cookie = (request: Request, name: string) => {
++  const values = (request.headers.get("Cookie") ?? "")
++    .split(";")
++    .map((part) => part.trim())
++    .filter((part) => part.startsWith(name + "="))
++  return values.length === 1 ? values[0]!.slice(name.length + 1) : undefined
++}
++const reject = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
++export const authenticate = (request: Request) =>
++  Effect.gen(function* () {
++    const app = yield* Application
++    const credential = cookie(request, credentialCookie)
++    if (!credential) {
++      return yield* reject("not-found")
++    }
++    return yield* app.authenticate(Redacted.make(credential))
++  })
++// Origin + Fetch metadata + double-submit token. No credential in JS or DTOs.
++export const csrf = (request: Request, origin: string, issue = false) => {
++  const token = cookie(request, csrfCookie)
++  return (
++    request.method === "POST" &&
++    new URL(request.url).origin === origin &&
++    request.headers.get("Origin") === origin &&
++    (!request.headers.has("Sec-Fetch-Site") ||
++      request.headers.get("Sec-Fetch-Site") === "same-origin") &&
++    request.headers.get("Content-Type")?.split(";")[0]?.trim() === "application/json" &&
++    (issue ||
++      (token !== undefined &&
++        /^[0-9a-f]{64}$/.test(token) &&
++        token === request.headers.get("X-Playground-CSRF")))
++  )
++}
++export const response = (value: unknown, status = 200) =>
++  Response.json(value, {
++    status,
++    headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }
++  })
++export const handle = (
++  request: Request,
++  origin: string,
++  admit: (key: string) => boolean
++) =>
++  Effect.gen(function* () {
++    if (request.url.length > 4096 || new URL(request.url).origin !== origin) {
++      return yield* reject("invalid-request")
++    }
++    const path = new URL(request.url).pathname
++    const app = yield* Application
++    if (path === routes.sandboxIssue) {
++      if (
++        !csrf(request, origin, true) ||
++        new URL(request.url).search ||
++        cookie(request, credentialCookie) !== undefined
++      ) {
++        return yield* reject("invalid-request")
++      }
++      if (!admit("issue")) {
++        return yield* reject("limit-reached")
++      }
++      // Issuance accepts no request body; prevent an unbounded stream from reaching PG.
++      yield* requireEmptyBody(request)
++      const issued = yield* app.issue()
++      const token = yield* Effect.sync(() =>
++        Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) =>
++          byte.toString(16).padStart(2, "0")
++        ).join("")
++      )
++      const out = response(issued.sandbox)
++      out.headers.append(
++        "Set-Cookie",
++        `${credentialCookie}=${Redacted.value(issued.credential)}; Path=/; Secure; HttpOnly; SameSite=Strict`
++      )
++      out.headers.append(
++        "Set-Cookie",
++        `${csrfCookie}=${token}; Path=/; Secure; SameSite=Strict`
++      )
++      return out
++    }
++    const access = yield* authenticate(request)
++    if (!admit(access.sandbox.ref.sandboxId)) {
++      return yield* reject("limit-reached")
++    }
++    if (path === routes.sandbox) {
++      if (!csrf(request, origin) || new URL(request.url).search) {
++        return yield* reject("invalid-request")
++      }
++      yield* requireEmptyBody(request)
++      return response(yield* app.describe(access))
++    }
++    if (path === routes.jobs || path === routes.jobDetail) {
++      return yield* Read.handle(
++        access,
++        request,
++        path.endsWith("detail") ? "detail" : "list"
++      ).pipe(Effect.provideService(JobsRead, app))
++    }
++    const operations: Record<string, Commands.Operation> = {
++      [routes.scenarios]: "run",
++      [routes.scenarioReceipt]: "scenarioReceipt",
++      [routes.reset]: "reset",
++      [routes.resetReceipt]: "resetReceipt"
++    }
++    const operation = operations[path]
++    if (!operation) {
++      return response({ code: "not-found" }, 404)
++    }
++    if (!csrf(request, origin)) {
++      return yield* reject("invalid-request")
++    }
++    return yield* Commands.handle(access, request, operation, origin).pipe(
++      Effect.provideService(Scenarios, app)
++    )
++  }).pipe(
++    Effect.catchCause((cause) => {
++      if (Cause.hasInterrupts(cause)) {
++        return Effect.failCause(cause)
++      }
++      const reason = cause.reasons.length === 1 ? cause.reasons[0] : undefined
++      const code =
++        reason && Cause.isFailReason(reason) && reason.error instanceof PlaygroundError
++          ? reason.error.code
++          : "unavailable"
++      const status = {
++        "invalid-request": 400,
++        "not-found": 404,
++        "sandbox-expired": 401,
++        "stale-generation": 409,
++        "limit-reached": 429,
++        "capability-unavailable": 501,
++        unavailable: 503
++      }[code]
++      return Effect.succeed(response({ code }, status))
++    })
++  )
++
++// workerd exposes a stream for an empty POST. Bound reading and cancellation separately.
++const requireEmptyBody = (request: Request) =>
++  request.body === null
++    ? Effect.void
++    : Effect.acquireUseRelease(
++        Effect.sync(() => request.body!.getReader()),
++        (reader) =>
++          Effect.tryPromise({
++            try: () => reader.read(),
++            catch: () => reject("invalid-request")
++          }).pipe(
++            Effect.flatMap((chunk) =>
++              chunk.done ? Effect.void : Effect.fail(reject("invalid-request"))
++            ),
++            Effect.timeoutOrElse({
++              duration: "2 seconds",
++              orElse: () => Effect.fail(reject("invalid-request"))
++            })
++          ),
++        (reader) =>
++          Effect.promise(async () => {
++            let timer: ReturnType<typeof setTimeout> | undefined
++            try {
++              await Promise.race([
++                reader.cancel().catch(() => undefined),
++                new Promise<void>((done) => {
++                  timer = setTimeout(done, 100)
++                })
++              ])
++            } finally {
++              clearTimeout(timer)
++              reader.releaseLock()
++            }
++          })
++      )
+diff --git a/apps/website/src/server/Routes.ts b/apps/website/src/server/Routes.ts
+index e538c42..a000d20 100644
+--- a/apps/website/src/server/Routes.ts
++++ b/apps/website/src/server/Routes.ts
+@@ -1,11 +1,12 @@
+-// Serial registrar: implementations enter through typed bindings, never dynamic paths.
++// Inert shared route mapping; commands and receipts use POST bodies.
+ export const routes = Object.freeze({
++  sandboxIssue: "/api/sandbox/issue",
+   sandbox: "/api/sandbox",
+   jobs: "/api/jobs",
+-  jobDetail: "/api/jobs/:jobId",
++  jobDetail: "/api/jobs/detail",
+   scenarios: "/api/scenarios",
+-  scenarioReceipt: "/api/scenarios/:requestId",
++  scenarioReceipt: "/api/scenarios/receipt",
+   reset: "/api/sandbox/reset",
+-  resetReceipt: "/api/sandbox/reset/:requestId",
++  resetReceipt: "/api/sandbox/reset/receipt",
+   changes: "/api/changes"
+ })
+diff --git a/apps/website/src/server/Services.ts b/apps/website/src/server/Services.ts
+index fc6af35..8b7e7e1 100644
+--- a/apps/website/src/server/Services.ts
++++ b/apps/website/src/server/Services.ts
+@@ -1,12 +1,22 @@
+-import type { Layer } from "effect"
+-import type {
+-  Changes,
+-  JobsRead,
++import { Context, Effect, Layer } from "effect"
++import {
+   SandboxAuthority,
++  JobsRead,
+   Scenarios
+ } from "@effect-jobs/playground-contracts/Services"
+ 
+-// Integration supplies one app-owned authority/read/command/notification composition.
+-export type ApplicationLayer = Layer.Layer<
+-  SandboxAuthority | JobsRead | Scenarios | Changes
+->
++export type ApplicationService = typeof SandboxAuthority.Service &
++  typeof JobsRead.Service &
++  typeof Scenarios.Service
++export class Application extends Context.Service<Application, ApplicationService>()(
++  "playground/Application"
++) {}
++export const layerNoDeps = Layer.effect(
++  Application,
++  Effect.gen(function* () {
++    const authority = yield* SandboxAuthority
++    const read = yield* JobsRead
++    const scenarios = yield* Scenarios
++    return Application.of({ ...authority, ...read, ...scenarios })
++  })
++)
+diff --git a/bun.lock b/bun.lock
+index 5ddc599..2692801 100644
+--- a/bun.lock
++++ b/bun.lock
+@@ -28,9 +28,17 @@
+       "version": "0.0.0",
+       "dependencies": {
+         "@effect-jobs/playground-contracts": "workspace:*",
++        "@effect/sql-pg": "4.0.0",
+         "effect": "4.0.0",
+         "effect-jobs": "file:../..",
+       },
++      "devDependencies": {
++        "@playwright/test": "1.56.1",
++        "@types/pg": "8.15.5",
++        "esbuild": "0.25.12",
++        "miniflare": "5.20261006.1-alpha",
++        "pg": "8.23.0",
++      },
+     },
+     "apps/website": {
+       "name": "@effect-jobs/playground-website",
+@@ -51,12 +59,26 @@
+     },
+   },
+   "packages": {
++    "@cloudflare/workerd-darwin-64": ["@cloudflare/workerd-darwin-64@1.20261006.1", "", { "os": "darwin", "cpu": "x64" }, "sha512-lCX6avJO2It9AyDEYitjmOtJRVp/xmaW0TziyoLAnfxlzozyyRbSFfIIMMCiDx/sTP1++E4VLbV+7BHSD33f0Q=="],
++
++    "@cloudflare/workerd-darwin-arm64": ["@cloudflare/workerd-darwin-arm64@1.20261006.1", "", { "os": "darwin", "cpu": "arm64" }, "sha512-PyFGjOaldtppnLuKsdkoYWXfLVpDjuf8u+uoykX+1Xvxo2EPmCVViq0iDKm+U7c7PRno85ehS3/MPVXyk2HwHw=="],
++
++    "@cloudflare/workerd-linux-64": ["@cloudflare/workerd-linux-64@1.20261006.1", "", { "os": "linux", "cpu": "x64" }, "sha512-Ntf9S8eesmVufdjaT2kzWlz6Ng9XGYTc6cHQVRKAg59lFufwsIabGeMT6U4KkrpEeSIxgHq8aPtuLbZXE19tCA=="],
++
++    "@cloudflare/workerd-linux-arm64": ["@cloudflare/workerd-linux-arm64@1.20261006.1", "", { "os": "linux", "cpu": "arm64" }, "sha512-JyeDBymVWw5tVRebSsVE8ojDYxd6UlZrAseHU8G+NpIyd5wF61tXlF/axLeCUqu0pOhBFHb8I5QKi0jwrCK41Q=="],
++
++    "@cloudflare/workerd-windows-64": ["@cloudflare/workerd-windows-64@1.20261006.1", "", { "os": "win32", "cpu": "x64" }, "sha512-nWP0URNqOBN9fa/gZ7eh/w051DwjOXN8j4lDZDYVXyQPsux6sV3DfyYZT+CjR/rt9nKBSmJT9QE9/bWT18+84w=="],
++
++    "@cspotcode/source-map-support": ["@cspotcode/source-map-support@0.8.1", "", { "dependencies": { "@jridgewell/trace-mapping": "0.3.9" } }, "sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw=="],
++
+     "@effect-jobs/playground-contracts": ["@effect-jobs/playground-contracts@workspace:packages/playground-contracts"],
+ 
+     "@effect-jobs/playground-website": ["@effect-jobs/playground-website@workspace:apps/website"],
+ 
+     "@effect-jobs/playground-worker": ["@effect-jobs/playground-worker@workspace:apps/playground-worker"],
+ 
++    "@effect/sql-pg": ["@effect/sql-pg@4.0.0", "", { "peerDependencies": { "effect": "^4.0.0" } }, "sha512-w0sRMA08Tgz73aReYpFSxD+nz2LUKYhH/4zaRpo4G5b5YG+eqiAL7XYhqIjvGZ8MZacazbG71Jhprv6ccz9HDg=="],
++
+     "@effect/tsgo": ["@effect/tsgo@0.48.0", "", { "optionalDependencies": { "@effect/tsgo-darwin-arm64": "0.48.0", "@effect/tsgo-darwin-x64": "0.48.0", "@effect/tsgo-linux-arm": "0.48.0", "@effect/tsgo-linux-arm64": "0.48.0", "@effect/tsgo-linux-x64": "0.48.0", "@effect/tsgo-win32-arm64": "0.48.0", "@effect/tsgo-win32-x64": "0.48.0" }, "bin": { "effect-tsgo": "dist/effect-tsgo.cjs" } }, "sha512-802nDQDmDxT/zGtGqJp+AVvhMMHfnHNxdAK92612hDU1ba1fWrXlxY2ayuTi3iACIP94NCIdSaFRaTcqw/FEnw=="],
+ 
+     "@effect/tsgo-darwin-arm64": ["@effect/tsgo-darwin-arm64@0.48.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-MGfjTc/ZLlX045/7br+adgpyo6z/4MJIzMgnISYVWvUgIOzGbGbwdlkINHn4x0ADKZh3f8M2jBzGPv0BPp9m/A=="],
+@@ -73,8 +95,120 @@
+ 
+     "@effect/tsgo-win32-x64": ["@effect/tsgo-win32-x64@0.48.0", "", { "os": "win32", "cpu": "x64" }, "sha512-NBeaA0llPlosW2HFBOI8BbBYAi66RmK31rA/yDoREOG3i0S+t0wtB0eRJMjjlBw1lj6kwdIKdP3XMsaNscJ7gw=="],
+ 
++    "@emnapi/runtime": ["@emnapi/runtime@1.11.3", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA=="],
++
++    "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.25.12", "", { "os": "aix", "cpu": "ppc64" }, "sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA=="],
++
++    "@esbuild/android-arm": ["@esbuild/android-arm@0.25.12", "", { "os": "android", "cpu": "arm" }, "sha512-VJ+sKvNA/GE7Ccacc9Cha7bpS8nyzVv0jdVgwNDaR4gDMC/2TTRc33Ip8qrNYUcpkOHUT5OZ0bUcNNVZQ9RLlg=="],
++
++    "@esbuild/android-arm64": ["@esbuild/android-arm64@0.25.12", "", { "os": "android", "cpu": "arm64" }, "sha512-6AAmLG7zwD1Z159jCKPvAxZd4y/VTO0VkprYy+3N2FtJ8+BQWFXU+OxARIwA46c5tdD9SsKGZ/1ocqBS/gAKHg=="],
++
++    "@esbuild/android-x64": ["@esbuild/android-x64@0.25.12", "", { "os": "android", "cpu": "x64" }, "sha512-5jbb+2hhDHx5phYR2By8GTWEzn6I9UqR11Kwf22iKbNpYrsmRB18aX/9ivc5cabcUiAT/wM+YIZ6SG9QO6a8kg=="],
++
++    "@esbuild/darwin-arm64": ["@esbuild/darwin-arm64@0.25.12", "", { "os": "darwin", "cpu": "arm64" }, "sha512-N3zl+lxHCifgIlcMUP5016ESkeQjLj/959RxxNYIthIg+CQHInujFuXeWbWMgnTo4cp5XVHqFPmpyu9J65C1Yg=="],
++
++    "@esbuild/darwin-x64": ["@esbuild/darwin-x64@0.25.12", "", { "os": "darwin", "cpu": "x64" }, "sha512-HQ9ka4Kx21qHXwtlTUVbKJOAnmG1ipXhdWTmNXiPzPfWKpXqASVcWdnf2bnL73wgjNrFXAa3yYvBSd9pzfEIpA=="],
++
++    "@esbuild/freebsd-arm64": ["@esbuild/freebsd-arm64@0.25.12", "", { "os": "freebsd", "cpu": "arm64" }, "sha512-gA0Bx759+7Jve03K1S0vkOu5Lg/85dou3EseOGUes8flVOGxbhDDh/iZaoek11Y8mtyKPGF3vP8XhnkDEAmzeg=="],
++
++    "@esbuild/freebsd-x64": ["@esbuild/freebsd-x64@0.25.12", "", { "os": "freebsd", "cpu": "x64" }, "sha512-TGbO26Yw2xsHzxtbVFGEXBFH0FRAP7gtcPE7P5yP7wGy7cXK2oO7RyOhL5NLiqTlBh47XhmIUXuGciXEqYFfBQ=="],
++
++    "@esbuild/linux-arm": ["@esbuild/linux-arm@0.25.12", "", { "os": "linux", "cpu": "arm" }, "sha512-lPDGyC1JPDou8kGcywY0YILzWlhhnRjdof3UlcoqYmS9El818LLfJJc3PXXgZHrHCAKs/Z2SeZtDJr5MrkxtOw=="],
++
++    "@esbuild/linux-arm64": ["@esbuild/linux-arm64@0.25.12", "", { "os": "linux", "cpu": "arm64" }, "sha512-8bwX7a8FghIgrupcxb4aUmYDLp8pX06rGh5HqDT7bB+8Rdells6mHvrFHHW2JAOPZUbnjUpKTLg6ECyzvas2AQ=="],
++
++    "@esbuild/linux-ia32": ["@esbuild/linux-ia32@0.25.12", "", { "os": "linux", "cpu": "ia32" }, "sha512-0y9KrdVnbMM2/vG8KfU0byhUN+EFCny9+8g202gYqSSVMonbsCfLjUO+rCci7pM0WBEtz+oK/PIwHkzxkyharA=="],
++
++    "@esbuild/linux-loong64": ["@esbuild/linux-loong64@0.25.12", "", { "os": "linux", "cpu": "none" }, "sha512-h///Lr5a9rib/v1GGqXVGzjL4TMvVTv+s1DPoxQdz7l/AYv6LDSxdIwzxkrPW438oUXiDtwM10o9PmwS/6Z0Ng=="],
++
++    "@esbuild/linux-mips64el": ["@esbuild/linux-mips64el@0.25.12", "", { "os": "linux", "cpu": "none" }, "sha512-iyRrM1Pzy9GFMDLsXn1iHUm18nhKnNMWscjmp4+hpafcZjrr2WbT//d20xaGljXDBYHqRcl8HnxbX6uaA/eGVw=="],
++
++    "@esbuild/linux-ppc64": ["@esbuild/linux-ppc64@0.25.12", "", { "os": "linux", "cpu": "ppc64" }, "sha512-9meM/lRXxMi5PSUqEXRCtVjEZBGwB7P/D4yT8UG/mwIdze2aV4Vo6U5gD3+RsoHXKkHCfSxZKzmDssVlRj1QQA=="],
++
++    "@esbuild/linux-riscv64": ["@esbuild/linux-riscv64@0.25.12", "", { "os": "linux", "cpu": "none" }, "sha512-Zr7KR4hgKUpWAwb1f3o5ygT04MzqVrGEGXGLnj15YQDJErYu/BGg+wmFlIDOdJp0PmB0lLvxFIOXZgFRrdjR0w=="],
++
++    "@esbuild/linux-s390x": ["@esbuild/linux-s390x@0.25.12", "", { "os": "linux", "cpu": "s390x" }, "sha512-MsKncOcgTNvdtiISc/jZs/Zf8d0cl/t3gYWX8J9ubBnVOwlk65UIEEvgBORTiljloIWnBzLs4qhzPkJcitIzIg=="],
++
++    "@esbuild/linux-x64": ["@esbuild/linux-x64@0.25.12", "", { "os": "linux", "cpu": "x64" }, "sha512-uqZMTLr/zR/ed4jIGnwSLkaHmPjOjJvnm6TVVitAa08SLS9Z0VM8wIRx7gWbJB5/J54YuIMInDquWyYvQLZkgw=="],
++
++    "@esbuild/netbsd-arm64": ["@esbuild/netbsd-arm64@0.25.12", "", { "os": "none", "cpu": "arm64" }, "sha512-xXwcTq4GhRM7J9A8Gv5boanHhRa/Q9KLVmcyXHCTaM4wKfIpWkdXiMog/KsnxzJ0A1+nD+zoecuzqPmCRyBGjg=="],
++
++    "@esbuild/netbsd-x64": ["@esbuild/netbsd-x64@0.25.12", "", { "os": "none", "cpu": "x64" }, "sha512-Ld5pTlzPy3YwGec4OuHh1aCVCRvOXdH8DgRjfDy/oumVovmuSzWfnSJg+VtakB9Cm0gxNO9BzWkj6mtO1FMXkQ=="],
++
++    "@esbuild/openbsd-arm64": ["@esbuild/openbsd-arm64@0.25.12", "", { "os": "openbsd", "cpu": "arm64" }, "sha512-fF96T6KsBo/pkQI950FARU9apGNTSlZGsv1jZBAlcLL1MLjLNIWPBkj5NlSz8aAzYKg+eNqknrUJ24QBybeR5A=="],
++
++    "@esbuild/openbsd-x64": ["@esbuild/openbsd-x64@0.25.12", "", { "os": "openbsd", "cpu": "x64" }, "sha512-MZyXUkZHjQxUvzK7rN8DJ3SRmrVrke8ZyRusHlP+kuwqTcfWLyqMOE3sScPPyeIXN/mDJIfGXvcMqCgYKekoQw=="],
++
++    "@esbuild/openharmony-arm64": ["@esbuild/openharmony-arm64@0.25.12", "", { "os": "none", "cpu": "arm64" }, "sha512-rm0YWsqUSRrjncSXGA7Zv78Nbnw4XL6/dzr20cyrQf7ZmRcsovpcRBdhD43Nuk3y7XIoW2OxMVvwuRvk9XdASg=="],
++
++    "@esbuild/sunos-x64": ["@esbuild/sunos-x64@0.25.12", "", { "os": "sunos", "cpu": "x64" }, "sha512-3wGSCDyuTHQUzt0nV7bocDy72r2lI33QL3gkDNGkod22EsYl04sMf0qLb8luNKTOmgF/eDEDP5BFNwoBKH441w=="],
++
++    "@esbuild/win32-arm64": ["@esbuild/win32-arm64@0.25.12", "", { "os": "win32", "cpu": "arm64" }, "sha512-rMmLrur64A7+DKlnSuwqUdRKyd3UE7oPJZmnljqEptesKM8wx9J8gx5u0+9Pq0fQQW8vqeKebwNXdfOyP+8Bsg=="],
++
++    "@esbuild/win32-ia32": ["@esbuild/win32-ia32@0.25.12", "", { "os": "win32", "cpu": "ia32" }, "sha512-HkqnmmBoCbCwxUKKNPBixiWDGCpQGVsrQfJoVGYLPT41XWF8lHuE5N6WhVia2n4o5QK5M4tYr21827fNhi4byQ=="],
++
++    "@esbuild/win32-x64": ["@esbuild/win32-x64@0.25.12", "", { "os": "win32", "cpu": "x64" }, "sha512-alJC0uCZpTFrSL0CCDjcgleBXPnCrEAhTBILpeAp7M/OFgoqtAetfBzX0xM00MUsVVPpVjlPuMbREqnZCXaTnA=="],
++
++    "@img/colour": ["@img/colour@1.1.0", "", {}, "sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ=="],
++
++    "@img/sharp-darwin-arm64": ["@img/sharp-darwin-arm64@0.35.5", "", { "optionalDependencies": { "@img/sharp-libvips-darwin-arm64": "1.3.4" }, "os": "darwin", "cpu": "arm64" }, "sha512-QRUlFQ0WxvdWyqqG/WtI3iupfD5rBzmCHXSdPsY91sAtVtTo7Q4cb6zOccZ3gqEqkr0f1As1ehLqmEpDsRf+lg=="],
++
++    "@img/sharp-darwin-x64": ["@img/sharp-darwin-x64@0.35.5", "", { "optionalDependencies": { "@img/sharp-libvips-darwin-x64": "1.3.4" }, "os": "darwin", "cpu": "x64" }, "sha512-+BR255RhDlpygUpOc/Jdt1nT6DQ3XG/ERo5wbcdOf5Q320dKtPCKPLR1LJs9VGXRaMa8l1uUa0tkCNOXiAxZUw=="],
++
++    "@img/sharp-freebsd-wasm32": ["@img/sharp-freebsd-wasm32@0.35.5", "", { "dependencies": { "@img/sharp-wasm32": "0.35.5" }, "os": "freebsd" }, "sha512-Y/z91nEZ4uIBX5X3nfTovjU9lHNKFYbL2lpHCLVNmXQK03VIZvXBBt0KxbPGp2SdGSF+2mQU4e+hQaWOt86iAw=="],
++
++    "@img/sharp-libvips-darwin-arm64": ["@img/sharp-libvips-darwin-arm64@1.3.4", "", { "os": "darwin", "cpu": "arm64" }, "sha512-5R89nBYiRdUlSWJxPhO+GVtaXzXSxKnRu/xqMn3KTA3L9EB9Oy/P+Nn2f2vlhPuUdy/Zusb2DarbyTpGCfEDuw=="],
++
++    "@img/sharp-libvips-darwin-x64": ["@img/sharp-libvips-darwin-x64@1.3.4", "", { "os": "darwin", "cpu": "x64" }, "sha512-iR2OKH80yi0U+dUplyh3/xdpFvps6YkCwsXenIJxqxR1v9o+xtKTGbS9H7cps+2Vxjc8B1j96p75NmTGjIhtpQ=="],
++
++    "@img/sharp-libvips-linux-arm": ["@img/sharp-libvips-linux-arm@1.3.4", "", { "os": "linux", "cpu": "arm" }, "sha512-LmRtTsOHuvM2+wlO2Db37dx5MiZhB0FvSunciw48YjdOkZz9KAiRbm8ujeMOA1INqmei5NapFxYEK1D1ZSidmw=="],
++
++    "@img/sharp-libvips-linux-arm64": ["@img/sharp-libvips-linux-arm64@1.3.4", "", { "os": "linux", "cpu": "arm64" }, "sha512-Y3dgX/6lE2QhQb+Gxy0WZxfg9MEm/JBjamZpS2IklP7xIQoKN4hzAm7KcMVGtaVDt3neE9OKBC7vAfonA/Lr1A=="],
++
++    "@img/sharp-libvips-linux-ppc64": ["@img/sharp-libvips-linux-ppc64@1.3.4", "", { "os": "linux", "cpu": "ppc64" }, "sha512-Le6boB8Tai0Nis+gIxIpKx68UDVVIqdR8Tin5Yf1z2LJJQLDJvCDRqRu+jC2qCoD+eIomonmOwB4smBRxfVpYQ=="],
++
++    "@img/sharp-libvips-linux-riscv64": ["@img/sharp-libvips-linux-riscv64@1.3.4", "", { "os": "linux", "cpu": "none" }, "sha512-aHkkIEHPRdQEegJN20MLmGtxYD9R2wQr3Cwpddnu5+YKMt6Uzax7S9h5gpZTo8wyrGuZSlfQ63OevL5mTyOC7Q=="],
++
++    "@img/sharp-libvips-linux-s390x": ["@img/sharp-libvips-linux-s390x@1.3.4", "", { "os": "linux", "cpu": "s390x" }, "sha512-ra/mB6MikESDUO7Yg+Mi95bFBb9GsObURuhnOv3OqknjGe9sZrG8tCe9q0xSIGrtLgvgw0gKnFWcK4blSgQOuQ=="],
++
++    "@img/sharp-libvips-linux-x64": ["@img/sharp-libvips-linux-x64@1.3.4", "", { "os": "linux", "cpu": "x64" }, "sha512-GJ//SSXbnwSDes02umB3nDJLFcQzw8a18V8fyhqr6tV515tOEMdImjjxj1AoafMRz56F3PHgftnj1QEKSU1zkw=="],
++
++    "@img/sharp-libvips-linuxmusl-arm64": ["@img/sharp-libvips-linuxmusl-arm64@1.3.4", "", { "os": "linux", "cpu": "arm64" }, "sha512-hvulFwtjUcagsis6BBxHwGFwWoNZjgYmULGVrZcyfNbjA8hKILbRxGg15/7w5HDyXHXUos/j6baAWqnCyQ2DWA=="],
++
++    "@img/sharp-libvips-linuxmusl-x64": ["@img/sharp-libvips-linuxmusl-x64@1.3.4", "", { "os": "linux", "cpu": "x64" }, "sha512-6zXKeE/p39I1AmA3cJG35eyBGNqNddLnUXjhwBnsGjFPWqf5VKkDBEqaEkPDoTEtkxwi2vv8Tcr2mDyP4So7Fg=="],
++
++    "@img/sharp-linux-arm": ["@img/sharp-linux-arm@0.35.5", "", { "optionalDependencies": { "@img/sharp-libvips-linux-arm": "1.3.4" }, "os": "linux", "cpu": "arm" }, "sha512-LEaXK2WdXVK5ykcw0buWyPMsmLLL2vpHLD6yrNSW+JGEL3BZPA4tpKN6iaMc4AxTTAoaX/sU1rOL51lcIz48ZQ=="],
++
++    "@img/sharp-linux-arm64": ["@img/sharp-linux-arm64@0.35.5", "", { "optionalDependencies": { "@img/sharp-libvips-linux-arm64": "1.3.4" }, "os": "linux", "cpu": "arm64" }, "sha512-LYVx5JTsOM2CBzmxreh+nl64/3H6Xb09iSLknqH47z2T2DFFxDeFLP5y4dJwe6H7uGQlHPyEEtIqyo3DYsRwdQ=="],
++
++    "@img/sharp-linux-ppc64": ["@img/sharp-linux-ppc64@0.35.5", "", { "optionalDependencies": { "@img/sharp-libvips-linux-ppc64": "1.3.4" }, "os": "linux", "cpu": "ppc64" }, "sha512-QVxAAq8evVRI9ia2vqgwrmWucn5Dfv+JdWzj75pD8omHLPSP7f8p20O8jxzjCcuCEQEOtYOZUmX1hkiZ0kdevA=="],
++
++    "@img/sharp-linux-riscv64": ["@img/sharp-linux-riscv64@0.35.5", "", { "optionalDependencies": { "@img/sharp-libvips-linux-riscv64": "1.3.4" }, "os": "linux", "cpu": "none" }, "sha512-LtdreXguaavKODPIfzJ4kffx7UNt1omwtK0rch4EBbbSTXPnxWmYSayXdLJw0fJzQ97kHt1gL/yh4tvU+nCyRQ=="],
++
++    "@img/sharp-linux-s390x": ["@img/sharp-linux-s390x@0.35.5", "", { "optionalDependencies": { "@img/sharp-libvips-linux-s390x": "1.3.4" }, "os": "linux", "cpu": "s390x" }, "sha512-UZasTOFiYzotTsGOCu42BfUzP6Tu6Do/947iRm1RsLKvlllxwGcn4RN27LibGWceix4Y+Pmw3jsnTcCQIgWjqA=="],
++
++    "@img/sharp-linux-x64": ["@img/sharp-linux-x64@0.35.5", "", { "optionalDependencies": { "@img/sharp-libvips-linux-x64": "1.3.4" }, "os": "linux", "cpu": "x64" }, "sha512-SxFtLTeJInhAA9Q836kux2vZNeOBQEx658qvbboZScr0wIARym3IcGmW7KpVD5sbVg0Ojy+udFQdayYIZyoNog=="],
++
++    "@img/sharp-linuxmusl-arm64": ["@img/sharp-linuxmusl-arm64@0.35.5", "", { "optionalDependencies": { "@img/sharp-libvips-linuxmusl-arm64": "1.3.4" }, "os": "linux", "cpu": "arm64" }, "sha512-9HbMclmI1zlNkFRs3z9/eBtDjfD0sGlrX1z6b1qwmiFY5ElDLh4BC0LPBdVp7z1DXFiKlIcznf+ZlsuZzLxQqg=="],
++
++    "@img/sharp-linuxmusl-x64": ["@img/sharp-linuxmusl-x64@0.35.5", "", { "optionalDependencies": { "@img/sharp-libvips-linuxmusl-x64": "1.3.4" }, "os": "linux", "cpu": "x64" }, "sha512-4KOphqB035HrVdqLZfCgMzzERrQkkzOwRhl4OAkRO1YCldbaFjySXMaK534Mo0V+LndnlJk+sbUyLeU0ULyD1A=="],
++
++    "@img/sharp-wasm32": ["@img/sharp-wasm32@0.35.5", "", { "dependencies": { "@emnapi/runtime": "^1.11.3" } }, "sha512-Ptsga1su4tQx+LLF1ECS9U6nz5kmrXKo6XVbtR48Ke3ZRxxgaWBu7IDtEe1quo8hiupwm6WFqxVlXaSf7IINGQ=="],
++
++    "@img/sharp-webcontainers-wasm32": ["@img/sharp-webcontainers-wasm32@0.35.5", "", { "dependencies": { "@img/sharp-wasm32": "0.35.5" }, "cpu": "none" }, "sha512-hfhF/FmoQyTUkA0bIKFOtw536BQSeBMe6BF6QyWlrPxT754+TFLaZ7sKKTfvvM0yJgKgaYTwnFCIZ/GuDw5SUA=="],
++
++    "@img/sharp-win32-arm64": ["@img/sharp-win32-arm64@0.35.5", "", { "os": "win32", "cpu": "arm64" }, "sha512-X4t7g+7ZA5DKblCBEXGjUqqemj4vczING/5viFwAL8h4N3qYeyjwdCvRLHi4EdOUI+2Z7UFlp1VM+p/AuEtm6Q=="],
++
++    "@img/sharp-win32-ia32": ["@img/sharp-win32-ia32@0.35.5", "", { "os": "win32", "cpu": "ia32" }, "sha512-5Zm82LoBc43nhwNybZlG7Y1KO//Zhsn306fQl29ZOuStHLGTo3BWL83q3cznX0poxSAMuYL1On/BHBxkBeKr6A=="],
++
++    "@img/sharp-win32-x64": ["@img/sharp-win32-x64@0.35.5", "", { "os": "win32", "cpu": "x64" }, "sha512-x76eH0vEiHlcMQu8Y8IenntaACtddpT6W0wmXtWrnKcnKI7ME5DdgqhAD6SEWOEl1v2zDvkZDhFA9KnURwpfqg=="],
++
++    "@jridgewell/resolve-uri": ["@jridgewell/resolve-uri@3.1.2", "", {}, "sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw=="],
++
+     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.6.0", "", {}, "sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw=="],
+ 
++    "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.9", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.0.3", "@jridgewell/sourcemap-codec": "^1.4.10" } }, "sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ=="],
++
+     "@oxc-project/types": ["@oxc-project/types@0.152.0", "", {}, "sha512-oM/5rLBm2tPkg0iBgkH/FOeR3PCDpY19GTgAZjMFM8h9WI9VW7cLgzp6nwtarYKmovavIQZ+Fe/RKX/8C8O/Rw=="],
+ 
+     "@oxfmt/binding-android-arm-eabi": ["@oxfmt/binding-android-arm-eabi@0.71.0", "", { "os": "android", "cpu": "arm" }, "sha512-l31EyBfB4egJeFua11aQFEUE9nnDtfpWCadqQovm0WL30t/yUHtdFl/5HyFXvd5xT8Ewh3U4TI9f30GowrQ1fw=="],
+@@ -165,6 +299,14 @@
+ 
+     "@oxlint/binding-win32-x64-msvc": ["@oxlint/binding-win32-x64-msvc@1.86.0", "", { "os": "win32", "cpu": "x64" }, "sha512-az4dzifCRzES1crwu6pDFXzJTIanrdxXFL9TbiJWrx9LKcuacbR83aPvxDA1LKLNswi/RoqitC7Afcflhu3zBQ=="],
+ 
++    "@playwright/test": ["@playwright/test@1.56.1", "", { "dependencies": { "playwright": "1.56.1" }, "bin": { "playwright": "cli.js" } }, "sha512-vSMYtL/zOcFpvJCW71Q/OEGQb7KYBPAdKh35WNSkaZA75JlAO8ED8UN6GUNTm3drWomcbcqRPFqQbLae8yBTdg=="],
++
++    "@poppinss/colors": ["@poppinss/colors@4.1.6", "", { "dependencies": { "kleur": "^4.1.5" } }, "sha512-H9xkIdFswbS8n1d6vmRd8+c10t2Qe+rZITbbDHHkQixH5+2x1FDGmi/0K+WgWiqQFKPSlIYB7jlH6Kpfn6Fleg=="],
++
++    "@poppinss/dumper": ["@poppinss/dumper@0.6.5", "", { "dependencies": { "@poppinss/colors": "^4.1.5", "@sindresorhus/is": "^7.0.2", "supports-color": "^10.0.0" } }, "sha512-NBdYIb90J7LfOI32dOewKI1r7wnkiH6m920puQ3qHUeZkxNkQiFnXVWoE6YtFSv6QOiPPf7ys6i+HWWecDz7sw=="],
++
++    "@poppinss/exception": ["@poppinss/exception@1.2.3", "", {}, "sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw=="],
++
+     "@rolldown/binding-android-arm-eabi": ["@rolldown/binding-android-arm-eabi@1.2.12", "", { "os": "android", "cpu": "arm" }, "sha512-dB/a1214qKfHMXCpgqR4OZT+jS4kTyEXbQGJPqzobt5EwH5rX080pxE37alt3RzvR1bf1Yz/yGqRfrYAxuPw0A=="],
+ 
+     "@rolldown/binding-android-arm64": ["@rolldown/binding-android-arm64@1.2.12", "", { "os": "android", "cpu": "arm64" }, "sha512-7KHFgQ5VJxIHcLlrwrc3Xbds7oTNQT7Pgi9gQCJKrd2VGab/UksIOYp6VD8MzCstGxOKMgNamPwUCfxPdP1OHg=="],
+@@ -197,6 +339,10 @@
+ 
+     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.1", "", {}, "sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw=="],
+ 
++    "@sindresorhus/is": ["@sindresorhus/is@7.2.0", "", {}, "sha512-P1Cz1dWaFfR4IR+U13mqqiGsLFf1KbayybWwdd2vfctdV6hDpUkgCY0nKOLLTMSoRd/jJNjtbqzf13K8DCCXQw=="],
++
++    "@speed-highlight/core": ["@speed-highlight/core@1.2.24", "", {}, "sha512-qeW2e1l78afw8VhRPfPQ1Gjj+KU5XFQ/OFV5ti6eTa9bruO7mJyZtA4vw0ofqmA3tKCkROE9xLk3VZoeRc98nw=="],
++
+     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
+ 
+     "@types/chai": ["@types/chai@5.2.3", "", { "dependencies": { "@types/deep-eql": "*", "assertion-error": "^2.0.1" } }, "sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA=="],
+@@ -207,6 +353,8 @@
+ 
+     "@types/node": ["@types/node@26.4.1", "", { "dependencies": { "undici-types": "~8.3.0" } }, "sha512-k97ENvZWtvA6yqz5/FS6a7duDgOPEeOQOc2iKS/nY6mX6qJUKtLnWzQS+Xj6tXweyj6ZcTAK2Qecetnvi9nCLA=="],
+ 
++    "@types/pg": ["@types/pg@8.15.5", "", { "dependencies": { "@types/node": "*", "pg-protocol": "*", "pg-types": "^2.2.0" } }, "sha512-LF7lF6zWEKxuT3/OR8wAZGzkg4ENGXFNyiV/JeOt9z5B+0ZVwbql9McqX5c/WStFq1GaGso7H1AzP/qSzmlCKQ=="],
++
+     "@typescript/typescript-aix-ppc64": ["@typescript/typescript-aix-ppc64@7.0.2", "", { "os": "aix", "cpu": "ppc64" }, "sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ=="],
+ 
+     "@typescript/typescript-darwin-arm64": ["@typescript/typescript-darwin-arm64@7.0.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-gowzar9MwS/aRWp6f3a4KUqzRjAZjOsmGNCM6LcTgXum+dBfgsBVMN+AgvOCCbguXyick6LJhpBszxMebJ8syA=="],
+@@ -267,6 +415,8 @@
+ 
+     "convert-source-map": ["convert-source-map@2.0.0", "", {}, "sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg=="],
+ 
++    "cookie": ["cookie@1.1.1", "", {}, "sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ=="],
++
+     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
+ 
+     "drizzle-orm": ["drizzle-orm@1.0.0-rc.5-169397b", "", { "peerDependencies": { "@aws-sdk/client-rds-data": ">=3", "@cloudflare/workers-types": ">=4", "@drizzle-team/minipg": ">=0.3.2", "@effect/sql-d1": ">=4.0.0-beta.105 || >=4.0.0", "@effect/sql-libsql": ">=4.0.0-beta.105 || >=4.0.0", "@effect/sql-mysql2": ">=4.0.0-beta.105 || >=4.0.0", "@effect/sql-pg": ">=4.0.0-beta.105 || >=4.0.0", "@effect/sql-pglite": ">=4.0.0-beta.105 || >=4.0.0", "@effect/sql-sqlite-bun": ">=4.0.0-beta.105 || >=4.0.0", "@effect/sql-sqlite-do": ">=4.0.0-beta.105 || >=4.0.0", "@effect/sql-sqlite-node": ">=4.0.0-beta.105 || >=4.0.0", "@effect/sql-sqlite-wasm": ">=4.0.0-beta.105 || >=4.0.0", "@electric-sql/pglite": ">=0.2.0", "@libsql/client": ">=0.10.0", "@libsql/client-wasm": ">=0.10.0", "@neondatabase/serverless": ">=0.10.0", "@op-engineering/op-sqlite": ">=17", "@opentelemetry/api": "^1.4.1", "@planetscale/database": ">=1.13", "@sinclair/typebox": ">=0.34.8", "@sqlitecloud/drivers": ">=1.0.653", "@tidbcloud/serverless": "*", "@tursodatabase/database": ">=0.7.1", "@tursodatabase/database-common": ">=0.7.1", "@tursodatabase/database-wasm": ">=0.7.1", "@tursodatabase/serverless": ">=1.4.0", "@tursodatabase/sync": ">=0.7.1", "@types/better-sqlite3": "*", "@types/mssql": "^9.1.4", "@types/pg": "*", "@types/sql.js": "*", "@upstash/redis": ">=1.34.7", "@vercel/postgres": ">=0.8.0", "@xata.io/client": "*", "arktype": ">=2.0.0", "better-sqlite3": ">=9.3.0", "bun-types": "*", "effect": ">=4.0.0-beta.105 || >=4.0.0", "expo-sqlite": ">=14.0.0", "mssql": "^11.0.1", "mysql2": ">=2", "pg": ">=8", "postgres": ">=3", "sql.js": ">=1", "sqlite3": ">=5", "typebox": ">=1.2.0", "valibot": ">=1.0.0-beta.7", "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["@aws-sdk/client-rds-data", "@cloudflare/workers-types", "@drizzle-team/minipg", "@effect/sql-d1", "@effect/sql-libsql", "@effect/sql-mysql2", "@effect/sql-pg", "@effect/sql-pglite", "@effect/sql-sqlite-bun", "@effect/sql-sqlite-do", "@effect/sql-sqlite-node", "@effect/sql-sqlite-wasm", "@electric-sql/pglite", "@libsql/client", "@libsql/client-wasm", "@neondatabase/serverless", "@op-engineering/op-sqlite", "@opentelemetry/api", "@planetscale/database", "@sinclair/typebox", "@sqlitecloud/drivers", "@tidbcloud/serverless", "@tursodatabase/database", "@tursodatabase/database-common", "@tursodatabase/database-wasm", "@tursodatabase/serverless", "@tursodatabase/sync", "@types/better-sqlite3", "@types/mssql", "@types/pg", "@types/sql.js", "@upstash/redis", "@vercel/postgres", "@xata.io/client", "arktype", "better-sqlite3", "bun-types", "effect", "expo-sqlite", "mssql", "mysql2", "pg", "postgres", "sql.js", "sqlite3", "typebox", "valibot", "zod"] }, "sha512-xf5TudQhFplMMzjwgmMY5f64Sqbv4iwXxdTHBHqvLMt+SHyY8rAYhzNLQchEkDxiqMclTS/txPEOg5pdQy0Tcw=="],
+@@ -275,8 +425,12 @@
+ 
+     "effect-jobs": ["effect-jobs@root:", {}],
+ 
++    "error-stack-parser-es": ["error-stack-parser-es@1.0.5", "", {}, "sha512-5qucVt2XcuGMcEGgWI7i+yZpmpByQ8J1lHhcL7PwqCwu9FPP3VUXzT4ltHe5i2z9dePwEHcDVOAfSnHsOlCXRA=="],
++
+     "es-module-lexer": ["es-module-lexer@2.3.2", "", {}, "sha512-poHGpORABojJJucnV9KbOavETW8lBVnphkW77ER5/BQ5Fz7oXSoCNek7IH3vR5nRjdsEz926ibFYX8KtLQmdyw=="],
+ 
++    "esbuild": ["esbuild@0.25.12", "", { "optionalDependencies": { "@esbuild/aix-ppc64": "0.25.12", "@esbuild/android-arm": "0.25.12", "@esbuild/android-arm64": "0.25.12", "@esbuild/android-x64": "0.25.12", "@esbuild/darwin-arm64": "0.25.12", "@esbuild/darwin-x64": "0.25.12", "@esbuild/freebsd-arm64": "0.25.12", "@esbuild/freebsd-x64": "0.25.12", "@esbuild/linux-arm": "0.25.12", "@esbuild/linux-arm64": "0.25.12", "@esbuild/linux-ia32": "0.25.12", "@esbuild/linux-loong64": "0.25.12", "@esbuild/linux-mips64el": "0.25.12", "@esbuild/linux-ppc64": "0.25.12", "@esbuild/linux-riscv64": "0.25.12", "@esbuild/linux-s390x": "0.25.12", "@esbuild/linux-x64": "0.25.12", "@esbuild/netbsd-arm64": "0.25.12", "@esbuild/netbsd-x64": "0.25.12", "@esbuild/openbsd-arm64": "0.25.12", "@esbuild/openbsd-x64": "0.25.12", "@esbuild/openharmony-arm64": "0.25.12", "@esbuild/sunos-x64": "0.25.12", "@esbuild/win32-arm64": "0.25.12", "@esbuild/win32-ia32": "0.25.12", "@esbuild/win32-x64": "0.25.12" }, "bin": { "esbuild": "bin/esbuild" } }, "sha512-bbPBYYrtZbkt6Os6FiTLCTFxvq4tt3JKall1vRwshA3fdVztsLAatFaZobhkBC8/BrPetoa0oksYoKXoG4ryJg=="],
++
+     "estree-walker": ["estree-walker@3.0.3", "", { "dependencies": { "@types/estree": "^1.0.0" } }, "sha512-7RUKfXgSMMkzt6ZuXmqapOurLGPPfgj6l9uRZ7lRGolvk0y2yocc35LdcxKC5PQZdn2DMqioAQ2NoWcrTKmm6g=="],
+ 
+     "expect-type": ["expect-type@1.4.0", "", {}, "sha512-KfYbmpRm0VbLjEvVa9yGwCi9GI34xvi7A/HXYWQO65CSD2u3MczUJSuwXKFIxlGsgBQizV9q5J9NHj4VG0n+pA=="],
+@@ -285,6 +439,8 @@
+ 
+     "fsevents": ["fsevents@2.3.3", "", { "os": "darwin" }, "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw=="],
+ 
++    "kleur": ["kleur@4.1.5", "", {}, "sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ=="],
++
+     "lightningcss": ["lightningcss@1.33.0", "", { "dependencies": { "detect-libc": "^2.0.3" }, "optionalDependencies": { "lightningcss-android-arm64": "1.33.0", "lightningcss-darwin-arm64": "1.33.0", "lightningcss-darwin-x64": "1.33.0", "lightningcss-freebsd-x64": "1.33.0", "lightningcss-linux-arm-gnueabihf": "1.33.0", "lightningcss-linux-arm64-gnu": "1.33.0", "lightningcss-linux-arm64-musl": "1.33.0", "lightningcss-linux-x64-gnu": "1.33.0", "lightningcss-linux-x64-musl": "1.33.0", "lightningcss-win32-arm64-msvc": "1.33.0", "lightningcss-win32-x64-msvc": "1.33.0" } }, "sha512-WkUDrojuJs0xkgGf2udWxa3yGBRxPtxUkB79i6aCZLRgc7PM8fZe9TosfPDcvEpQZbuFASnHYmRLBLUbmLOIIA=="],
+ 
+     "lightningcss-android-arm64": ["lightningcss-android-arm64@1.33.0", "", { "os": "android", "cpu": "arm64" }, "sha512-gEpRTalKdosp4Bb8qWtc2iOgE5SeIHlpS1up9bFq2wAyYhl1UdTObYiHe98zEM9SQvSoqQZ1IQD0JNpg3Ml5pg=="],
+@@ -311,6 +467,8 @@
+ 
+     "magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
+ 
++    "miniflare": ["miniflare@5.20261006.1-alpha", "", { "dependencies": { "@cspotcode/source-map-support": "0.8.1", "sharp": "0.35.5", "undici": "7.29.1", "workerd": "1.20261006.1", "ws": "8.21.0", "youch": "4.1.0-beta.10" } }, "sha512-6ylv8tamkrspDI2R/cAYfv+YWmfGNdXe76Pi9TauEUWsFVXn3LNF9Yk8oduzf1a+TYsSRYTqlOE7+nGGRsMHdw=="],
++
+     "nanoid": ["nanoid@3.3.19", "", { "bin": { "nanoid": "bin/nanoid.cjs" } }, "sha512-Y2tUNy4ouw6tq5oDSKeQYGOyhkUBhNOcGV/02KC+6kd9eDGqdZd++mjMiIDilrBYvjEnCYvVtsuHCuP+okSfug=="],
+ 
+     "obug": ["obug@2.2.1", "", {}, "sha512-XrsrhT5sybtKI6wakr2SPOlGZWWYbUXZ7a0jT8/QOeAPau+1X/bSegNe5YR75oJmEZQbKningirmGOEJCIk61Q=="],
+@@ -323,22 +481,58 @@
+ 
+     "pathe": ["pathe@2.0.3", "", {}, "sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w=="],
+ 
++    "pg": ["pg@8.23.0", "", { "dependencies": { "pg-connection-string": "^2.14.0", "pg-pool": "^3.14.0", "pg-protocol": "^1.16.0", "pg-types": "2.2.0", "pgpass": "1.0.5" }, "optionalDependencies": { "pg-cloudflare": "^1.4.0" }, "peerDependencies": { "pg-native": ">=3.0.1" }, "optionalPeers": ["pg-native"] }, "sha512-Ip2EQCngowJLGOfCwkFhPXU7/ljlhn6Rxlmy4XYfL2Y+vyRM59+8uR2xqRWKdYmbXmxCFOAmKxBuSUCdF34qLg=="],
++
++    "pg-cloudflare": ["pg-cloudflare@1.4.1", "", {}, "sha512-6PQbsFWZcp9EmJEwy5cGQ2La+AMWpP46lgbb8X+U/XsHIUweYDNCpeuKck5RxL2MdVFi7krbbEi5nX4Zh7JhrQ=="],
++
++    "pg-connection-string": ["pg-connection-string@2.14.1", "", {}, "sha512-qR3kGNPBLpCNtz0evbKA0Y/MRFXwSSdT+pTJvYp/bXTcReZbvX1kzF0IyTc1QnxqF7AZbOeBhNL8R5mYQZV/MA=="],
++
++    "pg-int8": ["pg-int8@1.0.1", "", {}, "sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw=="],
++
++    "pg-pool": ["pg-pool@3.14.0", "", { "peerDependencies": { "pg": ">=8.0" } }, "sha512-gKtPkFdQPU3DksooVLi9LsjZxrsBUZIpa+7aVx+LV5pNh0KzP4Zleud2po+ConrxbuXGBJ6Hfer6hdgpIBpBaw=="],
++
++    "pg-protocol": ["pg-protocol@1.16.1", "", {}, "sha512-p9VOFMiHB/ZbJATetbg+99PxssTVSQRnyuPSQ67mN1+1KBOjZaZ83ZQzltnxPhJwSsC3nwVjJ10DVJlerbFzLg=="],
++
++    "pg-types": ["pg-types@2.2.0", "", { "dependencies": { "pg-int8": "1.0.1", "postgres-array": "~2.0.0", "postgres-bytea": "~1.0.0", "postgres-date": "~1.0.4", "postgres-interval": "^1.1.0" } }, "sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA=="],
++
++    "pgpass": ["pgpass@1.0.5", "", { "dependencies": { "split2": "^4.1.0" } }, "sha512-FdW9r/jQZhSeohs1Z3sI1yxFQNFvMcnmfuj4WBMUTxOrAyLMaTcE1aAMBiTlbMNaXvBCQuVi0R7hd8udDSP7ug=="],
++
+     "picocolors": ["picocolors@1.1.1", "", {}, "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA=="],
+ 
+     "picomatch": ["picomatch@4.0.7", "", {}, "sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA=="],
+ 
++    "playwright": ["playwright@1.56.1", "", { "dependencies": { "playwright-core": "1.56.1" }, "optionalDependencies": { "fsevents": "2.3.2" }, "bin": { "playwright": "cli.js" } }, "sha512-aFi5B0WovBHTEvpM3DzXTUaeN6eN0qWnTkKx4NQaH4Wvcmc153PdaY2UBdSYKaGYw+UyWXSVyxDUg5DoPEttjw=="],
++
++    "playwright-core": ["playwright-core@1.56.1", "", { "bin": { "playwright-core": "cli.js" } }, "sha512-hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ=="],
++
+     "postcss": ["postcss@8.5.28", "", { "dependencies": { "nanoid": "^3.3.18", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-RRuzqDtt5Y9h3quz5hWhK+TPnsmVs6WwSU6LkJMeY4HstUEDuYTG8UJSdawMRzmzAtV+KEoG8N3Qg2qLy5vM/A=="],
+ 
++    "postgres-array": ["postgres-array@2.0.0", "", {}, "sha512-VpZrUqU5A69eQyW2c5CA1jtLecCsN2U/bD6VilrFDWq5+5UIEVO7nazS3TEcHf1zuPYO/sqGvUvW62g86RXZuA=="],
++
++    "postgres-bytea": ["postgres-bytea@1.0.1", "", {}, "sha512-5+5HqXnsZPE65IJZSMkZtURARZelel2oXUEO8rH83VS/hxH5vv1uHquPg5wZs8yMAfdv971IU+kcPUczi7NVBQ=="],
++
++    "postgres-date": ["postgres-date@1.0.7", "", {}, "sha512-suDmjLVQg78nMK2UZ454hAG+OAW+HQPZ6n++TNDUX+L0+uUlLywnoxJKDou51Zm+zTCjrCl0Nq6J9C5hP9vK/Q=="],
++
++    "postgres-interval": ["postgres-interval@1.2.0", "", { "dependencies": { "xtend": "^4.0.0" } }, "sha512-9ZhXKM/rw350N1ovuWHbGxnGh/SNJ4cnxHiM0rxE4VN41wsg8P8zWn9hv/buK00RP4WvlOyr/RBDiptyxVbkZQ=="],
++
+     "rolldown": ["rolldown@1.2.12", "", { "dependencies": { "@oxc-project/types": "=0.152.0", "@rolldown/pluginutils": "^1.0.0" }, "optionalDependencies": { "@rolldown/binding-android-arm-eabi": "1.2.12", "@rolldown/binding-android-arm64": "1.2.12", "@rolldown/binding-darwin-arm64": "1.2.12", "@rolldown/binding-darwin-x64": "1.2.12", "@rolldown/binding-freebsd-x64": "1.2.12", "@rolldown/binding-linux-arm-gnueabihf": "1.2.12", "@rolldown/binding-linux-arm64-gnu": "1.2.12", "@rolldown/binding-linux-arm64-musl": "1.2.12", "@rolldown/binding-linux-ppc64-gnu": "1.2.12", "@rolldown/binding-linux-s390x-gnu": "1.2.12", "@rolldown/binding-linux-x64-gnu": "1.2.12", "@rolldown/binding-linux-x64-musl": "1.2.12", "@rolldown/binding-openharmony-arm64": "1.2.12", "@rolldown/binding-win32-arm64-msvc": "1.2.12", "@rolldown/binding-win32-x64-msvc": "1.2.12" }, "bin": { "rolldown": "./bin/cli.mjs" } }, "sha512-8wafseiaG80xmXSfqidUNqZcylTlhmPZZt+za2m+js2sFZ8dTNlhIOV2WcbIPx2hgwPBJpEUGFAMZ9bgBBLTSQ=="],
+ 
++    "semver": ["semver@7.8.5", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA=="],
++
++    "sharp": ["sharp@0.35.5", "", { "dependencies": { "@img/colour": "^1.1.0", "detect-libc": "^2.1.2", "semver": "^7.8.5" }, "optionalDependencies": { "@img/sharp-darwin-arm64": "0.35.5", "@img/sharp-darwin-x64": "0.35.5", "@img/sharp-freebsd-wasm32": "0.35.5", "@img/sharp-libvips-darwin-arm64": "1.3.4", "@img/sharp-libvips-darwin-x64": "1.3.4", "@img/sharp-libvips-linux-arm": "1.3.4", "@img/sharp-libvips-linux-arm64": "1.3.4", "@img/sharp-libvips-linux-ppc64": "1.3.4", "@img/sharp-libvips-linux-riscv64": "1.3.4", "@img/sharp-libvips-linux-s390x": "1.3.4", "@img/sharp-libvips-linux-x64": "1.3.4", "@img/sharp-libvips-linuxmusl-arm64": "1.3.4", "@img/sharp-libvips-linuxmusl-x64": "1.3.4", "@img/sharp-linux-arm": "0.35.5", "@img/sharp-linux-arm64": "0.35.5", "@img/sharp-linux-ppc64": "0.35.5", "@img/sharp-linux-riscv64": "0.35.5", "@img/sharp-linux-s390x": "0.35.5", "@img/sharp-linux-x64": "0.35.5", "@img/sharp-linuxmusl-arm64": "0.35.5", "@img/sharp-linuxmusl-x64": "0.35.5", "@img/sharp-webcontainers-wasm32": "0.35.5", "@img/sharp-win32-arm64": "0.35.5", "@img/sharp-win32-ia32": "0.35.5", "@img/sharp-win32-x64": "0.35.5" }, "peerDependencies": { "@types/node": "*" }, "optionalPeers": ["@types/node"] }, "sha512-Ywn4OnzGukp7CDMrp08RQ50YKmuwG47brZgIVPTvBaaAfQlRlygrRqSrxdCiL9M+LlzLBiJ68IR1QqvzHyjC7g=="],
++
+     "siginfo": ["siginfo@2.0.0", "", {}, "sha512-ybx0WO1/8bSBLEWXZvEd7gMW3Sn3JFlW3TvX1nREbDLRNQNaeNN8WK0meBwPdAaOI7TtRRRJn/Es1zhrrCHu7g=="],
+ 
+     "source-map-js": ["source-map-js@1.2.2", "", {}, "sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw=="],
+ 
++    "split2": ["split2@4.2.0", "", {}, "sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg=="],
++
+     "stackback": ["stackback@0.0.2", "", {}, "sha512-1XMJE5fQo1jGH6Y/7ebnwPOBEkIEnT4QF32d5R1+VXdXveM0IBMJt8zfaxX1P3QhVwrYe+576+jkANtSS2mBbw=="],
+ 
+     "std-env": ["std-env@4.3.0", "", {}, "sha512-OtU/EgQ1kIm5KwqQpBC6ZEMXrZRui11w8zgfTWp8cdO9B8OaPsbA8bTHO2P+HNo1VlUTGMVBwPhydu6poeXiag=="],
+ 
++    "supports-color": ["supports-color@10.2.2", "", {}, "sha512-SS+jx45GF1QjgEXQx4NJZV9ImqmO2NPz5FNsIHrsDjh2YsHnawpan7SNQ1o8NuhrbHZy9AZhIoCUiCeaW/C80g=="],
++
+     "tinybench": ["tinybench@2.9.0", "", {}, "sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg=="],
+ 
+     "tinyexec": ["tinyexec@1.3.1", "", {}, "sha512-GCvB3aoys96IuDFBMcTB46JOR6mdMtAToqwiW8JlWhsoh1mhHi/xn9ss/Dg7N555GiJyEt2qzoG/NHCwM6h1EA=="],
+@@ -349,8 +543,12 @@
+ 
+     "tinyrainbow": ["tinyrainbow@3.2.0", "", {}, "sha512-LgO3D9yZJjApUiuUfl9iFAwrtaX4+lok3wJIqttGoKCHlWUqHqbQpnxCf82L8FjgKsh4iGo78hqJwgL8F6To2A=="],
+ 
++    "tslib": ["tslib@2.8.1", "", {}, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
++
+     "typescript": ["typescript@7.0.2", "", { "optionalDependencies": { "@typescript/typescript-aix-ppc64": "7.0.2", "@typescript/typescript-darwin-arm64": "7.0.2", "@typescript/typescript-darwin-x64": "7.0.2", "@typescript/typescript-freebsd-arm64": "7.0.2", "@typescript/typescript-freebsd-x64": "7.0.2", "@typescript/typescript-linux-arm": "7.0.2", "@typescript/typescript-linux-arm64": "7.0.2", "@typescript/typescript-linux-loong64": "7.0.2", "@typescript/typescript-linux-mips64el": "7.0.2", "@typescript/typescript-linux-ppc64": "7.0.2", "@typescript/typescript-linux-riscv64": "7.0.2", "@typescript/typescript-linux-s390x": "7.0.2", "@typescript/typescript-linux-x64": "7.0.2", "@typescript/typescript-netbsd-arm64": "7.0.2", "@typescript/typescript-netbsd-x64": "7.0.2", "@typescript/typescript-openbsd-arm64": "7.0.2", "@typescript/typescript-openbsd-x64": "7.0.2", "@typescript/typescript-sunos-x64": "7.0.2", "@typescript/typescript-win32-arm64": "7.0.2", "@typescript/typescript-win32-x64": "7.0.2" }, "bin": { "tsc": "bin/tsc" } }, "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA=="],
+ 
++    "undici": ["undici@7.29.1", "", {}, "sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q=="],
++
+     "undici-types": ["undici-types@8.3.0", "", {}, "sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ=="],
+ 
+     "vite": ["vite@8.3.2", "", { "dependencies": { "lightningcss": "^1.33.0", "picomatch": "^4.0.7", "postcss": "^8.5.28", "rolldown": "~1.2.11", "tinyglobby": "^0.2.17" }, "optionalDependencies": { "fsevents": "~2.3.3" }, "peerDependencies": { "@types/node": "^20.19.0 || >=22.12.0", "@vitejs/devtools": "^0.7.1", "esbuild": "^0.27.0 || ^0.28.0", "jiti": ">=1.21.0", "less": "^4.0.0", "sass": "^1.70.0", "sass-embedded": "^1.70.0", "stylus": ">=0.54.8", "sugarss": "^5.0.0", "terser": "^5.16.0", "tsx": "^4.8.1", "yaml": "^2.4.2" }, "optionalPeers": ["@types/node", "@vitejs/devtools", "esbuild", "jiti", "less", "sass", "sass-embedded", "stylus", "sugarss", "terser", "tsx", "yaml"], "bin": { "vite": "bin/vite.js" } }, "sha512-SQr1x6W5vVSbROg7vsyXIaxK9b0G7zsT68acdWWRmnBUsgDieLCRG+Rep9WdZgcposvv/GSnr4GUUBqB3vXq6w=="],
+@@ -358,5 +556,19 @@
+     "vitest": ["vitest@4.1.11", "", { "dependencies": { "@vitest/expect": "4.1.11", "@vitest/mocker": "4.1.11", "@vitest/pretty-format": "4.1.11", "@vitest/runner": "4.1.11", "@vitest/snapshot": "4.1.11", "@vitest/spy": "4.1.11", "@vitest/utils": "4.1.11", "es-module-lexer": "^2.0.0", "expect-type": "^1.3.0", "magic-string": "^0.30.21", "obug": "^2.1.1", "pathe": "^2.0.3", "picomatch": "^4.0.3", "std-env": "^4.0.0-rc.1", "tinybench": "^2.9.0", "tinyexec": "^1.0.2", "tinyglobby": "^0.2.15", "tinyrainbow": "^3.1.0", "vite": "^6.0.0 || ^7.0.0 || ^8.0.0", "why-is-node-running": "^2.3.0" }, "peerDependencies": { "@edge-runtime/vm": "*", "@opentelemetry/api": "^1.9.0", "@types/node": "^20.0.0 || ^22.0.0 || >=24.0.0", "@vitest/browser-playwright": "4.1.11", "@vitest/browser-preview": "4.1.11", "@vitest/browser-webdriverio": "4.1.11", "@vitest/coverage-istanbul": "4.1.11", "@vitest/coverage-v8": "4.1.11", "@vitest/ui": "4.1.11", "happy-dom": "*", "jsdom": "*" }, "optionalPeers": ["@edge-runtime/vm", "@opentelemetry/api", "@types/node", "@vitest/browser-playwright", "@vitest/browser-preview", "@vitest/browser-webdriverio", "@vitest/coverage-istanbul", "@vitest/coverage-v8", "@vitest/ui", "happy-dom", "jsdom"], "bin": { "vitest": "./vitest.mjs" } }, "sha512-fhACrNXUidIbGSBr5FlbuBkO7VWC1ZyLl0DO4CU2DrQoAPxX84Ysxs+HeGQpii5lZWV1Q4gBZTTu49mF+A6Edw=="],
+ 
+     "why-is-node-running": ["why-is-node-running@2.3.0", "", { "dependencies": { "siginfo": "^2.0.0", "stackback": "0.0.2" }, "bin": { "why-is-node-running": "cli.js" } }, "sha512-hUrmaWBdVDcxvYqnyh09zunKzROWjbZTiNy8dBEjkS7ehEDQibXJ7XvlmtbwuTclUiIyN+CyXQD4Vmko8fNm8w=="],
++
++    "workerd": ["workerd@1.20261006.1", "", { "optionalDependencies": { "@cloudflare/workerd-darwin-64": "1.20261006.1", "@cloudflare/workerd-darwin-arm64": "1.20261006.1", "@cloudflare/workerd-linux-64": "1.20261006.1", "@cloudflare/workerd-linux-arm64": "1.20261006.1", "@cloudflare/workerd-windows-64": "1.20261006.1" }, "bin": { "workerd": "bin/workerd" } }, "sha512-8MadBuffZ5NdpLwZjUmsqT5QlaKXq4gjgT6wzcKeynZTICNXyePhc+5QVoKiK7+MMhFTLNrRO2KXLlpk8Q6BkA=="],
++
++    "ws": ["ws@8.21.0", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g=="],
++
++    "xtend": ["xtend@4.0.2", "", {}, "sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ=="],
++
++    "youch": ["youch@4.1.0-beta.10", "", { "dependencies": { "@poppinss/colors": "^4.1.5", "@poppinss/dumper": "^0.6.4", "@speed-highlight/core": "^1.2.7", "cookie": "^1.0.2", "youch-core": "^0.3.3" } }, "sha512-rLfVLB4FgQneDr0dv1oddCVZmKjcJ6yX6mS4pU82Mq/Dt9a3cLZQ62pDBL4AUO+uVrCvtWz3ZFUL2HFAFJ/BXQ=="],
++
++    "youch-core": ["youch-core@0.3.3", "", { "dependencies": { "@poppinss/exception": "^1.2.2", "error-stack-parser-es": "^1.0.5" } }, "sha512-ho7XuGjLaJ2hWHoK8yFnsUGy2Y5uDpqSTq1FkHLK4/oqKtyUU1AFbOOxY4IpC9f0fTLjwYbslUz0Po5BpD1wrA=="],
++
++    "@effect-jobs/playground-website/effect-jobs": ["effect-jobs@root:", {}],
++
++    "playwright/fsevents": ["fsevents@2.3.2", "", { "os": "darwin" }, "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA=="],
+   }
+ }
+diff --git a/docs/playground-qualification/Findings.md b/docs/playground-qualification/Findings.md
+new file mode 100644
+index 0000000..d63d800
+--- /dev/null
++++ b/docs/playground-qualification/Findings.md
+@@ -0,0 +1,54 @@
++# Library use findings from the local integration
++
++This integration reproduced no new library runtime defect. It composes the
++qualified public library APIs with application-owned PostgreSQL authority,
++receipts, read models, synthetic providers and local Cloudflare coordination.
++It does not turn a local workerd result into a hosted Cloudflare support claim.
++
++1. Native enqueue remains tied to the exact configured PgClient transaction.
++   Real HTTP command admission, job/payload production, associations and the exact
++   receipt compose through the application transaction. Repeating the same
++   request returns the retained receipt/job IDs. Receipt absence does not permit
++   replay after an uncertain result.
++2. A successful enqueue acknowledgement and a persisted Completed row are
++   different facts. The UI reads library lifecycle fields and persisted policy;
++   it does not infer handler success from command acknowledgement. Unknown
++   attempts remain Active until fenced recovery. The synthetic provider ledger
++   proves its own idempotent acceptance, not exactly-once external execution.
++3. The application owns alarms and event lifetime. Four fixed DOs drain four
++   queues with the real six-handler catalog, a native client scoped to each event
++   and database-time authority. Backend readiness, acquisition and queries add
++   measurable cost; the local backlog receipt reports query calls/time and
++   observed callback/activation counts without inventing hosted cost estimates.
++4. Protected jobs need stable application key configuration across event scopes.
++   Real private export handlers work across separate HTTP and queue events. The
++   list/detail read model selects allowlisted jobs/association metadata and never
++   reads or decodes `job_payloads`. This is an application read model, not a new
++   library admin API or selective-decryption capability.
++5. Reset changes application generation, visibility and admission. It preserves
++   old jobs and retained quota. An active viewer in another sandbox can keep the
++   globally shared queues alive and allow previously admitted unattended work to
++   finish; zero viewers retires all four queues. Describe resumes all four.
++6. Keyset pages are live reads. A retained cursor remains scoped to sandbox,
++   generation and filters; inserts and lifecycle changes between reads do not
++   create a historical snapshot. The browser offers explicit first-page restart
++   and retains filters during reconciliation.
++7. Live messages are bounded invalidation hints. Ready, post-commit invalidation,
++   reset reconnection and offline/online reconciliation are exercised in Chromium.
++   Queue hint adapters compare bounded count/lifecycle-version signatures, so an
++   idle wake does not continuously trigger another describe/kick cycle. Periodic
++   authoritative reads remain necessary when a hint is lost.
++
++The published library dependency inventory, exports and packed bytes are
++unchanged. Private app dependencies include PgClient 4.0.0 and local qualification
++tools only. There is no supported retry/redrive/cancel command here. Application
++terminal cleanup is absent/deferred because associations/receipts require an
++application-owned retention adapter; no broad deletion or lifecycle SQL bypass
++was added.
++
++The attached exact-input receipts are the qualification result. Hosted CF,
++Alchemy, crash/network faults, CPU usage, arbitrary real providers and a full
++remote push preflight remain NotTested or outside this local scope. Inherited
++repository lint warnings were not represented as fixed by focused integration
++checks. Historical prerequisite reviews/triages and accepted fixes were consumed
++without repetition; only the new integration bytes await their first review.
+diff --git a/docs/playground-qualification/README.md b/docs/playground-qualification/README.md
+new file mode 100644
+index 0000000..fcd51b0
+--- /dev/null
++++ b/docs/playground-qualification/README.md
+@@ -0,0 +1,101 @@
++# Integrated local playground
++
++The root remains the `effect-jobs` library. Private packages under `apps/` and
++`packages/playground-contracts/` compose its public APIs; they are excluded from
++its release archive. The app uses PostgreSQL authority, admission, associations,
++receipts and a synthetic provider ledger. An acknowledged command means enqueue
++committed, not that a handler succeeded. The UI labels persisted lifecycle facts
++separately from observations and does not expose payloads or encrypted envelopes.
++
++## Build and qualification
++
++Use Node **24.15.0**, Bun **1.4.2**, PostgreSQL **16.15** and the application-local
++pins recorded in `apps/playground-worker/package.json`. From the repository root:
++
++```sh
++bun install --frozen-lockfile --ignore-scripts
++node apps/playground-worker/tests/integration/Build.mjs
++PLAYWRIGHT_SKIP_BROWSER_GC=1 apps/playground-worker/node_modules/.bin/playwright install chromium
++python3 apps/playground-worker/tests/integration/RunOwned.py
++```
++
++Build compiles the library, refreshes Bun's `file:` copy, builds the private
++contracts, actual browser client and actual worker/server graph, checks strict
++application types and packs the library into a fresh immutable directory. It
++compares every packed library output to the root build and rejects private app
++paths. Root library runtime dependencies and exports are unchanged.
++
++The qualification wrapper provisions at most one new uniquely named loopback PG
++container using the pinned image digest, tmpfs storage and privately generated
++credentials/keys. It verifies previous exact owned resource IDs are absent first.
++The schema is created explicitly through the application migration registry;
++HTTP requests and worker imports never migrate. The wrapper runs its gate in the
++foreground with a finite timeout and deletes only its exact container and private
++config on success or failure. No existing `.env`, DB, volume or cloud is accessed.
++Set `PLAYGROUND_DEADLINE` to an explicit future UTC instant when reproducing after
++the original task window; the runner requires at least eight minutes remaining.
++
++Receipts and sanitized logs live in `.multica/integration/`. Source inputs,
++worker/browser/archive hashes and tool versions identify the exact qualified
++bytes. Failed attempts retain their own inputs/diagnosis. These are local evidence
++locations; the task handoff also attaches an evidence archive.
++
++## Launch and stop a reproducible preview
++
++After the build, choose an explicit future expiry (at least eight minutes away,
++no more than 30 minutes for this local preview) and run in the foreground:
++
++```sh
++PLAYGROUND_DEADLINE="<future UTC ISO timestamp>" \
++  python3 apps/playground-worker/tests/integration/RunOwned.py --preview
++```
++
++The command prints its loopback HTTPS `/jobs` URL when ready. The certificate is
++locally self-signed; accept the browser's local certificate interstitial. Open
++multiple tabs to exercise viewers. Press **Ctrl-C in the same terminal** to stop;
++expiry also stops the preview. The wrapper's `owned-resource-receipt.json` records
++the exact container ID and cleanup command. Logs/receipts are in the task-local
++`.multica/integration/` directory. This is a foreground service owned by that
++command, not an unattended deployed service. No server or database is left running
++by the implementation handoff.
++
++## Runtime composition
++
++One shared gateway serializes HTTP events. Every event acquires one scoped native
++PgClient and a backend bound to that exact client, then closes its Scope before
++returning. Application Context exposes issue/authenticate/describe, read,
++run/reset and exact receipt operations. CommandPersistence owns actual native
++transactions, admission and atomically committed job/association/receipt writes.
++
++The capability cookie is Secure, HttpOnly, SameSite=Strict and uses the `__Host-`
++prefix. POSTs require configured origin, same-origin fetch metadata when present,
++and a separate double-submit CSRF cookie/header. Credentials never reach the JS
++client, DTO or evidence. Issuance and heartbeat accept only a bounded empty body;
++commands use the qualified bounded stream reader. Durable fixed-minute gateway
++budgets bound total requests, issuance and per-sandbox activity.
++
++Four fixed queue DO classes own communications, media, commerce and private work.
++Each serialized queue event scopes the native client/backend and installs the six
++real handlers. Authorized describe renews the DB-time viewer lease and kicks all
++four queues. Activation is 400 ms, MoreWork 100 ms and Backoff 1000 ms. Global
++retirement requires no live viewer in any sandbox. Previously admitted unattended
++sandbox work can complete while another viewer keeps the shared queues active.
++
++Three independently generated synthetic key bytes remain stable across events
++for encryption, fingerprinting and cursor HMAC. Never replace encryption keys
++while retaining protected jobs, or generate fresh keys per request. Disposal of
++this local disposable database disposes its synthetic key configuration too.
++
++ExecutionHints selects at most 100 active sandbox refs and calls bounded,
++coalesced live invalidations. Signals contain scope/reason/sequence only. Browser
++Live performs authoritative periodic reads and reconnect reconciliation. Reset
++changes visibility/admission generation; it retains jobs/quota and does not cancel
++running work. Old commands and provider writes are fenced. retry/redrive/cancel
++remain false; terminal cleanup is deferred.
++
++## Boundaries
++
++Only local workerd and disposable synthetic PG are covered. Hosted Cloudflare,
++Alchemy, real providers, crash/network failure and CPU qualification require
++separate scope and evidence. No full push-preflight claim follows from focused
++integration gates. This task authorizes no remote push, PR, merge or deployment.
+diff --git a/docs/playground-qualification/Results.md b/docs/playground-qualification/Results.md
+new file mode 100644
+index 0000000..38a6686
+--- /dev/null
++++ b/docs/playground-qualification/Results.md
+@@ -0,0 +1,73 @@
++# Local integration qualification results
++
++The final changed integration gate passed on 2026-10-11, from 21:36:15Z to
++21:38:04Z. The scoped PostgreSQL session count was zero at completion. Its exact
++container was removed and absence verified at 21:38:05Z. A separate foreground
++preview of the production entry returned HTTP 200; Ctrl-C stopped it, removed its
++exact container and private configuration at 21:40:01Z. No preview is running.
++
++## Tested inputs and commands
++
++Node 24.15.0, Bun 1.4.2, PostgreSQL 16.15, local workerd 2026-10-06
++(package 1.20261006.1), Miniflare 5.20261006.1-alpha, Playwright 1.56.1 and
++Chromium 141.0.7390.37 were used. PostgreSQL used the issue-authorized pinned image:
++
++`postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea`
++
++```sh
++node apps/playground-worker/tests/integration/Build.mjs
++python3 apps/playground-worker/tests/integration/RunOwned.py
++PLAYGROUND_DEADLINE=2026-10-11T21:50:00Z python3 apps/playground-worker/tests/integration/RunOwned.py --preview
++# HTTP GET /jobs -> 200; then Ctrl-C in the same terminal
++```
++
++Build and strict application types passed. Focused lint and formatting cover the
++changed integration files; inherited global warnings remain. This is not a full
++push-preflight receipt. The packed library SHA-256 stayed
++`316c8eb36d7313af3e53231ac6a99c74a691839a382e1b3701bd5d9674c46fa1`;
++private app paths were excluded and every packed dist byte matched the library
++build. Library source, dependency inventory, peers, exports and release file
++inventory are unchanged from the owner baseline.
++
++Source SHA-256 receipts, artifact hashes and exact resource IDs are attached in
++the final evidence archive. The build receipt field named `workerd` records the
++Miniflare package version; the actual workerd version is recorded separately in
++the final tool receipt. The existing qualified slices and consumed review/fix
++reports were retained; unchanged historical matrices and reviews were not rerun.
++
++## Passed changed integration checks
++
++- actual HTTP guarded command / atomic jobs associations receipt / exact replay.
++- four registered native DOs / automatic local alarms / six real handlers.
++- real SELECT-only projection / keyset pages / private detail / no decrypt on list.
++- actual Chromium UI/read/command/detail/reset/live.
++- integrated persisted retry/dead/unknown/lease recovery / idempotent provider ledger.
++- reset fences old generation / retains jobs and quota / old exact receipt.
++- public native enqueue fixture / delayed scheduling / another sandbox viewer permits admitted unattended work.
++- real keyset pagination retained across concurrent admission and lifecycle mutation.
++- bounded larger backlog / multiple sandboxes / retained quota / filters / measured PG and DO costs.
++- global last-viewer retirement / describe resumes ALL four queues / DB-time expiry.
++
++## Quantitative observations
++
++The browser made six reads and nine describe requests, opened two WebSockets,
++received two ready frames and one jobs-changed frame, and verified authoritative
++reconciliation after reconnect with two viewers. The bounded backlog observation
++retained 100 admission quota units with 68 inserted jobs. PostgreSQL
++pg_stat_statements recorded 2,130 calls and 1,042.574 ms aggregate execution time
++in that observation window. Each of the four queues had eight activations and
++three automatic alarm callbacks in the measured window. These are local app/query
++observations, not hosted cost, throughput or CPU guarantees.
++
++Job completion, retry counts, receipts, generations, associations, quota and
++provider ledger assertions were read from persisted rows. Alarm/activation
++counters use test-only subclasses in TestWorker; production Worker is built
++separately and used by the preview. The delayed/unattended case uses a test-only
++fixture calling the public native backend transaction and enqueue API. It is not
++an additional HTTP scheduling capability. Expiry fixtures change authority
++fields only; job lifecycle writes remain library-owned. No real provider HTTP is
++allowed by the launcher.
++
++Hosted Cloudflare, Alchemy, crash/network fault qualification, CPU qualification,
++real external providers and terminal cleanup are not tested. Unsupported
++retry/redrive/cancel operations remain false. Reset retains jobs and quota.
+diff --git a/tsconfig.playground.json b/tsconfig.playground.json
+index a374d3f..f422056 100644
+--- a/tsconfig.playground.json
++++ b/tsconfig.playground.json
+@@ -9,7 +9,8 @@
+     "noUncheckedIndexedAccess": true,
+     "verbatimModuleSyntax": true,
+     "skipLibCheck": false,
+-    "noEmit": true
++    "noEmit": true,
++    "types": ["node"]
+   },
+   "include": [
+     "packages/playground-contracts/src/**/*.ts",

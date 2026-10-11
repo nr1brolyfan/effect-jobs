@@ -1,0 +1,21 @@
+{
+  "at": "2026-10-11T21:17:55.737Z",
+  "checks": [],
+  "observations": {},
+  "hosted": "NotTested",
+  "runtime": "v24.15.0",
+  "status": "FAIL",
+  "failureClass": "AssertionError",
+  "assertion": {
+    "actual": 400,
+    "expected": 200,
+    "operator": "strictEqual"
+  },
+  "frames": [
+    "    at issue (file:///home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-1872-f205191671ba/worktree/apps/playground-worker/tests/integration/Harness.mjs:32:12)",
+    "    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)",
+    "    at async file:///home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-1872-f205191671ba/worktree/apps/playground-worker/tests/integration/Harness.mjs:40:13"
+  ],
+  "remainingSessions": 0,
+  "finishedAt": "2026-10-11T21:17:56.195Z"
+}

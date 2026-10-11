@@ -1,0 +1,70 @@
+{
+  "at": "2026-10-11T21:25:43.066Z",
+  "checks": [
+    {
+      "name": "actual HTTP guarded command / atomic jobs associations receipt / exact replay",
+      "at": "2026-10-11T21:25:43.809Z"
+    },
+    {
+      "name": "four registered native DOs / automatic local alarms / six real handlers",
+      "at": "2026-10-11T21:25:44.335Z"
+    },
+    {
+      "name": "real SELECT-only projection / keyset pages / private detail / no decrypt on list",
+      "at": "2026-10-11T21:25:44.401Z"
+    },
+    {
+      "name": "actual Chromium UI/read/command/private detail/reset/live",
+      "at": "2026-10-11T21:25:46.004Z"
+    },
+    {
+      "name": "integrated persisted retry/dead/unknown/lease recovery / idempotent provider ledger",
+      "at": "2026-10-11T21:27:23.071Z"
+    },
+    {
+      "name": "reset fences old generation / retains jobs and quota / old exact receipt",
+      "at": "2026-10-11T21:27:23.157Z"
+    },
+    {
+      "name": "bounded larger backlog / multiple sandboxes / retained quota / filters / measured PG and DO costs",
+      "at": "2026-10-11T21:27:24.356Z"
+    },
+    {
+      "name": "global last-viewer retirement / describe resumes ALL four queues / DB-time expiry",
+      "at": "2026-10-11T21:27:24.928Z"
+    }
+  ],
+  "observations": {
+    "browser": {
+      "reads": 5,
+      "describes": 8,
+      "webSockets": 2,
+      "viewers": 2,
+      "chromium": "141.0.7390.37",
+      "reconnectRead": true
+    },
+    "backlog": {
+      "inserted": 69,
+      "retainedQuota": 100,
+      "queryCalls": 2087,
+      "queryMillis": 1162.335209999999,
+      "queueAlarmCallbacks": [
+        3,
+        2,
+        2,
+        2
+      ],
+      "queueActivations": [
+        8,
+        8,
+        8,
+        8
+      ]
+    }
+  },
+  "hosted": "NotTested",
+  "runtime": "v24.15.0",
+  "status": "PASS",
+  "remainingSessions": 0,
+  "finishedAt": "2026-10-11T21:27:24.990Z"
+}

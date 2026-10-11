@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-11T21:18:48.431Z",
+  "checks": [
+    {
+      "name": "actual HTTP guarded command / atomic jobs associations receipt / exact replay",
+      "at": "2026-10-11T21:18:49.012Z"
+    },
+    {
+      "name": "four registered native DOs / automatic local alarms / six real handlers",
+      "at": "2026-10-11T21:18:49.537Z"
+    }
+  ],
+  "observations": {},
+  "hosted": "NotTested",
+  "runtime": "v24.15.0",
+  "status": "FAIL",
+  "failureClass": "TypeError",
+  "remainingSessions": 0,
+  "finishedAt": "2026-10-11T21:18:49.598Z"
+}

@@ -1,0 +1,31 @@
+{
+  "at": "2026-10-11T21:19:42.005Z",
+  "checks": [
+    {
+      "name": "actual HTTP guarded command / atomic jobs associations receipt / exact replay",
+      "at": "2026-10-11T21:19:42.675Z"
+    },
+    {
+      "name": "four registered native DOs / automatic local alarms / six real handlers",
+      "at": "2026-10-11T21:19:43.203Z"
+    },
+    {
+      "name": "real SELECT-only projection / keyset pages / private detail / no decrypt on list",
+      "at": "2026-10-11T21:19:43.268Z"
+    },
+    {
+      "name": "integrated persisted retry/dead/unknown/lease recovery / idempotent provider ledger",
+      "at": "2026-10-11T21:21:20.404Z"
+    }
+  ],
+  "observations": {},
+  "hosted": "NotTested",
+  "runtime": "v24.15.0",
+  "status": "FAIL",
+  "failureClass": "Error",
+  "frames": [
+    "    at /home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-1872-f205191671ba/worktree/apps/playground-worker/tests/integration/Harness.mjs:89:28"
+  ],
+  "remainingSessions": 0,
+  "finishedAt": "2026-10-11T21:21:20.423Z"
+}

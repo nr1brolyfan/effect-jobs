@@ -1,0 +1,36 @@
+$ bun run toolchain:setup && tsc -p tsconfig.playground.json
+$ effect-tsgo patch --typescript --oxlint
+Patched typescript at /home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-1872-f205191671ba/worktree/node_modules/.bun/@typescript+typescript-linux-x64@7.0.2/node_modules/@typescript/typescript-linux-x64/lib/tsc
+Patched oxlint at /home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-1872-f205191671ba/worktree/node_modules/.bun/@oxlint+binding-linux-x64-gnu@1.86.0/node_modules/@oxlint/binding-linux-x64-gnu/oxlint.linux-x64-gnu.node
+Patched oxlint-dts at /home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-1872-f205191671ba/worktree/node_modules/.bun/oxlint@1.86.0+c4a3b9f0ab081e67/node_modules/oxlint/dist/index.d.ts
+Patched oxlint-tsgolint at /home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-1872-f205191671ba/worktree/node_modules/.bun/@oxlint-tsgolint+linux-x64@7.0.2003/node_modules/@oxlint-tsgolint/linux-x64/tsgolint
+apps/playground-worker/src/Worker.ts(56,77): error TS2375: Type 'Effect<any, unknown, unknown>' is not assignable to type 'Effect<{ readonly ref: { readonly sandboxId: string & Brand<"playground/SandboxId">; readonly generation: number; }; readonly expiresAt: number; readonly capabilities: { readonly runScenario: boolean; readonly resetSandbox: boolean; readonly retryJob: boolean; readonly cancelJob: boolean; readonly redriveJob: boolea...' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Type 'unknown' is not assignable to type 'PlaygroundError'.
+apps/playground-worker/src/Worker.ts(58,35): error TS2379: Argument of type 'Effect<Response, unknown, unknown>' is not assignable to parameter of type 'Effect<Response, unknown, never>' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Type 'unknown' is not assignable to type 'never'.
+apps/playground-worker/src/Worker.ts(82,122): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+apps/playground-worker/src/Worker.ts(84,110): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+apps/playground-worker/src/Worker.ts(84,145): error TS2345: Argument of type '{ sandboxId: string; generation: number; }' is not assignable to parameter of type '{ readonly sandboxId: string & Brand<"playground/SandboxId">; readonly generation: number; }'.
+  Types of property 'sandboxId' are incompatible.
+    Type 'string' is not assignable to type 'string & Brand<"playground/SandboxId">'.
+      Type 'string' is not assignable to type 'Brand<"playground/SandboxId">'.
+apps/playground-worker/src/Worker.ts(87,31): error TS2379: Argument of type 'Effect<{ readonly _tag: "Backoff"; readonly phase: "claim" | "reconciliation" | "recovery"; readonly claimed: number; } | { readonly _tag: "Idle"; readonly claimed: number; readonly recovered: number; } | { ...; } | { ...; }, DuplicateJobHandler | ... 9 more ... | PostgreSqlError, Reactivity>' is not assignable to parameter of type 'Effect<{ readonly _tag: "Backoff"; readonly phase: "claim" | "reconciliation" | "recovery"; readonly claimed: number; } | { readonly _tag: "Idle"; readonly claimed: number; readonly recovered: number; } | { ...; } | { ...; }, DuplicateJobHandler | ... 9 more ... | PostgreSqlError, never>' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Type 'Reactivity' is not assignable to type 'never'.
+apps/playground-worker/src/Worker.ts(99,32): error TS2375: Type 'Effect<any, unknown, unknown>' is not assignable to type 'Effect<{ readonly ref: { readonly sandboxId: string & Brand<"playground/SandboxId">; readonly generation: number; }; readonly expiresAt: number; readonly capabilities: { readonly runScenario: boolean; readonly resetSandbox: boolean; readonly retryJob: boolean; readonly cancelJob: boolean; readonly redriveJob: boolea...' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Type 'unknown' is not assignable to type 'PlaygroundError'.
+apps/playground-worker/src/Worker.ts(100,28): error TS2375: Type 'Effect<boolean, PlaygroundError, Reactivity>' is not assignable to type 'Effect<boolean, PlaygroundError, never>' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Type 'Reactivity' is not assignable to type 'never'.
+apps/playground-worker/src/persistence/MigrationRegistry.ts(1,28): error TS2591: Cannot find name 'node:crypto'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+apps/website/src/Client.ts(14,23): error TS2375: Type 'Effect<State, never, JobsClient>' is not assignable to type 'Effect<State, PlaygroundError, never>' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  Type 'JobsClient' is not assignable to type 'never'.
+apps/website/src/server/HttpApplication.ts(18,21): error TS2339: Property 'authenticate' does not exist on type 'ApplicationService'.
+apps/website/src/server/HttpApplication.ts(39,31): error TS2339: Property 'issue' does not exist on type 'ApplicationService'.
+apps/website/src/server/HttpApplication.ts(50,32): error TS2339: Property 'describe' does not exist on type 'ApplicationService'.
+apps/website/src/server/Services.ts(4,45): error TS2702: 'SandboxAuthority' only refers to a type, but is being used as a namespace here.
+apps/website/src/server/Services.ts(4,71): error TS2702: 'JobsRead' only refers to a type, but is being used as a namespace here.
+apps/website/src/server/Services.ts(4,89): error TS2702: 'Scenarios' only refers to a type, but is being used as a namespace here.
+node_modules/.bun/@effect+sql-pg@4.0.0+a594d97e083afb95/node_modules/@effect/sql-pg/dist/PgClient.d.ts(14,29): error TS2591: Cannot find name 'node:stream'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+node_modules/.bun/@effect+sql-pg@4.0.0+a594d97e083afb95/node_modules/@effect/sql-pg/dist/PgClient.d.ts(15,40): error TS2591: Cannot find name 'node:tls'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+node_modules/.bun/@effect+sql-pg@4.0.0+a594d97e083afb95/node_modules/@effect/sql-pg/dist/PgConnection.d.ts(9,29): error TS2591: Cannot find name 'node:stream'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+node_modules/.bun/@effect+sql-pg@4.0.0+a594d97e083afb95/node_modules/@effect/sql-pg/dist/PgConnection.d.ts(10,40): error TS2591: Cannot find name 'node:tls'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+error: script "playground:check" exited with code 1

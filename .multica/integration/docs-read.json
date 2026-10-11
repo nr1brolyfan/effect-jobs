@@ -1,0 +1,81 @@
+{
+  "at": "2026-10-11T21:08:25Z",
+  "paths": [
+    {
+      "path": "ai-docs/README.md",
+      "sha256": "12211a797140212925ed1ff6da9e4d7d4082174fea22fa0497cb2397ad5cc596"
+    },
+    {
+      "path": "ai-docs/src/01_services/10_services-and-layers.ts",
+      "sha256": "a67fc6157134c802bd2314ec5fcbfe51c1b3ccff2db57d0ff82a459fbf58b043"
+    },
+    {
+      "path": "ai-docs/src/01_services/20_module-consumption.ts",
+      "sha256": "85fb7feca7a927f96a22c8b3e0ba33adc0c1f7b6dd8fe7d63d19314839308de7"
+    },
+    {
+      "path": "ai-docs/src/01_services/30_layer-composition.ts",
+      "sha256": "dd3ac0de9103b80104f66eccc8daf37a3ed026324e4a41b6893d1b533b4ef1c2"
+    },
+    {
+      "path": "ai-docs/src/02_modeling/10_schema-tagged-match.ts",
+      "sha256": "28186b4eb94353a84fc30ac1d2b55b824ae2120f6ae5daeb07432035ea47f569"
+    },
+    {
+      "path": "ai-docs/src/03_errors/10_errors-and-causes.ts",
+      "sha256": "595a8d2893e0388e5de780febcb6bea96cfedd018e269ab7ce76016115c02bba"
+    },
+    {
+      "path": "ai-docs/src/04_observability/10_operation-observability.ts",
+      "sha256": "430b3e5ad6bbae54281773438c2cb48d52b7d97b6a76e7d782a800f0cc491537"
+    },
+    {
+      "path": "ai-docs/src/05_resources/10_resources-interruption-secrets.ts",
+      "sha256": "fc158820be0d0b4e25c81bf0d200dd65c5bf51b1873aadab3ec412aedacc4d59"
+    },
+    {
+      "path": "ai-docs/src/06_persistence/10_mutation-boundaries.ts",
+      "sha256": "09b2ff857ec003c54726be2cbbaf0b71b10a321a70d231d07b79e168187d382f"
+    },
+    {
+      "path": "ai-docs/src/07_transport/10_wire-errors.ts",
+      "sha256": "0e5cae11622ff63ba2f77584fa0ba2db763ed65fc6e3e58ebe2f359605dbaad3"
+    },
+    {
+      "path": "ai-docs/src/08_style/10_visible-code-and-modules.ts",
+      "sha256": "4e6a8343377dab3e37b80e139947aac0adb1e42ac1b74265fd3c1cecd7755929"
+    },
+    {
+      "path": "ai-docs/src/09_testing/10_testing-and-review.ts",
+      "sha256": "78320e427ab6b7b2eca93973798490515737b21749ed2b487abadbd614ae1bbd"
+    },
+    {
+      "path": "ai-docs/src/10_boundaries/10_external-time-regex.ts",
+      "sha256": "4d63a2a8693b5edfc26386f82c9a7b0e0dbf9d9810998a5338cbb254259ad72a"
+    },
+    {
+      "path": "ai-docs/src/fixtures/Auth.ts",
+      "sha256": "fa4cf9eecf120f746a259782c09f116a0dac64740c2c6ec4ceac011609230f65"
+    },
+    {
+      "path": "ai-docs/src/index.md",
+      "sha256": "b0691699c80166b11debbbbddc94ac5436dfacb2534997ee65a51df6df44d665"
+    },
+    {
+      "path": "ai-docs/tsconfig.json",
+      "sha256": "9f0aa0251551bfe92e3a5409387879643284021747418fc44385133b643605d3"
+    }
+  ],
+  "additional": [
+    "AGENTS.md",
+    "specs/architecture-decisions.md",
+    "docs/playground-foundation.md",
+    ".multica/inputs/multica-workflow.md",
+    ".multica/inputs/checkpoint-all-fixes-consumed-full.json",
+    "specs/api-refinements.md"
+  ],
+  "checkpointInputs": [
+    ".multica/parent-issue.json",
+    ".multica/executor-issue.json"
+  ]
+}

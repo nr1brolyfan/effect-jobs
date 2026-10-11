@@ -1,0 +1,80 @@
+{
+  "at": "2026-10-11T21:32:01.632Z",
+  "checks": [
+    {
+      "name": "actual HTTP guarded command / atomic jobs associations receipt / exact replay",
+      "at": "2026-10-11T21:32:02.241Z"
+    },
+    {
+      "name": "four registered native DOs / automatic local alarms / six real handlers",
+      "at": "2026-10-11T21:32:02.772Z"
+    },
+    {
+      "name": "real SELECT-only projection / keyset pages / private detail / no decrypt on list",
+      "at": "2026-10-11T21:32:02.863Z"
+    },
+    {
+      "name": "actual Chromium UI/read/command/detail/reset/live",
+      "at": "2026-10-11T21:32:05.734Z"
+    },
+    {
+      "name": "integrated persisted retry/dead/unknown/lease recovery / idempotent provider ledger",
+      "at": "2026-10-11T21:33:42.343Z"
+    },
+    {
+      "name": "reset fences old generation / retains jobs and quota / old exact receipt",
+      "at": "2026-10-11T21:33:42.455Z"
+    },
+    {
+      "name": "public native enqueue fixture / delayed scheduling / another sandbox viewer permits admitted unattended work",
+      "at": "2026-10-11T21:33:48.115Z"
+    },
+    {
+      "name": "real keyset pagination retained across concurrent admission and lifecycle mutation",
+      "at": "2026-10-11T21:33:48.274Z"
+    },
+    {
+      "name": "bounded larger backlog / multiple sandboxes / retained quota / filters / measured PG and DO costs",
+      "at": "2026-10-11T21:33:49.395Z"
+    },
+    {
+      "name": "global last-viewer retirement / describe resumes ALL four queues / DB-time expiry",
+      "at": "2026-10-11T21:33:50.037Z"
+    }
+  ],
+  "observations": {
+    "browser": {
+      "reads": 6,
+      "describes": 9,
+      "webSockets": 2,
+      "readyFrames": 2,
+      "changedFrames": 1,
+      "viewers": 2,
+      "chromium": "141.0.7390.37",
+      "reconnectRead": true
+    },
+    "backlog": {
+      "inserted": 68,
+      "retainedQuota": 100,
+      "queryCalls": 2079,
+      "queryMillis": 1174.229221999999,
+      "queueAlarmCallbacks": [
+        3,
+        2,
+        2,
+        2
+      ],
+      "queueActivations": [
+        8,
+        8,
+        8,
+        8
+      ]
+    }
+  },
+  "hosted": "NotTested",
+  "runtime": "v24.15.0",
+  "status": "PASS",
+  "remainingSessions": 0,
+  "finishedAt": "2026-10-11T21:33:50.099Z"
+}

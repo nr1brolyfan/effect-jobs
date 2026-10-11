@@ -1,0 +1,9 @@
+$ bun run toolchain:setup && tsc -p tsconfig.playground.json
+$ effect-tsgo patch --typescript --oxlint
+typescript skipped because its hash matches the replacement.
+oxlint skipped because its hash matches the replacement.
+oxlint-dts skipped because its hash matches the replacement.
+oxlint-tsgolint skipped because its hash matches the replacement.
+apps/playground-worker/src/Worker.ts(57,77): error TS2719: Type 'import("/home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-1872-f205191671ba/worktree/node_modules/.bun/effect@4.0.0/node_modules/effect/dist/Effect").Effect<{ readonly ref: { readonly sandboxId: string & import("/home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-1872-f205191671ba/worktree/node_modules/.bu...' is not assignable to type 'import("/home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-1872-f205191671ba/worktree/node_modules/.bun/effect@4.0.0/node_modules/effect/dist/Effect").Effect<{ readonly ref: { readonly sandboxId: string & import("/home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-1872-f205191671ba/worktree/node_modules/.bu...'. Two different types with this name exist, but they are unrelated.
+  Type 'Application' is not assignable to type 'never'.
+error: script "playground:check" exited with code 1

@@ -1,0 +1,16 @@
+{
+  "at": "2026-10-11T21:17:55.737Z",
+  "checks": [],
+  "observations": {},
+  "hosted": "NotTested",
+  "runtime": "v24.15.0",
+  "status": "FAIL",
+  "failureClass": "AssertionError",
+  "assertion": {
+    "actual": 400,
+    "expected": 200,
+    "operator": "strictEqual"
+  },
+  "remainingSessions": 0,
+  "finishedAt": "2026-10-11T21:17:56.195Z"
+}

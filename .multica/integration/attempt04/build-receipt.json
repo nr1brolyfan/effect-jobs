@@ -1,0 +1,31 @@
+{
+  "at": "2026-10-11T21:25:12.330Z",
+  "commands": [
+    {
+      "label": "library-build",
+      "at": "2026-10-11T21:25:08.854Z",
+      "exit": 0
+    },
+    {
+      "label": "refresh-file-dependency",
+      "at": "2026-10-11T21:25:09.392Z",
+      "exit": 0
+    },
+    {
+      "label": "apps-build",
+      "at": "2026-10-11T21:25:09.472Z",
+      "exit": 0
+    },
+    {
+      "label": "apps-types",
+      "at": "2026-10-11T21:25:09.972Z",
+      "exit": 0
+    }
+  ],
+  "archive": "/home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-1872-f205191671ba/worktree/.multica/integration/artifact-7vHOGd/effect-jobs-0.1.0-alpha.1.tgz",
+  "archiveSha256": "316c8eb36d7313af3e53231ac6a99c74a691839a382e1b3701bd5d9674c46fa1",
+  "workerSha256": "669d0361419baefcccf54c6a654638e08ccd0e2a75919fb40119ebcf2ef478d0",
+  "clientSha256": "0eec899b22e2907379b6995cbc950b9796635b741c7237806d222df84f96d591",
+  "node": "v24.15.0",
+  "bun": "1.4.2"
+}

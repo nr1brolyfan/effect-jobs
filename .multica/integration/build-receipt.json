@@ -1,0 +1,35 @@
+{
+  "at": "2026-10-11T21:35:55.349Z",
+  "commands": [
+    {
+      "label": "library-build",
+      "at": "2026-10-11T21:35:50.523Z",
+      "exit": 0
+    },
+    {
+      "label": "refresh-file-dependency",
+      "at": "2026-10-11T21:35:51.474Z",
+      "exit": 0
+    },
+    {
+      "label": "apps-build",
+      "at": "2026-10-11T21:35:51.579Z",
+      "exit": 0
+    },
+    {
+      "label": "apps-types",
+      "at": "2026-10-11T21:35:52.372Z",
+      "exit": 0
+    }
+  ],
+  "archive": "/home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-1872-f205191671ba/worktree/.multica/integration/artifact-CD5FV6/effect-jobs-0.1.0-alpha.1.tgz",
+  "archiveSha256": "316c8eb36d7313af3e53231ac6a99c74a691839a382e1b3701bd5d9674c46fa1",
+  "workerSha256": "ad2aa4a043ff5718851a38d766d6850db02392dc412b73ab2aa6cd100cd31aee",
+  "testWorkerSha256": "b1a2010d2fb1f05af61724cffa71f91860ef1397f793397422a53cc1e24b8c56",
+  "fixtureSha256": "7bf646a4c35242499ca096dd5283fbe2246935ddf122ab127b28a3d202375eab",
+  "migrationSha256": "4c2186ff3656a02d582e67eb6c00071bf5acccbafe4c3ab70fbda9b4cf660d82",
+  "workerd": "5.20261006.1-alpha",
+  "clientSha256": "0eec899b22e2907379b6995cbc950b9796635b741c7237806d222df84f96d591",
+  "node": "v24.15.0",
+  "bun": "1.4.2"
+}

@@ -1,0 +1,562 @@
+[
+  {
+    "source": "2e5119b",
+    "path": "apps/playground-worker/package.json",
+    "sha256": "f48945abd3a60da48890beaeb17601ceca396a286d73b4c30e27aee687f03086"
+  },
+  {
+    "source": "2e5119b",
+    "path": "apps/playground-worker/src/HandlerRegistry.ts",
+    "sha256": "17e351b6d1ad45fd651fcdfcc7478005d764907d0f99e23a0ab948588c70fda5"
+  },
+  {
+    "source": "2e5119b",
+    "path": "apps/playground-worker/src/Worker.ts",
+    "sha256": "e93b216a5c85e0936e7af098f93d5754dfbecb26ee4f2968f73d621a9956875a"
+  },
+  {
+    "source": "2e5119b",
+    "path": "apps/playground-worker/src/persistence/MigrationRegistry.ts",
+    "sha256": "6e2ed5d6aaba1cd9ce2af68dbdbebbe354e554b432c72248f56fd104a59f25c5"
+  },
+  {
+    "source": "2e5119b",
+    "path": "apps/playground-worker/tsconfig.json",
+    "sha256": "9d3e50b9d4628ca76e0905058446ee7b72cb49dc9a7f8ffaec9799ff407d545d"
+  },
+  {
+    "source": "2e5119b",
+    "path": "apps/website/content/docs/README.md",
+    "sha256": "43d0acf2cd6251a1a926ccc9e383b31bf1ad280180033f5372907cd0d30f8d0c"
+  },
+  {
+    "source": "2e5119b",
+    "path": "apps/website/package.json",
+    "sha256": "289debbc0d27029a57ff805bde39bc0c6eee2ea2dbebeb57dc3920926c635d43"
+  },
+  {
+    "source": "2e5119b",
+    "path": "apps/website/src/Client.ts",
+    "sha256": "146c768fb81db85014076d19f1f7923cbc31a6eca300b2aef70c1c0e63c468ee"
+  },
+  {
+    "source": "2e5119b",
+    "path": "apps/website/src/server/Routes.ts",
+    "sha256": "d65067ee2a16424bbab664bff4f2dbbb05e1c4ad70fb004cbfc7f43362c386ad"
+  },
+  {
+    "source": "2e5119b",
+    "path": "apps/website/src/server/Services.ts",
+    "sha256": "c15f6e87e365a7672b638d546a1cdd680fdf35f9be1f79d2fc3594e58e3b51e2"
+  },
+  {
+    "source": "2e5119b",
+    "path": "apps/website/tsconfig.json",
+    "sha256": "9d3e50b9d4628ca76e0905058446ee7b72cb49dc9a7f8ffaec9799ff407d545d"
+  },
+  {
+    "source": "2e5119b",
+    "path": "bun.lock",
+    "sha256": "ab3ecf0996045cbc53aa8e1bb464b3d788e8101bf468df5401798a903e792bad"
+  },
+  {
+    "source": "2e5119b",
+    "path": "docs/playground-foundation.md",
+    "sha256": "02bd7906aaeeb89fc8ebe020790b7412e8fb0a200946b9617b6518e4810cb46a"
+  },
+  {
+    "source": "2e5119b",
+    "path": "package.json",
+    "sha256": "0307701375c2c11ce025208bedac86febe76919a0619ff0dd203c1a84dec87c2"
+  },
+  {
+    "source": "2e5119b",
+    "path": "packages/playground-contracts/package.json",
+    "sha256": "ed57aa18c67a65f9fe4c0486e486ff3a3ea777f4515e6a4ec082259a2eedf625"
+  },
+  {
+    "source": "2e5119b",
+    "path": "packages/playground-contracts/qualification/Run.mjs",
+    "sha256": "0682ad9e32571955df70b6d32f594175ab4de21e6fbd683d9df81bc2538140f1"
+  },
+  {
+    "source": "2e5119b",
+    "path": "packages/playground-contracts/src/Changes.ts",
+    "sha256": "95f6b8bc84293e592c69caf228905e568521c7792eb78453ac6531426abaa32a"
+  },
+  {
+    "source": "2e5119b",
+    "path": "packages/playground-contracts/src/Definitions.ts",
+    "sha256": "15e91d44bd8b8b28d99770cbd28f346225a14fcc4ee30b48199a5e6191aa0521"
+  },
+  {
+    "source": "2e5119b",
+    "path": "packages/playground-contracts/src/Fixtures.ts",
+    "sha256": "dd0d2b2121a38d4820d41bfd3f49673b5f953a79a8df6d709fb1ff7bb0455bd5"
+  },
+  {
+    "source": "2e5119b",
+    "path": "packages/playground-contracts/src/Jobs.ts",
+    "sha256": "e037186b02ef6261ccd60890c193a3520d349345487d325250c9e6525684f9d7"
+  },
+  {
+    "source": "2e5119b",
+    "path": "packages/playground-contracts/src/MockLayer.ts",
+    "sha256": "29648487b86c2ef5285cfe30c24592342806f01ed9eb45288a35dd65f969e7fa"
+  },
+  {
+    "source": "2e5119b",
+    "path": "packages/playground-contracts/src/Sandbox.ts",
+    "sha256": "d60ea1e060f12894e5af202f8060f274887875adea2a07c17b8b1955b8ce57f8"
+  },
+  {
+    "source": "2e5119b",
+    "path": "packages/playground-contracts/src/Scenarios.ts",
+    "sha256": "5bc2442495527973bce8dde6619eff85d7940d5caf071f0e3d6cf1bc2d6ca704"
+  },
+  {
+    "source": "2e5119b",
+    "path": "packages/playground-contracts/src/Services.ts",
+    "sha256": "eea3f4f7b9e672ce0aa2b8dd0d056bf750ef46fc2e65024f21f5abfb0edac8bb"
+  },
+  {
+    "source": "2e5119b",
+    "path": "packages/playground-contracts/tests/Contracts.test.ts",
+    "sha256": "657056781b064aaeff545a060e5eb28e481594d1f585a1f6e8a890a1bea521c1"
+  },
+  {
+    "source": "2e5119b",
+    "path": "packages/playground-contracts/tsconfig.build.json",
+    "sha256": "9a261f14d359d2d0a3576991acc6ebf9047cede1546df8693d2df90892ec7c92"
+  },
+  {
+    "source": "2e5119b",
+    "path": "packages/playground-contracts/tsconfig.json",
+    "sha256": "9d3e50b9d4628ca76e0905058446ee7b72cb49dc9a7f8ffaec9799ff407d545d"
+  },
+  {
+    "source": "2e5119b",
+    "path": "tsconfig.playground.json",
+    "sha256": "d8bdc1e9c34a05f5840bce7c02aac2768e6ef3255acb572d61c1d72289808795"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/package.json",
+    "sha256": "f48945abd3a60da48890beaeb17601ceca396a286d73b4c30e27aee687f03086"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/HandlerRegistry.ts",
+    "sha256": "17e351b6d1ad45fd651fcdfcc7478005d764907d0f99e23a0ab948588c70fda5"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/Worker.ts",
+    "sha256": "e93b216a5c85e0936e7af098f93d5754dfbecb26ee4f2968f73d621a9956875a"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/cloudflare/WakeCycle.ts",
+    "sha256": "8c96c09bbdef645ebcb4bcb6c9e9ab75e70355f77ee590079942817950e3dbc2"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/execution/Application.ts",
+    "sha256": "9ae779af7f20cc7f9b4a575241fe071e18d49077f0f4778993736048830d3332"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/execution/Executor.ts",
+    "sha256": "96a9b84593103927e9eae8f6b52267a3f73b2686a4241f094838a2ba48ae250e"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/execution/PostgreSqlProvider.ts",
+    "sha256": "9994b8005359490e175e37ec9a5c39b7cac3ee1072fa8ddd7d0d5a489b5b3e8a"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/execution/README.md",
+    "sha256": "f95720fb3929d82502f6d77ad95858da318dd47a0f074c85b07b14d4232aefb0"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/persistence/MigrationRegistry.ts",
+    "sha256": "6e2ed5d6aaba1cd9ce2af68dbdbebbe354e554b432c72248f56fd104a59f25c5"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/persistence/authority/PostgreSqlAuthority.ts",
+    "sha256": "12b70245a1700b2bbd3e77c6af4843ec35d75ca508ddbe64079b17482c878015"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/persistence/authority/Schema.ts",
+    "sha256": "d6493fcef30389457058e6cbffe98fe35cc4c71af28b6c6ccf77320f5bc2cc13"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/persistence/commands/Persistence.ts",
+    "sha256": "238b4fb60abbe92a1f6defaf4c10bc324eb5938420b5a8113c547575d67da58f"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/persistence/commands/Transactions.ts",
+    "sha256": "45c1a2e0ce70aa22c1537861655b06d803372ec298513cb91f7cd7b8f720da47"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/providers/FakeProvider.ts",
+    "sha256": "8b028bc3a936dc124026a3f4188e0fb52c1c361d44a45b7d97e8d300b4e5feeb"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/providers/FakeProviderLayer.ts",
+    "sha256": "fc7c9726a981ed0d9990b9ca94ccacf08473494035b71d5da89991b1e37b739e"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/scenarios/Definitions.ts",
+    "sha256": "048659b55f0940021f38d1e268adcdf3a5273d647dd1e700b93c25cd8cbcb05f"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/scenarios/Fixtures.ts",
+    "sha256": "a6cc537bf5af4688c30f2667fe107a94b82f95e4a4b441c0d5a20a8a7dfedabc"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/scenarios/Handlers.ts",
+    "sha256": "f27a39d05a2c51a264ea8ce806f329d834ecc8b9db16ce9b43a85fc0535cb2a8"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/scenarios/Plan.ts",
+    "sha256": "093cffc803d2fbdf90d7b8078f570f791e935cb0feb1f46da0033b67e78dbc3c"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/scenarios/PrivateDocument.ts",
+    "sha256": "e9136d23d280174678d83cce2202936affbe36c4a3f549fa094b153ee8735f29"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/src/scenarios/README.md",
+    "sha256": "a28ffef8f3be7a035bed378fd61ae79ca5140fe7d3bbbbc6bdaa9da47851c5f5"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/cloudflare/CloudflareModule.d.mts.txt",
+    "sha256": "8292bd0effc960d52613b7f0419589e7fe8da14079c1233624bbc8deb956d0ee"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/cloudflare/OptionalWorker.mjs",
+    "sha256": "a26f32309d531233b7ca8cb720a69b36fa36ab4e415d30e770b604fd3d4d7737"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/cloudflare/OptionalWorkerd.mjs",
+    "sha256": "975b5bc16fcffba2418751559aa7a285fca78940ddd022dbd611c14158a67e3d"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/cloudflare/README.md",
+    "sha256": "d1f6f29a5a2a9e522b58e9d0213917a5a3c18610029279d7b33ed70c6d7550ff"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/cloudflare/RealPgHarness.mjs",
+    "sha256": "e6df1f102034c0f57589c5204fcc4fd6e10448ff6bad194f1db1348e0a8c9669"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/cloudflare/RealPgProbe.mjs",
+    "sha256": "db6ec1b948eb83cbc4e9670476a965958ebd9eedf50e8b0c5bacee96e933fa9d"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/cloudflare/RealPgWorker.mjs",
+    "sha256": "7f52e15190fe0d1ae3e2accb16685b5ae93ca0f540535dcd8d310b369df098b7"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/cloudflare/Run.mjs",
+    "sha256": "3318828339366a4c1314cd21e5cf27a12c9849ac47952d2864c0d0cf6740862f"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/cloudflare/StudyAlchemy.mjs",
+    "sha256": "1d95ae5d6f07ce630141ec8ef6cbf14ac3d9782b8b0b031e6439e2834697aa1f"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/cloudflare/WakeCycle.test.ts",
+    "sha256": "513b519376e5104e940b4ac5190a4a39ff202222170f9c876a0eb05e530fd416"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/cloudflare/Workerd.mjs",
+    "sha256": "da3adc4931a9256744968c63d8b13cb499cce8c6e859aa08a158493ed14162cd"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/cloudflare/WorkerdProbe.mts.txt",
+    "sha256": "f8601b19f9c3b6e83a5585f2b69fda1425c5cd554a5787b84e703cd87eebcecb"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/execution/AffectedProbe.mjs",
+    "sha256": "e7d4b25e76baaa3d818deeb1dded402c1ffd7ccfb159722b01ab6c4268196f41"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/execution/Harness.mjs",
+    "sha256": "f4c64478680b7e1ead97d19f09912ff68ab7a4935a638b7404af47f84342d87f"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/execution/Prepare.mjs",
+    "sha256": "633ea15f78c613a4f14ccb8ba5e47590d57089be450035e0e5299a277ae0277d"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/execution/Probe.mjs",
+    "sha256": "28c730c02ca5e7d90568eccc0d398fdd2de361bc815630f5aa20ac31190568b2"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/execution/README.md",
+    "sha256": "db53f594444886e18083f80ccf8a41ecacb04689b2932b5be37b6a9abbaffcd1"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/execution/RunOwnedPg.py",
+    "sha256": "cee32375925e7e2f7e23ca4071e20f8a8bc421fecb223a8c426ef47f3e874553"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/execution/Worker.mjs",
+    "sha256": "0ce5e5dc1a18c9c0e47890a28ff48ef6209c1a847a9471dc897cee4930bb0518"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/execution/oxlint.json",
+    "sha256": "f2be2aae5fb7c302d619bd6e5007cc1452f2c2d82e109897ee624be8e0ac67b5"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/execution/regressions/Build.mjs",
+    "sha256": "55b4dfa77aea564d6db1ce5dff78cf5e04864607dd7a30fe162798c55d9a028d"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/execution/regressions/Controls.mjs",
+    "sha256": "15c292866e70a82cab7d3300cd0062e74282b75fd71531e880bde46cec7c3b75"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/execution/regressions/Extended.mjs",
+    "sha256": "b5305427858c3b5e21f7e25792df174306bae6ef2ea02ac6c64c79c43331b3d3"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/execution/regressions/Focused.mjs",
+    "sha256": "5418bb33f5e98f30318ee0cdd02f4a5e2e4d57432b91ae6e22be0dd037f71bdd"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/execution/regressions/ProviderCause.mjs",
+    "sha256": "607315a33f110bdba96c90d72d846cc93676a62b29b1bf6eb11dba4620602b3c"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/scenarios/Qualify.mjs",
+    "sha256": "387120b50204cc6dcc742e21097eae59075e38d690fca0df615fb28fc33a5f83"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/scenarios/Scenarios.test.ts",
+    "sha256": "50150da416d3438d985a3404c3e187755d1ebe7514804130e3b8ce57eccfcc6e"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tests/scenarios/Types.ts",
+    "sha256": "d7dd5b58ad67a1f7a02aca48c4af91afc640f2b4d8eb71bbc330083a2c250b88"
+  },
+  {
+    "source": "6f38cb8",
+    "path": "apps/playground-worker/tsconfig.json",
+    "sha256": "9d3e50b9d4628ca76e0905058446ee7b72cb49dc9a7f8ffaec9799ff407d545d"
+  },
+  {
+    "source": "b23a004",
+    "path": "apps/playground-worker/src/persistence/read/Queries.ts",
+    "sha256": "5bdc0dd4b6143b4702e2e0b4bf985baff762d671508232ccb819c2acd57672b5"
+  },
+  {
+    "source": "b23a004",
+    "path": "apps/playground-worker/src/persistence/read/SchemaProposal.ts",
+    "sha256": "35dc1feac18af65dc5c420359315676beecf2c87508ba10fc27088150c8c098c"
+  },
+  {
+    "source": "b23a004",
+    "path": "apps/website/src/server/read/CursorCodec.ts",
+    "sha256": "2796c4e0cc60c428568e8e924221fa1e5833fb77d5850229a843fa0569b7b722"
+  },
+  {
+    "source": "b23a004",
+    "path": "apps/website/src/server/read/HttpRead.ts",
+    "sha256": "f94472ac856e19ae083dcd4b66098475eb8282035a01943c45c153becce892f6"
+  },
+  {
+    "source": "b23a004",
+    "path": "apps/website/src/server/read/NativeReadDatabase.ts",
+    "sha256": "6dbf5e408b3cc0e241f766acd6b519afef4cea025a4ed85f9b90e71749bbee7d"
+  },
+  {
+    "source": "b23a004",
+    "path": "apps/website/src/server/read/PostgreSqlRead.ts",
+    "sha256": "4b99e21051b5c5963f6e0ea8b2fafca40c270ad8bfd1995d2eda884f43465c0f"
+  },
+  {
+    "source": "b23a004",
+    "path": "apps/website/src/server/read/README.md",
+    "sha256": "8549ee5c983e4f29a4ec3e652d829f3b0a24f710403216e8c7e36693ccd01701"
+  },
+  {
+    "source": "c8c010f",
+    "path": "apps/playground-worker/src/live/SandboxLive.ts",
+    "sha256": "4e89cb82784bbc6c366dbc4ebc17de5d86c9cdc0a6d640495919e90407b49568"
+  },
+  {
+    "source": "c8c010f",
+    "path": "apps/website/src/live/BrowserLive.ts",
+    "sha256": "2597e862ed058176a9506b217c75fc0eea13b0522a2133bfea1e1da2caeaf47f"
+  },
+  {
+    "source": "c8c010f",
+    "path": "apps/website/src/live/Protocol.ts",
+    "sha256": "2e312ea8bbc31d85cb0e37c4c2fe2031ba8fc8a6f05405e76dd0643afaa59dcd"
+  },
+  {
+    "source": "c8c010f",
+    "path": "apps/website/src/live/README.md",
+    "sha256": "a2600c10436479f16f5ea7450f6518851616dd94999ba9e4b9402bee10c483a4"
+  },
+  {
+    "source": "c8c010f",
+    "path": "apps/website/src/server/live/PostCommit.ts",
+    "sha256": "2c9e76c2eef03b352f75c42b97690a31f97fda271472ab0e0e8c47ab74d98388"
+  },
+  {
+    "source": "c8c010f",
+    "path": "apps/website/src/server/live/Upgrade.ts",
+    "sha256": "739498960944bba81d5985835cd73276eabaed27d8c1a95143cb2450d4dd1406"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/content/docs/Jobs.html",
+    "sha256": "edcb01868caadbdd600d762c6cd501a39af5b04450ffb631f7a94c142007e5ca"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/content/docs/Jobs.md",
+    "sha256": "41229749e3d759a4fbfad76c3590fb9af8a377f53e73668dd04689936fa057bb"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/content/docs/README.md",
+    "sha256": "404a852635957c23d7789972ab2f938fb516530b414443616250b4e9090edb3c"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/content/docs/Ui-integration.md",
+    "sha256": "18826afaace219e480112b6727c702977b343c2824c875f31aa194f765b80bc3"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/src/features/jobs/Adapter.ts",
+    "sha256": "16c7a85ce0089b84ceeed3aa123d3c91689fb87aaebd5fdd5c927256f73adcbc"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/src/features/jobs/Controller.ts",
+    "sha256": "2cb4facd519578302024df4f10df82272b0700c14abc51c501a5786d27294a71"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/src/features/jobs/Fixture.html",
+    "sha256": "da105f075524bc05746109716aaa98e1f539ddbbd5399343e30b960a7ed15853"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/src/features/jobs/FixtureClient.ts",
+    "sha256": "df7a501d085b08963bf42ce300ce6125ae94e99bdb8f2aae4fa8f0388ccd8158"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/src/features/jobs/FixtureEntry.ts",
+    "sha256": "89d56d303601ca371fc4969f31c0b6830c0868f25fa7a362f34feca74f0dfc9d"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/src/features/jobs/View.ts",
+    "sha256": "57f04b74b24573413cb5e36be435f7e3853a68b74577b6f7c20b88387d9b931b"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/src/styles/Jobs.css",
+    "sha256": "1760d13fb34cd1bf5e736e0c3fc99d19e9795d6bb5493fe83bdc1dcbcd844734"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/tests/ui/Browser.mjs",
+    "sha256": "3a44db521fa9fe03a24f449e02a5f83a92fd3921f392b983a73e00bc67a6e7de"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/tests/ui/BrowserEntry.ts",
+    "sha256": "468392d0a052ddb439fe42608b9dfd0e65ea0612006da2a8daab165ed80df05a"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/tests/ui/Controller.test.ts",
+    "sha256": "744b8ac2d6c12af9c206b27206dcf8da3200ded6a239ccbe0ceb108e5ea4c0ab"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/tests/ui/Packed.mjs",
+    "sha256": "11dffbd21879ca18d6435b022cbfda4fc7693c7a6d4bb5056340194a41bd921c"
+  },
+  {
+    "source": "0871ac5",
+    "path": "apps/website/tests/ui/Reconciliation.mjs",
+    "sha256": "a43265f2a25897b87d67dd387eba0eda73118b6225d93fcd774928e426222f98"
+  },
+  {
+    "source": "e7b8ae9",
+    "path": "apps/playground-worker/src/persistence/commands/Persistence.ts",
+    "sha256": "238b4fb60abbe92a1f6defaf4c10bc324eb5938420b5a8113c547575d67da58f"
+  },
+  {
+    "source": "e7b8ae9",
+    "path": "apps/playground-worker/src/persistence/commands/Transactions.ts",
+    "sha256": "45c1a2e0ce70aa22c1537861655b06d803372ec298513cb91f7cd7b8f720da47"
+  },
+  {
+    "source": "e7b8ae9",
+    "path": "apps/website/src/server/commands/GuardedScenarios.ts",
+    "sha256": "17fd1f9702abb5518460714d288c396ce74101ae30bcc4dddd87c9230b7de29e"
+  },
+  {
+    "source": "e7b8ae9",
+    "path": "apps/website/src/server/commands/HttpCommands.ts",
+    "sha256": "942cefe4027ead9363c4dcb20adcca146f4d893748131005bf4d7cea4e3f9c26"
+  },
+  {
+    "source": "e7b8ae9",
+    "path": "apps/website/src/server/commands/README.md",
+    "sha256": "05475af933e7991533561d3349ea6f1fa5973e9ac559686a026e7f02757bf88e"
+  }
+]

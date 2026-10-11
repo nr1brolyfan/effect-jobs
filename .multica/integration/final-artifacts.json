@@ -1,0 +1,26 @@
+{
+  "worker": {
+    "path": "apps/playground-worker/dist/Worker.js",
+    "sha256": "ad2aa4a043ff5718851a38d766d6850db02392dc412b73ab2aa6cd100cd31aee"
+  },
+  "client": {
+    "path": "apps/website/dist/Client.js",
+    "sha256": "0eec899b22e2907379b6995cbc950b9796635b741c7237806d222df84f96d591"
+  },
+  "testWorker": {
+    "path": ".multica/integration/TestWorker.js",
+    "sha256": "b1a2010d2fb1f05af61724cffa71f91860ef1397f793397422a53cc1e24b8c56"
+  },
+  "fixture": {
+    "path": ".multica/integration/Admit.mjs",
+    "sha256": "7bf646a4c35242499ca096dd5283fbe2246935ddf122ab127b28a3d202375eab"
+  },
+  "migration": {
+    "path": ".multica/integration/Migrations.mjs",
+    "sha256": "4c2186ff3656a02d582e67eb6c00071bf5acccbafe4c3ab70fbda9b4cf660d82"
+  },
+  "libraryArchive": {
+    "path": "/home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-1872-f205191671ba/worktree/.multica/integration/artifact-CD5FV6/effect-jobs-0.1.0-alpha.1.tgz",
+    "sha256": "316c8eb36d7313af3e53231ac6a99c74a691839a382e1b3701bd5d9674c46fa1"
+  }
+}

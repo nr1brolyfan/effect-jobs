@@ -1,0 +1,9 @@
+$ bun run toolchain:setup && tsc -p tsconfig.playground.json
+$ effect-tsgo patch --typescript --oxlint
+typescript skipped because its hash matches the replacement.
+oxlint skipped because its hash matches the replacement.
+oxlint-dts skipped because its hash matches the replacement.
+oxlint-tsgolint skipped because its hash matches the replacement.
+apps/website/src/Client.ts(2,1): error TS1005: 'from' expected.
+apps/website/src/Client.ts(2,57): error TS1005: ';' expected.
+error: script "playground:check" exited with code 1

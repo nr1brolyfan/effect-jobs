@@ -1,0 +1,90 @@
+{
+  "owner": "UPVE-1872 / Implementor",
+  "startedAt": "2026-10-11T21:36:13.552828+00:00",
+  "expiry": "2026-10-11T22:18:50Z",
+  "image": "postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
+  "storage": "tmpfs; no volume",
+  "commands": [
+    {
+      "label": "create",
+      "start": "2026-10-11T21:36:14.094009+00:00",
+      "end": "2026-10-11T21:36:14.195160+00:00",
+      "exit": 0
+    },
+    {
+      "label": "start",
+      "start": "2026-10-11T21:36:14.195189+00:00",
+      "end": "2026-10-11T21:36:14.442708+00:00",
+      "exit": 0
+    },
+    {
+      "label": "port",
+      "start": "2026-10-11T21:36:14.442923+00:00",
+      "end": "2026-10-11T21:36:14.477255+00:00",
+      "exit": 0
+    },
+    {
+      "label": "integrated",
+      "start": "2026-10-11T21:36:15.801462+00:00",
+      "end": "2026-10-11T21:38:04.859457+00:00",
+      "exit": 0
+    }
+  ],
+  "previousResources": [
+    {
+      "id": "31d8e343ea817a4504b93f912759b36ec3057813e7e70b2482a810a1dbacca37",
+      "absent": true
+    },
+    {
+      "id": "18fd83acfe26704faa4fa4831c311fc2f6506d46c9902afc86b79f09439a4eab",
+      "absent": true
+    },
+    {
+      "id": "04a25e4d9457d93c327875341cc076cad651f6799fbf942f9c7170b8aa5fe7cf",
+      "absent": true
+    },
+    {
+      "id": "840685eeadb8b0ef083d08dac0caae25d33c26dfa9ca1ab43e937b3769078b87",
+      "absent": true
+    },
+    {
+      "id": "4005e807c4d3372f523f8077b8170e43e7cf3aa486e72879eed1cd3196e75a9d",
+      "absent": true
+    },
+    {
+      "id": "22c1b1d2ca07fc7e1e58d75f3293b317bbe55fb1eefeb90ec3030526449a9f56",
+      "absent": true
+    },
+    {
+      "id": "95b464729d62356f6586b9bf9985e17aaebdf04b7135f487107067fd09961268",
+      "absent": true
+    }
+  ],
+  "gateInputsSha256": "51a83fe32e7e874e625b82d50f5e203225b7fa8f4fc7c3defcfdc0fbffd88c7d",
+  "containerId": "c48c3e059b8840f0b971e283d12d411da3a63e8638250ec4a3f5e81a60a38e58",
+  "containerName": "upve-1872-pg-4efe204aee8d",
+  "cleanupHandle": [
+    "docker",
+    "rm",
+    "--force",
+    "c48c3e059b8840f0b971e283d12d411da3a63e8638250ec4a3f5e81a60a38e58"
+  ],
+  "ports": {
+    "5432/tcp": [
+      {
+        "HostIp": "127.0.0.1",
+        "HostPort": "52987"
+      }
+    ]
+  },
+  "readyAt": "2026-10-11T21:36:15.801080+00:00",
+  "status": "PASS",
+  "cleanup": {
+    "exit": 0,
+    "removedId": "c48c3e059b8840f0b971e283d12d411da3a63e8638250ec4a3f5e81a60a38e58",
+    "at": "2026-10-11T21:38:05.213727+00:00",
+    "absentVerified": true
+  },
+  "privateConfigRemoved": true,
+  "finishedAt": "2026-10-11T21:38:05.298794+00:00"
+}
