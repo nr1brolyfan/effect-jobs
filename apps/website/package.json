@@ -10,6 +10,6 @@
   },
   "scripts": {
     "check": "tsc -p tsconfig.json",
-    "build": "bun build src/Client.ts --target=browser --outdir=dist"
+    "build": "bun build src/Client.ts --target=browser --outfile=dist/Client.js"
   }
 }

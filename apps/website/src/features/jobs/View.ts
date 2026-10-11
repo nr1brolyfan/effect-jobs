@@ -42,7 +42,10 @@ export const mount = (
   root: HTMLElement,
   client: Client,
   sandbox: SandboxView,
-  options: { readonly poll?: boolean } = {}
+  options: {
+    readonly poll?: boolean
+    readonly changed?: (state: Controller.State) => void
+  } = {}
 ) => {
   const lifecycle = new AbortController()
   const layer = Layer.succeed(JobsClient, client)
@@ -434,7 +437,11 @@ export const mount = (
     notice.textContent = state.notice
     capabilities.textContent = `Scenario: ${state.sandbox.capabilities.runScenario ? "available" : "unavailable"}; reset: ${state.sandbox.capabilities.resetSandbox ? "available" : "unavailable"}. Retry/cancel/redrive are not wired to any supported command in this UI.`
   }
-  const controller = Controller.make(sandbox, render)
+  const publish = (state: Controller.State) => {
+    render(state)
+    options.changed?.(state)
+  }
+  const controller = Controller.make(sandbox, publish)
   const localFilter = () => renderRows(controller.snapshot())
   search.addEventListener("input", localFilter)
   due.addEventListener("change", localFilter)
