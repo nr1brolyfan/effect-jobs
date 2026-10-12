@@ -6,11 +6,23 @@ import * as Read from "../../../website/src/server/read/HttpRead.js"
 import { JobsRead, PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import * as Manager from "./Manager.js"
 import type { Env } from "../Worker.js"
+import * as OriginPolicy from "../../../website/src/OriginPolicy.js"
 
-export const handle = (request: Request, env: Env) =>
+export const handle = (
+  request: Request,
+  env: Env & { readonly LOCAL_PREVIEW?: string }
+) =>
   Effect.gen(function* () {
     const url = new URL(request.url)
-    if (url.origin !== env.ORIGIN || request.method !== "GET") {
+    const policy = OriginPolicy.make({
+      configuredOrigin: env.ORIGIN,
+      localPreview: env.LOCAL_PREVIEW === "true"
+    })
+    if (
+      request.url.length > 4096 ||
+      policy.resolve(url.origin) === undefined ||
+      request.method !== "GET"
+    ) {
       return Http.response({ code: "invalid-request" }, 400)
     }
     const sandbox = yield* Manager.current(env.SCHEMA).pipe(
@@ -21,7 +33,7 @@ export const handle = (request: Request, env: Env) =>
       return Http.response(sandbox)
     }
     if (url.pathname === "/api/demo/changes") {
-      return yield* Upgrade.upgrade(request, env.ORIGIN, env.LIVE, () =>
+      return yield* Upgrade.upgrade(request, policy, env.LIVE, () =>
         Effect.succeed(sandbox)
       )
     }
