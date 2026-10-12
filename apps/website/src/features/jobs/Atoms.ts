@@ -171,6 +171,8 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
   let activeReads = 0
   let transport: Connection | undefined
   let detailRevision = 0
+  // Ordinary background detail reads must not fence historical command receipts.
+  let selectionRevision = 0
   let activeDetail:
     | { readonly revision: number; readonly sandbox: SandboxRef; readonly jobId: JobId }
     | undefined
@@ -220,6 +222,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
   const revoke = () => {
     ++listRevision
     ++detailRevision
+    ++selectionRevision
     update({
       page: undefined,
       stats: undefined,
@@ -250,6 +253,9 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         sameRef(activeDetail.sandbox, sandbox)
       ) {
         return
+      }
+      if (snapshot().selected !== jobId) {
+        ++selectionRevision
       }
       const revision = ++detailRevision
       const request = { revision, sandbox, jobId }
@@ -354,6 +360,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         if (!sameRef(sandbox.ref, snapshot().sandbox.ref)) {
           // Keep this read as the current owner while fencing old details/history.
           ++detailRevision
+          ++selectionRevision
           update({
             page: undefined,
             stats: undefined,
@@ -738,13 +745,13 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
             requestId: command.requestId
           })
         })
-        const revision = detailRevision
+        const revision = selectionRevision
         update({ pending, notice: "Sending one operator request…" })
         const client = yield* JobsClient
         yield* bounded(client.operate(pending.command)).pipe(
           Effect.flatMap(decode(JobOperatorResult)),
           Effect.flatMap((result) =>
-            revision === detailRevision ? acceptOperator(result, pending) : Effect.void
+            revision === selectionRevision ? acceptOperator(result, pending) : Effect.void
           )
         )
       }).pipe(
@@ -778,11 +785,11 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       const client = yield* JobsClient
       update({ busy: true })
       if (pending.kind === "operator") {
-        const revision = detailRevision
+        const revision = selectionRevision
         yield* bounded(client.operatorReceipt(pending.request)).pipe(
           Effect.flatMap(decode(JobOperatorResult)),
           Effect.flatMap((result) =>
-            revision === detailRevision ? acceptOperator(result, pending) : Effect.void
+            revision === selectionRevision ? acceptOperator(result, pending) : Effect.void
           )
         )
       } else if (pending.kind === "scenario") {
@@ -826,6 +833,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     receipt,
     closeDetail: () => {
       ++detailRevision
+      ++selectionRevision
       update({ selected: undefined, detail: undefined, detailError: undefined })
     },
     revokeAuthority: (code: "sandbox-expired" | "stale-generation") => {
@@ -844,6 +852,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       disposed = true
       ++listRevision
       ++detailRevision
+      ++selectionRevision
       registry.dispose()
     }
   }

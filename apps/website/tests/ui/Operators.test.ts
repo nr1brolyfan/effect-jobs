@@ -142,6 +142,80 @@ describe("Atoms operator request ownership", () => {
     expect(controller.snapshot().notice).toContain("handler may already be executing")
     controller.dispose()
   })
+  it("accepts a historical receipt after same-selection background refresh", async () => {
+    const { controller, client } = setup()
+    await run(controller.select(source.job.jobId), client)
+    await run(
+      Effect.gen(function* () {
+        const entered = yield* Deferred.make<void>()
+        const release = yield* Deferred.make<void>()
+        const delayed: Client = {
+          ...client,
+          operate: (command) =>
+            Effect.gen(function* () {
+              yield* Deferred.succeed(entered, undefined)
+              yield* Deferred.await(release)
+              return committed(command)
+            })
+        }
+        const fiber = yield* controller
+          .operate("redrive", "background-a", true)
+          .pipe(Effect.provideService(JobsClient, delayed), Effect.forkChild)
+        yield* Deferred.await(entered)
+        yield* controller.backgroundRefresh
+        yield* Deferred.succeed(release, undefined)
+        yield* Fiber.join(fiber)
+      }),
+      client
+    )
+    expect(controller.snapshot().pending).toBeUndefined()
+    expect(controller.snapshot().detail?.job).toEqual(source.job)
+    expect(controller.snapshot().notice).toContain("Redrive acknowledged")
+    expect(controller.snapshot().loading).toBe(false)
+    controller.dispose()
+  })
+  it("fences a changed selection while allowing explicit historical receipt lookup", async () => {
+    const { controller, client } = setup()
+    let command: JobOperatorCommand | undefined
+    const selectedClient: Client = {
+      ...client,
+      detail: (input) =>
+        Effect.succeed({ ...source, job: { ...source.job, jobId: input.jobId } }),
+      operatorReceipt: () => Effect.succeed(committed(command!))
+    }
+    await run(controller.select(source.job.jobId), selectedClient)
+    const other = Schema.decodeSync(JobId)("other-selected-job")
+    await run(
+      Effect.gen(function* () {
+        const entered = yield* Deferred.make<void>()
+        const release = yield* Deferred.make<void>()
+        const delayed: Client = {
+          ...selectedClient,
+          operate: (input) =>
+            Effect.gen(function* () {
+              command = input
+              yield* Deferred.succeed(entered, undefined)
+              yield* Deferred.await(release)
+              return committed(input)
+            })
+        }
+        const fiber = yield* controller
+          .operate("redrive", "selection-a", true)
+          .pipe(Effect.provideService(JobsClient, delayed), Effect.forkChild)
+        yield* Deferred.await(entered)
+        yield* controller.select(other)
+        yield* Deferred.succeed(release, undefined)
+        yield* Fiber.join(fiber)
+      }),
+      selectedClient
+    )
+    expect(controller.snapshot().pending?.kind).toBe("operator")
+    expect(controller.snapshot().detail?.job.jobId).toBe(other)
+    await run(controller.receipt, selectedClient)
+    expect(controller.snapshot().pending).toBeUndefined()
+    expect(controller.snapshot().detail?.job.jobId).toBe(other)
+    controller.dispose()
+  })
   it("drops late responses after authority revocation", async () => {
     const { controller, client } = setup()
     await run(controller.select(source.job.jobId), client)
