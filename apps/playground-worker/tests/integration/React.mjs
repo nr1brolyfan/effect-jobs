@@ -181,13 +181,14 @@ try {
   assert.equal(await details.evaluate((node) => node === document.activeElement), true)
   await page.keyboard.press("Escape")
   assert.equal(await details.isVisible(), false)
-  assert.equal(
-    await page
-      .locator(".job-list .job-id")
-      .first()
-      .evaluate((node) => node === document.activeElement),
-    true
-  )
+  // Live reads can reorder the selected row or evict it from this server page.
+  // Focus returns to that exact job if present, otherwise to the jobs region.
+  const selectedRow = page.locator(".job-list .job-id").filter({ hasText: jobId })
+  await expect(
+    (await selectedRow.count()) > 0
+      ? selectedRow
+      : page.getByRole("region", { name: "Jobs list", exact: true })
+  ).toBeFocused()
   checks.push(
     "real retry availableAt matches PostgreSQL, timezone display, one-second countdown, detail keyboard focus/escape"
   )

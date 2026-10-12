@@ -3,27 +3,32 @@
 The integration branch combines foundation `203e5dce974d168eac820c3cf4364b7341adf241`,
 theme `f94e7143e6f729ab09db5fed99cc314e3ac5666e`, theme fix
 `541549e4ed2e512b6148bf97dbdc7d66474eb390`, and chart
-`f7f201a67013523c497afff824f768f429b57618`, in that order, on baseline
-`391456cdcab426071ad4255a8ce617df3ad0c4c9`.
+`f7f201a67013523c497afff824f768f429b57618` on baseline
+`391456cdcab426071ad4255a8ce617df3ad0c4c9`. The chart author's exact accessibility
+fix `f47acc816be095519e9cd37eab07bb68b42ac311` was subsequently cherry-picked.
 
-Qualification is incomplete. The chart author's accessibility fix and successful
-real PG/workerd/Chromium qualification are prerequisites for freezing a qualified
-snapshot. No review, push, preview merge, or deployment has been performed.
+Qualification remains incomplete. No review, push, preview merge, or deployment
+has been performed. The owner preview on port 8787 remains untouched.
 
-## Foundation fixes
+## Foundation and chart fixes
 
-Bun.Transpiler's standalone automatic JSX output contained unbound generated JSX
-function names. Build success did not imply that the output could execute. The
-build now uses pinned Babel TypeScript and automatic React JSX transforms before
-StyleX extraction. Production and development artifacts execute in Chromium;
+The build uses pinned Babel TypeScript and automatic React JSX transforms before
+StyleX extraction, correcting unbound JSX functions in the original standalone
+transpiler output. Production and development artifacts execute in Chromium;
 355 StyleX rules are extracted with runtime injection disabled. Production.mjs
 checks the actual production Client.js with synthetic HTTP responses, semantic
-computed CSS, and absence of injected style elements. It makes no PG/WS claim.
+computed CSS, and absence of injected style elements; this is not PG qualification.
 
-Root test dependencies now pin pg 8.23.0 and @types/pg 8.20.0. Library peers and
-runtime dependencies are unchanged. Field's Bun test and Theme's node:test suite
-run under their intended runtimes as part of `bun run test`; their exact paths
-are excluded from Vitest rather than silently dropped.
+Root test dependencies pin pg 8.23.0 and @types/pg 8.20.0. Field's Bun test and
+Theme's node:test suite run under their intended runtimes in `bun run test`.
+Library peers and runtime dependencies remain unchanged.
+
+Recharts 3.10.1 independently defaults Pie.rootTabIndex to zero even when
+PieChart.accessibilityLayer is false. The chart author sets rootTabIndex to -1
+for the decorative aria-hidden plot. The original Browser.mjs now passes its
+unchanged accessibility oracle with zero WCAG2/2.1 A/AA violations. The additional
+StatsChart.browser.mjs checks bidirectional Tab exclusion, desktop/mobile/narrow
+SVG, pointer tooltip, palette, six-state textual equivalent and motion preferences.
 
 ## Reproduction commands
 
@@ -37,45 +42,65 @@ bun run test
 bun apps/website/tests/ui/StatsChart.mjs
 node apps/website/tests/ui/Production.mjs
 node apps/website/tests/ui/Browser.mjs
+node apps/website/tests/ui/StatsChart.browser.mjs
 node apps/website/tests/ui/Reconciliation.mjs
+python3 apps/playground-worker/tests/integration/ReactRunOwned.py
 ```
 
-Browser.mjs completes its functional assertions and writes a failing receipt
-before asserting that accumulated accessibility violations must be empty. The
-desktop audit currently reports `aria-hidden-focus`: StatsChart's aria-hidden
-plot contains `<g class="recharts-layer recharts-pie" tabindex="0">`, despite
-PieChart's `accessibilityLayer={false}`. Preserve the textual six-state equivalent
-and fix this in the original chart author's owned files. The audit is not waived.
+Runtime attempts require an explicitly authorized finite disposable-resource
+window. The current continuation used all three attempts; the final focus-oracle
+repair has not been rerun against PG. Do not infer PASS from the harness source.
 
-Browser functional assertions cover filters, cursor/selection/search preservation,
-stale reads, online recovery, details focus and keyboard activation, mobile width,
-generation revocation, unknown command receipts, and real React StrictMode
-lifetime/unmount cleanup of both countdown/poll intervals. Reconciliation.mjs
-also checks hidden-page behavior, focus after unchanged reads, overlap prevention,
-expiry revocation, and no reads after disposal.
+## Real runtime diagnosis
 
-## Real runtime attempt and remaining gates
+The earlier report attributed its timeout to the demo connected wait. Its runtime
+failure predates the committed diagnostic scaffold, so that line reference does
+not identify a statement in the final scaffold. The first continuation attempt
+instead established HTTP 200 demo/list responses, an opened WebSocket, no browser
+or CSP errors, and rendered connected status. It timed out finding Run scenario:
+the native details launcher was collapsed, excluding the button from the
+accessibility tree. The harness now opens the launcher before verifying disabled
+demo controls. No production connection/setup failure was reproduced or repaired.
 
-The one foreground disposable PG 16.15 attempt verified extracted production CSS
-served byte-for-byte through workerd. It timed out waiting for the production
-demo's connected state. The exact container was removed, absence verified, and
-the fresh private configuration deleted. No production bootstrap failure cause
-has been established. Production.mjs subsequently passed with synthetic HTTP;
-this does not substitute for the failed real backend gate.
+The second attempt passed demo write denial, server cursor/filter and independent
+global statistics, then failed a stale selector: the migrated Badge has no legacy
+state-badge class. The harness checks the status table cell's exact Retry scheduled
+text without weakening the expected value.
 
-ReactRunOwned.py provides an isolated fresh-credential/tmpfs/loopback runner with
-bounded foreground child lifetime and exact container-ID cleanup. React.mjs
-contains the remaining real authorization, cursor/global-statistics, persisted
-retry time/countdown, responsive SVG, WebSocket reconnect, details/reset and
-DB-time expiry recovery assertions. Those downstream assertions were not reached
-in the recorded real runtime attempt. New diagnostic capture was added after the
-failure and has not been rerun against PG. Do not treat the scaffold as PASS.
+The third attempt passed those gates plus real detail reads, database availableAt
+byte-value comparison, exact Europe/Warsaw local formatting, a ticking countdown,
+and Eligible now wording. The latter uses a temporary local browser-clock change
+only; persisted lifecycle and API snapshots remain authoritative. It then failed
+an assumption that Escape returns focus to the first row. Live reads can reorder
+or evict the selected row from the five-item server page. The corrected oracle
+requires focus on the exact selected job when present, otherwise the Jobs list
+region, matching the production focus contract. That final oracle still requires
+real PG reproduction in a new authorized finite window.
 
-Root and playground aggregate lint commands fail on warnings in unchanged
-historical backend qualification tests. Full-repository format includes unchanged
-historical .multica artifacts and an unrelated diagnostics spec with format
-failures. Relevant website/contracts/integration-harness lint and formatting are
-checked separately without modifying those historical inputs or weakening rules.
-Playground skipLibCheck remains the original transitive Recharts/Redux Toolkit
-accommodation; application sources remain strict. No hosted/Cloudflare production,
-tooltip/resize with real backend, or complete PG regression claim is made.
+Additional harness assertions cover actual responsive SVG shrinkage at a narrow
+240px viewport (the ring legitimately stays capped at 220px at 390px), pointer
+tooltip, rotation through the app-owned deadline, retired demo read denial,
+stale private generation rejection, reconnect/reconciliation, real completion,
+reset and DB-time expiry recovery. Those downstream assertions were not reached;
+they remain NotTested against PG in this continuation.
+
+ReactRunOwned.py uses fresh synthetic credentials, one pinned PG 16.15 container,
+tmpfs storage and a dynamic loopback-only port. Every attempt removed its exact
+container and private configuration. The final wrapper additionally verified that
+the node/workerd/Chromium process group was absent. No services were retained.
+
+## Evidence limits
+
+Original Browser.mjs covers StrictMode lifetime/unmount cleanup, keyboard/mobile
+behavior, selection/filter/cursor semantics, stale reads and generation revocation.
+Reconciliation.mjs covers hidden-page behavior, focus after unchanged reads,
+overlap prevention, expiry and disposal. Their synthetic observations do not
+substitute for the incomplete real backend suite. The previous 475 unit PASS
+receipt includes 50 skipped PG tests, which remain NotTested.
+
+Root and playground aggregate lint failures on unchanged historical backend tests,
+and whole-repository format failures on historical artifacts/unrelated inputs,
+remain explicit, with no waiver or weakened rules. Scoped website/contracts/harness
+checks pass. Playground skipLibCheck remains the transitive declaration
+accommodation; application sources remain strict. Hosted/Cloudflare production
+is NotTested. The snapshot is not ready for review freeze.
