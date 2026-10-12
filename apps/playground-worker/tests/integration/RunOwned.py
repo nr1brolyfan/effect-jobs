@@ -1,5 +1,5 @@
 # Foreground native resource FFI; exact-ID cleanup on every exit, no existing DB access.
-import subprocess, json, secrets, os, pathlib, datetime, hashlib, time, sys
+import subprocess, json, secrets, os, pathlib, datetime, hashlib, time, sys, shutil
 root = pathlib.Path(__file__).resolve().parents[4]
 evidence = root / '.multica/integration'
 evidence.mkdir(parents=True, exist_ok=True)
@@ -9,6 +9,16 @@ preview = '--preview' in sys.argv
 expiry = None if preview else os.environ.get('PLAYGROUND_DEADLINE', '2026-10-11T22:18:50Z')
 receipt = {'owner':'UPVE-1872 / Implementor','startedAt':now(),'expiry':expiry,'image':image,'storage':'tmpfs; no volume','commands':[]}
 cid = None
+docker = os.environ.get('DOCKER_BIN', 'docker')
+# Docker Desktop can be available through its Windows client before WSL integration
+# reconnects the Linux socket. Do not change the user's global Docker context.
+if docker == 'docker' and shutil.which('docker.exe'):
+    try:
+        probe = subprocess.run([docker, 'version', '--format', '{{.Server.Version}}'], capture_output=True, text=True, timeout=10)
+        if probe.returncode != 0: docker = 'docker.exe'
+    except (OSError, subprocess.TimeoutExpired):
+        docker = 'docker.exe'
+receipt['dockerClient'] = docker
 private = evidence / ('private-' + secrets.token_hex(6) + '.json')
 def run(label, args, env=None, timeout=60):
     start = now()
@@ -32,7 +42,7 @@ try:
         (evidence/('prior-attempt-'+secrets.token_hex(4)+'.json')).write_text(prior_receipt.read_text())
     checks=[]
     for identifier in previous:
-        r=subprocess.run(['docker','inspect','--format','{{.Id}}',identifier],capture_output=True,text=True,timeout=10)
+        r=subprocess.run([docker,'inspect','--format','{{.Id}}',identifier],capture_output=True,text=True,timeout=10)
         absent=r.returncode!=0 and 'no such object' in r.stderr.lower()
         checks.append({'id':identifier,'absent':absent})
         if not absent: raise RuntimeError('previous owned resource not absent')
@@ -42,14 +52,16 @@ try:
     (evidence/'gate-inputs.json').write_text(json.dumps(inputs,indent=2)+'\n')
     receipt['gateInputsSha256']=hashlib.sha256((evidence/'gate-inputs.json').read_bytes()).hexdigest()
     env=os.environ.copy();env.update(POSTGRES_USER='integration_probe',POSTGRES_DB='integration_probe',POSTGRES_PASSWORD=secrets.token_hex(32))
+    if docker.endswith('.exe'):
+        env['WSLENV']=':'.join(filter(None,[env.get('WSLENV',''),'POSTGRES_USER','POSTGRES_DB','POSTGRES_PASSWORD']))
     name='upve-1872-pg-'+secrets.token_hex(6)
     lifetime=['--label','lifetime=manual-preview'] if preview else ['--label','expires='+expiry]
-    cid=run('create',['docker','create','--name',name,'--label','task=UPVE-1872',*lifetime,'--publish','127.0.0.1::5432','--tmpfs','/var/lib/postgresql/data:rw','-e','POSTGRES_USER','-e','POSTGRES_DB','-e','POSTGRES_PASSWORD',image,'postgres','-c','shared_preload_libraries=pg_stat_statements'],env=env)
-    receipt.update(containerId=cid,containerName=name,cleanupHandle=['docker','rm','--force',cid])
-    run('start',['docker','start',cid])
-    ports=json.loads(run('port',['docker','inspect','--format','{{json .NetworkSettings.Ports}}',cid]));receipt['ports']=ports
+    cid=run('create',[docker,'create','--name',name,'--label','task=UPVE-1872',*lifetime,'--publish','127.0.0.1::5432','--tmpfs','/var/lib/postgresql/data:rw','-e','POSTGRES_USER','-e','POSTGRES_DB','-e','POSTGRES_PASSWORD',image,'postgres','-c','shared_preload_libraries=pg_stat_statements'],env=env)
+    receipt.update(containerId=cid,containerName=name,cleanupHandle=[docker,'rm','--force',cid])
+    run('start',[docker,'start',cid])
+    ports=json.loads(run('port',[docker,'inspect','--format','{{json .NetworkSettings.Ports}}',cid]));receipt['ports']=ports
     for attempt in range(30):
-        result=subprocess.run(['docker','exec',cid,'pg_isready','-U','integration_probe','-d','integration_probe'],capture_output=True,timeout=5)
+        result=subprocess.run([docker,'exec',cid,'pg_isready','-U','integration_probe','-d','integration_probe'],capture_output=True,timeout=5)
         if result.returncode==0: break
         time.sleep(0.5)
     else: raise RuntimeError('bounded readiness failed')
@@ -70,9 +82,9 @@ except Exception as error:
     receipt.update(status='FAIL',failureClass=type(error).__name__)
 finally:
     if cid:
-        r=subprocess.run(['docker','rm','--force',cid],capture_output=True,text=True,timeout=30)
+        r=subprocess.run([docker,'rm','--force',cid],capture_output=True,text=True,timeout=30)
         receipt['cleanup']={'exit':r.returncode,'removedId':r.stdout.strip(),'at':now()}
-        r=subprocess.run(['docker','inspect','--format','{{.Id}}',cid],capture_output=True,text=True,timeout=10)
+        r=subprocess.run([docker,'inspect','--format','{{.Id}}',cid],capture_output=True,text=True,timeout=10)
         receipt['cleanup']['absentVerified']=r.returncode!=0 and 'no such object' in r.stderr.lower()
     if private.exists(): private.unlink()
     receipt['privateConfigRemoved']=not private.exists();receipt['finishedAt']=now()

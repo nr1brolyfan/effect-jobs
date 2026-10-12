@@ -13,18 +13,20 @@ from unittest.mock import patch
 
 
 class PreviewLifetime(unittest.TestCase):
-    def execute_owner(self, preview, deadline, node_exit=0):
+    def execute_owner(self, preview, deadline, node_exit=0, native_unavailable=False):
         source = Path(__file__).with_name('RunOwned.py').read_text()
         calls = []
         def run(args, **kwargs):
             calls.append((args, kwargs))
+            if args[:2] == ['docker', 'version'] and native_unavailable:
+                return subprocess.CompletedProcess(args, 1, '', 'daemon unavailable')
             if args[0] == 'node':
                 return subprocess.CompletedProcess(args, node_exit, '', '')
-            if args[:2] == ['docker', 'inspect']:
+            if args[0] in ['docker', 'docker.exe'] and args[1] == 'inspect':
                 if '.Ports' in args[3]:
                     return subprocess.CompletedProcess(args, 0, json.dumps({'5432/tcp': [{'HostPort': '54321'}]}), '')
                 return subprocess.CompletedProcess(args, 1, '', 'no such object')
-            output = 'owned-test-id' if args[:2] in [['docker', 'create'], ['docker', 'rm']] else ''
+            output = 'owned-test-id' if args[0] in ['docker', 'docker.exe'] and args[1] in ['create', 'rm'] else ''
             return subprocess.CompletedProcess(args, 0, output, '')
         temporary_root = '/tmp/opencode' if Path('/tmp/opencode').is_dir() else None
         with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
@@ -32,7 +34,8 @@ class PreviewLifetime(unittest.TestCase):
             fake_file = root / 'apps/playground-worker/tests/integration/RunOwned.py'
             with patch.object(subprocess, 'run', run), patch.object(subprocess, 'check_output', return_value=''), \
                  patch.object(sys, 'argv', ['RunOwned.py'] + (['--preview'] if preview else [])), \
-                 patch.dict(os.environ, {'PLAYGROUND_DEADLINE': deadline}), contextlib.redirect_stdout(io.StringIO()):
+                 patch.dict(os.environ, {'PLAYGROUND_DEADLINE': deadline, 'DOCKER_BIN': 'docker'}), \
+                 patch('shutil.which', return_value='docker.exe'), contextlib.redirect_stdout(io.StringIO()):
                 exec(compile(source, str(fake_file), 'exec'), {'__file__': str(fake_file)})
             receipt = json.loads((root / '.multica/integration/owned-resource-receipt.json').read_text())
         return calls, receipt
@@ -60,6 +63,13 @@ class PreviewLifetime(unittest.TestCase):
         self.assertEqual(receipt['status'], 'Stopped')
         self.assertTrue(receipt['cleanup']['absentVerified'])
         self.assertTrue(receipt['privateConfigRemoved'])
+
+    def test_windows_desktop_fallback_when_wsl_daemon_is_unavailable(self):
+        calls, receipt = self.execute_owner(True, '2000-01-01T00:00:00Z', native_unavailable=True)
+        self.assertEqual(receipt['dockerClient'], 'docker.exe')
+        create, = [(args, kwargs) for args, kwargs in calls if args[:2] == ['docker.exe', 'create']]
+        self.assertIn('POSTGRES_PASSWORD', create[1]['env']['WSLENV'])
+        self.assertTrue(receipt['cleanup']['absentVerified'])
 
 
 if __name__ == '__main__':

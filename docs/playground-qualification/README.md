@@ -50,9 +50,12 @@ bun run playground:preview
 
 The command serves `http://127.0.0.1:8787/demo` and `/jobs`, without a certificate.
 Override the fixed port with `PLAYGROUND_PORT` if necessary. There is **no automatic
-expiry**; `PLAYGROUND_DEADLINE` applies only to integration tests and is ignored in
-preview mode. Open multiple tabs to exercise viewers. Press **Ctrl-C in the same
-terminal** to stop. The wrapper's `owned-resource-receipt.json` records
+expiry**. In WSL, the launcher falls back to `docker.exe` when Docker Desktop is
+available but the Linux daemon/socket is not; `DOCKER_BIN` can select a client
+explicitly without changing your global context. `PLAYGROUND_DEADLINE` applies only
+to integration tests and is ignored in preview mode. Open multiple tabs to exercise
+viewers. Press **Ctrl-C in the same terminal** to stop. The wrapper's
+`owned-resource-receipt.json` records
 the exact container ID and cleanup command. Logs/receipts are in the task-local
 `.multica/integration/` directory. This is a foreground service owned by that
 command, not a deployed service. The database remains temporary: it is kept for the
