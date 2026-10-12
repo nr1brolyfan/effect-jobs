@@ -350,7 +350,10 @@ try {
   const denied = await dispatch(
     `/api/jobs?sandboxId=${privateView.ref.sandboxId}&generation=1&limit=5`
   )
-  assert.equal(denied.status, 401)
+  // Missing credentials deliberately conceal existence. Expired authenticated
+  // authority is a separate 401 contract, exercised below by session expiry.
+  assert.equal(denied.status, 404)
+  assert.deepEqual(await denied.json(), { code: "not-found" })
   await page.getByRole("button", { name: "Create jobs", exact: true }).click()
   await page.getByLabel("Jobs (1–10)").fill("6")
   await page.getByRole("button", { name: "Run scenario", exact: true }).click()
@@ -368,6 +371,17 @@ try {
   await page.locator(".job-list .job-id").first().click()
   await details.getByText("Producer identity", { exact: true }).waitFor()
   assert(!/ciphertext|fingerprint|leaseToken/.test(await details.innerText()))
+  await until(
+    async () =>
+      (
+        await pool.query(
+          `SELECT next_generation_at <= floor(extract(epoch FROM clock_timestamp())*1000) AS ready
+     FROM "${cfg.schema}".sandboxes WHERE sandbox_id=$1`,
+          [privateView.ref.sandboxId]
+        )
+      ).rows[0].ready,
+    "real reset admission cooldown did not expire"
+  )
   page.once("dialog", (dialog) => dialog.accept())
   await page.getByRole("button", { name: "Reset my sandbox", exact: true }).click()
   await page.locator(".sandbox-scope").filter({ hasText: "generation 2" }).waitFor()
