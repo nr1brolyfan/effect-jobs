@@ -10,6 +10,7 @@ export interface PaginationProps {
   readonly hasPrevious: boolean
   readonly hasNext: boolean
   readonly disabled?: boolean
+  readonly busy?: boolean
   readonly onPage: (page: number) => void
   readonly onFirst: () => void
   readonly onPrevious: () => void
@@ -22,6 +23,7 @@ export function Pagination({
   hasPrevious,
   hasNext,
   disabled = false,
+  busy = false,
   onPage,
   onFirst,
   onPrevious,
@@ -37,12 +39,17 @@ export function Pagination({
       : []
   )
   return (
-    <nav {...stylex.props(styles.root)} aria-label="Pagination" aria-busy={disabled}>
+    <nav {...stylex.props(styles.root)} aria-label="Pagination" aria-busy={busy}>
       <ul {...stylex.props(styles.list)}>
         <li>
           <Button
             disabled={disabled || !hasPrevious || !known.includes(1)}
-            onClick={onFirst}
+            aria-disabled={busy || undefined}
+            onClick={() => {
+              if (!busy && !disabled) {
+                onFirst()
+              }
+            }}
             aria-label="First page"
           >
             First
@@ -51,7 +58,12 @@ export function Pagination({
         <li>
           <Button
             disabled={disabled || !hasPrevious}
-            onClick={onPrevious}
+            aria-disabled={busy || undefined}
+            onClick={() => {
+              if (!busy && !disabled) {
+                onPrevious()
+              }
+            }}
             aria-label="Previous page"
           >
             <span {...stylex.props(styles.previous)}>
@@ -64,7 +76,7 @@ export function Pagination({
           <Fragment key={page}>
             {v > 0 && i > visible[v - 1]!.index + 1 ? (
               <li>
-                <span {...stylex.props(styles.ellipsis)} aria-label="More known pages">
+                <span {...stylex.props(styles.ellipsis)} aria-label="More pages">
                   …
                 </span>
               </li>
@@ -73,9 +85,14 @@ export function Pagination({
               <Button
                 variant={page === current ? "primary" : "ghost"}
                 disabled={disabled}
+                aria-disabled={busy || undefined}
                 aria-current={page === current ? "page" : undefined}
                 aria-label={`Page ${page}`}
-                onClick={() => onPage(page)}
+                onClick={() => {
+                  if (!busy && !disabled) {
+                    onPage(page)
+                  }
+                }}
               >
                 {page}
               </Button>
@@ -83,7 +100,16 @@ export function Pagination({
           </Fragment>
         ))}
         <li>
-          <Button disabled={disabled || !hasNext} onClick={onNext} aria-label="Next page">
+          <Button
+            disabled={disabled || !hasNext}
+            aria-disabled={busy || undefined}
+            onClick={() => {
+              if (!busy && !disabled) {
+                onNext()
+              }
+            }}
+            aria-label="Next page"
+          >
             Next
             <Icon name="chevron" size={16} />
           </Button>

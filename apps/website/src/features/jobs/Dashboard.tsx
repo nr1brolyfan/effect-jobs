@@ -382,10 +382,6 @@ export const Dashboard = ({
 }) => {
   const state = useAtomValue(runtime.stateAtom)
   const now = useAtomValue(runtime.now)
-  const paginationPanel = useRef<HTMLDivElement>(null)
-  const paginationFocus = useRef<HTMLButtonElement | HTMLSelectElement | undefined>(
-    undefined
-  )
   const detailPanel = useRef<HTMLElement>(null)
   const jobsPanel = useRef<HTMLElement>(null)
   const scenariosPanel = useRef<HTMLDetailsElement>(null)
@@ -404,42 +400,15 @@ export const Dashboard = ({
     }
     focusedSelection.current = state.selected
   }, [state.selected])
-  // Native disabled controls lose focus while a read is in flight. Restore only
-  // that control after loading, and only if the user has not moved elsewhere.
-  useLayoutEffect(() => {
-    if (!state.loading) {
-      const target = paginationFocus.current
-      paginationFocus.current = undefined
-      if (
-        target?.isConnected &&
-        !target.disabled &&
-        document.activeElement === document.body
-      ) {
-        target.focus({ preventScroll: true })
-      }
-    }
-  }, [state.loading])
+  const [progressVisible, setProgressVisible] = useState(false)
   useEffect(() => {
-    const abandon = (event: Event) => {
-      if (event instanceof KeyboardEvent && event.key !== "Tab") {
-        return
-      }
-      if (
-        event instanceof KeyboardEvent ||
-        !paginationPanel.current?.contains(event.target as Node)
-      ) {
-        paginationFocus.current = undefined
-      }
+    if (!state.loading) {
+      setProgressVisible(false)
+      return
     }
-    document.addEventListener("pointerdown", abandon)
-    document.addEventListener("focusin", abandon)
-    document.addEventListener("keydown", abandon)
-    return () => {
-      document.removeEventListener("pointerdown", abandon)
-      document.removeEventListener("focusin", abandon)
-      document.removeEventListener("keydown", abandon)
-    }
-  }, [])
+    const timer = window.setTimeout(() => setProgressVisible(true), 200)
+    return () => window.clearTimeout(timer)
+  }, [state.loading])
   const [search, setSearch] = useState("")
   const [due, setDue] = useState(false)
   const [filterState, setFilterState] = useState<JobFilters["state"]>(undefined)
@@ -703,15 +672,32 @@ export const Dashboard = ({
                     </Field>
                     <Button type="submit">Apply filters</Button>
                   </form>
-                  <p role="status" {...classes("results-status")}>
-                    {state.loading || !state.resultsCurrent
-                      ? state.page
-                        ? `${state.loading ? "Loading results" : "Requested results unavailable"}; previous results remain visible (${state.displayedQuery?.filters.state ?? "all states"}, page ${state.displayedQuery?.pageNumber ?? 1}).`
+                  <div {...classes("results-status")}>
+                    <p role="status" {...stylex.props(layout.resultsLabel)}>
+                      {state.page && state.displayedQuery
+                        ? `Page ${state.displayedQuery.pageNumber} · ${state.page.items.length} results · ${state.displayedQuery.filters.state ?? "all states"}${state.displayedQuery.filters.kind ? ` · ${state.displayedQuery.filters.kind}` : ""} · ${state.displayedQuery.pageSize} per page${!state.resultsCurrent ? " · Previous query" : ""}`
                         : state.loading
-                          ? "Loading results…"
-                          : "No current results. Refresh reads to retry."
-                      : `Page ${state.pageNumber} · ${state.page?.items.length ?? 0} results`}
-                  </p>
+                          ? "Waiting for results"
+                          : "No current results. Refresh reads to retry."}
+                    </p>
+                    <span
+                      className={[
+                        "query-progress",
+                        stylex.props(
+                          layout.queryProgress,
+                          !(state.loading && progressVisible) && layout.progressHidden
+                        ).className
+                      ].join(" ")}
+                      aria-hidden={!(state.loading && progressVisible)}
+                    >
+                      Updating…
+                    </span>
+                    {!state.loading && !state.resultsCurrent && state.page && (
+                      <span {...stylex.props(styles.notice)}>
+                        Requested results unavailable
+                      </span>
+                    )}
+                  </div>
                   <div aria-busy={state.loading}>
                     {state.page === undefined ? (
                       <div {...classes("empty-state")}>
@@ -730,31 +716,35 @@ export const Dashboard = ({
                       />
                     )}
                   </div>
-                  <div
-                    {...classes("pagination")}
-                    ref={paginationPanel}
-                    onFocusCapture={(event) => {
-                      const target = event.target
-                      if (
-                        target instanceof HTMLButtonElement ||
-                        target instanceof HTMLSelectElement
-                      ) {
-                        paginationFocus.current = target
-                      }
-                    }}
-                  >
+                  <div {...classes("pagination")}>
                     <Pagination
                       {...state.pagination}
-                      disabled={state.loading || state.error === "sandbox-expired"}
+                      current={
+                        state.displayedQuery?.pageNumber ?? state.pagination.current
+                      }
+                      hasPrevious={
+                        state.displayedQuery
+                          ? state.displayedQuery.pageNumber > 1
+                          : state.pagination.hasPrevious
+                      }
+                      hasNext={
+                        state.page
+                          ? state.page.nextCursor !== null
+                          : state.pagination.hasNext
+                      }
+                      disabled={state.error === "sandbox-expired"}
+                      busy={state.loading}
                       onPage={(n) => void runtime.run(runtime.goTo(n))}
                       onFirst={() => void runtime.run(runtime.first)}
                       onPrevious={() => void runtime.run(runtime.previous)}
                       onNext={() => void runtime.run(runtime.next)}
                     />
-                    <Field label="Rows per page">
+                    <label {...stylex.props(layout.pageSize)}>
+                      <span {...stylex.props(layout.pageSizeLabel)}>Rows per page</span>
                       <select
+                        {...stylex.props(layout.pageSizeSelect)}
                         value={state.pageSize}
-                        disabled={state.loading}
+                        disabled={state.error === "sandbox-expired"}
                         onChange={(event) =>
                           void runtime.run(
                             runtime.setPageSize(Number(event.target.value) as 20 | 50)
@@ -764,10 +754,7 @@ export const Dashboard = ({
                         <option value="20">20</option>
                         <option value="50">50</option>
                       </select>
-                    </Field>
-                    <p {...stylex.props(layout.pageLabel)}>
-                      Pages follow known cursors; more appear as you browse.
-                    </p>
+                    </label>
                   </div>
                 </TabsPanel>
               </TabsRoot>

@@ -44,11 +44,17 @@ export const layout = stylex.create({
   paragraph: { margin: 0, maxWidth: "72ch" },
   resultsStatus: {
     padding: "8px 20px",
-    margin: 0,
+    display: "flex",
+    alignItems: "center",
+    gap: "8px 16px",
+    flexWrap: "wrap",
     minHeight: "38px",
     color: colors.muted,
     fontSize: typography.secondary
   },
+  resultsLabel: { margin: 0, fontVariantNumeric: "tabular-nums" },
+  queryProgress: { fontSize: typography.small, whiteSpace: "nowrap" },
+  progressHidden: { visibility: "hidden" },
   heading: { margin: 0, fontSize: typography.body, fontWeight: 550 },
   title: {
     margin: 0,
@@ -372,18 +378,35 @@ export const layout = stylex.create({
   },
   cell: { color: colors.muted, fontSize: typography.body },
   pagination: {
-    padding: "12px 20px",
+    padding: { default: "20px", "@media (max-width: 600px)": "16px 12px" },
     borderTop: `1px solid ${colors.border}`,
     display: "flex",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: "16px 24px",
     flexWrap: "wrap"
   },
-  pageLabel: {
-    margin: 0,
+  pageSize: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    marginLeft: { default: "auto", "@media (max-width: 600px)": 0 },
+    flexShrink: 0
+  },
+  pageSizeLabel: {
     color: colors.muted,
     fontSize: typography.small,
-    flexBasis: "100%"
+    whiteSpace: "nowrap"
+  },
+  pageSizeSelect: {
+    minHeight: "44px",
+    padding: "8px 12px",
+    border: `1px solid ${colors.border}`,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+    color: colors.text,
+    fontSize: typography.body,
+    outline: { default: "none", ":focus-visible": `2px solid ${colors.focus}` },
+    outlineOffset: "3px"
   },
   empty: {
     minHeight: "200px",
