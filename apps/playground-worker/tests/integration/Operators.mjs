@@ -493,7 +493,7 @@ try {
     }
     await page.getByRole("button", { name: "Confirm action", exact: true }).click()
     await expect(page.locator('[aria-label="Operator outcome"]')).toContainText(
-      "committed",
+      "acknowledged",
       { ignoreCase: true }
     )
     const retryUiAfter = await snapshot(retryUi)
