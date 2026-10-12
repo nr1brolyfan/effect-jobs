@@ -6,6 +6,7 @@ import {
   JobDetail,
   JobPage,
   type JobFilters,
+  type JobStats,
   type ListJobs
 } from "@effect-jobs/playground-contracts/Jobs"
 import { SandboxView, type SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
@@ -24,12 +25,31 @@ import { JobsClient } from "./Adapter.js"
 import type { JobId } from "effect-jobs/JobId"
 
 export type Connection = "loading" | "connected" | "reconnecting" | "stale" | "error"
+export interface Query {
+  readonly sandbox: SandboxRef
+  readonly filters: JobFilters
+  readonly pageNumber: number
+  readonly pageSize: 20 | 50
+}
+export interface Pagination {
+  readonly pages: ReadonlyArray<number>
+  readonly current: number
+  readonly hasPrevious: boolean
+  readonly hasNext: boolean
+}
 export interface State {
   readonly sandbox: SandboxView
   readonly filters: JobFilters
   readonly cursor: string | undefined
   readonly pageNumber: number
   readonly page: JobPage | undefined
+  readonly stats: JobStats | undefined
+  readonly loading: boolean
+  readonly pageSize: 20 | 50
+  readonly pagination: Pagination
+  readonly displayedQuery: Query | undefined
+  // False means retained rows belong to previous results, even after a failed read.
+  readonly resultsCurrent: boolean
   readonly selected: JobId | undefined
   readonly detail: JobDetail | undefined
   readonly connection: Connection
@@ -58,7 +78,9 @@ const bounded = <A>(operation: Effect.Effect<A, PlaygroundError>) =>
     Effect.timeoutOrElse({
       duration: "10 seconds",
       orElse: () => Effect.fail(new PlaygroundError({ code: "unavailable" }))
-    })
+    }),
+    // Adapter defects use the same revision-guarded public failure path.
+    Effect.catchDefect(() => Effect.fail(new PlaygroundError({ code: "unavailable" })))
   )
 
 export const make = (initial: SandboxView, allowDemoRotation = false) => {
@@ -68,6 +90,12 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     cursor: Atom.make<string | undefined>(undefined).pipe(Atom.keepAlive),
     pageNumber: Atom.make(1).pipe(Atom.keepAlive),
     page: Atom.make<JobPage | undefined>(undefined).pipe(Atom.keepAlive),
+    stats: Atom.make<JobStats | undefined>(undefined).pipe(Atom.keepAlive),
+    pageSize: Atom.make<20 | 50>(20).pipe(Atom.keepAlive),
+    displayedQuery: Atom.make<Query | undefined>(undefined).pipe(Atom.keepAlive),
+    cursors: Atom.make<ReadonlyArray<string | undefined>>([undefined]).pipe(
+      Atom.keepAlive
+    ),
     selected: Atom.make<JobId | undefined>(undefined).pipe(Atom.keepAlive),
     detail: Atom.make<JobDetail | undefined>(undefined).pipe(Atom.keepAlive),
     connection: Atom.make<Connection>("loading").pipe(Atom.keepAlive),
@@ -79,40 +107,67 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     loading: Atom.make(false).pipe(Atom.keepAlive)
   }
   const registry = AtomRegistry.make()
-  const stateAtom = Atom.make((get): State => ({
-    sandbox: get(atoms.sandbox),
-    filters: get(atoms.filters),
-    cursor: get(atoms.cursor),
-    pageNumber: get(atoms.pageNumber),
-    page: get(atoms.page),
-    selected: get(atoms.selected),
-    detail: get(atoms.detail),
-    connection: get(atoms.connection),
-    error: get(atoms.error),
-    detailError: get(atoms.detailError),
-    pending: get(atoms.pending),
-    busy: get(atoms.busy),
-    notice: get(atoms.notice)
-  }))
+  const stateAtom = Atom.make((get): State => {
+    const sandbox = get(atoms.sandbox)
+    const filters = get(atoms.filters)
+    const pageNumber = get(atoms.pageNumber)
+    const pageSize = get(atoms.pageSize)
+    const displayedQuery = get(atoms.displayedQuery)
+    const cursors = get(atoms.cursors)
+    return {
+      sandbox,
+      filters,
+      cursor: get(atoms.cursor),
+      pageNumber,
+      pageSize,
+      page: get(atoms.page),
+      stats: get(atoms.stats),
+      loading: get(atoms.loading),
+      displayedQuery,
+      resultsCurrent:
+        displayedQuery !== undefined &&
+        sameRef(displayedQuery.sandbox, sandbox.ref) &&
+        displayedQuery.pageNumber === pageNumber &&
+        displayedQuery.pageSize === pageSize &&
+        displayedQuery.filters.state === filters.state &&
+        displayedQuery.filters.kind === filters.kind,
+      pagination: {
+        pages: cursors.map((_, index) => index + 1),
+        current: pageNumber,
+        hasPrevious: pageNumber > 1,
+        hasNext: pageNumber < cursors.length
+      },
+      selected: get(atoms.selected),
+      detail: get(atoms.detail),
+      connection: get(atoms.connection),
+      error: get(atoms.error),
+      detailError: get(atoms.detailError),
+      pending: get(atoms.pending),
+      busy: get(atoms.busy),
+      notice: get(atoms.notice)
+    }
+  })
   const snapshot = () => registry.get(stateAtom)
   let listRevision = 0
   let detailRevision = 0
-  let activeReads = 0
   let activeDetail:
     | { readonly revision: number; readonly sandbox: SandboxRef; readonly jobId: JobId }
     | undefined
   let disposed = false
-  const update = (patch: Partial<State>) => {
+  type Patch = Partial<Omit<State, "pagination" | "resultsCurrent">> & {
+    readonly cursors?: ReadonlyArray<string | undefined>
+  }
+  const update = (patch: Patch) => {
     if (disposed) {
       return
     }
     // Batch keeps consumers from observing half-applied authority changes.
     Atom.batch(() => {
-      const write = <K extends keyof State>(key: K) => {
+      const write = <K extends keyof typeof patch>(key: K) => {
         if (Object.hasOwn(patch, key)) {
           registry.set(
-            atoms[key] as unknown as Atom.Writable<State[K]>,
-            patch[key] as State[K]
+            atoms[key] as unknown as Atom.Writable<(typeof patch)[K]>,
+            patch[key]
           )
         }
       }
@@ -121,6 +176,11 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       write("cursor")
       write("pageNumber")
       write("page")
+      write("stats")
+      write("loading")
+      write("pageSize")
+      write("displayedQuery")
+      write("cursors")
       write("selected")
       write("detail")
       write("connection")
@@ -135,6 +195,26 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     sameRef(ref, expected)
       ? Effect.void
       : Effect.fail(new PlaygroundError({ code: "stale-generation" }))
+
+  const revoke = () => {
+    ++listRevision
+    ++detailRevision
+    update({
+      page: undefined,
+      stats: undefined,
+      displayedQuery: undefined,
+      detail: undefined,
+      selected: undefined,
+      detailError: undefined,
+      pending: undefined,
+      cursor: undefined,
+      pageNumber: 1,
+      cursors: [undefined],
+      loading: false
+    })
+  }
+  const revokesAuthority = (code: PublicErrorCode) =>
+    code === "sandbox-expired" || code === "stale-generation" || code === "not-found"
 
   const select = (jobId: JobId): Effect.Effect<void, never, JobsClient> =>
     Effect.gen(function* () {
@@ -171,7 +251,12 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         Effect.match({
           onFailure: (error) => {
             if (revision === detailRevision) {
-              update({ detail: undefined, detailError: error.code })
+              if (error.code === "sandbox-expired" || error.code === "stale-generation") {
+                revoke()
+                update({ connection: "error", error: error.code })
+              } else {
+                update({ detail: undefined, detailError: error.code })
+              }
             }
           },
           onSuccess: (detail) => {
@@ -196,8 +281,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     }
     const client = yield* JobsClient
     const revision = ++listRevision
-    ++activeReads
-    registry.set(atoms.loading, true)
+    update({ loading: true })
     yield* Effect.gen(function* () {
       update({
         connection: snapshot().page === undefined ? "loading" : "reconnecting",
@@ -211,16 +295,12 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         return
       }
       if (described._tag === "Failure") {
-        const revoked = ["sandbox-expired", "stale-generation", "not-found"].includes(
-          described.failure.code
-        )
-        if (revoked) {
-          ++detailRevision
+        if (revokesAuthority(described.failure.code)) {
+          revoke()
         }
         update({
           connection: snapshot().page === undefined ? "error" : "stale",
-          error: described.failure.code,
-          ...(revoked ? { page: undefined, detail: undefined } : {})
+          error: described.failure.code
         })
         return
       }
@@ -229,36 +309,50 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         sandbox.ref.sandboxId !== snapshot().sandbox.ref.sandboxId &&
         !allowDemoRotation
       ) {
-        ++detailRevision
+        revoke()
         update({
-          page: undefined,
-          detail: undefined,
           connection: "error",
           error: "not-found"
         })
         return
       }
-      if (sandbox.ref.generation < snapshot().sandbox.ref.generation) {
-        update({ connection: "stale", error: "stale-generation" })
+      if (
+        sandbox.ref.sandboxId === snapshot().sandbox.ref.sandboxId &&
+        sandbox.ref.generation < snapshot().sandbox.ref.generation
+      ) {
+        revoke()
+        update({ connection: "error", error: "stale-generation" })
         return
       }
       if (!sameRef(sandbox.ref, snapshot().sandbox.ref)) {
+        // Keep this read as the current owner while fencing old details/history.
         ++detailRevision
         update({
           page: undefined,
+          stats: undefined,
+          displayedQuery: undefined,
           detail: undefined,
           selected: undefined,
+          detailError: undefined,
+          pending: undefined,
           cursor: undefined,
           pageNumber: 1,
+          cursors: [undefined],
           notice:
             "Sandbox generation changed. Old data and selection were revoked; filters retained."
         })
       }
       update({ sandbox })
+      const query: Query = {
+        sandbox: sandbox.ref,
+        filters: snapshot().filters,
+        pageNumber: snapshot().pageNumber,
+        pageSize: snapshot().pageSize
+      }
       const request: ListJobs = {
         sandbox: snapshot().sandbox.ref,
         filters: snapshot().filters,
-        limit: 5,
+        limit: query.pageSize,
         ...(snapshot().cursor === undefined ? {} : { cursor: snapshot().cursor })
       }
       yield* bounded(client.list(request)).pipe(
@@ -266,26 +360,41 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         Effect.flatMap((page) =>
           ensureRef(page.sandbox, request.sandbox).pipe(Effect.as(page))
         ),
+        Effect.flatMap((page) =>
+          page.items.length <= request.limit
+            ? Effect.succeed(page)
+            : Effect.fail(new PlaygroundError({ code: "unavailable" }))
+        ),
         Effect.match({
           onFailure: (error) => {
             if (revision === listRevision) {
-              const revoked =
-                error.code === "sandbox-expired" ||
-                error.code === "stale-generation" ||
-                error.code === "not-found"
-              if (revoked) {
-                ++detailRevision
+              if (revokesAuthority(error.code)) {
+                revoke()
               }
               update({
                 connection: snapshot().page === undefined ? "error" : "stale",
-                error: error.code,
-                ...(revoked ? { page: undefined, detail: undefined } : {})
+                error: error.code
               })
             }
           },
           onSuccess: (page) => {
             if (revision === listRevision) {
-              update({ page, connection: "connected", error: undefined })
+              const known = registry.get(atoms.cursors)
+              // If the next anchor changes, descendants from the old chain are invalid.
+              const cursors =
+                page.nextCursor === null
+                  ? known.slice(0, query.pageNumber)
+                  : known[query.pageNumber] === page.nextCursor
+                    ? known
+                    : [...known.slice(0, query.pageNumber), page.nextCursor]
+              update({
+                page,
+                stats: page.stats,
+                displayedQuery: query,
+                cursors,
+                connection: "connected",
+                error: undefined
+              })
             }
           }
         })
@@ -293,9 +402,8 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     }).pipe(
       Effect.ensuring(
         Effect.sync(() => {
-          --activeReads
-          if (!disposed) {
-            registry.set(atoms.loading, activeReads > 0)
+          if (revision === listRevision) {
+            update({ loading: false })
           }
         })
       )
@@ -312,29 +420,36 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
 
   const filter = (filters: JobFilters) =>
     Effect.gen(function* () {
-      update({ filters, cursor: undefined, pageNumber: 1, page: undefined })
+      if (disposed) {
+        return
+      }
+      update({ filters, cursor: undefined, pageNumber: 1, cursors: [undefined] })
       yield* refresh
     })
-  const first = Effect.gen(function* () {
-    update({ cursor: undefined, pageNumber: 1, page: undefined })
-    yield* refresh
-  })
-  const next = Effect.gen(function* () {
-    const nextCursor = snapshot().page?.nextCursor
-    if (
-      nextCursor === null ||
-      nextCursor === undefined ||
-      snapshot().connection !== "connected"
-    ) {
-      return
-    }
-    update({
-      cursor: nextCursor,
-      pageNumber: snapshot().pageNumber + 1,
-      page: undefined
+  const goTo = (pageNumber: number) =>
+    Effect.gen(function* () {
+      if (
+        disposed ||
+        !Number.isInteger(pageNumber) ||
+        pageNumber < 1 ||
+        pageNumber > registry.get(atoms.cursors).length
+      ) {
+        return
+      }
+      update({ cursor: registry.get(atoms.cursors)[pageNumber - 1], pageNumber })
+      yield* refresh
     })
-    yield* refresh
-  })
+  const first = goTo(1)
+  const previous = Effect.suspend(() => goTo(snapshot().pageNumber - 1))
+  const next = Effect.suspend(() => goTo(snapshot().pageNumber + 1))
+  const setPageSize = (pageSize: 20 | 50) =>
+    Effect.gen(function* () {
+      if (disposed || pageSize === snapshot().pageSize) {
+        return
+      }
+      update({ pageSize, cursor: undefined, pageNumber: 1, cursors: [undefined] })
+      yield* refresh
+    })
 
   const acceptScenario = (result: ScenarioResult, request: ReceiptRequest) =>
     Effect.gen(function* () {
@@ -376,8 +491,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
           return
         }
         // Revoke displayed old data immediately, even if describe subsequently fails.
-        ++listRevision
-        ++detailRevision
+        revoke()
         update({
           sandbox: { ...snapshot().sandbox, ref: result.current },
           pending: undefined,
@@ -492,17 +606,24 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     registry,
     stateAtom,
     snapshot,
-    reading: () => activeReads > 0,
+    reading: () => !disposed && registry.get(atoms.loading),
     refresh,
     filter,
     first,
     next,
+    previous,
+    goTo,
+    setPageSize,
     select,
     command,
     receipt,
     closeDetail: () => {
       ++detailRevision
       update({ selected: undefined, detail: undefined, detailError: undefined })
+    },
+    revokeAuthority: (code: "sandbox-expired" | "stale-generation") => {
+      revoke()
+      update({ connection: "error", error: code })
     },
     connection: (connection: Connection) => update({ connection }),
     dispose: () => {

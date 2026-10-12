@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { Effect } from "effect"
+import { Deferred, Effect } from "effect"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
+import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
+import { makeServer } from "./ReadsFixtures.js"
 import * as Runtime from "../../src/features/jobs/Runtime.js"
 import * as FixtureClient from "../../src/features/jobs/FixtureClient.js"
 
@@ -60,10 +62,11 @@ describe("mounted Effect Scope", () => {
     const sockets: Array<{ close: ReturnType<typeof vi.fn> }> = []
     vi.stubGlobal(
       "WebSocket",
-      class {
+      class extends EventTarget {
         close = vi.fn()
         send = vi.fn()
         constructor() {
+          super()
           sockets.push(this)
         }
       }
@@ -79,6 +82,144 @@ describe("mounted Effect Scope", () => {
     expect(sockets).toHaveLength(1)
     await runtime.dispose()
     expect(sockets[0]?.close).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("reconciles a WebSocket invalidation through HTTP without clearing retained rows/stats", async () => {
+    browser()
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] })
+    const sockets: Array<Socket> = []
+    class Socket extends EventTarget {
+      onmessage: ((event: { data: string }) => void) | null = null
+      onclose: ((event: { code: number }) => void) | null = null
+      onerror: (() => void) | null = null
+      close = vi.fn()
+      send = vi.fn()
+      constructor() {
+        super()
+        sockets.push(this)
+      }
+    }
+    vi.stubGlobal("WebSocket", Socket)
+    const server = makeServer()
+    const sandbox = { ...Fixtures.sandbox, expiresAt: Date.now() + 60_000 }
+    const entered = Deferred.makeUnsafe<void>()
+    const release = Deferred.makeUnsafe<void>()
+    let delayed = false
+    const client = {
+      ...server.client,
+      describe: () => Effect.succeed(sandbox),
+      list: (request: Parameters<typeof server.client.list>[0]) =>
+        delayed
+          ? Deferred.succeed(entered, undefined).pipe(
+              Effect.andThen(Deferred.await(release)),
+              Effect.andThen(server.client.list(request))
+            )
+          : server.client.list(request)
+    }
+    const runtime = Runtime.make(client, sandbox, {
+      liveUrl: "ws://synthetic.test/changes"
+    })
+    try {
+      await runtime.run(runtime.refresh)
+      const before = runtime.snapshot()
+      delayed = true
+      server.insertFirst()
+      sockets[0]!.onmessage!({
+        data: JSON.stringify({
+          kind: "ready",
+          sandbox: sandbox.ref,
+          reason: "jobs-changed",
+          sequence: 1
+        })
+      })
+      await Effect.runPromise(Deferred.await(entered))
+      expect(runtime.snapshot().page).toBe(before.page)
+      expect(runtime.snapshot().stats).toBe(before.stats)
+      expect(runtime.snapshot().loading).toBe(true)
+      await Effect.runPromise(Deferred.succeed(release, undefined))
+      await vi.waitFor(() => expect(runtime.snapshot().stats?.total).toBe(66))
+      expect(runtime.snapshot().page?.items[0]?.jobId).toBe("read-job--new")
+      expect(runtime.snapshot().loading).toBe(false)
+      expect(sockets[0]!.send).toHaveBeenCalledWith(
+        JSON.stringify({ kind: "ack", sequence: 1 })
+      )
+      const oldSocket = sockets[0]!
+      oldSocket.onerror!()
+      await vi.waitFor(() => expect(sockets).toHaveLength(2), { timeout: 2000 })
+      oldSocket.dispatchEvent(Object.assign(new Event("close"), { code: 4003 }))
+      expect(runtime.snapshot().stats?.total).toBe(66)
+      expect(runtime.snapshot().error).toBeUndefined()
+    } finally {
+      await runtime.dispose()
+    }
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("WebSocket admission revocation fences an in-flight private read immediately", async () => {
+    browser()
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] })
+    const sockets: Array<Socket> = []
+    class Socket extends EventTarget {
+      onmessage: ((event: { data: string }) => void) | null = null
+      onclose: ((event: { code: number }) => void) | null = null
+      onerror: (() => void) | null = null
+      close = vi.fn()
+      send = vi.fn()
+      constructor() {
+        super()
+        sockets.push(this)
+      }
+    }
+    vi.stubGlobal("WebSocket", Socket)
+    const server = makeServer()
+    const sandbox = { ...Fixtures.sandbox, expiresAt: Date.now() + 60_000 }
+    const entered = Deferred.makeUnsafe<void>()
+    const release = Deferred.makeUnsafe<void>()
+    let delayed = false
+    let expired = false
+    const runtime = Runtime.make(
+      {
+        ...server.client,
+        describe: () =>
+          expired
+            ? Effect.fail(new PlaygroundError({ code: "sandbox-expired" }))
+            : Effect.succeed(sandbox),
+        list: (request) =>
+          delayed
+            ? Deferred.succeed(entered, undefined).pipe(
+                Effect.andThen(Deferred.await(release)),
+                Effect.andThen(server.client.list(request))
+              )
+            : server.client.list(request)
+      },
+      sandbox,
+      { liveUrl: "ws://synthetic.test/changes" }
+    )
+    try {
+      await runtime.run(runtime.refresh)
+      await runtime.run(runtime.next)
+      delayed = true
+      const old = runtime.run(runtime.refresh)
+      await Effect.runPromise(Deferred.await(entered))
+      expired = true
+      const event = Object.assign(new Event("close"), { code: 4003 })
+      sockets[0]!.dispatchEvent(event)
+      expect(runtime.snapshot()).toMatchObject({
+        page: undefined,
+        stats: undefined,
+        displayedQuery: undefined,
+        pagination: { pages: [1] },
+        error: "sandbox-expired"
+      })
+      sockets[0]!.onclose!({ code: 4003 })
+      await Effect.runPromise(Deferred.succeed(release, undefined))
+      await old
+      expect(runtime.snapshot().page).toBeUndefined()
+      expect(runtime.snapshot().stats).toBeUndefined()
+    } finally {
+      await runtime.dispose()
+    }
     expect(vi.getTimerCount()).toBe(0)
   })
 })

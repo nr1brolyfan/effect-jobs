@@ -54,14 +54,45 @@ export const make = (client: Client, sandbox: SandboxView, options: Options = {}
       return
     }
     liveScope = Scope.makeUnsafe()
+    const connectionScope = liveScope
+    const identity = state.snapshot().sandbox.ref
+    let admissionSocket: WebSocket | undefined
     live = Effect.runSync(
       Live.scoped({
         sandbox: state.snapshot().sandbox,
         url: options.liveUrl,
+        connect: (url) => {
+          const socket = new WebSocket(url)
+          admissionSocket = socket
+          const admissionClosed = (event: CloseEvent) => {
+            if (closed || admissionSocket !== socket || event.code !== 4003) {
+              return
+            }
+            const current = state.snapshot().sandbox.ref
+            if (
+              current.sandboxId === identity.sandboxId &&
+              current.generation === identity.generation
+            ) {
+              state.revokeAuthority("sandbox-expired")
+            }
+          }
+          socket.addEventListener("close", admissionClosed)
+          Effect.runSync(
+            Scope.addFinalizer(
+              connectionScope,
+              Effect.sync(() => socket.removeEventListener("close", admissionClosed))
+            )
+          )
+          return socket
+        },
         snapshot: () => state.refresh.pipe(Effect.provideService(JobsClient, client)),
         render: () => undefined,
         unavailable: () => {
-          state.connection("stale")
+          if (Date.now() >= state.snapshot().sandbox.expiresAt) {
+            state.revokeAuthority("sandbox-expired")
+          } else if (state.snapshot().error !== "sandbox-expired") {
+            state.connection("stale")
+          }
           if (!state.reading()) {
             void run(state.refresh)
           }
