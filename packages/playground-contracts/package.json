@@ -47,6 +47,10 @@
     "./Operators": {
       "types": "./src/Operators.ts",
       "import": "./dist/Operators.js"
+    },
+    "./Cookies": {
+      "types": "./src/Cookies.ts",
+      "import": "./dist/Cookies.js"
     }
   }
 }

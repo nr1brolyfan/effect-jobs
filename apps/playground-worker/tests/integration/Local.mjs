@@ -85,6 +85,7 @@ export const createLocal = async (
       hyperdrives: { PG: cfg.connectionString },
       bindings: {
         ORIGIN: origin,
+        LOCAL_PREVIEW: https ? "false" : "true",
         DEMO_ROTATION_MS: String(demoRotationMillis),
         SCHEMA: cfg.schema,
         ENCRYPTION_KEY: cfg.encryptionKey,

@@ -1,3 +1,4 @@
+import * as Cookies from "@effect-jobs/playground-contracts/Cookies"
 import { JobOperatorResult } from "@effect-jobs/playground-contracts/Operators"
 import { Effect, Schema } from "effect"
 import { JobDetail, JobPage } from "@effect-jobs/playground-contracts/Jobs"
@@ -6,11 +7,7 @@ import { ScenarioResult, ResetResult } from "@effect-jobs/playground-contracts/S
 import { PlaygroundError, PublicError } from "@effect-jobs/playground-contracts/Services"
 import type { Client } from "../features/jobs/Adapter.js"
 
-export const csrfCookieName =
-  location.protocol === "http:" &&
-  ["127.0.0.1", "localhost", "[::1]"].includes(location.hostname)
-    ? `playground-local-csrf-${location.port}`
-    : "__Host-playground-csrf"
+export const csrfCookieName = Cookies.names(location.origin, true).csrf
 const csrf = () =>
   document.cookie
     .split(";")

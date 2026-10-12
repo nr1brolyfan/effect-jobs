@@ -1,3 +1,4 @@
+import * as OriginPolicy from "../../website/src/OriginPolicy.js"
 // Cloudflare callbacks are the Promise FFI. All database work is scoped Effect.
 // @effect-diagnostics unstableApiUsage:off
 import { DurableObject } from "cloudflare:workers"
@@ -28,6 +29,7 @@ export interface Env {
   readonly PG: { readonly connectionString: string }
   readonly SCHEMA: string
   readonly ORIGIN: string
+  readonly LOCAL_PREVIEW?: string
   readonly ENCRYPTION_KEY: string
   readonly FINGERPRINT_KEY: string
   readonly CURSOR_KEY: string
@@ -102,19 +104,28 @@ export class Gateway extends DurableObject {
         return Http.response({ code: "limit-reached" }, 429)
       }
       const env = this.env
+      const originConfig = {
+        configuredOrigin: env.ORIGIN,
+        localPreview: env.LOCAL_PREVIEW === "true"
+      }
+      const policy = OriginPolicy.make(originConfig)
+      if (policy.resolve(new URL(request.url).origin) === undefined) {
+        await this.ctx.storage.put("rates", budget)
+        return Http.response({ code: "invalid-request" }, 400)
+      }
       const operation = new URL(request.url).pathname.startsWith("/api/demo")
         ? DemoHttp.handle(request, env)
         : new URL(request.url).pathname === "/api/changes"
           ? Effect.gen(function* () {
               const app = yield* Application
-              return yield* Upgrade.upgrade(request, env.ORIGIN, env.LIVE, (req) =>
-                Http.authenticate(req).pipe(
+              return yield* Upgrade.upgrade(request, policy, env.LIVE, (req) =>
+                Http.authenticate(req, originConfig).pipe(
                   Effect.provideService(Application, app),
                   Effect.map((access) => access.sandbox)
                 )
               )
             })
-          : Http.handle(request, this.env.ORIGIN, admit)
+          : Http.handle(request, env.ORIGIN, admit, originConfig.localPreview)
       const response = await safe(Event.run(config(this.env), kick(this.env), operation))
       await this.ctx.storage.put("rates", budget)
       return response
@@ -271,6 +282,7 @@ export class DemoGenerator extends DurableObject {
 export class SandboxLive extends Live.makeDurableObject<Env, State>(
   {
     origin: (env) => env.ORIGIN,
+    localPreview: (env) => env.LOCAL_PREVIEW === "true",
     authorize: (request, env) =>
       Event.run(
         config(env),
@@ -279,7 +291,10 @@ export class SandboxLive extends Live.makeDurableObject<Env, State>(
           ? Demo.current(env.SCHEMA).pipe(
               Effect.mapError(() => new HttpError({ code: "unavailable" }))
             )
-          : Http.authenticate(request).pipe(Effect.map((access) => access.sandbox))
+          : Http.authenticate(request, {
+              configuredOrigin: env.ORIGIN,
+              localPreview: env.LOCAL_PREVIEW === "true"
+            }).pipe(Effect.map((access) => access.sandbox))
       ).pipe(Effect.mapError(() => new HttpError({ code: "unavailable" }))),
     isCurrent: (ref, env) =>
       Event.run(
@@ -301,6 +316,13 @@ import { PlaygroundError as HttpError } from "@effect-jobs/playground-contracts/
 export default {
   fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
+    const policy = OriginPolicy.make({
+      configuredOrigin: env.ORIGIN,
+      localPreview: env.LOCAL_PREVIEW === "true"
+    })
+    if (policy.resolve(url.origin) === undefined) {
+      return Promise.resolve(Http.response({ code: "invalid-request" }, 400))
+    }
     if (url.pathname === "/demo" || url.pathname.startsWith("/api/demo")) {
       // Native RPC cannot be invoked by an untrusted HTTP caller.
       return env.DEMO.getByName("shared")
