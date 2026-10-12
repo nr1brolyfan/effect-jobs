@@ -212,19 +212,20 @@ try {
     })
   })
   await page.goto(local.origin + "/jobs")
-  await page.getByRole("heading", { name: "Durable work, visible." }).waitFor()
+  await page.getByRole("heading", { name: "Background Jobs", exact: true }).waitFor()
   await until(
     () => Promise.resolve(readyFrames > 0),
     "browser received no live ready frame",
     10000
   )
+  await page.getByRole("button", { name: "Create jobs", exact: true }).click()
   await page.getByLabel("Jobs (1–10)").fill("6")
   await page.getByRole("button", { name: "Run scenario", exact: true }).click()
   await page.getByText(/Enqueue acknowledged for/).waitFor()
   await page.locator(".job-list button").first().waitFor()
   await until(
     async () =>
-      (await page.locator(".job-list li p").allTextContents()).some((text) =>
+      (await page.locator(".job-list .state-badge").allTextContents()).some((text) =>
         text.includes("Completed")
       ),
     "browser did not reconcile persisted completion",
@@ -251,7 +252,9 @@ try {
   await until(() => Promise.resolve(ws >= 2), "reset did not reconnect live scope", 10000)
   const secondPage = await context.newPage()
   await secondPage.goto(local.origin + "/jobs")
-  await secondPage.getByRole("heading", { name: "Durable work, visible." }).waitFor()
+  await secondPage
+    .getByRole("heading", { name: "Background Jobs", exact: true })
+    .waitFor()
   await secondPage.close()
   report.observations.browser = {
     reads,

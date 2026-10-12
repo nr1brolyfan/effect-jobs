@@ -72,7 +72,7 @@ try {
     await locator.filter({ hasText: expected }).first().waitFor({ timeout: 10_000 })
   }
   const status = () => page.getByRole("status").first()
-  const rows = () => page.locator(".job-list li")
+  const rows = () => page.locator(".job-list tr")
   const read = () => page.evaluate(() => window.jobsBrowserTest.reconcile())
   const accessibility = async () => {
     await page.addScriptTag({ path: require.resolve("axe-core/axe.min.js") })
@@ -91,6 +91,25 @@ try {
   await page.goto(`${url}/jobs`)
   await text(status(), "connected")
   assert.equal(await rows().count(), 5)
+  assert.equal(
+    await page.getByRole("heading", { name: "Background Jobs", exact: true }).count(),
+    1
+  )
+  assert.equal(await page.getByRole("table", { name: "Background jobs" }).count(), 1)
+  assert.equal(await page.locator(".stat-card").count(), 4)
+  assert.equal(
+    await page.locator('.sidebar-item[aria-current="page"]').innerText(),
+    "Background Jobs"
+  )
+  assert.equal(await page.locator(".sidebar-item:disabled").count(), 4)
+  await page.screenshot({
+    path: resolve(output, "dashboard-desktop.png"),
+    fullPage: true
+  })
+  checks.push(
+    "dark workspace shell, jobs-only navigation, truthful page statistics and semantic jobs table"
+  )
+  await page.getByRole("button", { name: "Create jobs", exact: true }).click()
   assert.equal(
     await page.getByRole("button", { name: "Run scenario", exact: true }).isDisabled(),
     true
@@ -193,6 +212,7 @@ try {
   await page.screenshot({ path: resolve(output, "desktop.png"), fullPage: true })
 
   await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole("button", { name: "Close details", exact: true }).click()
   assert.equal(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     true
@@ -230,6 +250,7 @@ try {
 
   await page.goto(`${url}/commands`)
   await text(status(), "connected")
+  await page.getByRole("button", { name: "Create jobs", exact: true }).click()
   await page.getByLabel("Fake provider behavior").selectOption("unknown-outcome")
   await page.getByLabel("Jobs (1–10)").fill("2")
   await page.getByRole("button", { name: "Run scenario", exact: true }).click()
@@ -261,6 +282,7 @@ try {
   )
   await page.goto(`${url}/commands`)
   await text(status(), "connected")
+  await page.getByRole("button", { name: "Create jobs", exact: true }).click()
   page.once("dialog", (dialog) => dialog.accept())
   await page.getByRole("button", { name: "Reset my sandbox", exact: true }).click()
   await text(page.locator("main"), "generation 2")
@@ -279,6 +301,7 @@ try {
   await page.goto(`${url}/fixture`)
   await text(status(), "connected")
   assert.equal(await rows().count(), 5)
+  await page.getByRole("button", { name: "Create jobs", exact: true }).click()
   assert.equal(
     await page.getByRole("button", { name: "Run scenario", exact: true }).isDisabled(),
     true
