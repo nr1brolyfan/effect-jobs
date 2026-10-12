@@ -367,6 +367,16 @@ button svg,
   height: 14px;
 }
 
+.retry-schedule time {
+  display: block;
+}
+.retry-countdown {
+  display: block;
+  margin-top: 5px;
+  color: var(--accent);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
 /* Authoritative totals across the current sandbox, independent of table filters. */
 .jobs-overview {
   display: grid;

@@ -5,6 +5,7 @@ import { ScenarioId } from "@effect-jobs/playground-contracts/Scenarios"
 import { JobsClient, type Client } from "./Adapter.js"
 import * as Controller from "./Controller.js"
 import * as StatsChart from "./StatsChart.js"
+import * as RetryTime from "./RetryTime.js"
 import { compactTime, icon, jobIcon, jobName, type IconName } from "./Design.js"
 
 const element = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string) => {
@@ -421,6 +422,7 @@ export const mount = (
   main.append(topbar, canvas)
   root.replaceChildren(sidebar, main)
   let lastDetail: Controller.State["detail"]
+  let retryClock: { readonly node: HTMLElement; readonly availableAt: number } | undefined
   let lastDetailError: Controller.State["detailError"]
   let lastSelected: string | undefined
   const rowNodes = new Map<
@@ -591,6 +593,7 @@ export const mount = (
       lastDetailError = state.detailError
       lastSelected = state.selected
       detailBody.replaceChildren()
+      retryClock = undefined
       const d = state.detail
       if (d === undefined) {
         detailBody.append(
@@ -618,7 +621,25 @@ export const mount = (
           "Producer identity",
           `${d.producer.operation} / ${d.producer.operationId} / ${d.producer.slot}`
         )
-        value("Available", time(d.job.availableAt))
+        if (d.job.state === "RetryScheduled") {
+          const scheduled = element("time", RetryTime.exactTime(d.job.availableAt))
+          scheduled.dateTime = time(d.job.availableAt)
+          scheduled.title = scheduled.dateTime
+          const relative = element(
+            "span",
+            RetryTime.countdown(d.job.availableAt, Date.now())
+          )
+          relative.className = "retry-countdown"
+          relative.title =
+            "Earliest retry eligibility, not a guaranteed start time. Countdown uses the browser clock."
+          const nextRetry = element("dd")
+          nextRetry.className = "retry-schedule"
+          nextRetry.append(scheduled, relative)
+          values.append(element("dt", "Next retry"), nextRetry)
+          retryClock = { node: relative, availableAt: d.job.availableAt }
+        } else {
+          value("Available", time(d.job.availableAt))
+        }
         value("Updated", time(d.job.updatedAt))
         value("Terminal timestamp", time(d.job.completedAt))
         value(
@@ -714,11 +735,24 @@ export const mount = (
   window.addEventListener("offline", offline)
   document.addEventListener("visibilitychange", reconcile)
   const timer = options.poll === false ? undefined : window.setInterval(reconcile, 5_000)
+  const retryTimer = window.setInterval(() => {
+    if (
+      retryClock?.node.isConnected &&
+      !detail.hidden &&
+      document.visibilityState !== "hidden"
+    ) {
+      retryClock.node.textContent = RetryTime.countdown(
+        retryClock.availableAt,
+        Date.now()
+      )
+    }
+  }, 1000)
   render(controller.snapshot())
   run(controller.refresh)
   return {
     controller,
     dispose: () => {
+      window.clearInterval(retryTimer)
       chart.dispose()
       controller.dispose()
       lifecycle.abort()
