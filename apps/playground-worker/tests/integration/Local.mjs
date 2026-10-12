@@ -37,7 +37,7 @@ export const createLocal = async (
       readFileSync(`${root}/apps/website/dist/Client.js`),
       "text/javascript"
     ],
-    "/Jobs.css": [readFileSync(`${root}/apps/website/src/styles/Jobs.css`), "text/css"],
+    "/Jobs.css": [readFileSync(`${root}/apps/website/dist/Jobs.css`), "text/css"],
     "/docs/jobs": [
       readFileSync(`${root}/apps/website/content/docs/Jobs.html`),
       "text/html"

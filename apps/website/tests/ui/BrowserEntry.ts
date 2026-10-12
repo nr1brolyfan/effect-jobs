@@ -3,7 +3,7 @@ import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import { JobsClient, type Client } from "../../src/features/jobs/Adapter.js"
 import * as FixtureClient from "../../src/features/jobs/FixtureClient.js"
-import * as View from "../../src/features/jobs/View.js"
+import * as Mount from "../../src/features/jobs/Mount.js"
 
 // Browser-test harness only. Commands below return scripted test observations,
 // never durable execution. The production registrar must not import this module.
@@ -105,7 +105,7 @@ const root = document.getElementById("jobs")
 if (root === null) {
   throw new Error("Missing test mount")
 }
-const mounted = View.mount(root, client, sandbox(), {
+const mounted = Mount.mount(root, client, sandbox(), {
   poll: window.location.pathname === "/poll"
 })
 const browserTest = {
@@ -114,7 +114,7 @@ const browserTest = {
   },
   reconcile: () =>
     Effect.runPromise(
-      mounted.controller.refresh.pipe(Effect.provideService(JobsClient, client))
+      mounted.runtime.refresh.pipe(Effect.provideService(JobsClient, client))
     ),
   generation: () => {
     ++generation
@@ -127,8 +127,8 @@ const browserTest = {
   update: () => {
     updated = true
   },
-  snapshot: () => mounted.controller.snapshot(),
-  reading: () => mounted.controller.reading(),
+  snapshot: () => mounted.runtime.snapshot(),
+  reading: () => mounted.runtime.reading(),
   descriptions: () => descriptions,
   delayDescribe: (millis: number) => {
     describeDelay = millis

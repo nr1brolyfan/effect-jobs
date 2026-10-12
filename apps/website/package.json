@@ -5,12 +5,24 @@
   "type": "module",
   "dependencies": {
     "@effect-jobs/playground-contracts": "workspace:*",
-    "chart.js": "4.5.1",
     "effect": "4.0.0",
-    "effect-jobs": "file:../.."
+    "effect-jobs": "file:../..",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "scheduler": "0.27.0",
+    "@effect/atom-react": "4.0.0",
+    "@stylexjs/stylex": "0.19.1",
+    "@tanstack/react-table": "8.21.3",
+    "recharts": "3.10.1"
   },
   "scripts": {
     "check": "tsc -p tsconfig.json",
-    "build": "bun build src/Client.ts --target=browser --outfile=dist/Client.js"
+    "build": "bun build.mjs"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@stylexjs/babel-plugin": "0.19.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
   }
 }

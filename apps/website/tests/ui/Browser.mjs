@@ -13,25 +13,17 @@ const require = createRequire(
 const { chromium } = require("playwright")
 const output = resolve(".multica/ui-browser")
 await mkdir(output, { recursive: true })
-execFileSync(
-  "bun",
-  [
-    "build",
-    "apps/website/tests/ui/BrowserEntry.ts",
-    "apps/website/src/features/jobs/FixtureEntry.ts",
-    "--target=browser",
-    `--outdir=${output}`
-  ],
-  { stdio: "inherit", timeout: 600_000 }
-)
-const css = await readFile("apps/website/src/styles/Jobs.css")
+execFileSync("bun", ["apps/website/build.mjs", "--fixtures"], {
+  stdio: "inherit",
+  timeout: 600_000,
+  env: { ...process.env, UI_BUILD_DIRECTORY: output }
+})
+const css = await readFile(resolve(output, "Jobs.css"))
 const html = await readFile("apps/website/src/features/jobs/Fixture.html", "utf8")
 const guide = await readFile("apps/website/content/docs/Jobs.html")
 const scripts = {
-  "/FixtureEntry.js": await readFile(
-    resolve(output, "src/features/jobs/FixtureEntry.js")
-  ),
-  "/BrowserEntry.js": await readFile(resolve(output, "tests/ui/BrowserEntry.js"))
+  "/FixtureEntry.js": await readFile(resolve(output, "FixtureEntry.js")),
+  "/BrowserEntry.js": await readFile(resolve(output, "BrowserEntry.js"))
 }
 const server = createServer((req, res) => {
   if (req.url === "/Jobs.css") {
@@ -98,7 +90,13 @@ try {
   assert.equal(await page.getByRole("table", { name: "Background jobs" }).count(), 1)
   assert.equal(await page.locator(".stat-card").count(), 4)
   assert.equal(await page.locator(".stat-value").first().textContent(), "13")
-  assert.equal(await page.locator(".stats-chart-panel canvas").count(), 1)
+  assert.equal(
+    await page
+      .getByRole("region", { name: "Job distribution" })
+      .locator("svg.recharts-surface")
+      .count(),
+    1
+  )
   assert.equal(
     await page
       .locator(
