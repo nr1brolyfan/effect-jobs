@@ -1,4 +1,7 @@
+/* oxlint-disable effecttsgo/unstable-api-usage -- Owner-selected Atom API is pinned to Effect 4.0.0. */
 import { Effect, Schema } from "effect"
+import * as Atom from "effect/reactivity/Atom"
+import * as AtomRegistry from "effect/reactivity/AtomRegistry"
 import {
   JobDetail,
   JobPage,
@@ -58,26 +61,40 @@ const bounded = <A>(operation: Effect.Effect<A, PlaygroundError>) =>
     })
   )
 
-export const make = (
-  initial: SandboxView,
-  changed: (state: State) => void,
-  allowDemoRotation = false
-) => {
-  let state: State = {
-    sandbox: initial,
-    filters: {},
-    cursor: undefined,
-    pageNumber: 1,
-    page: undefined,
-    selected: undefined,
-    detail: undefined,
-    connection: "loading",
-    error: undefined,
-    detailError: undefined,
-    pending: undefined,
-    busy: false,
-    notice: ""
+export const make = (initial: SandboxView, allowDemoRotation = false) => {
+  const atoms = {
+    sandbox: Atom.make(initial).pipe(Atom.keepAlive),
+    filters: Atom.make<JobFilters>({}).pipe(Atom.keepAlive),
+    cursor: Atom.make<string | undefined>(undefined).pipe(Atom.keepAlive),
+    pageNumber: Atom.make(1).pipe(Atom.keepAlive),
+    page: Atom.make<JobPage | undefined>(undefined).pipe(Atom.keepAlive),
+    selected: Atom.make<JobId | undefined>(undefined).pipe(Atom.keepAlive),
+    detail: Atom.make<JobDetail | undefined>(undefined).pipe(Atom.keepAlive),
+    connection: Atom.make<Connection>("loading").pipe(Atom.keepAlive),
+    error: Atom.make<PublicErrorCode | undefined>(undefined).pipe(Atom.keepAlive),
+    detailError: Atom.make<PublicErrorCode | undefined>(undefined).pipe(Atom.keepAlive),
+    pending: Atom.make<State["pending"]>(undefined).pipe(Atom.keepAlive),
+    busy: Atom.make(false).pipe(Atom.keepAlive),
+    notice: Atom.make("").pipe(Atom.keepAlive),
+    loading: Atom.make(false).pipe(Atom.keepAlive)
   }
+  const registry = AtomRegistry.make()
+  const stateAtom = Atom.make((get): State => ({
+    sandbox: get(atoms.sandbox),
+    filters: get(atoms.filters),
+    cursor: get(atoms.cursor),
+    pageNumber: get(atoms.pageNumber),
+    page: get(atoms.page),
+    selected: get(atoms.selected),
+    detail: get(atoms.detail),
+    connection: get(atoms.connection),
+    error: get(atoms.error),
+    detailError: get(atoms.detailError),
+    pending: get(atoms.pending),
+    busy: get(atoms.busy),
+    notice: get(atoms.notice)
+  }))
+  const snapshot = () => registry.get(stateAtom)
   let listRevision = 0
   let detailRevision = 0
   let activeReads = 0
@@ -86,10 +103,33 @@ export const make = (
     | undefined
   let disposed = false
   const update = (patch: Partial<State>) => {
-    if (!disposed) {
-      state = { ...state, ...patch }
-      changed(state)
+    if (disposed) {
+      return
     }
+    // Batch keeps consumers from observing half-applied authority changes.
+    Atom.batch(() => {
+      const write = <K extends keyof State>(key: K) => {
+        if (Object.hasOwn(patch, key)) {
+          registry.set(
+            atoms[key] as unknown as Atom.Writable<State[K]>,
+            patch[key] as State[K]
+          )
+        }
+      }
+      write("sandbox")
+      write("filters")
+      write("cursor")
+      write("pageNumber")
+      write("page")
+      write("selected")
+      write("detail")
+      write("connection")
+      write("error")
+      write("detailError")
+      write("pending")
+      write("busy")
+      write("notice")
+    })
   }
   const ensureRef = (ref: SandboxRef, expected: SandboxRef) =>
     sameRef(ref, expected)
@@ -98,8 +138,11 @@ export const make = (
 
   const select = (jobId: JobId): Effect.Effect<void, never, JobsClient> =>
     Effect.gen(function* () {
+      if (disposed) {
+        return
+      }
       const client = yield* JobsClient
-      const sandbox = state.sandbox.ref
+      const sandbox = snapshot().sandbox.ref
       if (
         activeDetail?.revision === detailRevision &&
         activeDetail.jobId === jobId &&
@@ -112,7 +155,7 @@ export const make = (
       activeDetail = request
       update({
         selected: jobId,
-        detail: state.selected === jobId ? state.detail : undefined,
+        detail: snapshot().selected === jobId ? snapshot().detail : undefined,
         detailError: undefined
       })
       yield* bounded(client.detail({ sandbox, jobId })).pipe(
@@ -148,12 +191,16 @@ export const make = (
     })
 
   const refresh: Effect.Effect<void, never, JobsClient> = Effect.gen(function* () {
+    if (disposed) {
+      return
+    }
     const client = yield* JobsClient
     const revision = ++listRevision
     ++activeReads
+    registry.set(atoms.loading, true)
     yield* Effect.gen(function* () {
       update({
-        connection: state.page === undefined ? "loading" : "reconnecting",
+        connection: snapshot().page === undefined ? "loading" : "reconnecting",
         error: undefined
       })
       const described = yield* bounded(client.describe()).pipe(
@@ -171,14 +218,17 @@ export const make = (
           ++detailRevision
         }
         update({
-          connection: state.page === undefined ? "error" : "stale",
+          connection: snapshot().page === undefined ? "error" : "stale",
           error: described.failure.code,
           ...(revoked ? { page: undefined, detail: undefined } : {})
         })
         return
       }
       const sandbox = described.success
-      if (sandbox.ref.sandboxId !== state.sandbox.ref.sandboxId && !allowDemoRotation) {
+      if (
+        sandbox.ref.sandboxId !== snapshot().sandbox.ref.sandboxId &&
+        !allowDemoRotation
+      ) {
         ++detailRevision
         update({
           page: undefined,
@@ -188,11 +238,11 @@ export const make = (
         })
         return
       }
-      if (sandbox.ref.generation < state.sandbox.ref.generation) {
+      if (sandbox.ref.generation < snapshot().sandbox.ref.generation) {
         update({ connection: "stale", error: "stale-generation" })
         return
       }
-      if (!sameRef(sandbox.ref, state.sandbox.ref)) {
+      if (!sameRef(sandbox.ref, snapshot().sandbox.ref)) {
         ++detailRevision
         update({
           page: undefined,
@@ -206,10 +256,10 @@ export const make = (
       }
       update({ sandbox })
       const request: ListJobs = {
-        sandbox: state.sandbox.ref,
-        filters: state.filters,
+        sandbox: snapshot().sandbox.ref,
+        filters: snapshot().filters,
         limit: 5,
-        ...(state.cursor === undefined ? {} : { cursor: state.cursor })
+        ...(snapshot().cursor === undefined ? {} : { cursor: snapshot().cursor })
       }
       yield* bounded(client.list(request)).pipe(
         Effect.flatMap(decode(JobPage)),
@@ -227,7 +277,7 @@ export const make = (
                 ++detailRevision
               }
               update({
-                connection: state.page === undefined ? "error" : "stale",
+                connection: snapshot().page === undefined ? "error" : "stale",
                 error: error.code,
                 ...(revoked ? { page: undefined, detail: undefined } : {})
               })
@@ -240,13 +290,23 @@ export const make = (
           }
         })
       )
-    }).pipe(Effect.ensuring(Effect.sync(() => --activeReads)))
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          --activeReads
+          if (!disposed) {
+            registry.set(atoms.loading, activeReads > 0)
+          }
+        })
+      )
+    )
+    const selected = disposed ? undefined : snapshot().selected
     if (
       revision === listRevision &&
-      state.connection === "connected" &&
-      state.selected !== undefined
+      snapshot().connection === "connected" &&
+      selected !== undefined
     ) {
-      yield* select(state.selected)
+      yield* select(selected)
     }
   })
 
@@ -260,16 +320,17 @@ export const make = (
     yield* refresh
   })
   const next = Effect.gen(function* () {
+    const nextCursor = snapshot().page?.nextCursor
     if (
-      state.page?.nextCursor === null ||
-      state.page?.nextCursor === undefined ||
-      state.connection !== "connected"
+      nextCursor === null ||
+      nextCursor === undefined ||
+      snapshot().connection !== "connected"
     ) {
       return
     }
     update({
-      cursor: state.page.nextCursor,
-      pageNumber: state.pageNumber + 1,
+      cursor: nextCursor,
+      pageNumber: snapshot().pageNumber + 1,
       page: undefined
     })
     yield* refresh
@@ -305,7 +366,7 @@ export const make = (
             "Reset outcome unknown. Do not replay. Look up the exact request receipt."
         })
       } else {
-        if (result.current.generation <= state.sandbox.ref.generation) {
+        if (result.current.generation <= snapshot().sandbox.ref.generation) {
           // This exact receipt acknowledges history, not newer sandbox authority.
           update({
             pending: undefined,
@@ -318,7 +379,7 @@ export const make = (
         ++listRevision
         ++detailRevision
         update({
-          sandbox: { ...state.sandbox, ref: result.current },
+          sandbox: { ...snapshot().sandbox, ref: result.current },
           pending: undefined,
           page: undefined,
           detail: undefined,
@@ -333,7 +394,7 @@ export const make = (
     })
   const exclusive = <E, R>(operation: Effect.Effect<void, E, R>) =>
     Effect.suspend(() => {
-      if (state.busy) {
+      if (disposed || snapshot().busy) {
         return Effect.void
       }
       update({ busy: true })
@@ -347,20 +408,23 @@ export const make = (
   ) =>
     exclusive(
       Effect.gen(function* () {
-        if (state.pending !== undefined) {
+        if (snapshot().pending !== undefined) {
           return
         }
         if (
           !(kind === "scenario"
-            ? state.sandbox.capabilities.runScenario
-            : state.sandbox.capabilities.resetSandbox)
+            ? snapshot().sandbox.capabilities.runScenario
+            : snapshot().sandbox.capabilities.resetSandbox)
         ) {
           update({ notice: "Capability unavailable. No command was sent." })
           return
         }
+        if (disposed) {
+          return
+        }
         const client = yield* JobsClient
         const input = yield* Schema.decodeUnknownEffect(ScenarioCommand)({
-          sandbox: state.sandbox.ref,
+          sandbox: snapshot().sandbox.ref,
           requestId,
           scenario,
           count
@@ -383,7 +447,7 @@ export const make = (
           Effect.sync(() => {
             update({
               notice:
-                state.pending === undefined
+                snapshot().pending === undefined
                   ? `Command unavailable: ${error.code}.`
                   : `Command not confirmed (${error.code}). Do not replay; reconcile the exact receipt.`
             })
@@ -393,8 +457,11 @@ export const make = (
     )
   const receipt = exclusive(
     Effect.gen(function* () {
-      const pending = state.pending
+      const pending = snapshot().pending
       if (pending === undefined) {
+        return
+      }
+      if (disposed) {
         return
       }
       const client = yield* JobsClient
@@ -421,7 +488,10 @@ export const make = (
     )
   )
   return {
-    snapshot: () => state,
+    atoms,
+    registry,
+    stateAtom,
+    snapshot,
     reading: () => activeReads > 0,
     refresh,
     filter,
@@ -430,11 +500,16 @@ export const make = (
     select,
     command,
     receipt,
+    closeDetail: () => {
+      ++detailRevision
+      update({ selected: undefined, detail: undefined, detailError: undefined })
+    },
     connection: (connection: Connection) => update({ connection }),
     dispose: () => {
       disposed = true
       ++listRevision
       ++detailRevision
+      registry.dispose()
     }
   }
 }

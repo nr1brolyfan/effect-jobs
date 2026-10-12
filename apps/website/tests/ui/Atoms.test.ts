@@ -4,7 +4,7 @@ import { SandboxView } from "@effect-jobs/playground-contracts/Sandbox"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import { JobsClient, type Client } from "../../src/features/jobs/Adapter.js"
-import * as Controller from "../../src/features/jobs/Controller.js"
+import * as Atoms from "../../src/features/jobs/Atoms.js"
 import * as FixtureClient from "../../src/features/jobs/FixtureClient.js"
 
 const capable = {
@@ -20,7 +20,19 @@ const execute = <A, E>(
   client: Client = FixtureClient.client
 ) => Effect.runPromise(operation.pipe(Effect.provide(Layer.succeed(JobsClient, client))))
 
-describe("jobs UI state", () => {
+describe("jobs atom authority", () => {
+  it("reads authoritative filters from the registry and keeps mounted registries independent", async () => {
+    const first = Atoms.make(Fixtures.sandbox)
+    const second = Atoms.make(Fixtures.sandbox)
+    first.registry.set(first.atoms.filters, { state: "Dead" })
+    await execute(first.refresh)
+    expect(first.snapshot().page?.items.every((job) => job.state === "Dead")).toBe(true)
+    expect(first.snapshot().page?.stats).toEqual(FixtureClient.page.stats)
+    expect(second.registry.get(second.atoms.filters)).toEqual({})
+    first.dispose()
+    second.dispose()
+  })
+
   it("accepts identity rotation only for the explicitly public demo", async () => {
     const next = Schema.decodeUnknownSync(SandboxView)({
       ...Fixtures.sandbox,
@@ -31,17 +43,17 @@ describe("jobs UI state", () => {
       describe: () => Effect.succeed(next),
       list: () => Effect.succeed({ ...FixtureClient.page, sandbox: next.ref })
     }
-    const privateView = Controller.make(Fixtures.sandbox, () => {})
+    const privateView = Atoms.make(Fixtures.sandbox)
     await execute(privateView.refresh, client)
     expect(privateView.snapshot().error).toBe("not-found")
-    const publicView = Controller.make(Fixtures.sandbox, () => {}, true)
+    const publicView = Atoms.make(Fixtures.sandbox, true)
     await execute(publicView.refresh, client)
     expect(publicView.snapshot().sandbox.ref).toEqual(next.ref)
     expect(publicView.snapshot().page?.sandbox).toEqual(next.ref)
     expect(publicView.snapshot().connection).toBe("connected")
   })
   it("publishes an in-flight detail while repeated same-selection reads reconcile", async () => {
-    const controller = Controller.make(Fixtures.sandbox, () => {})
+    const controller = Atoms.make(Fixtures.sandbox)
     const jobId = FixtureClient.page.items[0]!.jobId
     let details = 0
     await execute(
@@ -78,7 +90,7 @@ describe("jobs UI state", () => {
   })
 
   it("releases actual read activity when an interrupted read ends", async () => {
-    const controller = Controller.make(Fixtures.sandbox, () => {})
+    const controller = Atoms.make(Fixtures.sandbox)
     await execute(
       Effect.gen(function* () {
         const entered = yield* Deferred.make<void>()
@@ -103,7 +115,7 @@ describe("jobs UI state", () => {
   it.each(["generation", "expiry", "dispose"] as const)(
     "rejects an in-flight detail after %s revokes its lifetime",
     async (revocation) => {
-      const controller = Controller.make(Fixtures.sandbox, () => {})
+      const controller = Atoms.make(Fixtures.sandbox)
       const jobId = FixtureClient.page.items[0]!.jobId
       await execute(
         Effect.gen(function* () {
@@ -150,7 +162,11 @@ describe("jobs UI state", () => {
           }
           yield* Deferred.succeed(release, undefined)
           yield* Fiber.join(old)
-          expect(controller.snapshot().detail).toBeUndefined()
+          if (revocation === "dispose") {
+            expect(() => controller.snapshot()).toThrow("registry is disposed")
+          } else {
+            expect(controller.snapshot().detail).toBeUndefined()
+          }
         })
       )
     }
@@ -159,7 +175,7 @@ describe("jobs UI state", () => {
   it.each(["command", "receipt"] as const)(
     "acknowledges a historical reset %s without revoking newer generation data",
     async (via) => {
-      const controller = Controller.make(capable, () => {})
+      const controller = Atoms.make(capable)
       const current = { ...capable, ref: { ...capable.ref, generation: 3 } }
       const jobId = FixtureClient.page.items[0]!.jobId
       let descriptions = 0
@@ -240,7 +256,7 @@ describe("jobs UI state", () => {
   )
 
   it("combines exact filters and retains selection, cursor and filters during reconciliation", async () => {
-    const controller = Controller.make(Fixtures.sandbox, () => {})
+    const controller = Atoms.make(Fixtures.sandbox)
     await execute(controller.refresh)
     await execute(controller.next)
     const before = controller.snapshot()
@@ -263,7 +279,7 @@ describe("jobs UI state", () => {
   })
 
   it("keeps the current cursor on invalidation errors until an explicit first-page action", async () => {
-    const controller = Controller.make(Fixtures.sandbox, () => {})
+    const controller = Atoms.make(Fixtures.sandbox)
     await execute(controller.refresh)
     await execute(controller.next)
     const cursor = controller.snapshot().cursor
@@ -286,7 +302,7 @@ describe("jobs UI state", () => {
   })
 
   it("drops an older list response arriving after a filter change", async () => {
-    const controller = Controller.make(Fixtures.sandbox, () => {})
+    const controller = Atoms.make(Fixtures.sandbox)
     await execute(
       Effect.gen(function* () {
         const waiting = yield* Deferred.make<void>()
@@ -318,7 +334,7 @@ describe("jobs UI state", () => {
   })
 
   it("drops an older detail response after selecting another job", async () => {
-    const controller = Controller.make(Fixtures.sandbox, () => {})
+    const controller = Atoms.make(Fixtures.sandbox)
     const a = FixtureClient.page.items[0]!
     const b = FixtureClient.page.items[1]!
     await execute(
@@ -357,7 +373,7 @@ describe("jobs UI state", () => {
         return Effect.fail(new PlaygroundError({ code: "capability-unavailable" }))
       }
     }
-    const controller = Controller.make(Fixtures.sandbox, () => {})
+    const controller = Atoms.make(Fixtures.sandbox)
     await execute(controller.command("scenario", "request", "success", 1), client)
     expect(sent).toBe(0)
     expect(controller.snapshot().notice).toContain("No command was sent")
@@ -382,7 +398,7 @@ describe("jobs UI state", () => {
         return Effect.fail(new PlaygroundError({ code: "not-found" }))
       }
     }
-    const controller = Controller.make(capable, () => {})
+    const controller = Atoms.make(capable)
     await execute(
       controller.command("scenario", "exact-request", "unknown-outcome", 1),
       client
@@ -407,7 +423,7 @@ describe("jobs UI state", () => {
   })
 
   it("treats a failed command response as uncertain and validates scenario bounds before sending", async () => {
-    const controller = Controller.make(capable, () => {})
+    const controller = Atoms.make(capable)
     await execute(controller.command("scenario", "bad", "success", 11))
     expect(controller.snapshot().pending).toBeUndefined()
     await execute(controller.command("scenario", "sent", "success", 1), {
@@ -419,7 +435,7 @@ describe("jobs UI state", () => {
   })
 
   it("hides old generation data on external reset while retaining filters", async () => {
-    const controller = Controller.make(Fixtures.sandbox, () => {})
+    const controller = Atoms.make(Fixtures.sandbox)
     await execute(controller.filter({ state: "Dead" }))
     await execute(controller.select(FixtureClient.page.items[0]!.jobId))
     const ref = { ...Fixtures.sandbox.ref, generation: 2 }
@@ -442,7 +458,7 @@ describe("jobs UI state", () => {
   })
 
   it("revokes old data immediately after acknowledged reset even if describe fails", async () => {
-    const controller = Controller.make(capable, () => {})
+    const controller = Atoms.make(capable)
     await execute(controller.refresh, {
       ...FixtureClient.client,
       describe: () => Effect.succeed(capable)
@@ -466,7 +482,7 @@ describe("jobs UI state", () => {
   })
 
   it("rejects foreign-sandbox reads and excess metadata without exposing raw input", async () => {
-    const controller = Controller.make(Fixtures.sandbox, () => {})
+    const controller = Atoms.make(Fixtures.sandbox)
     await execute(controller.refresh, {
       ...FixtureClient.client,
       list: () =>
@@ -485,17 +501,14 @@ describe("jobs UI state", () => {
   })
 
   it("disposal prevents late operations from changing the mounted state", async () => {
-    let renders = 0
-    const controller = Controller.make(Fixtures.sandbox, () => {
-      ++renders
-    })
+    const controller = Atoms.make(Fixtures.sandbox)
     controller.dispose()
     await execute(controller.refresh)
-    expect(renders).toBe(0)
+    expect(controller.reading()).toBe(false)
   })
 
   it("does not release another operation's busy slot on duplicate commands or receipt clicks", async () => {
-    const controller = Controller.make(capable, () => {})
+    const controller = Atoms.make(capable)
     let sent = 0
     await execute(
       Effect.gen(function* () {
@@ -534,7 +547,7 @@ describe("jobs UI state", () => {
   })
 
   it("hides retained metadata when describe revokes expired sandbox authority", async () => {
-    const controller = Controller.make(Fixtures.sandbox, () => {})
+    const controller = Atoms.make(Fixtures.sandbox)
     await execute(controller.refresh)
     await execute(controller.select(FixtureClient.page.items[0]!.jobId))
     await execute(controller.refresh, {

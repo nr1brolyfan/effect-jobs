@@ -42,7 +42,11 @@ try {
   await page.getByLabel("Jobs (1–10)").fill("3")
   await page.getByRole("button", { name: "Run scenario", exact: true }).click()
   await page.getByText(/Enqueue acknowledged for/).waitFor()
-  await page.locator(".state-completed").first().waitFor({ timeout: 20000 })
+  await page
+    .getByRole("row")
+    .filter({ hasText: "Completed" })
+    .first()
+    .waitFor({ timeout: 20000 })
   assert.deepEqual(errors, [])
   console.log(
     JSON.stringify({

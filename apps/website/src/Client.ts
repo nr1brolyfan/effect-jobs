@@ -1,8 +1,6 @@
 import { Effect, Schedule } from "effect"
-import { JobsClient } from "./features/jobs/Adapter.js"
 import * as Http from "./integration/HttpClient.js"
-import * as View from "./features/jobs/View.js"
-import * as Live from "./live/BrowserLive.js"
+import * as Mount from "./features/jobs/Mount.js"
 const root = document.getElementById("jobs")
 if (root) {
   const demo = location.pathname === "/demo"
@@ -11,6 +9,7 @@ if (root) {
     root.textContent = "Preparing public demo…"
   }
   const controller = new AbortController()
+  window.addEventListener("pagehide", () => controller.abort(), { once: true })
   void Effect.runPromise(
     demo
       ? client
@@ -33,44 +32,18 @@ if (root) {
     { signal: controller.signal }
   ).then(
     (sandbox) => {
-      let identity = `${sandbox.ref.sandboxId}:${sandbox.ref.generation}`
-      let live: ReturnType<typeof Live.start> | undefined
-      const view = View.mount(root, client, sandbox, {
-        poll: false,
+      if (controller.signal.aborted) {
+        return
+      }
+      const view = Mount.mount(root, client, sandbox, {
         demo,
-        changed: (state) => {
-          const next = `${state.sandbox.ref.sandboxId}:${state.sandbox.ref.generation}`
-          if (live && next !== identity) {
-            identity = next
-            live.dispose()
-            live = connect(state.sandbox)
-            live?.setVisible(document.visibilityState !== "hidden")
-          }
-        }
+        liveUrl: `${location.origin.replace("https:", "wss:").replace("http:", "ws:")}/api/${demo ? "demo/" : ""}changes`
       })
-      const connect = (current: typeof sandbox) =>
-        Live.start({
-          sandbox: current,
-          url: `${location.origin.replace("https:", "wss:").replace("http:", "ws:")}/api/${demo ? "demo/" : ""}changes`,
-          snapshot: () =>
-            view.controller.refresh.pipe(
-              Effect.provideService(JobsClient, client),
-              Effect.map(() => view.controller.snapshot())
-            ),
-          render: () => undefined,
-          unavailable: () => view.controller.connection("stale")
-        })
-      live = connect(sandbox)
-      const visible = () => live?.setVisible(document.visibilityState !== "hidden")
-      document.addEventListener("visibilitychange", visible)
-      visible()
       window.addEventListener(
         "pagehide",
         () => {
-          document.removeEventListener("visibilitychange", visible)
-          live?.dispose()
-          view.dispose()
           controller.abort()
+          void view.dispose()
         },
         { once: true }
       )
