@@ -85,8 +85,10 @@ export const make = (client: Client, sandbox: SandboxView, options: Options = {}
           )
           return socket
         },
-        snapshot: () => state.refresh.pipe(Effect.provideService(JobsClient, client)),
+        snapshot: () =>
+          state.backgroundRefresh.pipe(Effect.provideService(JobsClient, client)),
         render: () => undefined,
+        connection: (connection) => state.connection(connection),
         unavailable: () => {
           if (Date.now() >= state.snapshot().sandbox.expiresAt) {
             state.revokeAuthority("sandbox-expired")
@@ -94,7 +96,7 @@ export const make = (client: Client, sandbox: SandboxView, options: Options = {}
             state.connection("stale")
           }
           if (!state.reading()) {
-            void run(state.refresh)
+            void run(state.backgroundRefresh)
           }
         }
       }).pipe(Scope.provide(liveScope))
@@ -113,12 +115,14 @@ export const make = (client: Client, sandbox: SandboxView, options: Options = {}
   const reconcile = () => {
     live?.setVisible(document.visibilityState !== "hidden")
     if (document.visibilityState !== "hidden" && !state.reading()) {
-      void run(state.refresh)
+      void run(state.backgroundRefresh)
     }
   }
-  const offline = () => state.connection("stale")
+  const offline = () => state.connection(options.liveUrl ? "reconnecting" : "stale")
   const online = () => {
-    state.connection("reconnecting")
+    if (options.liveUrl) {
+      state.connection("reconnecting")
+    }
     reconcile()
   }
   Effect.runSync(

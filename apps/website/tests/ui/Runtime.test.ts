@@ -19,6 +19,48 @@ afterEach(() => {
 })
 
 describe("mounted Effect Scope", () => {
+  it("keeps polling and visibility reconciliation silent across many observed cycles and recovers actual offline status", async () => {
+    const { document, window } = browser()
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] })
+    const server = makeServer()
+    server.keep(50)
+    const runtime = Runtime.make(server.client, Fixtures.sandbox)
+    try {
+      await runtime.run(runtime.refresh)
+      const observed: Array<unknown> = []
+      const unsubscribe = runtime.registry.subscribe(runtime.stateAtom, (value) => {
+        observed.push([
+          value.loading,
+          value.resultsCurrent,
+          value.connection,
+          value.notice
+        ])
+      })
+      for (let index = 0; index < 20; index++) {
+        await vi.advanceTimersByTimeAsync(5000)
+        document.dispatchEvent(new Event("visibilitychange"))
+        await runtime.run(runtime.backgroundRefresh)
+        expect(runtime.snapshot().pagination).toMatchObject({ total: 50, pageCount: 3 })
+      }
+      unsubscribe()
+      expect(server.requests.length).toBeGreaterThan(20)
+      expect(observed.length).toBeGreaterThan(0)
+      expect(
+        observed.every(
+          (value) =>
+            JSON.stringify(value) === JSON.stringify([false, true, "connected", ""])
+        )
+      ).toBe(true)
+      window.dispatchEvent(new Event("offline"))
+      expect(runtime.snapshot().connection).toBe("stale")
+      window.dispatchEvent(new Event("online"))
+      await vi.waitFor(() => expect(runtime.snapshot().connection).toBe("connected"))
+    } finally {
+      await runtime.dispose()
+    }
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it("interrupts an outstanding request, removes events/timers, and permits a fresh lifetime", async () => {
     const { document, window } = browser()
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] })
@@ -136,7 +178,10 @@ describe("mounted Effect Scope", () => {
       await Effect.runPromise(Deferred.await(entered))
       expect(runtime.snapshot().page).toBe(before.page)
       expect(runtime.snapshot().stats).toBe(before.stats)
-      expect(runtime.snapshot().loading).toBe(true)
+      expect(runtime.snapshot().loading).toBe(false)
+      expect(runtime.snapshot().resultsCurrent).toBe(true)
+      expect(runtime.snapshot().connection).toBe("connected")
+      expect(runtime.reading()).toBe(true)
       await Effect.runPromise(Deferred.succeed(release, undefined))
       await vi.waitFor(() => expect(runtime.snapshot().stats?.total).toBe(66))
       expect(runtime.snapshot().page?.items[0]?.jobId).toBe("read-job--new")
@@ -146,10 +191,24 @@ describe("mounted Effect Scope", () => {
       )
       const oldSocket = sockets[0]!
       oldSocket.onerror!()
+      expect(runtime.snapshot().connection).toBe("reconnecting")
+      await runtime.run(runtime.backgroundRefresh)
+      expect(runtime.snapshot().connection).toBe("reconnecting")
       await vi.waitFor(() => expect(sockets).toHaveLength(2), { timeout: 2000 })
       oldSocket.dispatchEvent(Object.assign(new Event("close"), { code: 4003 }))
       expect(runtime.snapshot().stats?.total).toBe(66)
       expect(runtime.snapshot().error).toBeUndefined()
+      expect(runtime.snapshot().connection).toBe("reconnecting")
+      sockets[1]!.onmessage!({
+        data: JSON.stringify({
+          kind: "ready",
+          sandbox: sandbox.ref,
+          reason: "jobs-changed",
+          sequence: 1
+        })
+      })
+      expect(runtime.snapshot().connection).toBe("connected")
+      expect(runtime.snapshot().loading).toBe(false)
     } finally {
       await runtime.dispose()
     }

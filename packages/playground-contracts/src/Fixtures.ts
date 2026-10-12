@@ -21,6 +21,7 @@ export const page = Schema.decodeUnknownSync(JobPage)(
   {
     sandbox: sandbox.ref,
     nextCursor: null,
+    filteredTotal: 1,
     stats: {
       total: 1,
       Pending: 0,

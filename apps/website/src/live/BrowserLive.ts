@@ -10,6 +10,7 @@ export interface BrowserOptions<A> {
   readonly snapshot: () => Effect.Effect<A, PlaygroundError>
   readonly render: (snapshot: A) => void
   readonly unavailable: () => void
+  readonly connection?: (status: "connected" | "reconnecting") => void
   // Injectable browser FFI for deterministic tests; production uses WebSocket.
   readonly connect?: (url: string) => WebSocket
 }
@@ -170,6 +171,7 @@ export const start = <A>(options: BrowserOptions<A>) => {
     }
     disconnect()
     lastSequence = 0
+    options.connection?.("reconnecting")
     try {
       socket = (options.connect ?? ((url) => new WebSocket(url)))(options.url)
     } catch {
@@ -180,6 +182,7 @@ export const start = <A>(options: BrowserOptions<A>) => {
     connectionTimer = setTimeout(() => {
       if (socket === connection) {
         disconnect()
+        options.connection?.("reconnecting")
         invalidate()
         reconnect()
       }
@@ -208,6 +211,7 @@ export const start = <A>(options: BrowserOptions<A>) => {
           return
         }
         lastSequence = signal.sequence
+        options.connection?.("connected")
         // Ready comes after server admission. Read again even if an early HTTP read won.
         if (signal.kind === "ready" || signal.reason === "jobs-changed") {
           invalidate()
@@ -215,6 +219,7 @@ export const start = <A>(options: BrowserOptions<A>) => {
           requestRefresh()
         }
       } catch {
+        options.connection?.("reconnecting")
         disconnect()
         reconnect()
       }
@@ -227,6 +232,7 @@ export const start = <A>(options: BrowserOptions<A>) => {
       if (event.code === 4003) {
         expire()
       } else {
+        options.connection?.("reconnecting")
         invalidate()
         reconnect()
       }
@@ -234,6 +240,7 @@ export const start = <A>(options: BrowserOptions<A>) => {
     connection.onerror = () => {
       if (socket === connection) {
         disconnect()
+        options.connection?.("reconnecting")
         invalidate()
         reconnect()
       }

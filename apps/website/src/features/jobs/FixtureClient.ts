@@ -24,6 +24,7 @@ export const page = Schema.decodeUnknownSync(JobPage)(
   {
     ...Fixtures.page,
     items,
+    filteredTotal: items.length,
     stats: {
       total: items.length,
       Pending: 3,
@@ -67,6 +68,7 @@ export const client: Client = {
       return {
         sandbox: request.sandbox,
         items: visible,
+        filteredTotal: filtered.length,
         stats: page.stats,
         nextCursor:
           start + request.limit < filtered.length ? (visible.at(-1)?.jobId ?? null) : null

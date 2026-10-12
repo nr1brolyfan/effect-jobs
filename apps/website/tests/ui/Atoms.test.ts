@@ -80,10 +80,11 @@ describe("jobs atom authority", () => {
           yield* controller.refresh
           expect(details).toBe(1)
           expect(controller.snapshot().detail).toBeUndefined()
-          expect(controller.reading()).toBe(false)
+          expect(controller.reading()).toBe(true)
           yield* Deferred.succeed(release, undefined)
           yield* Fiber.join(first)
           expect(controller.snapshot().detail?.job.jobId).toBe(jobId)
+          expect(controller.reading()).toBe(false)
           yield* controller.refresh
           expect(details).toBe(2)
         }).pipe(Effect.provideService(JobsClient, client))
@@ -157,6 +158,7 @@ describe("jobs atom authority", () => {
                     sandbox: ref,
                     items: [],
                     nextCursor: null,
+                    filteredTotal: 0,
                     stats: Fixtures.page.stats
                   })
               })
@@ -454,6 +456,7 @@ describe("jobs atom authority", () => {
           sandbox: ref,
           items: [],
           nextCursor: null,
+          filteredTotal: 0,
           stats: Fixtures.page.stats
         })
     })

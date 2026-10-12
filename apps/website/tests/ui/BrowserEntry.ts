@@ -47,6 +47,7 @@ const client: Client = {
         sandbox: request.sandbox,
         items: [],
         nextCursor: null,
+        filteredTotal: 0,
         stats: {
           total: 0,
           Pending: 0,

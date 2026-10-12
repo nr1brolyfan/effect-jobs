@@ -37,17 +37,17 @@ export const layer = Layer.mergeAll(
         if (request.cursor !== undefined) {
           return yield* new PlaygroundError({ code: "invalid-request" })
         }
+        const items = Fixtures.page.items.filter(
+          (job) =>
+            (request.filters.state === undefined ||
+              request.filters.state === job.state) &&
+            (request.filters.kind === undefined ||
+              request.filters.kind === job.catalog.kind)
+        )
         return {
           ...Fixtures.page,
-          items: Fixtures.page.items
-            .filter(
-              (job) =>
-                (request.filters.state === undefined ||
-                  request.filters.state === job.state) &&
-                (request.filters.kind === undefined ||
-                  request.filters.kind === job.catalog.kind)
-            )
-            .slice(0, request.limit)
+          filteredTotal: items.length,
+          items: items.slice(0, request.limit)
         }
       }),
       detail: Effect.fn("MockJobsRead.detail")(function* (access, request) {
