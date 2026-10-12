@@ -1,5 +1,6 @@
 # Foreground qualification FFI. One disposable resource, exact-ID cleanup, no config reuse.
 import datetime
+import hashlib
 import json
 import os
 import pathlib
@@ -13,13 +14,13 @@ evidence = root / os.environ.get('PLAYGROUND_EVIDENCE_DIRECTORY', '.multica/ux-r
 evidence.mkdir(parents=True, exist_ok=True)
 image = 'postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea'
 now = lambda: datetime.datetime.now(datetime.timezone.utc).isoformat()
-receipt = {'owner': 'UPVE-2046', 'startedAt': now(), 'image': image, 'storage': 'tmpfs', 'status': 'FAIL'}
+receipt = {'owner': 'UPVE-2077', 'startedAt': now(), 'image': image, 'storage': 'tmpfs', 'status': 'FAIL'}
 cid = None
 private = evidence / ('private-' + secrets.token_hex(8) + '.json')
 try:
     env = os.environ.copy()
     env.update(POSTGRES_USER='ux_probe', POSTGRES_DB='ux_probe', POSTGRES_PASSWORD=secrets.token_hex(32))
-    cid = subprocess.check_output(['docker', 'create', '--name', 'effect-jobs-upve-2046-ux', '--label', 'task=UPVE-2046', '--publish', '127.0.0.1::5432', '--tmpfs', '/var/lib/postgresql/data:rw', '-e', 'POSTGRES_USER', '-e', 'POSTGRES_DB', '-e', 'POSTGRES_PASSWORD', image], env=env, text=True, timeout=30).strip()
+    cid = subprocess.check_output(['docker', 'create', '--name', 'effect-jobs-upve-2077-refresh-' + secrets.token_hex(6), '--label', 'task=UPVE-2077', '--publish', '127.0.0.1::5432', '--tmpfs', '/var/lib/postgresql/data:rw', '-e', 'POSTGRES_USER', '-e', 'POSTGRES_DB', '-e', 'POSTGRES_PASSWORD', image], env=env, text=True, timeout=30).strip()
     receipt['containerId'] = cid
     subprocess.run(['docker', 'start', cid], check=True, capture_output=True, timeout=30)
     ports = json.loads(subprocess.check_output(['docker', 'inspect', '--format', '{{json .NetworkSettings.Ports}}', cid], text=True, timeout=10))
@@ -35,10 +36,16 @@ try:
     cfg = {'user': env['POSTGRES_USER'], 'database': env['POSTGRES_DB'], 'password': env['POSTGRES_PASSWORD'], 'port': int(ports['5432/tcp'][0]['HostPort']), 'schema': 'ux_probe', **{key: secrets.token_hex(32) for key in ['encryptionKey', 'fingerprintKey', 'cursorKey']}}
     with os.fdopen(os.open(private, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as stream:
         json.dump(cfg, stream)
+    script = os.environ.get('PLAYGROUND_QUALIFICATION_SCRIPT', 'UxRuntime.mjs')
+    if script not in ('UxRuntime.mjs', 'RefreshRuntime.mjs'):
+        raise ValueError('unknown qualification script')
+    receipt['privateConfigSha256'] = hashlib.sha256(private.read_bytes()).hexdigest()
+    receipt['scriptSha256'] = hashlib.sha256((root / 'apps/playground-worker/tests/integration' / script).read_bytes()).hexdigest()
+    receipt['runnerSha256'] = hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()
     testenv = os.environ.copy()
     testenv.update(PLAYGROUND_PRIVATE_CONFIG=str(private), PLAYGROUND_EVIDENCE_DIRECTORY=str(evidence))
     with (evidence / 'runtime.log').open('w') as log:
-        process = subprocess.Popen(['node', 'apps/playground-worker/tests/integration/UxRuntime.mjs'], cwd=root, env=testenv, stdout=log, stderr=log, start_new_session=True)
+        process = subprocess.Popen(['node', 'apps/playground-worker/tests/integration/' + script], cwd=root, env=testenv, stdout=log, stderr=log, start_new_session=True)
         try:
             exit_code = process.wait(timeout=240)
         finally:

@@ -34,7 +34,7 @@ try {
     await pool.query(migration.sql)
   }
   cfg.connectionString = `postgres://${cfg.user}:${cfg.password}@127.0.0.1:${cfg.port}/${cfg.database}`
-  local = await createLocal(cfg, { port: 18842 })
+  local = await createLocal(cfg, { port: 18874 })
   assert.notEqual(new URL(local.origin).port, "8787")
   const dispatch = (path, options) => local.mf.dispatchFetch(local.origin + path, options)
   const css = await (await dispatch("/Jobs.css")).text()
@@ -141,7 +141,7 @@ try {
     })
   })
   await page.getByRole("button", { name: "Page 2", exact: true }).click()
-  await expect(page.locator(".results-status")).toContainText("previous results")
+  await expect(page.locator(".results-status")).toContainText("Previous query")
   assert.equal(await page.locator(".stats-grid").textContent(), beforeStats)
   await expect(page.locator(".results-status")).toContainText("Page 2 ·")
   assert(await page.evaluate(() => window.uxRuntimeNodes.every((n) => n.isConnected)))

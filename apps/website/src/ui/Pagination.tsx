@@ -85,11 +85,10 @@ export function Pagination({
               <Button
                 variant={page === current ? "primary" : "ghost"}
                 disabled={disabled}
-                aria-disabled={busy || undefined}
                 aria-current={page === current ? "page" : undefined}
                 aria-label={`Page ${page}`}
                 onClick={() => {
-                  if (!busy && !disabled) {
+                  if (!disabled) {
                     onPage(page)
                   }
                 }}

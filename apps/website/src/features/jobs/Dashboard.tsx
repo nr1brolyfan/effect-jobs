@@ -675,7 +675,7 @@ export const Dashboard = ({
                   <div {...classes("results-status")}>
                     <p role="status" {...stylex.props(layout.resultsLabel)}>
                       {state.page && state.displayedQuery
-                        ? `Page ${state.displayedQuery.pageNumber} · ${state.page.items.length} results · ${state.displayedQuery.filters.state ?? "all states"}${state.displayedQuery.filters.kind ? ` · ${state.displayedQuery.filters.kind}` : ""} · ${state.displayedQuery.pageSize} per page${!state.resultsCurrent ? " · Previous query" : ""}`
+                        ? `Page ${state.displayedQuery.pageNumber} · ${state.page.items.length} results · ${state.displayedQuery.filters.state ?? "all states"}${state.displayedQuery.filters.kind ? ` · ${state.displayedQuery.filters.kind}` : ""} · ${state.displayedQuery.pageSize} per page${state.pagination.total === undefined ? "" : ` · ${state.pagination.total} matching · ${state.pagination.pageCount} ${state.pagination.pageCount === 1 ? "page" : "pages"}`}${!state.resultsCurrent ? " · Previous query" : ""}`
                         : state.loading
                           ? "Waiting for results"
                           : "No current results. Refresh reads to retry."}
@@ -743,6 +743,7 @@ export const Dashboard = ({
                       <span {...stylex.props(layout.pageSizeLabel)}>Rows per page</span>
                       <select
                         {...stylex.props(layout.pageSizeSelect)}
+                        aria-label="Rows per page"
                         value={state.pageSize}
                         disabled={state.error === "sandbox-expired"}
                         onChange={(event) =>

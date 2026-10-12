@@ -60,6 +60,7 @@ const server = createServer(async (req, res) => {
     const limit = Number(url.searchParams.get("limit"))
     const page = {
       sandbox: sandbox.ref,
+      filteredTotal: sandbox.ref.generation > 1 ? 0 : filtered.length,
       stats:
         sandbox.ref.generation > 1
           ? { ...stats, total: 0, Completed: 0, Dead: 0 }
@@ -143,7 +144,7 @@ try {
     delay = 1300
     await page.getByRole("tab", { name: "Dead 40", exact: true }).focus()
     await page.keyboard.press("Enter")
-    await expect(page.locator(".results-status")).toContainText("previous results")
+    await expect(page.locator(".results-status")).toContainText("Previous query")
     await expect(page.locator(".job-list tr").first()).toContainText("Completed")
     const scroll = await page.evaluate(() => scrollY)
     await expect(page.locator(".job-list tr").first()).toContainText("Dead")
@@ -164,7 +165,7 @@ try {
     await pageTwo.focus()
     await expect(pageTwo).toBeFocused()
     await page.keyboard.press("Enter")
-    await expect(page.locator(".results-status")).toContainText("previous results")
+    await expect(page.locator(".results-status")).toContainText("Previous query")
     const pageScroll = await page.evaluate(() => scrollY)
     await expect(page.locator(".job-list .job-id").first()).toHaveText(
       "synthetic-job-045"
@@ -207,10 +208,10 @@ try {
     await expect(timestamp).toBeFocused()
     await page.keyboard.press("Space")
     await expect(popup).toBeVisible()
-    await popup.getByRole("button", { name: "Close", exact: true }).click()
+    await page.getByRole("heading", { name: "Background Jobs", exact: true }).click()
     await expect(timestamp).toBeFocused()
     checks.push(
-      "shared DateTime actual Base UI popup, exact local/UTC/ISO, Enter/Space/Escape/Close and focus restoration"
+      "shared DateTime actual Base UI popup, exact local/UTC/ISO, Enter/Space/Escape/outside and focus restoration"
     )
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 844 })
@@ -246,22 +247,24 @@ try {
     await expect(touchPopup).toBeVisible()
     const triggerBox = await touchTrigger.boundingBox()
     const popupBox = await touchPopup.boundingBox()
-    const touchClose = touchPopup.getByRole("button", { name: "Close", exact: true })
-    const closeBox = await touchClose.boundingBox()
-    assert(triggerBox.height >= 44 && closeBox.height >= 44)
+    assert.equal(
+      await touchPopup.getByRole("button", { name: "Close", exact: true }).count(),
+      0
+    )
+    assert(triggerBox.height >= 44)
     assert(popupBox.x >= 0 && popupBox.x + popupBox.width <= 390)
     await mobile.screenshot({ path: `${output}/timestamp-touch.png`, fullPage: false })
-    await touchClose.tap()
+    await mobile.getByRole("heading", { name: "Background Jobs", exact: true }).tap()
     await expect(touchPopup).toHaveCount(0)
     await touch.close()
     checks.push(
-      "synthesized Chromium touch opens exact timestamp; reachable 44px trigger/close and popup within 390px viewport"
+      "synthesized Chromium touch opens exact timestamp; reachable 44px trigger and popup within 390px viewport"
     )
     delay = 1000
     fail = true
     await page.getByRole("tab", { name: "Dead 40", exact: true }).click()
     await expect(page.locator(".connection-status")).toContainText("unavailable")
-    await expect(page.locator(".results-status")).toContainText("previous results")
+    await expect(page.locator(".results-status")).toContainText("Previous query")
     await expect(page.locator(".job-list tr")).toHaveCount(50)
     fail = false
     delay = 0
@@ -283,7 +286,7 @@ try {
     ).toContainText("Producer identity")
     delay = 1500
     await page.getByRole("tab", { name: "Dead 40", exact: true }).click()
-    await expect(page.locator(".results-status")).toContainText("previous results")
+    await expect(page.locator(".results-status")).toContainText("Previous query")
     sandbox.ref = { ...sandbox.ref, generation: 2 }
     // Reconciliation races the older server response; no fabricated atom state.
     await page.evaluate(() => window.dispatchEvent(new Event("online")))
@@ -330,7 +333,7 @@ try {
   throw error
 } finally {
   await browser?.close()
-  for (const socket of signals.clients) socket.terminate()
+  for (const socket of signals.clients) {socket.terminate()}
   await new Promise((done) => signals.close(done))
   await new Promise((done) => server.close(done))
 }

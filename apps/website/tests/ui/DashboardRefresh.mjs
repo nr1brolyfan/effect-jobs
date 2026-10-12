@@ -23,11 +23,11 @@ const sandbox = { ...Fixtures.sandbox, expiresAt: Date.now() + 3600000 }
 const jobs = Array.from({ length: 65 }, (_, n) => ({
   ...Fixtures.page.items[0],
   jobId: `synthetic-job-${String(n).padStart(3, "0")}`,
-  state: n < 25 ? "Completed" : "Dead",
+  state: n < 50 ? "Completed" : "Dead",
   updatedAt: instant,
   completedAt: instant
 }))
-const stats = { ...Fixtures.page.stats, total: 65, Completed: 25, Dead: 40 }
+const stats = { ...Fixtures.page.stats, total: 65, Completed: 50, Dead: 15 }
 let delay = 0,
   fail = false,
   revoke = false
@@ -63,6 +63,7 @@ const server = createServer(async (req, res) => {
     const limit = Number(url.searchParams.get("limit"))
     const page = {
       sandbox: sandbox.ref,
+      filteredTotal: sandbox.ref.generation > 1 ? 0 : filtered.length,
       stats:
         sandbox.ref.generation > 1
           ? { ...stats, total: 0, Completed: 0, Dead: 0 }
@@ -70,11 +71,12 @@ const server = createServer(async (req, res) => {
       items: sandbox.ref.generation > 1 ? [] : filtered.slice(offset, offset + limit),
       nextCursor: offset + limit < filtered.length ? String(offset + limit) : null
     }
+    const failed = fail
     await new Promise((done) => setTimeout(done, delay))
     res.setHeader("Content-Type", "application/json")
     res
-      .writeHead(fail ? 503 : 200)
-      .end(JSON.stringify(fail ? { code: "unavailable" } : page))
+      .writeHead(failed ? 503 : 200)
+      .end(JSON.stringify(failed ? { code: "unavailable" } : page))
   } else if (url.pathname === "/api/demo/jobs/detail") {
     const job = jobs.find((j) => j.jobId === url.searchParams.get("jobId"))
     res.setHeader("Content-Type", "application/json")
@@ -112,12 +114,30 @@ try {
     page.locator('.connection-status[data-connection="connected"]')
   ).toBeVisible()
   await page.screenshot({ path: `${output}/desktop.png`, fullPage: true })
+  const stableFocus = page.getByLabel("Rows per page", { exact: true })
+  await stableFocus.focus()
   await page.evaluate(() => {
+    window.stableFocus = document.activeElement
+    window.stableScroll = scrollY
+    window.stableNodes = [
+      document.querySelector(".jobs-table"),
+      document.querySelector("svg.recharts-surface")
+    ]
     window.churn = []
     const record = () =>
       window.churn.push({
         text: document.querySelector(".results-status").textContent,
         connection: document.querySelector(".connection-status").textContent,
+        size: document.querySelector(".pagination select").value,
+        busy: document
+          .querySelector("nav[aria-label=Pagination]")
+          .getAttribute("aria-busy"),
+        focus: document.activeElement === window.stableFocus,
+        scroll: scrollY === window.stableScroll,
+        mounted: window.stableNodes.every((n) => n.isConnected),
+        announcements: [...document.querySelectorAll("[role=status]")].map(
+          (n) => n.textContent
+        ),
         disabled: [
           ...document.querySelectorAll(".pagination button, .pagination select")
         ].map((n) => n.disabled)
@@ -132,7 +152,7 @@ try {
     record()
   })
   delay = 30
-  for (let cycle = 0; cycle < 6; cycle++) {
+  for (let cycle = 0; cycle < 24; cycle++) {
     for (const socket of signals.clients) {
       socket.send(
         JSON.stringify({
@@ -143,14 +163,37 @@ try {
         })
       )
     }
-    await page.waitForTimeout(160)
+    await page.waitForTimeout(300)
   }
+  const afterSignals = requests.length
+  await expect
+    .poll(() => requests.length, { timeout: 17000 })
+    .toBeGreaterThan(afterSignals + 2)
   const churn = await page.evaluate(() => {
     window.observer.disconnect()
     return window.churn
   })
   const beforeNavigation = await page.locator(".results-status").innerText()
   if (!baseline) {
+    assert(churn.length > 0)
+    assert.equal(
+      new Set(churn.map((n) => JSON.stringify(n))).size,
+      1,
+      "every transient background DOM snapshot must be stable"
+    )
+    assert(
+      churn.every(
+        (n) =>
+          n.focus &&
+          n.scroll &&
+          n.mounted &&
+          n.connection === "connected" &&
+          n.busy === "false"
+      )
+    )
+    checks.push(
+      "24 actual WS invalidations plus 3 actual periodic reconciliations; every observed DOM label/control/select/transport/focus/scroll/live region snapshot stable"
+    )
     await expect(page.getByRole("navigation", { name: "Pagination" })).toHaveAttribute(
       "aria-busy",
       "false"
@@ -188,6 +231,40 @@ try {
     assert.equal(
       await page.getByText("Pages follow known cursors", { exact: false }).count(),
       0
+    )
+    delay = 0
+    await page.getByLabel("State", { exact: true }).selectOption("Completed")
+    await page.getByRole("button", { name: "Apply filters", exact: true }).click()
+    await expect(page.locator(".results-status")).toContainText("50 matching · 3 pages")
+    assert.equal(
+      await page.getByRole("button", { name: "Page 3", exact: true }).count(),
+      0
+    )
+    await page.getByRole("button", { name: "Page 2", exact: true }).click()
+    await expect(page.locator(".results-status")).toContainText("Page 2 ·")
+    await page.getByRole("button", { name: "Page 3", exact: true }).click()
+    await expect(page.locator(".results-status")).toContainText("Page 3 · 10 results")
+    await page.getByRole("button", { name: "First page", exact: true }).click()
+    await expect(page.locator(".results-status")).toContainText("Page 1 ·")
+    // Capture an old failure at request admission, then supersede with a new query.
+    delay = 1100
+    fail = true
+    const oldCount = requests.length
+    await page.getByLabel("State", { exact: true }).selectOption("Dead")
+    await page.getByRole("button", { name: "Apply filters", exact: true }).click()
+    await expect.poll(() => requests.length).toBeGreaterThan(oldCount)
+    delay = 0
+    fail = false
+    await page.getByLabel("Rows per page", { exact: true }).selectOption("50")
+    await expect(page.locator(".job-list tr")).toHaveCount(15)
+    await expect(page.locator(".results-status")).toContainText(
+      "50 per page · 15 matching · 1 page"
+    )
+    await page.waitForTimeout(1200)
+    assert(!/unavailable/.test(await page.locator(".connection-status").innerText()))
+    await expect(page.locator(".job-list tr")).toHaveCount(15)
+    checks.push(
+      "authoritative filtered50/pageCount3 distinct from navigable neighbors; last visible page works; latest page-size query wins over delayed old failure"
     )
     await page.addScriptTag({ url: "/axe.js" })
     assert.deepEqual(
