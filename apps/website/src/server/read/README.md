@@ -35,6 +35,15 @@ lookahead row, default HTTP limit 25, maximum 50. This is not a historical
 snapshot: state changes can move rows into/out of a filtered page, insertions
 behind the last ID can be missed until restarting, and deletions disappear.
 Reconcile by replacing the active list every five seconds and after reset/hints.
+`JobPage.filteredTotal` counts matching scoped rows before the keyset predicate,
+using the same authority/association statement snapshot as items and global stats.
+It applies both state and kind filters; global stats intentionally apply neither.
+An empty cursor page still returns its complete matching count. The SQL casts the
+count to double precision for a decoded nonnegative integer wire field (the bounded
+sandbox dataset fits exactly); it is not a driver bigint string. The dashboard's
+20/50 page ceiling comes from this filtered count, not global stats or visited
+cursor history. Counts do not supply arbitrary random-access anchors. See
+`tests/ui/CursorPagination.md` for concurrent-arrival and bounded recovery semantics.
 No result cache is used; HTTP replies use `Cache-Control: no-store`.
 
 Detail exposes producer, persisted policy and allowlisted synthetic relations.

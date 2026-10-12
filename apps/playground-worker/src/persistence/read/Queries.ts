@@ -55,6 +55,9 @@ export const make = (mapping: Mapping) => {
           AND ($3::text IS NULL OR j.state=$3) AND ($4::text IS NULL OR j.kind=$4)
           AND ($5::text IS NULL OR j.id COLLATE "C" > $5 COLLATE "C")
         ORDER BY j.id COLLATE "C" ASC LIMIT $6
+       ), filtered AS (
+         SELECT count(*) AS total ${scoped}
+           AND ($3::text IS NULL OR j.state=$3) AND ($4::text IS NULL OR j.kind=$4)
        ), totals AS (
          SELECT jsonb_build_object('total',count(*),
            'Pending',count(*) FILTER(WHERE j.state='Pending'),
@@ -64,6 +67,7 @@ export const make = (mapping: Mapping) => {
            'Dead',count(*) FILTER(WHERE j.state='Dead'),
            'Isolated',count(*) FILTER(WHERE j.state='Isolated')) AS stats ${scoped}
        ) SELECT (SELECT code FROM status) AS status, (SELECT stats FROM totals) AS stats,
+        (SELECT total FROM filtered)::double precision AS "filteredTotal",
         coalesce(jsonb_agg(item ORDER BY id COLLATE "C"),'[]'::jsonb) AS items FROM page`,
       values: [
         ref.sandboxId,

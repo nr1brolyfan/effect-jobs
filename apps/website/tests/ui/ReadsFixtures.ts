@@ -27,14 +27,17 @@ export const makeServer = () => {
             (request.filters.state === undefined ||
               job.state === request.filters.state) &&
             (request.filters.kind === undefined ||
-              job.catalog.kind === request.filters.kind) &&
-            (request.cursor === undefined || job.jobId > request.cursor)
+              job.catalog.kind === request.filters.kind)
         )
-        const visible = filtered.slice(0, request.limit)
+        const remaining = filtered.filter(
+          (job) => request.cursor === undefined || job.jobId > request.cursor
+        )
+        const visible = remaining.slice(0, request.limit)
         return Schema.decodeSync(JobPage)({
           sandbox: request.sandbox,
           items: visible,
-          nextCursor: filtered.length > request.limit ? visible.at(-1)!.jobId : null,
+          filteredTotal: filtered.length,
+          nextCursor: remaining.length > request.limit ? visible.at(-1)!.jobId : null,
           stats: {
             total: items.length,
             Pending: items.length,
@@ -56,6 +59,9 @@ export const makeServer = () => {
   return {
     client,
     requests,
+    keep: (count: number) => {
+      items = items.slice(0, count)
+    },
     removeFirst: () => {
       items = items.slice(1)
     },

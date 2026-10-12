@@ -25,6 +25,7 @@ const ListRows = Schema.Array(
   Schema.Struct({
     status: Status,
     items: Schema.Array(JobSummary).pipe(Schema.check(Schema.isMaxLength(51))),
+    filteredTotal: JobPage.fields.filteredTotal,
     stats: JobStats
   })
 ).pipe(Schema.check(Schema.isMinLength(1), Schema.isMaxLength(1)))
@@ -100,7 +101,13 @@ export const make = (mapping: Queries.Mapping) =>
               })
             : null
         return yield* Schema.decodeUnknownEffect(JobPage)(
-          { sandbox: request.sandbox, items, nextCursor, stats: row.stats },
+          {
+            sandbox: request.sandbox,
+            items,
+            nextCursor,
+            filteredTotal: row.filteredTotal,
+            stats: row.stats
+          },
           { onExcessProperty: "error" }
         ).pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" })))
       }

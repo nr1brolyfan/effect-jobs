@@ -32,6 +32,8 @@ export interface Query {
   readonly pageSize: 20 | 50
 }
 export interface Pagination {
+  readonly total: number | undefined
+  readonly pageCount: number | undefined
   readonly pages: ReadonlyArray<number>
   readonly current: number
   readonly hasPrevious: boolean
@@ -114,13 +116,14 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     const pageSize = get(atoms.pageSize)
     const displayedQuery = get(atoms.displayedQuery)
     const cursors = get(atoms.cursors)
+    const page = get(atoms.page)
     return {
       sandbox,
       filters,
       cursor: get(atoms.cursor),
       pageNumber,
       pageSize,
-      page: get(atoms.page),
+      page,
       stats: get(atoms.stats),
       loading: get(atoms.loading),
       displayedQuery,
@@ -132,6 +135,11 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         displayedQuery.filters.state === filters.state &&
         displayedQuery.filters.kind === filters.kind,
       pagination: {
+        total: page?.filteredTotal,
+        pageCount:
+          page === undefined || displayedQuery === undefined
+            ? undefined
+            : Math.ceil(page.filteredTotal / displayedQuery.pageSize),
         pages: cursors.map((_, index) => index + 1),
         current: pageNumber,
         hasPrevious: pageNumber > 1,
@@ -149,6 +157,8 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
   })
   const snapshot = () => registry.get(stateAtom)
   let listRevision = 0
+  let activeReads = 0
+  let transport: Connection | undefined
   let detailRevision = 0
   let activeDetail:
     | { readonly revision: number; readonly sandbox: SandboxRef; readonly jobId: JobId }
@@ -233,6 +243,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       const revision = ++detailRevision
       const request = { revision, sandbox, jobId }
       activeDetail = request
+      activeReads++
       update({
         selected: jobId,
         detail: snapshot().selected === jobId ? snapshot().detail : undefined,
@@ -267,6 +278,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         }),
         Effect.ensuring(
           Effect.sync(() => {
+            activeReads--
             if (activeDetail === request) {
               activeDetail = undefined
             }
@@ -275,148 +287,185 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       )
     })
 
-  const refresh: Effect.Effect<void, never, JobsClient> = Effect.gen(function* () {
-    if (disposed) {
-      return
-    }
-    const client = yield* JobsClient
-    const revision = ++listRevision
-    update({ loading: true })
-    yield* Effect.gen(function* () {
-      update({
-        connection: snapshot().page === undefined ? "loading" : "reconnecting",
-        error: undefined
-      })
-      const described = yield* bounded(client.describe()).pipe(
-        Effect.flatMap(decode(SandboxView)),
-        Effect.result
-      )
-      if (revision !== listRevision) {
+  const read = (background: boolean): Effect.Effect<void, never, JobsClient> =>
+    Effect.gen(function* () {
+      // A background read never steals ownership from any outstanding read.
+      if (disposed || (background && activeReads > 0)) {
         return
       }
-      if (described._tag === "Failure") {
-        if (revokesAuthority(described.failure.code)) {
-          revoke()
+      const client = yield* JobsClient
+      const revision = ++listRevision
+      activeReads++
+      if (!background) {
+        update({ loading: true })
+      }
+      yield* Effect.gen(function* () {
+        const described = yield* bounded(client.describe()).pipe(
+          Effect.flatMap(decode(SandboxView)),
+          Effect.result
+        )
+        if (revision !== listRevision) {
+          return
         }
-        update({
-          connection: snapshot().page === undefined ? "error" : "stale",
-          error: described.failure.code
-        })
-        return
-      }
-      const sandbox = described.success
-      if (
-        sandbox.ref.sandboxId !== snapshot().sandbox.ref.sandboxId &&
-        !allowDemoRotation
-      ) {
-        revoke()
-        update({
-          connection: "error",
-          error: "not-found"
-        })
-        return
-      }
-      if (
-        sandbox.ref.sandboxId === snapshot().sandbox.ref.sandboxId &&
-        sandbox.ref.generation < snapshot().sandbox.ref.generation
-      ) {
-        revoke()
-        update({ connection: "error", error: "stale-generation" })
-        return
-      }
-      if (!sameRef(sandbox.ref, snapshot().sandbox.ref)) {
-        // Keep this read as the current owner while fencing old details/history.
-        ++detailRevision
-        update({
-          page: undefined,
-          stats: undefined,
-          displayedQuery: undefined,
-          detail: undefined,
-          selected: undefined,
-          detailError: undefined,
-          pending: undefined,
-          cursor: undefined,
-          pageNumber: 1,
-          cursors: [undefined],
-          notice:
-            "Sandbox generation changed. Old data and selection were revoked; filters retained."
-        })
-      }
-      update({ sandbox })
-      const query: Query = {
-        sandbox: sandbox.ref,
-        filters: snapshot().filters,
-        pageNumber: snapshot().pageNumber,
-        pageSize: snapshot().pageSize
-      }
-      const request: ListJobs = {
-        sandbox: snapshot().sandbox.ref,
-        filters: snapshot().filters,
-        limit: query.pageSize,
-        ...(snapshot().cursor === undefined ? {} : { cursor: snapshot().cursor })
-      }
-      yield* bounded(client.list(request)).pipe(
-        Effect.flatMap(decode(JobPage)),
-        Effect.flatMap((page) =>
-          ensureRef(page.sandbox, request.sandbox).pipe(Effect.as(page))
-        ),
-        Effect.flatMap((page) =>
-          page.items.length <= request.limit
-            ? Effect.succeed(page)
-            : Effect.fail(new PlaygroundError({ code: "unavailable" }))
-        ),
-        Effect.match({
-          onFailure: (error) => {
-            if (revision === listRevision) {
-              if (revokesAuthority(error.code)) {
-                revoke()
+        if (described._tag === "Failure") {
+          if (revokesAuthority(described.failure.code)) {
+            revoke()
+          }
+          update({
+            connection: snapshot().page === undefined ? "error" : "stale",
+            error: described.failure.code
+          })
+          return
+        }
+        const sandbox = described.success
+        if (
+          sandbox.ref.sandboxId !== snapshot().sandbox.ref.sandboxId &&
+          !allowDemoRotation
+        ) {
+          revoke()
+          update({
+            connection: "error",
+            error: "not-found"
+          })
+          return
+        }
+        if (
+          sandbox.ref.sandboxId === snapshot().sandbox.ref.sandboxId &&
+          sandbox.ref.generation < snapshot().sandbox.ref.generation
+        ) {
+          revoke()
+          update({ connection: "error", error: "stale-generation" })
+          return
+        }
+        if (!sameRef(sandbox.ref, snapshot().sandbox.ref)) {
+          // Keep this read as the current owner while fencing old details/history.
+          ++detailRevision
+          update({
+            page: undefined,
+            stats: undefined,
+            displayedQuery: undefined,
+            detail: undefined,
+            selected: undefined,
+            detailError: undefined,
+            pending: undefined,
+            cursor: undefined,
+            pageNumber: 1,
+            cursors: [undefined],
+            notice:
+              "Sandbox generation changed. Old data and selection were revoked; filters retained."
+          })
+        }
+        update({ sandbox })
+        let query: Query = {
+          sandbox: sandbox.ref,
+          filters: snapshot().filters,
+          pageNumber: snapshot().pageNumber,
+          pageSize: snapshot().pageSize
+        }
+        let request: ListJobs = {
+          sandbox: snapshot().sandbox.ref,
+          filters: snapshot().filters,
+          limit: query.pageSize,
+          ...(snapshot().cursor === undefined ? {} : { cursor: snapshot().cursor })
+        }
+        const fetchPage = (input: ListJobs) =>
+          bounded(client.list(input)).pipe(
+            Effect.flatMap(decode(JobPage)),
+            Effect.flatMap((page) =>
+              ensureRef(page.sandbox, input.sandbox).pipe(Effect.as(page))
+            ),
+            Effect.flatMap((page) =>
+              page.items.length <= input.limit
+                ? Effect.succeed(page)
+                : Effect.fail(new PlaygroundError({ code: "unavailable" }))
+            )
+          )
+        yield* fetchPage(request).pipe(
+          Effect.flatMap((page) => {
+            if (
+              revision !== listRevision ||
+              query.pageNumber === 1 ||
+              (page.items.length > 0 &&
+                (query.pageNumber < Math.ceil(page.filteredTotal / query.pageSize) ||
+                  (query.pageNumber === Math.ceil(page.filteredTotal / query.pageSize) &&
+                    page.nextCursor === null)))
+            ) {
+              return Effect.succeed(page)
+            }
+            // Shrink can invalidate an anchor/history position. Restart once, bounded;
+            // publish the normalized label and replacement together on success.
+            query = { ...query, pageNumber: 1 }
+            request = {
+              sandbox: request.sandbox,
+              filters: request.filters,
+              limit: request.limit
+            }
+            return fetchPage(request)
+          }),
+          Effect.match({
+            onFailure: (error) => {
+              if (revision === listRevision) {
+                if (revokesAuthority(error.code)) {
+                  revoke()
+                }
+                update({
+                  connection: snapshot().page === undefined ? "error" : "stale",
+                  error: error.code
+                })
               }
-              update({
-                connection: snapshot().page === undefined ? "error" : "stale",
-                error: error.code
-              })
+            },
+            onSuccess: (page) => {
+              if (revision === listRevision) {
+                const known =
+                  query.pageNumber === 1 && snapshot().pageNumber !== 1
+                    ? [undefined]
+                    : registry.get(atoms.cursors)
+                // If the next anchor changes, descendants from the old chain are invalid.
+                const cursors =
+                  page.nextCursor === null
+                    ? known.slice(0, query.pageNumber)
+                    : known[query.pageNumber] === page.nextCursor
+                      ? known
+                      : [...known.slice(0, query.pageNumber), page.nextCursor]
+                update({
+                  page,
+                  pageNumber: query.pageNumber,
+                  cursor: request.cursor,
+                  stats: page.stats,
+                  displayedQuery: query,
+                  cursors: cursors.slice(
+                    0,
+                    Math.max(1, Math.ceil(page.filteredTotal / query.pageSize))
+                  ),
+                  connection: transport ?? "connected",
+                  error: undefined
+                })
+              }
             }
-          },
-          onSuccess: (page) => {
-            if (revision === listRevision) {
-              const known = registry.get(atoms.cursors)
-              // If the next anchor changes, descendants from the old chain are invalid.
-              const cursors =
-                page.nextCursor === null
-                  ? known.slice(0, query.pageNumber)
-                  : known[query.pageNumber] === page.nextCursor
-                    ? known
-                    : [...known.slice(0, query.pageNumber), page.nextCursor]
-              update({
-                page,
-                stats: page.stats,
-                displayedQuery: query,
-                cursors,
-                connection: "connected",
-                error: undefined
-              })
+          })
+        )
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            activeReads--
+            if (revision === listRevision && !background) {
+              update({ loading: false })
             }
-          }
-        })
+          })
+        )
       )
-    }).pipe(
-      Effect.ensuring(
-        Effect.sync(() => {
-          if (revision === listRevision) {
-            update({ loading: false })
-          }
-        })
-      )
-    )
-    const selected = disposed ? undefined : snapshot().selected
-    if (
-      revision === listRevision &&
-      snapshot().connection === "connected" &&
-      selected !== undefined
-    ) {
-      yield* select(selected)
-    }
-  })
+      const selected = disposed ? undefined : snapshot().selected
+      if (
+        revision === listRevision &&
+        snapshot().connection === "connected" &&
+        selected !== undefined
+      ) {
+        yield* select(selected)
+      }
+    })
+
+  const refresh = read(false)
+  const backgroundRefresh = read(true)
 
   const filter = (filters: JobFilters) =>
     Effect.gen(function* () {
@@ -432,6 +481,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         disposed ||
         !Number.isInteger(pageNumber) ||
         pageNumber < 1 ||
+        pageNumber === snapshot().pageNumber ||
         pageNumber > registry.get(atoms.cursors).length
       ) {
         return
@@ -440,8 +490,12 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       yield* refresh
     })
   const first = goTo(1)
-  const previous = Effect.suspend(() => goTo(snapshot().pageNumber - 1))
-  const next = Effect.suspend(() => goTo(snapshot().pageNumber + 1))
+  const previous = Effect.suspend(() =>
+    snapshot().loading ? Effect.void : goTo(snapshot().pageNumber - 1)
+  )
+  const next = Effect.suspend(() =>
+    snapshot().loading ? Effect.void : goTo(snapshot().pageNumber + 1)
+  )
   const setPageSize = (pageSize: 20 | 50) =>
     Effect.gen(function* () {
       if (disposed || pageSize === snapshot().pageSize) {
@@ -606,8 +660,9 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     registry,
     stateAtom,
     snapshot,
-    reading: () => !disposed && registry.get(atoms.loading),
+    reading: () => !disposed && activeReads > 0,
     refresh,
+    backgroundRefresh,
     filter,
     first,
     next,
@@ -625,7 +680,14 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       revoke()
       update({ connection: "error", error: code })
     },
-    connection: (connection: Connection) => update({ connection }),
+    connection: (connection: Connection) => {
+      if (connection === "connected" || connection === "reconnecting") {
+        transport = connection
+      }
+      if (snapshot().error === undefined) {
+        update({ connection })
+      }
+    },
     dispose: () => {
       disposed = true
       ++listRevision

@@ -16,7 +16,7 @@ describe("stable authoritative reads and cursor history", () => {
     try {
       await run(state.refresh, server.client)
       expect(state.snapshot().page?.items).toHaveLength(20)
-      expect(state.snapshot().pagination).toEqual({
+      expect(state.snapshot().pagination).toMatchObject({
         pages: [1, 2],
         current: 1,
         hasPrevious: false,
@@ -30,7 +30,7 @@ describe("stable authoritative reads and cursor history", () => {
       await run(state.next, server.client)
       await run(state.next, server.client)
       expect(state.snapshot().page?.items).toHaveLength(5)
-      expect(state.snapshot().pagination).toEqual({
+      expect(state.snapshot().pagination).toMatchObject({
         pages: [1, 2, 3, 4],
         current: 4,
         hasPrevious: true,
@@ -149,11 +149,12 @@ describe("stable authoritative reads and cursor history", () => {
             yield* state.filter({ state: "Pending" })
             const current = state.snapshot()
             expect(current.loading).toBe(false)
-            expect(state.reading()).toBe(false)
+            expect(state.reading()).toBe(true)
             expect(current.stats?.total).toBe(66)
             yield* Deferred.succeed(release, undefined)
             yield* Fiber.join(old)
             expect(state.snapshot()).toEqual(current)
+            expect(state.reading()).toBe(false)
           }),
           server.client
         )

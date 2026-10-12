@@ -70,6 +70,8 @@ export const JobPage = Schema.Struct({
   sandbox: SandboxRef,
   items: Schema.Array(JobSummary).pipe(Schema.check(Schema.isMaxLength(50))),
   nextCursor: Schema.NullOr(Cursor),
+  // Matching rows before the cursor predicate, from the same scoped SQL snapshot.
+  filteredTotal: Counter,
   stats: JobStats
 })
 export type JobPage = typeof JobPage.Type

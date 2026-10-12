@@ -1,95 +1,111 @@
 # Authoritative reads and cursor history
 
 `Atoms.make` owns a registry per mounted dashboard. Default `pageSize` is 20;
-`setPageSize(20 | 50)` changes the server limit without changing the read API.
-`Runtime.make` exposes these operations through its existing state spread;
-UI callbacks use `runtime.run(runtime.previous)`, `runtime.run(runtime.goTo(n))`
-and `runtime.run(runtime.setPageSize(n))`. Existing first/next/filter remain.
+`setPageSize(20 | 50)` resets history and changes the server limit. Runtime exposes
+`refresh`, `backgroundRefresh`, `filter`, `first`, `previous`, `next`, `goTo(n)`
+and `setPageSize(n)` through its state spread; UI callbacks use `runtime.run`.
 
-## Display contract for integration
+## Display and scheduling contract
 
-- Render all counts and the chart from `state.stats`, the latest validated global
-  API stats for this sandbox authority. Counts are independent of filters and
-  page size; never infer page counts from them.
-- `state.page` is the retained displayed snapshot. A filter/page/size change
-  leaves it present until a validated replacement arrives. `state.pageNumber`,
-  `filters`, `cursor` and `pageSize` describe the **requested** query.
-- `displayedQuery` identifies the successful snapshot by sandbox/generation,
-  filters, page number and size. `resultsCurrent` compares it with the request.
-  While `loading`, announce “Loading results; previous results remain visible”
-  in a table-local status region and set table `aria-busy`. After failed
-  replacement, `!resultsCurrent` still requires a visible/accessible previous
-  results notice and retry. Never label retained rows as the requested results.
-  Same-query refreshes also need the loading announcement even when
-  `resultsCurrent` is true. `error`/`connection === "stale"` mark failed refreshes.
-- `loading` and `reading()` describe **only the latest request**, not every older
-  unsettled HTTP call. Old calls remain bounded and scope-owned; their completion,
-  failure, revocation error or defect cannot change current rows, stats, history,
-  loading or errors. Clearing loading does not mean that all old network I/O ended.
-- Keep the UI mounted; disable pagination while loading, preserve focus and
-  scroll, and avoid rebuilding the chart/header from an empty page. Atoms alone
-  do not demonstrate DOM/focus/scroll stability; integration must verify it.
+`refresh` is explicit foreground reconciliation (initial/manual). Query navigation
+also runs a foreground read. `loading` describes only the latest foreground read.
+`backgroundRefresh` is used by polling, live invalidations and visibility callbacks.
+Successful same-query background reads keep `loading`, `resultsCurrent`, connection
+and notice stable. Do not announce every poll, disable controls, remount the table,
+clear stats or flash a skeleton. Meaningful progress belongs to foreground work;
+integration may delay its indicator to avoid short flashes.
 
-## Numbered navigation semantics
+`reading()` covers all outstanding list/describe/detail reads, including obsolete
+bounded reads. Background demand during another read is ignored and never steals
+foreground ownership. Repeated `next`/`previous` while loading and `goTo` to the
+already requested page are ignored without depending on native disabled controls.
+An explicit different known numbered target, filter or size can supersede a read.
+Revision guards prevent obsolete responses, failures, defects and authority errors
+from changing the latest query. Runtime Scope owns cancellation and disposal.
 
-The server sorts job IDs ascending using PostgreSQL `COLLATE "C"`, returning a
-signed opaque cursor scoped to sandbox/generation and filters. Pages here are
-**cursor-history positions**, not offsets or globally counted filtered pages.
-`pagination.pages` is the set of known reachable positions, including the next
-neighbor discovered by the successful snapshot's `nextCursor`. At page 1 this is
-initially `[1]`, then `[1, 2]` only if the server actually returns a next cursor.
-Further positions are discovered lazily. `goTo(n)` ignores unknown, noninteger,
-negative and zero positions; it never fetches the entire dataset to resolve them.
-`current`, `hasPrevious` and `hasNext` describe the requested history position.
+`page` and `stats` remain the successful displayed snapshot until replaced.
+`displayedQuery` identifies its sandbox/generation, filters, page number and size;
+`resultsCurrent` compares it with the requested query. During failed or pending
+query replacement, label retained rows with the displayed query, never the requested
+query. Global stats remain global and independent of filters. Real read errors stay
+visible (`error`, stale/error connection). Real authority revocation clears old data.
+Connection status reflects admitted live signals, reconnect attempts, socket loss
+and browser connectivity; starting a read never infers a reconnect. A successful
+HTTP reconciliation cannot claim a disconnected WebSocket has reconnected.
 
-First, previous, next and any visited numbered position use their actual stored
-cursor. Filters and page size reset history to `[1]`; retain selection across
-ordinary filters/pages as before. Generation/identity invalidation revokes rows,
-stats, detail, selection, pending receipts, display markers and cursor history.
-The requested page resets to 1 while filters and chosen page size are retained.
-Private identity rotation is rejected; public demo rotation remains explicit.
+## Live totals and numbered navigation
 
-Each successful reconciliation validates its next anchor. An unchanged anchor
-preserves known descendants. A changed anchor prunes the descendants and learns
-only the new next neighbor; `null` prunes all later positions. Invalid cursors
-remain explicit errors until the user retries or chooses first, never a silent
-jump or offset fallback. On a failed replacement the old snapshot's `nextCursor`
-is **not** used to extend the requested query's history.
+`JobPage.filteredTotal` is a required nonnegative integer: all matching associations
+for this sandbox/generation and state/kind filters, **before the cursor predicate**.
+It shares one authoritative SQL statement snapshot with authority, items and global
+stats. `pagination.total` comes from this snapshot and `pageCount` is
+`ceil(filteredTotal / displayedQuery.pageSize)` (zero for an empty result). Both are
+undefined before a snapshot. If a new filter is pending, these counts belong to the
+retained displayed query. Never use unfiltered `stats.total` for filtered page counts.
+Fifty matching rows immediately report three pages at 20, without visiting page 2.
 
-Live inserts before an anchor are seen when returning to first. Inserts/deletes
-or state changes between reads may change page contents and cardinalities. A
-history position is not a stable ordinal rank, fixed dataset snapshot or promise
-of no overlap after earlier page boundaries change. The authoritative global
-stats reconcile on every accepted read. No arbitrary page count or last-page
-control is justified by this API.
+The server still orders IDs ascending under PostgreSQL `COLLATE "C"` and uses scoped,
+signed opaque keyset cursors. `pagination.pages` contains only reachable numbered
+history positions: visited anchors and the next neighbor actually supplied by SQL.
+For 50 rows at 20, the first read reports `pageCount: 3`, `pages: [1, 2]`. Visiting 2
+learns the real anchor for 3. Every displayed numbered button, including the last
+one, works. Unknown numbers are ignored. The total does not authorize a last-page
+jump or arbitrary random access; no offset fallback or full-dataset client fetch.
+Neighbor discovery requires one bounded page read, not a scan of all matches.
 
-## Privacy and WebSocket authority
+An unchanged next anchor preserves descendants; a changed anchor prunes them;
+null removes later controls. Filter, size and generation changes reset history.
+An empty cursor page, a history position greater than the new cardinality ceiling,
+or a last-counted position that still has a lookahead
+restarts from first with at most one additional bounded list request. The normalized
+page number/cursor and displayed query publish atomically with its validated result.
+If that recovery fails, retained rows keep their original display label and an error.
+Malformed/foreign/filter-mismatched signed cursors remain explicit errors.
 
-Describe/list expiry, stale generation, not-found authority, mismatched identity
-and generation regressions clear all retained data. Detail expiry/stale-generation
-also revoke the dashboard; detail not-found only clears that detail. A validated
-new generation clears old data **before** its replacement list begins. Reset
-acknowledgment still revokes immediately even if the next describe fails.
+Concurrent arrivals before the current anchor appear on returning to first, while
+live total/pageCount updates immediately on every accepted snapshot. New arrivals
+beyond the anchor can appear in the current/next page. Deletes and filter membership
+changes may change page contents. History numbers are cursor-chain positions, not
+stable ordinal ranks or a frozen dataset: concurrent changes can cause overlap after
+returning to earlier pages. Cardinality pages and reachable cursor positions are
+separate facts. Do not promise unsupported full arbitrary random access.
 
-Runtime listens for the existing WebSocket admission close code `4003`: it clears
-private authority immediately, fences in-flight reads, then performs HTTP recovery.
-The listener is bound to its connection Scope and identity and removed on disposal
-or generation replacement. Local live expiry also revokes before recovery. Ordinary
-transient disconnects retain snapshots and reconcile; WS payloads never fabricate
-job state or stats. API recovery may restore only newly validated authority.
+## Privacy and verification
 
-## Focused verification
+Describe/list expiry, stale generation, not-found authority, foreign identity and
+generation regression revoke rows, stats, detail, selection, pending receipts and
+history. A new generation clears old data before its replacement read. WebSocket
+admission close 4003 revokes immediately and fences outstanding reads. The listener
+is tied to its socket, identity and Scope, so retired sockets cannot revoke new data.
 
-`ReadsFixtures.ts` provides a synthetic 65-job keyset server with between-read
-insert/delete operations, filtering and independent global totals. Deferred
-Effect gates stop actual describe/list calls; tests do not fabricate atom state.
-`Reads.test.ts` covers 20/50, valid neighbors/back/first, reset scopes, delayed
-failure retention, latest loading/error/defect ownership, generation privacy,
-concurrent inserts/changed anchors and rapid known-page navigation.
-`Runtime.test.ts` delivers WS ready/invalidation and admission-close events through
-the browser FFI, checks HTTP reconciliation and scope cleanup. Two existing atom
-pagination tests now use enough synthetic rows to exercise the real 20-row default.
+`BackgroundReads.test.ts` observes 40 successful cycles, live counts, 20/50 shrink,
+foreground priority, duplicate demand, late success/error/defect and privacy recovery.
+`Reads.test.ts` and `Atoms.test.ts` exercise delayed query labels, latest revision,
+known neighbors, selection and generation fencing. `Runtime.test.ts` uses actual
+browser FFI callbacks for polls, visibility, ready signals, disconnect and admission
+revocation. `ReadMetadata.test.ts` verifies SQL scope/parameters/filter placement,
+empty cursor metadata, cursor scope and invalid count rejection. These synthetic
+checks do not claim PG execution, DOM/focus/scroll, workerd or real-browser behavior.
 
-The stream intentionally leaves Dashboard wiring to integration. Browser slow API,
-no remount/stat flash/focus/scroll, keyboard/mobile axe and real PG/workerd/WS matrices
-must qualify that integrated tree; synthetic unit tests are not those claims.
+## Integration C handoff and finite PG reproduction
+
+C owns Dashboard/Pagination wiring and the integrated browser harness. Its synthetic
+`Ux.mjs` list response must include `filteredTotal: filtered.length` before cursor
+slicing. Keep numbered controls from `pages`; show live `pageCount` independently.
+Do not invent controls from the total. Preserve focus using operation guards.
+
+Use C's one disposable integrated PG16.15 session, loopback isolated port and fresh
+schema/credentials; do not touch preview8787. For sandbox A/generation 1, seed 50
+matching `Pending`/`playground.scenario` associations and nonmatching state/kind rows
+in A plus rows in sandbox B. Request `{filters:{state:"Pending",kind:
+"playground.scenario"},limit:20}`: assert `filteredTotal=50`, 20 items, pageCount=3;
+follow signed next cursors for 20 then 10 distinct scoped items, all totals 50.
+Repeat no-filter count against A's actual association count and limit50 (one matching
+page). Insert a matching arrival before the active anchor: total51/pageCount3 at20,
+current keyset membership unchanged; first reveals it. At50, 51 matches =>2 pages.
+Delete or transition matches so only 5 remain while page2 is active; reconcile and
+assert one first-page recovery, total5/pageCount1, correct normalized label. Delete
+all matches: empty items, total0/pageCount0 while global stats remain independently
+correct. Rotate generation/expire via DB time and verify old ref/cursors fail and
+old displayed rows clear. Capture final query inputs, assertions and artifact hashes;
+cleanup exact owned resources in finally. This stream starts no PG/service attempt.
