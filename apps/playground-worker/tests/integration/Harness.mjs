@@ -7,7 +7,10 @@ import { Effect } from "effect"
 import { chromium } from "@playwright/test"
 import { createLocal } from "./Local.mjs"
 const root = resolve(import.meta.dirname, "../../../..")
-const evidence = resolve(root, ".multica/integration")
+const evidence = resolve(
+  root,
+  process.env.PLAYGROUND_EVIDENCE_DIRECTORY ?? ".multica/integration"
+)
 const { migrations } = await import(`${evidence}/Migrations.mjs`)
 const cfg = JSON.parse(readFileSync(process.env.PLAYGROUND_PRIVATE_CONFIG, "utf8"))
 const pool = new Pool({

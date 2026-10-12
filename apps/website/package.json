@@ -21,6 +21,9 @@
   },
   "devDependencies": {
     "@babel/core": "7.29.7",
+    "@babel/plugin-syntax-typescript": "7.29.7",
+    "@babel/plugin-transform-react-jsx": "7.29.7",
+    "@babel/plugin-transform-typescript": "7.29.7",
     "@stylexjs/babel-plugin": "0.19.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0"

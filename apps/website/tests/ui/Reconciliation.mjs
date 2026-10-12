@@ -5,11 +5,11 @@ import { createRequire } from "node:module"
 import { resolve } from "node:path"
 import { execFileSync } from "node:child_process"
 
-// Task-local Playwright install, leaving all shared manifests/locks untouched.
+// Use the pinned local worker Playwright toolchain.
 const require = createRequire(
-  resolve(process.env.UI_PLAYWRIGHT_PACKAGE ?? ".multica/browser/package.json")
+  resolve(process.env.UI_PLAYWRIGHT_PACKAGE ?? "apps/playground-worker/package.json")
 )
-const { chromium } = require("playwright")
+const { chromium } = require("@playwright/test")
 const output = resolve(".multica/ui-fixes/dx-browser")
 await mkdir(output, { recursive: true })
 execFileSync("bun", ["apps/website/build.mjs", "--fixtures"], {
@@ -211,7 +211,7 @@ try {
     head: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     tree: execFileSync("git", ["rev-parse", "HEAD^{tree}"], { encoding: "utf8" }).trim(),
     browser: browser.version(),
-    playwright: require("playwright/package.json").version,
+    playwright: require("@playwright/test/package.json").version,
     checks
   }
   await writeFile(

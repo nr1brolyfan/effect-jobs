@@ -7,9 +7,9 @@ const origin = new URL(process.env.PLAYGROUND_PREVIEW_ORIGIN)
 assert.equal(origin.protocol, "http:")
 assert.equal(origin.hostname, "127.0.0.1")
 const require = createRequire(
-  resolve(process.env.UI_PLAYWRIGHT_PACKAGE ?? ".multica/browser/package.json")
+  resolve(process.env.UI_PLAYWRIGHT_PACKAGE ?? "apps/playground-worker/package.json")
 )
-const { chromium } = require("playwright")
+const { chromium } = require("@playwright/test")
 const browser = await chromium.launch({ headless: true })
 try {
   const context = await browser.newContext()

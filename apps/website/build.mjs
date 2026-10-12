@@ -2,6 +2,8 @@
 // The intermediate JS mirror makes NodeNext .js theme imports resolvable by Babel.
 import { transformAsync } from "@babel/core"
 import stylexPlugin from "@stylexjs/babel-plugin"
+import transformTypescript from "@babel/plugin-transform-typescript"
+import transformReactJsx from "@babel/plugin-transform-react-jsx"
 import { mkdir, readFile, readdir, writeFile, rm } from "node:fs/promises"
 import { resolve, relative, dirname } from "node:path"
 import { createHash } from "node:crypto"
@@ -38,12 +40,27 @@ export const build = async ({
     for (const path of sources) {
       const text = await readFile(path, "utf8")
       const target = resolve(scratch, relative(root, path).replace(/\.tsx?$/, ".js"))
-      const transpiler = new Bun.Transpiler({
-        loader: path.endsWith(".tsx") ? "tsx" : "ts",
-        tsconfig: JSON.stringify({ compilerOptions: { jsx: "react-jsx" } })
+      const transpiled = await transformAsync(text, {
+        filename: path,
+        babelrc: false,
+        configFile: false,
+        plugins: [
+          [
+            transformTypescript,
+            {
+              isTSX: path.endsWith(".tsx"),
+              allExtensions: true,
+              onlyRemoveTypeImports: true
+            }
+          ],
+          [transformReactJsx, { runtime: "automatic" }]
+        ]
       })
+      if (!transpiled?.code) {
+        throw new Error(`Empty transpiler result: ${path}`)
+      }
       await mkdir(dirname(target), { recursive: true })
-      await writeFile(target, transpiler.transformSync(text))
+      await writeFile(target, transpiled.code)
       inputs.push({
         path: relative(repository, path),
         sha256: createHash("sha256").update(text).digest("hex")
@@ -54,6 +71,7 @@ export const build = async ({
         filename: path,
         babelrc: false,
         configFile: false,
+        parserOpts: { plugins: ["jsx"] },
         plugins: [
           [
             stylexPlugin,

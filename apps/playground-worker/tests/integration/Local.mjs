@@ -4,6 +4,10 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { createServer } from "node:net"
 const root = resolve(import.meta.dirname, "../../../..")
+const evidence = resolve(
+  root,
+  process.env.PLAYGROUND_EVIDENCE_DIRECTORY ?? ".multica/integration"
+)
 export const reservePort = () =>
   new Promise((done, reject) => {
     const server = createServer()
@@ -51,7 +55,7 @@ export const createLocal = async (
       modules: true,
       script: readFileSync(
         instrument
-          ? `${root}/.multica/integration/TestWorker.js`
+          ? `${evidence}/TestWorker.js`
           : `${root}/apps/playground-worker/dist/Worker.js`,
         "utf8"
       ),

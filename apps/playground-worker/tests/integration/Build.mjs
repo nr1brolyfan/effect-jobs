@@ -4,7 +4,10 @@ import { createHash } from "node:crypto"
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 const root = resolve(import.meta.dirname, "../../../..")
-const evidence = resolve(root, ".multica/integration")
+const evidence = resolve(
+  root,
+  process.env.PLAYGROUND_EVIDENCE_DIRECTORY ?? ".multica/integration"
+)
 mkdirSync(evidence, { recursive: true })
 const run = (label, args) => {
   const at = new Date().toISOString()
@@ -45,7 +48,7 @@ run("test-worker-bundle", [
   "--format=esm",
   "--external:cloudflare:*",
   "--external:node:*",
-  "--outfile=.multica/integration/TestWorker.js"
+  `--outfile=${evidence}/TestWorker.js`
 ])
 run("fixture-bundle", [
   "apps/playground-worker/node_modules/.bin/esbuild",
@@ -54,7 +57,7 @@ run("fixture-bundle", [
   "--platform=node",
   "--format=esm",
   "--external:node:*",
-  "--outfile=.multica/integration/Admit.mjs"
+  `--outfile=${evidence}/Admit.mjs`
 ])
 run("migration-bundle", [
   "apps/playground-worker/node_modules/.bin/esbuild",
@@ -65,7 +68,7 @@ run("migration-bundle", [
   "--external:effect",
   "--external:effect/*",
   "--external:effect-jobs/*",
-  "--outfile=.multica/integration/Migrations.mjs"
+  `--outfile=${evidence}/Migrations.mjs`
 ])
 process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY = mkdtempSync(`${evidence}/artifact-`)
 const packed = run("pack", ["node", "scripts/pack-release.mjs"]).output.trim()
