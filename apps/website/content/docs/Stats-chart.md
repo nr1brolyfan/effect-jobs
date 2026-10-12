@@ -19,6 +19,10 @@ Pie and tooltip animations are disabled for every motion preference. The
 graphic is decorative for assistive technology: the labelled section, total
 and complete textual legend provide its equivalent without duplicate chart
 keyboard targets. Pointer tooltips repeat the state, count and percentage.
+Recharts 3.10.1 gives `Pie` an independent default `rootTabIndex={0}` even
+when `PieChart` disables `accessibilityLayer`. Set `rootTabIndex={-1}` on the
+decorative pie so keyboard users skip the hidden graphic and read the visible
+textual equivalent. This preserves pointer events and the tooltip.
 
 ## Focused qualification
 
@@ -51,6 +55,23 @@ percentages, sparse data and heading/legend semantics. They do not qualify
 browser SVG sectors, pointer tooltip behavior, resize observation, mobile
 overflow, real assistive technology, or the complete dashboard. The serial
 integrator must test these in Chromium and run the full required local gates.
+
+After building fixtures with the original `node apps/website/tests/ui/Browser.mjs`,
+run `node apps/website/tests/ui/StatsChart.browser.mjs`. This focused Chromium
+regression checks the actual pie DOM and both directions of sequential keyboard
+navigation, accessible total and six-state legend, shared SVG colors, responsive
+SVG at 1280/390/240px, pointer tooltip and both motion preferences. It uses the
+centrally pinned worker Playwright dependencies and generated UI assets.
+`STATS_CHART_BROWSER_FIXTURE` can point to a disposable integrated fixture
+under the chart worktree; it must contain the original integrated browser entry,
+compiler output and read-only dependency symlinks. Do not change the original
+accessibility oracle or suppress its `aria-hidden-focus` rule.
+
+The isolated fix qualification reproduced the original `Browser.mjs` failure
+at integration `66cee1e36212b5733472ff0c414b18556aecb0e2`, then passed the
+same unchanged oracle with only this chart fix substituted. This is synthetic
+UI fixture evidence. The integrator still reruns the original oracle after
+cherry-pick and owns full dashboard/PG/workerd qualification.
 
 API references: [Recharts Pie](https://recharts.github.io/en-US/api/Pie/),
 [ResponsiveContainer](https://recharts.github.io/en-US/api/ResponsiveContainer/),
