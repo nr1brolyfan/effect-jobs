@@ -16,7 +16,7 @@ export const styles = stylex.create({
     borderStyle: "solid",
     borderRadius: radii.md,
     fontFamily: typography.fontFamily,
-    fontSize: typography.small,
+    fontSize: typography.body,
     fontWeight: 550,
     lineHeight: 1.5,
     textAlign: "center",
@@ -135,6 +135,46 @@ export const styles = stylex.create({
     minHeight: 20,
     padding: 0,
     accentColor: colors.accent
+  },
+  tabsList: {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: spacing.xs,
+    padding: spacing.xs,
+    borderRadius: radii.md,
+    backgroundColor: colors.canvas,
+    maxWidth: "100%"
+  },
+  tabsVertical: { flexDirection: "column", alignItems: "stretch" },
+  tab: {
+    backgroundColor: { default: "transparent", ":hover:enabled": colors.raised },
+    borderColor: "transparent",
+    color: { default: colors.muted, ":disabled": colors.muted }
+  },
+  tabActive: {
+    backgroundColor: colors.raised,
+    borderColor: colors.border,
+    color: colors.text
+  },
+  tabDisabled: {
+    cursor: "not-allowed",
+    backgroundColor: "transparent",
+    color: colors.muted
+  },
+  tabCount: {
+    fontSize: typography.small,
+    fontVariantNumeric: "tabular-nums",
+    color: colors.muted
+  },
+  tabsPanel: {
+    minWidth: 0,
+    fontSize: typography.body,
+    lineHeight: 1.5,
+    outlineStyle: { default: "none", ":focus-visible": "solid" },
+    outlineWidth: 2,
+    outlineColor: colors.focus,
+    outlineOffset: 3
   },
   icon: { display: "inline-block", flexShrink: 0, verticalAlign: "middle" }
 })
