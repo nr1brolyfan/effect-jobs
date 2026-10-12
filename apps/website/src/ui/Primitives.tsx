@@ -73,7 +73,7 @@ export function Field({
   const id = children.props.id || generatedId
   // Custom controls receive only the association; they must forward id to their
   // labelable input. Native controls get the same compiled focus/control styles.
-  let control = cloneElement(children, { id })
+  let control: ReactNode = cloneElement(children, { id })
   if (
     children.type === "input" ||
     children.type === "select" ||

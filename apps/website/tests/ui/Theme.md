@@ -64,6 +64,39 @@ TypeScript `as const satisfies` expressions must be checked during integration.
 The task contract is preserved, without a second palette or runtime styling.
 Full integration/production qualification belongs to the serial integrator.
 
+## Field integration correction
+
+The continuation reproduces TS2322 at `Primitives.tsx:88` using foundation's
+strict playground options, including `exactOptionalPropertyTypes`, and its pinned
+dependencies at commit `203e5dce974d168eac820c3cf4364b7341adf241`. A cloned native
+input has optional `id?: string | undefined`; it cannot be assigned to the
+inferred `ReactElement<{ id?: string }>` under those options. The local render
+variable now explicitly accepts `ReactNode`, the type React renders. The public
+Field contract, id assignment and native cloning remain unchanged; no new cast
+or compiler relaxation is used.
+
+Focused qualification uses disposable read-only links to foundation's root and
+website node_modules. A scratch tsconfig extends foundation's
+`tsconfig.playground.json` and includes `apps/website/src/ui/*.ts` and `*.tsx`.
+`tsc -p .multica/theme-field-fix/tsconfig.json` reproduces the original error and
+passes with the correction. No package, lockfile or shared toolchain is changed.
+
+Run `bun apps/website/tests/ui/Field.test.mjs` for label/id behavior evidence.
+It transpiles the actual theme/primitives with Bun and compiles StyleX with the
+pinned Babel plugin before rendering through React server rendering. It verifies
+unique generated ids for input/select/textarea, empty-id fallback, explicit id
+preservation, custom-control association and native value/checked/disabled/class/
+style preservation. Scratch modules are removed after the run. Bun uses classic
+JSX for this rendering harness; production uses foundation's automatic JSX build.
+This is rendered markup evidence, not browser label activation, focus or ref
+qualification. Browser/PG and full integrated gates remain the serial task.
+
+`Theme.test.mjs`, focused oxlint and oxfmt also pass with the correction. The
+earlier NotTested/toolchain notes above record the original handoff; they do not
+describe these newly completed focused checks. Documentation was reread for the
+correction: every ai-docs path listed below, architecture decisions, canonical
+workflow attachment, parent/child contracts and foundation's handoff/build config.
+
 ## Documentation read
 
 UPVE-2008, parent UPVE-2006, canonical UPVE-1020 and its multica-workflow.md
