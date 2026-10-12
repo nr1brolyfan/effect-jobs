@@ -246,6 +246,18 @@ try {
     await expect(page.locator(".results-status")).toContainText("Page 3 · 10 results")
     await page.getByRole("button", { name: "First page", exact: true }).click()
     await expect(page.locator(".results-status")).toContainText("Page 1 ·")
+    delay = 650
+    const manual = page.getByRole("button", { name: "Refresh reads", exact: true })
+    await manual.focus()
+    await page.keyboard.press("Enter")
+    await expect(manual).toHaveAttribute("aria-disabled", "true")
+    assert.equal(await manual.evaluate((n) => n.disabled), false)
+    await expect(manual).toBeFocused()
+    await expect(manual).not.toHaveAttribute("aria-disabled", "true")
+    await expect(manual).toBeFocused()
+    checks.push(
+      "explicit delayed manual refresh preserves keyboard focus with aria-disabled and request guard"
+    )
     // Capture an old failure at request admission, then supersede with a new query.
     delay = 1100
     fail = true

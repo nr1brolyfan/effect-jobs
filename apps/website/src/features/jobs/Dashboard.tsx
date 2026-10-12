@@ -807,8 +807,12 @@ export const Dashboard = ({
             </p>
             <Button
               variant="ghost"
-              disabled={state.loading}
-              onClick={() => void runtime.run(runtime.refresh)}
+              aria-disabled={state.loading || undefined}
+              onClick={() => {
+                if (!runtime.snapshot().loading) {
+                  void runtime.run(runtime.refresh)
+                }
+              }}
             >
               <Icon name="refresh" />
               Refresh reads

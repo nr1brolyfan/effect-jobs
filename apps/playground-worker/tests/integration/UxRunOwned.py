@@ -6,6 +6,7 @@ import os
 import pathlib
 import secrets
 import signal
+import socket
 import subprocess
 import time
 
@@ -27,12 +28,14 @@ try:
     assert ports['5432/tcp'][0]['HostIp'] == '127.0.0.1'
     receipt['ports'] = ports
     for _ in range(40):
-        ready = subprocess.run(['docker', 'exec', cid, 'pg_isready', '-U', 'ux_probe', '-d', 'ux_probe'], capture_output=True, timeout=5)
+        ready = subprocess.run(['docker', 'exec', cid, 'pg_isready', '-h', '127.0.0.1', '-U', 'ux_probe', '-d', 'ux_probe'], capture_output=True, timeout=5)
         if ready.returncode == 0:
             break
         time.sleep(0.25)
     else:
         raise RuntimeError('bounded PG readiness failed')
+    with socket.create_connection(('127.0.0.1', int(ports['5432/tcp'][0]['HostPort'])), timeout=2):
+        receipt['hostTcpReady'] = True
     cfg = {'user': env['POSTGRES_USER'], 'database': env['POSTGRES_DB'], 'password': env['POSTGRES_PASSWORD'], 'port': int(ports['5432/tcp'][0]['HostPort']), 'schema': 'ux_probe', **{key: secrets.token_hex(32) for key in ['encryptionKey', 'fingerprintKey', 'cursorKey']}}
     with os.fdopen(os.open(private, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as stream:
         json.dump(cfg, stream)
