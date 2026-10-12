@@ -151,7 +151,8 @@
     "playground:lint": "oxlint --deny-warnings apps packages/playground-contracts",
     "playground:test": "vitest run packages/playground-contracts/tests",
     "playground:build": "bun run --filter @effect-jobs/playground-contracts build && bun run --filter @effect-jobs/playground-website --filter @effect-jobs/playground-worker build",
-    "playground:qualify": "node packages/playground-contracts/qualification/Run.mjs"
+    "playground:qualify": "node packages/playground-contracts/qualification/Run.mjs",
+    "playground:preview": "python3 apps/playground-worker/tests/integration/RunOwned.py --preview"
   },
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.5-169397b",

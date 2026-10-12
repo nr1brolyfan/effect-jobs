@@ -15,9 +15,17 @@ export const reservePort = () =>
   })
 export const createLocal = async (
   cfg,
-  { instrument = false, https = true, demoRotationMillis = 86400000 } = {}
+  {
+    instrument = false,
+    https = true,
+    demoRotationMillis = 86400000,
+    port: requestedPort = 0
+  } = {}
 ) => {
-  const port = await reservePort()
+  if (!Number.isInteger(requestedPort) || requestedPort < 0 || requestedPort > 65535) {
+    throw new Error("Invalid local preview port")
+  }
+  const port = requestedPort || (await reservePort())
   const origin = `${https ? "https" : "http"}://127.0.0.1:${port}`
   const page =
     '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Effect Jobs Playground</title><link rel="stylesheet" href="/Jobs.css"></head><body><main id="jobs"></main><script type="module" src="/Client.js"></script></body></html>'

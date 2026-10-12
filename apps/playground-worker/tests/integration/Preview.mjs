@@ -1,4 +1,4 @@
-// User-invoked foreground preview; expiry and Ctrl-C dispose workerd and scoped DB use.
+// User-invoked foreground preview; manual shutdown disposes workerd and scoped DB use.
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { Pool } from "pg"
@@ -25,7 +25,10 @@ try {
   await pool.end()
   poolEnded = true
   cfg.connectionString = `postgres://${cfg.user}:${cfg.password}@127.0.0.1:${cfg.port}/${cfg.database}`
-  const local = await createLocal(cfg, { https: false })
+  const local = await createLocal(cfg, {
+    https: false,
+    port: Number(process.env.PLAYGROUND_PORT ?? 8787)
+  })
   mf = local.mf
   await mf.dispatchFetch(local.origin + "/demo")
   const readyBy = Date.now() + 60_000
@@ -39,24 +42,15 @@ try {
     JSON.stringify({
       url: local.origin + "/jobs",
       demoUrl: local.origin + "/demo",
-      expires: process.env.PLAYGROUND_DEADLINE,
+      expires: null,
       stop: "Ctrl-C in this foreground command; wrapper removes its exact PG container",
       tls: "HTTP loopback preview; no certificate required",
       hosted: "NotTested"
     })
   )
-  const remaining = Math.max(
-    0,
-    new Date(process.env.PLAYGROUND_DEADLINE).getTime() - Date.now() - 10000
-  )
   await new Promise((done) => {
-    const timer = setTimeout(done, remaining)
-    const stop = () => {
-      clearTimeout(timer)
-      done()
-    }
-    process.once("SIGINT", stop)
-    process.once("SIGTERM", stop)
+    process.once("SIGINT", done)
+    process.once("SIGTERM", done)
   })
 } catch (error) {
   console.log(JSON.stringify({ status: "FAIL", failureClass: error.constructor.name }))

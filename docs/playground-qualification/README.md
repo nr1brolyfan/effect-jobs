@@ -42,22 +42,21 @@ locations; the task handoff also attaches an evidence archive.
 
 ## Launch and stop a reproducible preview
 
-After the build, choose an explicit future expiry (at least eight minutes away,
-no more than 30 minutes for this local preview) and run in the foreground:
+After the build, run in the foreground (Docker must be available):
 
 ```sh
-PLAYGROUND_DEADLINE="<future UTC ISO timestamp>" \
-  python3 apps/playground-worker/tests/integration/RunOwned.py --preview
+bun run playground:preview
 ```
 
-The command prints its loopback HTTPS `/jobs` URL when ready. The certificate is
-locally self-signed; accept the browser's local certificate interstitial. Open
-multiple tabs to exercise viewers. Press **Ctrl-C in the same terminal** to stop;
-expiry also stops the preview. The wrapper's `owned-resource-receipt.json` records
+The command serves `http://127.0.0.1:8787/demo` and `/jobs`, without a certificate.
+Override the fixed port with `PLAYGROUND_PORT` if necessary. There is **no automatic
+expiry**; `PLAYGROUND_DEADLINE` applies only to integration tests and is ignored in
+preview mode. Open multiple tabs to exercise viewers. Press **Ctrl-C in the same
+terminal** to stop. The wrapper's `owned-resource-receipt.json` records
 the exact container ID and cleanup command. Logs/receipts are in the task-local
 `.multica/integration/` directory. This is a foreground service owned by that
-command, not an unattended deployed service. No server or database is left running
-by the implementation handoff.
+command, not a deployed service. The database remains temporary: it is kept for the
+entire preview session and removed on shutdown, not persisted across restarts.
 
 ## Runtime composition
 

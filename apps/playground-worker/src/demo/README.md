@@ -62,6 +62,9 @@ browser identity reconciliation, drain-before-delete, private isolation and boun
 generation count. Acceleration changes only the disposable test's deadline; the
 default rotation remains 24h. The owner wrapper removes its exact container/config.
 
+Local preview runs until manual shutdown, on HTTP port 8787 by default, with no
+deadline. Its disposable PostgreSQL still gets removed when the preview stops.
+
 Hosted Cloudflare resources/bindings, production migration rollout, cost/CPU budgets,
 crash injection and a real 24-hour soak remain unqualified. A persistent local dev
-database/server is separate from the finite disposable preview wrapper.
+database across restarts is separate from this disposable preview wrapper.
