@@ -1,25 +1,47 @@
-import { Effect } from "effect"
+import { Effect, Schedule } from "effect"
 import { JobsClient } from "./features/jobs/Adapter.js"
 import * as Http from "./integration/HttpClient.js"
 import * as View from "./features/jobs/View.js"
 import * as Live from "./live/BrowserLive.js"
 const root = document.getElementById("jobs")
 if (root) {
+  const demo = location.pathname === "/demo"
+  const client = demo ? Http.demoClient : Http.client
+  if (demo) {
+    root.textContent = "Preparing public demo…"
+  }
   const controller = new AbortController()
   void Effect.runPromise(
-    document.cookie.includes("__Host-playground-csrf=")
-      ? Http.client.describe()
-      : Http.issue(),
+    demo
+      ? client
+          .describe()
+          .pipe(
+            Effect.retry({ times: 30, schedule: Schedule.spaced("1 second") }),
+            Effect.timeout("45 seconds")
+          )
+      : document.cookie.includes(`${Http.csrfCookieName}=`)
+        ? Http.client
+            .describe()
+            .pipe(
+              Effect.catch((error) =>
+                error.code === "not-found" || error.code === "sandbox-expired"
+                  ? Http.issue()
+                  : Effect.fail(error)
+              )
+            )
+        : Http.issue(),
     { signal: controller.signal }
   ).then(
     (sandbox) => {
-      let generation = sandbox.ref.generation
+      let identity = `${sandbox.ref.sandboxId}:${sandbox.ref.generation}`
       let live: ReturnType<typeof Live.start> | undefined
-      const view = View.mount(root, Http.client, sandbox, {
+      const view = View.mount(root, client, sandbox, {
         poll: false,
+        demo,
         changed: (state) => {
-          if (live && state.sandbox.ref.generation !== generation) {
-            generation = state.sandbox.ref.generation
+          const next = `${state.sandbox.ref.sandboxId}:${state.sandbox.ref.generation}`
+          if (live && next !== identity) {
+            identity = next
             live.dispose()
             live = connect(state.sandbox)
             live?.setVisible(document.visibilityState !== "hidden")
@@ -29,10 +51,10 @@ if (root) {
       const connect = (current: typeof sandbox) =>
         Live.start({
           sandbox: current,
-          url: `${location.origin.replace("https:", "wss:").replace("http:", "ws:")}/api/changes`,
+          url: `${location.origin.replace("https:", "wss:").replace("http:", "ws:")}/api/${demo ? "demo/" : ""}changes`,
           snapshot: () =>
             view.controller.refresh.pipe(
-              Effect.provideService(JobsClient, Http.client),
+              Effect.provideService(JobsClient, client),
               Effect.map(() => view.controller.snapshot())
             ),
           render: () => undefined,
@@ -54,7 +76,9 @@ if (root) {
       )
     },
     () => {
-      root.textContent = "Sandbox unavailable. Reload to reconcile authority."
+      root.textContent = demo
+        ? "Public demo unavailable. Please reload to retry."
+        : "Sandbox unavailable. Reload to reconcile authority."
     }
   )
 }

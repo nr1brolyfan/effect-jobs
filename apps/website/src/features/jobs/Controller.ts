@@ -58,7 +58,11 @@ const bounded = <A>(operation: Effect.Effect<A, PlaygroundError>) =>
     })
   )
 
-export const make = (initial: SandboxView, changed: (state: State) => void) => {
+export const make = (
+  initial: SandboxView,
+  changed: (state: State) => void,
+  allowDemoRotation = false
+) => {
   let state: State = {
     sandbox: initial,
     filters: {},
@@ -174,7 +178,7 @@ export const make = (initial: SandboxView, changed: (state: State) => void) => {
         return
       }
       const sandbox = described.success
-      if (sandbox.ref.sandboxId !== state.sandbox.ref.sandboxId) {
+      if (sandbox.ref.sandboxId !== state.sandbox.ref.sandboxId && !allowDemoRotation) {
         ++detailRevision
         update({
           page: undefined,

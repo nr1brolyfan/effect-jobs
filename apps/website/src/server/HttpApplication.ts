@@ -11,6 +11,19 @@ import * as Read from "./read/HttpRead.js"
 
 export const credentialCookie = "__Host-playground"
 export const csrfCookie = "__Host-playground-csrf"
+// Plain HTTP is allowed only on loopback; hosted cookies retain __Host-/Secure.
+const cookiePolicy = (request: Request) => {
+  const url = new URL(request.url)
+  const local =
+    url.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)
+  return local
+    ? {
+        credential: `playground-local-${url.port}`,
+        csrf: `playground-local-csrf-${url.port}`,
+        secure: ""
+      }
+    : { credential: credentialCookie, csrf: csrfCookie, secure: "; Secure" }
+}
 export const cookie = (request: Request, name: string) => {
   const values = (request.headers.get("Cookie") ?? "")
     .split(";")
@@ -22,7 +35,7 @@ const reject = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
 export const authenticate = (request: Request) =>
   Effect.gen(function* () {
     const app = yield* Application
-    const credential = cookie(request, credentialCookie)
+    const credential = cookie(request, cookiePolicy(request).credential)
     if (!credential) {
       return yield* reject("not-found")
     }
@@ -30,7 +43,7 @@ export const authenticate = (request: Request) =>
   })
 // Origin + Fetch metadata + double-submit token. No credential in JS or DTOs.
 export const csrf = (request: Request, origin: string, issue = false) => {
-  const token = cookie(request, csrfCookie)
+  const token = cookie(request, cookiePolicy(request).csrf)
   return (
     request.method === "POST" &&
     new URL(request.url).origin === origin &&
@@ -60,12 +73,9 @@ export const handle = (
     }
     const path = new URL(request.url).pathname
     const app = yield* Application
+    const policy = cookiePolicy(request)
     if (path === routes.sandboxIssue) {
-      if (
-        !csrf(request, origin, true) ||
-        new URL(request.url).search ||
-        cookie(request, credentialCookie) !== undefined
-      ) {
+      if (!csrf(request, origin, true) || new URL(request.url).search) {
         return yield* reject("invalid-request")
       }
       if (!admit("issue")) {
@@ -73,6 +83,19 @@ export const handle = (
       }
       // Issuance accepts no request body; prevent an unbounded stream from reaching PG.
       yield* requireEmptyBody(request)
+      if (cookie(request, policy.credential) !== undefined) {
+        const existing = yield* authenticate(request).pipe(
+          Effect.map(() => true),
+          Effect.catch((error) =>
+            error.code === "not-found" || error.code === "sandbox-expired"
+              ? Effect.succeed(false)
+              : Effect.fail(error)
+          )
+        )
+        if (existing) {
+          return yield* reject("invalid-request")
+        }
+      }
       const issued = yield* app.issue()
       const token = yield* Effect.sync(() =>
         Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) =>
@@ -82,11 +105,11 @@ export const handle = (
       const out = response(issued.sandbox)
       out.headers.append(
         "Set-Cookie",
-        `${credentialCookie}=${Redacted.value(issued.credential)}; Path=/; Secure; HttpOnly; SameSite=Strict`
+        `${policy.credential}=${Redacted.value(issued.credential)}; Path=/${policy.secure}; HttpOnly; SameSite=Strict`
       )
       out.headers.append(
         "Set-Cookie",
-        `${csrfCookie}=${token}; Path=/; Secure; SameSite=Strict`
+        `${policy.csrf}=${token}; Path=/${policy.secure}; SameSite=Strict`
       )
       return out
     }

@@ -12,6 +12,8 @@ import { objectName } from "../../website/src/server/live/PostCommit.js"
 import { Application } from "../../website/src/server/Services.js"
 import * as Upgrade from "../../website/src/server/live/Upgrade.js"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
+import * as Demo from "./demo/Manager.js"
+import * as DemoHttp from "./demo/Http.js"
 
 interface Stub {
   fetch(request: Request): Promise<Response>
@@ -35,6 +37,8 @@ export interface Env {
   readonly COMMERCE: Namespace
   readonly PRIVATE: Namespace
   readonly LIVE: Namespace
+  readonly DEMO: Namespace
+  readonly DEMO_ROTATION_MS?: string
   readonly ASSETS: { fetch(request: Request): Promise<Response> }
 }
 const config = (env: Env): Event.Config => ({
@@ -98,8 +102,9 @@ export class Gateway extends DurableObject {
         return Http.response({ code: "limit-reached" }, 429)
       }
       const env = this.env
-      const operation =
-        new URL(request.url).pathname === "/api/changes"
+      const operation = new URL(request.url).pathname.startsWith("/api/demo")
+        ? DemoHttp.handle(request, env)
+        : new URL(request.url).pathname === "/api/changes"
           ? Effect.gen(function* () {
               const app = yield* Application
               return yield* Upgrade.upgrade(request, env.ORIGIN, env.LIVE, (req) =>
@@ -227,6 +232,42 @@ export class Private extends Queue {
     super(ctx, env, "playground-private")
   }
 }
+export class DemoGenerator extends DurableObject {
+  constructor(
+    private readonly ctx: State,
+    private readonly env: Env
+  ) {
+    super(ctx, env)
+  }
+  activate(): Promise<void> {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      if ((await this.ctx.storage.getAlarm()) === null) {
+        await this.ctx.storage.setAlarm(Date.now() + 100)
+      }
+    })
+  }
+  alarm(): Promise<void> {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      // Prearm repairs failures/restarts without depending on page traffic.
+      await this.ctx.storage.setAlarm(Date.now() + 5000)
+      const rotation = Number(this.env.DEMO_ROTATION_MS ?? Demo.limits.rotationMillis)
+      if (
+        !Number.isInteger(rotation) ||
+        rotation < 10_000 ||
+        rotation > Demo.limits.rotationMillis
+      ) {
+        throw new Error("Invalid demo rotation interval")
+      }
+      const result = await Effect.runPromise(
+        Event.run(config(this.env), Effect.void, Demo.tick(this.env.SCHEMA, rotation))
+      )
+      await Effect.runPromise(kick(this.env))
+      await this.ctx.storage.setAlarm(
+        Date.now() + (result.phase === "preparing" ? 1000 : 5000)
+      )
+    })
+  }
+}
 export class SandboxLive extends Live.makeDurableObject<Env, State>(
   {
     origin: (env) => env.ORIGIN,
@@ -234,7 +275,11 @@ export class SandboxLive extends Live.makeDurableObject<Env, State>(
       Event.run(
         config(env),
         Effect.void,
-        Http.authenticate(request).pipe(Effect.map((access) => access.sandbox))
+        new URL(request.url).pathname === "/api/demo/changes"
+          ? Demo.current(env.SCHEMA).pipe(
+              Effect.mapError(() => new HttpError({ code: "unavailable" }))
+            )
+          : Http.authenticate(request).pipe(Effect.map((access) => access.sandbox))
       ).pipe(Effect.mapError(() => new HttpError({ code: "unavailable" }))),
     isCurrent: (ref, env) =>
       Event.run(
@@ -256,6 +301,17 @@ import { PlaygroundError as HttpError } from "@effect-jobs/playground-contracts/
 export default {
   fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
+    if (url.pathname === "/demo" || url.pathname.startsWith("/api/demo")) {
+      // Native RPC cannot be invoked by an untrusted HTTP caller.
+      return env.DEMO.getByName("shared")
+        .activate()
+        .then(() =>
+          url.pathname === "/demo"
+            ? env.ASSETS.fetch(request)
+            : env.GATEWAY.getByName("shared").fetch(request)
+        )
+        .catch(() => Http.response({ code: "unavailable" }, 503))
+    }
     if (url.pathname.startsWith("/api/")) {
       return env.GATEWAY.getByName("shared")
         .fetch(request)

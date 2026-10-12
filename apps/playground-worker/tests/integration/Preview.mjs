@@ -25,14 +25,23 @@ try {
   await pool.end()
   poolEnded = true
   cfg.connectionString = `postgres://${cfg.user}:${cfg.password}@127.0.0.1:${cfg.port}/${cfg.database}`
-  const local = await createLocal(cfg)
+  const local = await createLocal(cfg, { https: false })
   mf = local.mf
+  await mf.dispatchFetch(local.origin + "/demo")
+  const readyBy = Date.now() + 60_000
+  while (!(await mf.dispatchFetch(local.origin + "/api/demo")).ok) {
+    if (Date.now() > readyBy) {
+      throw new Error("Demo seed readiness timeout")
+    }
+    await new Promise((done) => setTimeout(done, 500))
+  }
   console.log(
     JSON.stringify({
       url: local.origin + "/jobs",
+      demoUrl: local.origin + "/demo",
       expires: process.env.PLAYGROUND_DEADLINE,
       stop: "Ctrl-C in this foreground command; wrapper removes its exact PG container",
-      tls: "local self-signed certificate",
+      tls: "HTTP loopback preview; no certificate required",
       hosted: "NotTested"
     })
   )

@@ -84,7 +84,7 @@ export const snapshot = (schema: string, queue: QueueName) =>
       (SELECT min(j.available_at) FROM ${t.jobs} j JOIN ${t.associations} a ON a.job_id=j.id JOIN ${t.sandboxes} s ON s.sandbox_id=a.sandbox_id
         WHERE j.queue=$1 AND j.state IN ('Pending','RetryScheduled') AND a.generation=s.generation AND s.expires_at>t.now AND s.viewer_until>t.now) AS due,
       (SELECT min(lease_expires_at) FROM ${t.jobs} WHERE queue=$1 AND state='Active') AS recovery,
-      (SELECT min(next_generation_at) FROM ${t.sandboxes} WHERE expires_at>t.now AND viewer_until>t.now AND retained_jobs<100) AS generate FROM t`,
+       (SELECT min(next_generation_at) FROM ${t.sandboxes} WHERE NOT demo_owned AND expires_at>t.now AND viewer_until>t.now AND retained_jobs<100) AS generate FROM t`,
       [queue]
     )
     const now = Number(row!.now)
@@ -113,7 +113,7 @@ export const generate = (schema: string) =>
     const rows = yield* sql.unsafe<
       Record<string, unknown>
     >(`SELECT *,floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now FROM ${t.sandboxes}
-    WHERE expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint
+    WHERE NOT demo_owned AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint
       AND viewer_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint
       AND next_generation_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND retained_jobs<100 ORDER BY sandbox_id LIMIT 1`)
     if (!rows[0]) {

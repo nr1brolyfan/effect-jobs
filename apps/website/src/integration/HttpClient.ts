@@ -5,11 +5,16 @@ import { ScenarioResult, ResetResult } from "@effect-jobs/playground-contracts/S
 import { PlaygroundError, PublicError } from "@effect-jobs/playground-contracts/Services"
 import type { Client } from "../features/jobs/Adapter.js"
 
+export const csrfCookieName =
+  location.protocol === "http:" &&
+  ["127.0.0.1", "localhost", "[::1]"].includes(location.hostname)
+    ? `playground-local-csrf-${location.port}`
+    : "__Host-playground-csrf"
 const csrf = () =>
   document.cookie
     .split(";")
     .map((part) => part.trim())
-    .find((part) => part.startsWith("__Host-playground-csrf="))
+    .find((part) => part.startsWith(`${csrfCookieName}=`))
     ?.split("=")[1] ?? ""
 const request = <S extends Schema.Top & { readonly DecodingServices: never }>(
   path: string,
@@ -83,4 +88,20 @@ export const client: Client = {
     request("/api/scenarios/receipt", ScenarioResult, "POST", input),
   resetReceipt: (input) =>
     request("/api/sandbox/reset/receipt", ResetResult, "POST", input)
+}
+export const demoClient: Client = {
+  ...client,
+  describe: () => request("/api/demo", SandboxView),
+  list: (input) =>
+    request(
+      `/api/demo/jobs?${params(input, { state: input.filters.state, kind: input.filters.kind, limit: String(input.limit), cursor: input.cursor })}`,
+      JobPage
+    ),
+  detail: (input) =>
+    request(`/api/demo/jobs/detail?${params(input, { jobId: input.jobId })}`, JobDetail),
+  run: () => Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
+  reset: () => Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
+  scenarioReceipt: () =>
+    Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
+  resetReceipt: () => Effect.fail(new PlaygroundError({ code: "capability-unavailable" }))
 }

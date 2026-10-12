@@ -51,6 +51,7 @@ export const mount = (
   sandbox: SandboxView,
   options: {
     readonly poll?: boolean
+    readonly demo?: boolean
     readonly changed?: (state: Controller.State) => void
   } = {}
 ) => {
@@ -123,7 +124,10 @@ export const mount = (
   const avatar = element("span", "DA")
   avatar.className = "profile-avatar"
   const profileName = element("div")
-  profileName.append(element("strong", "Demo admin"), element("span", "Isolated sandbox"))
+  profileName.append(
+    element("strong", options.demo ? "Demo viewer" : "Demo admin"),
+    element("span", options.demo ? "Public · read only" : "Isolated sandbox")
+  )
   profile.append(avatar, profileName, icon("shield"))
   sidebar.append(brand, workspace, navigation, sidebarNote, profile)
 
@@ -176,6 +180,10 @@ export const mount = (
     scenario.focus({ preventScroll: true })
   })
   openScenarios.className = "button-primary"
+  openScenarios.disabled = options.demo === true
+  openScenarios.title = options.demo
+    ? "Public demo is read only. Use /jobs for your private sandbox."
+    : "Create synthetic jobs"
   headerActions.append(refresh, openScenarios)
   const stats = element("div")
   stats.className = "stats-grid"
@@ -429,7 +437,9 @@ export const mount = (
     element("h2", "Shared feed"),
     element(
       "p",
-      "Read-only shared feed unavailable in the frozen API. Your sandbox data is never treated as a public feed."
+      options.demo
+        ? "Public synthetic jobs · continuously generated · seeded rotation every 24 hours. Private visitor sandboxes are separate."
+        : "Explore the read-only public demo at /demo. Your sandbox data is never treated as a public feed."
     )
   )
   const docs = element("section")
@@ -638,7 +648,7 @@ export const mount = (
     })
   }
   const render = (state: Controller.State) => {
-    scope.textContent = `Own sandbox: ${state.sandbox.ref.sandboxId} · generation ${state.sandbox.ref.generation} · expires ${time(state.sandbox.expiresAt)}`
+    scope.textContent = `${options.demo ? "Public demo" : "Own sandbox"}: ${state.sandbox.ref.sandboxId} · generation ${state.sandbox.ref.generation} · expires ${time(state.sandbox.expiresAt)}`
     status.textContent = `${state.connection}${state.error === undefined ? "" : ` · ${state.error}`} · ${state.connection === "stale" ? "Last successful data retained; it may be outdated." : "Reconciles reads every 5 seconds while visible."}`
     status.dataset.connection = state.connection
     for (const [tab, control] of tabButtons) {
@@ -777,7 +787,7 @@ export const mount = (
     render(state)
     options.changed?.(state)
   }
-  const controller = Controller.make(sandbox, publish)
+  const controller = Controller.make(sandbox, publish, options.demo === true)
   const localFilter = () => renderRows(controller.snapshot())
   search.addEventListener("input", localFilter)
   due.addEventListener("change", localFilter)

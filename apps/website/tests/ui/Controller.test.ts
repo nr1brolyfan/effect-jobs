@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { Deferred, Effect, Fiber, Layer } from "effect"
+import { Deferred, Effect, Fiber, Layer, Schema } from "effect"
+import { SandboxView } from "@effect-jobs/playground-contracts/Sandbox"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import { JobsClient, type Client } from "../../src/features/jobs/Adapter.js"
@@ -20,6 +21,25 @@ const execute = <A, E>(
 ) => Effect.runPromise(operation.pipe(Effect.provide(Layer.succeed(JobsClient, client))))
 
 describe("jobs UI state", () => {
+  it("accepts identity rotation only for the explicitly public demo", async () => {
+    const next = Schema.decodeUnknownSync(SandboxView)({
+      ...Fixtures.sandbox,
+      ref: { sandboxId: "public-demo-replacement", generation: 1 }
+    })
+    const client: Client = {
+      ...FixtureClient.client,
+      describe: () => Effect.succeed(next),
+      list: () => Effect.succeed({ ...FixtureClient.page, sandbox: next.ref })
+    }
+    const privateView = Controller.make(Fixtures.sandbox, () => {})
+    await execute(privateView.refresh, client)
+    expect(privateView.snapshot().error).toBe("not-found")
+    const publicView = Controller.make(Fixtures.sandbox, () => {}, true)
+    await execute(publicView.refresh, client)
+    expect(publicView.snapshot().sandbox.ref).toEqual(next.ref)
+    expect(publicView.snapshot().page?.sandbox).toEqual(next.ref)
+    expect(publicView.snapshot().connection).toBe("connected")
+  })
   it("publishes an in-flight detail while repeated same-selection reads reconcile", async () => {
     const controller = Controller.make(Fixtures.sandbox, () => {})
     const jobId = FixtureClient.page.items[0]!.jobId

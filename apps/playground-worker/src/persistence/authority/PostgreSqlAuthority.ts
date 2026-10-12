@@ -56,8 +56,8 @@ const view = (row: Record<string, unknown>) =>
       ref: { sandboxId: row.sandbox_id, generation: Number(row.generation) },
       expiresAt: Number(row.expires_at),
       capabilities: {
-        runScenario: true,
-        resetSandbox: true,
+        runScenario: row.demo_owned !== true,
+        resetSandbox: row.demo_owned !== true,
         retryJob: false,
         redriveJob: false,
         cancelJob: false

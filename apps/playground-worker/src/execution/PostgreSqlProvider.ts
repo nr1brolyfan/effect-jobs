@@ -82,7 +82,7 @@ export const make = (schema: string) =>
                     `SELECT count(*)::int AS n FROM ${t.ledger} WHERE sandbox_id=$1`,
                     [command.sandbox.sandboxId]
                   ))[0]!.n
-                  if (size >= 100) {
+                  if (size >= (sandbox.demo_owned === true ? 3000 : 100)) {
                     return new LedgerFull()
                   }
                 }

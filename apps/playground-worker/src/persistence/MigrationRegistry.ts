@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import * as Jobs from "effect-jobs/PostgreSqlSchema"
 import * as Authority from "./authority/Schema.js"
+import * as Demo from "../demo/Schema.js"
 
 // App-owned descriptors. Only explicit setup runs these; never event code.
 export interface MigrationDescriptor {
@@ -20,6 +21,15 @@ export const migrations = (schema: string): ReadonlyArray<MigrationDescriptor> =
       ADD CHECK (generation BETWEEN 1 AND 9007199254740991),
       ADD CHECK (jsonb_typeof(relations)='object');`
   return Object.freeze([
-    { id: "playground-v1", sql, checksum: createHash("sha256").update(sql).digest("hex") }
+    {
+      id: "playground-v1",
+      sql,
+      checksum: createHash("sha256").update(sql).digest("hex")
+    },
+    {
+      id: "playground-demo-v2",
+      sql: Demo.proposal(schema),
+      checksum: createHash("sha256").update(Demo.proposal(schema)).digest("hex")
+    }
   ])
 }

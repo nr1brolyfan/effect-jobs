@@ -34,6 +34,9 @@ try {
     await admin.query(`CREATE SCHEMA ${schema}`)
     await admin.query(Jobs.migration(Jobs.tables({ schema })))
     await admin.query(Authority.proposal(schema))
+    await admin.query(
+      `ALTER TABLE "${schema}".sandboxes ADD COLUMN demo_owned boolean NOT NULL DEFAULT false`
+    )
   }
   let alarmAt = null
   report.local = await Effect.runPromise(

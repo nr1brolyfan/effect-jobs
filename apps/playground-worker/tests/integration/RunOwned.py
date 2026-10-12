@@ -56,7 +56,7 @@ try:
     with os.fdopen(fd,'w') as out: json.dump(cfg,out)
     testenv=os.environ.copy();testenv['PLAYGROUND_PRIVATE_CONFIG']=str(private);testenv['PLAYGROUND_DEADLINE']=expiry
     preview='--preview' in sys.argv
-    program='Preview.mjs' if preview else 'Harness.mjs'
+    program='Preview.mjs' if preview else 'Demo.mjs' if '--demo-test' in sys.argv else 'Harness.mjs'
     timeout=min(1800,max(1,(deadline-datetime.datetime.now(datetime.timezone.utc)).total_seconds()-5)) if preview else 450
     run('preview' if preview else 'integrated',['node','apps/playground-worker/tests/integration/'+program],env=testenv,timeout=timeout)
     receipt['status']='PASS'
