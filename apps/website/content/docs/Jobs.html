@@ -40,9 +40,10 @@
         <h2>Current pages and live reads</h2>
         <p>
           Combine exact state and kind filters. The API orders by job ID ascending with an
-          opaque cursor. Search, due-Pending view and counters describe the current page
-          only. Due uses the browser clock and is not an authoritative DB-time eligibility
-          check.
+          opaque cursor. Search and the due-Pending view describe the current page only.
+          Statistics and the chart cover the entire current sandbox, independent of
+          filters and pagination, in the same database snapshot as the page. Due uses the
+          browser clock and is not an authoritative DB-time eligibility check.
         </p>
         <p>
           Pages are current reads, not historical snapshots. State changes can move rows
@@ -53,8 +54,7 @@
         <p>
           Visible pages reconcile reads every five seconds. Reconnect causes a fresh read.
           Stale state labels the last successful data as potentially outdated. Global
-          search, alternative sorting, total counts and lease-expiry filters are
-          unavailable.
+          search, alternative sorting and lease-expiry filters are unavailable.
         </p>
       </section>
       <section id="unknown">

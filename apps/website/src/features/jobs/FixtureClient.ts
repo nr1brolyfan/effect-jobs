@@ -21,7 +21,19 @@ const items = Array.from({ length: 13 }, (_, index) => {
   }
 })
 export const page = Schema.decodeUnknownSync(JobPage)(
-  { ...Fixtures.page, items },
+  {
+    ...Fixtures.page,
+    items,
+    stats: {
+      total: items.length,
+      Pending: 3,
+      Active: 3,
+      Completed: 3,
+      Dead: 2,
+      Isolated: 2,
+      RetryScheduled: 0
+    }
+  },
   { onExcessProperty: "error" }
 )
 
@@ -55,6 +67,7 @@ export const client: Client = {
       return {
         sandbox: request.sandbox,
         items: visible,
+        stats: page.stats,
         nextCursor:
           start + request.limit < filtered.length ? (visible.at(-1)?.jobId ?? null) : null
       }

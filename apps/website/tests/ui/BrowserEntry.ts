@@ -43,11 +43,31 @@ const client: Client = {
       return Effect.fail(new PlaygroundError({ code: "invalid-request" }))
     }
     if (mode === "empty" || generation > 1) {
-      return Effect.succeed({ sandbox: request.sandbox, items: [], nextCursor: null })
+      return Effect.succeed({
+        sandbox: request.sandbox,
+        items: [],
+        nextCursor: null,
+        stats: {
+          total: 0,
+          Pending: 0,
+          RetryScheduled: 0,
+          Active: 0,
+          Completed: 0,
+          Dead: 0,
+          Isolated: 0
+        }
+      })
     }
     return FixtureClient.client.list(request).pipe(
       Effect.map((page) => ({
         ...page,
+        stats: updated
+          ? {
+              ...page.stats,
+              Pending: page.stats.Pending - 1,
+              Completed: page.stats.Completed + 1
+            }
+          : page.stats,
         items: page.items.map((job) =>
           updated && job.jobId === "demo-job-06"
             ? {

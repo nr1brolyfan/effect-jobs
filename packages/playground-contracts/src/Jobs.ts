@@ -43,10 +43,34 @@ export const JobSummary = Schema.Struct({
   )
 )
 export type JobSummary = typeof JobSummary.Type
+export const JobStats = Schema.Struct({
+  total: Counter,
+  Pending: Counter,
+  RetryScheduled: Counter,
+  Active: Counter,
+  Completed: Counter,
+  Dead: Counter,
+  Isolated: Counter
+}).pipe(
+  Schema.check(
+    Schema.makeFilter(
+      (stats) =>
+        stats.total ===
+        stats.Pending +
+          stats.RetryScheduled +
+          stats.Active +
+          stats.Completed +
+          stats.Dead +
+          stats.Isolated
+    )
+  )
+)
+export type JobStats = typeof JobStats.Type
 export const JobPage = Schema.Struct({
   sandbox: SandboxRef,
   items: Schema.Array(JobSummary).pipe(Schema.check(Schema.isMaxLength(50))),
-  nextCursor: Schema.NullOr(Cursor)
+  nextCursor: Schema.NullOr(Cursor),
+  stats: JobStats
 })
 export type JobPage = typeof JobPage.Type
 export const JobDetailRequest = Schema.Struct({ sandbox: SandboxRef, jobId: JobId })

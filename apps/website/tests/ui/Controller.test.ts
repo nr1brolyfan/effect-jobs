@@ -138,7 +138,13 @@ describe("jobs UI state", () => {
               Effect.provideService(JobsClient, {
                 ...FixtureClient.client,
                 describe: () => Effect.succeed({ ...Fixtures.sandbox, ref }),
-                list: () => Effect.succeed({ sandbox: ref, items: [], nextCursor: null })
+                list: () =>
+                  Effect.succeed({
+                    sandbox: ref,
+                    items: [],
+                    nextCursor: null,
+                    stats: Fixtures.page.stats
+                  })
               })
             )
           }
@@ -420,7 +426,13 @@ describe("jobs UI state", () => {
     await execute(controller.refresh, {
       ...FixtureClient.client,
       describe: () => Effect.succeed({ ...Fixtures.sandbox, ref }),
-      list: () => Effect.succeed({ sandbox: ref, items: [], nextCursor: null })
+      list: () =>
+        Effect.succeed({
+          sandbox: ref,
+          items: [],
+          nextCursor: null,
+          stats: Fixtures.page.stats
+        })
     })
     expect(controller.snapshot().filters).toEqual({ state: "Dead" })
     expect(controller.snapshot().selected).toBeUndefined()

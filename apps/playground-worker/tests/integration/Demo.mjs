@@ -62,7 +62,23 @@ try {
       })
   )
   assert.equal(list.status, 200)
-  assert.equal((await list.json()).items.length, 30)
+  const firstPage = await list.json()
+  assert.equal(firstPage.items.length, 30)
+  assert.equal(firstPage.stats.total, 30)
+  const filtered = await local.mf.dispatchFetch(
+    local.origin +
+      "/api/demo/jobs?" +
+      new URLSearchParams({
+        sandboxId: initial.ref.sandboxId,
+        generation: "1",
+        limit: "1",
+        state: "Dead"
+      })
+  )
+  const filteredPage = await filtered.json()
+  assert.equal(filteredPage.items.length, 1)
+  assert.equal(filteredPage.stats.total, 30)
+  assert.equal(filteredPage.stats.Dead, 6)
   const denied = await local.mf.dispatchFetch(local.origin + "/api/demo/scenarios", {
     method: "POST"
   })

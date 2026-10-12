@@ -4,6 +4,7 @@ import type { SandboxView } from "@effect-jobs/playground-contracts/Sandbox"
 import { ScenarioId } from "@effect-jobs/playground-contracts/Scenarios"
 import { JobsClient, type Client } from "./Adapter.js"
 import * as Controller from "./Controller.js"
+import * as StatsChart from "./StatsChart.js"
 import { compactTime, icon, jobIcon, jobName, type IconName } from "./Design.js"
 
 const element = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string) => {
@@ -187,10 +188,9 @@ export const mount = (
   headerActions.append(refresh, openScenarios)
   const stats = element("div")
   stats.className = "stats-grid"
-  stats.setAttribute("aria-label", "Current page statistics")
+  stats.setAttribute("aria-label", "All jobs statistics")
   const metricValues: HTMLElement[] = []
   const metricNotes: HTMLElement[] = []
-  const metricBars: HTMLElement[] = []
   for (const [title, name, tone] of [
     ["Total jobs", "jobs", "neutral"],
     ["In progress", "clock", "blue"],
@@ -206,16 +206,15 @@ export const mount = (
     value.className = "stat-value"
     const note = element("p", "Waiting for a snapshot")
     note.className = "stat-note"
-    const bar = element("div")
-    bar.className = "stat-distribution"
-    bar.setAttribute("aria-hidden", "true")
     metricValues.push(value)
     metricNotes.push(note)
-    metricBars.push(bar)
-    card.append(label, value, note, bar)
+    card.append(label, value, note)
     stats.append(card)
   }
-  stats.title = "Statistics for the current page, not global totals."
+  const chart = StatsChart.mount()
+  const overview = element("div")
+  overview.className = "jobs-overview"
+  overview.append(stats, chart.panel)
   const filters = element("form")
   filters.className = "filter-bar"
   filters.setAttribute("aria-label", "Job filters")
@@ -418,7 +417,7 @@ export const mount = (
   const footer = element("footer")
   footer.className = "dashboard-footer"
   footer.append(source, element("span", "effect-jobs · initial alpha"))
-  canvas.append(header, stats, content, sessionBar, scenarios, footer)
+  canvas.append(header, overview, content, sessionBar, scenarios, footer)
   main.append(topbar, canvas)
   root.replaceChildren(sidebar, main)
   let lastDetail: Controller.State["detail"]
@@ -443,14 +442,14 @@ export const mount = (
         job.jobId.toLowerCase().includes(search.value.toLowerCase()) &&
         (!due.checked || (job.state === "Pending" && job.availableAt <= Date.now()))
     )
-    const completed = all.filter((job) => job.state === "Completed").length
-    const active = all.filter((job) =>
-      ["Pending", "RetryScheduled", "Active"].includes(job.state)
-    ).length
-    const attention = all.filter(
-      (job) => job.state === "Dead" || job.state === "Isolated"
-    ).length
-    for (const [index, value] of [all.length, active, completed, attention].entries()) {
+    const totals = state.page?.stats
+    chart.update(totals)
+    const total = totals?.total ?? 0
+    const completed = totals?.Completed ?? 0
+    const active =
+      (totals?.Pending ?? 0) + (totals?.RetryScheduled ?? 0) + (totals?.Active ?? 0)
+    const attention = (totals?.Dead ?? 0) + (totals?.Isolated ?? 0)
+    for (const [index, value] of [total, active, completed, attention].entries()) {
       const metric = metricValues[index]
       if (metric !== undefined) {
         metric.textContent =
@@ -458,36 +457,16 @@ export const mount = (
       }
     }
     const notes = [
-      "Jobs in this page snapshot",
+      "Across all states",
       "Pending, retry scheduled & active",
-      all.length === 0
+      total === 0
         ? "No completed jobs yet"
-        : `${Math.round((completed / all.length) * 100)}% of this page completed`,
-      `${all.filter((job) => job.state === "Dead").length} dead · ${all.filter((job) => job.state === "Isolated").length} isolated`
+        : `${Math.round((completed / total) * 100)}% completed`,
+      `${totals?.Dead ?? 0} dead · ${totals?.Isolated ?? 0} isolated`
     ]
     metricNotes.forEach((note, index) => {
       note.textContent = notes[index] ?? ""
     })
-    // Distribution bars describe the current snapshot, never fabricated historical trends.
-    for (const [index, bar] of metricBars.entries()) {
-      const values =
-        index === 0
-          ? [active, completed, attention]
-          : ([
-              [active, all.length - active],
-              [completed, all.length - completed],
-              [attention, all.length - attention]
-            ][index - 1] ?? [])
-      bar.replaceChildren(
-        ...values.map((value, part) => {
-          const segment = element("span")
-          segment.className = `distribution-segment part-${part}`
-          segment.style.flexGrow = String(value)
-          segment.hidden = value === 0
-          return segment
-        })
-      )
-    }
     emptyTitle.textContent =
       state.page === undefined
         ? "Connecting to your workspace"
@@ -740,6 +719,7 @@ export const mount = (
   return {
     controller,
     dispose: () => {
+      chart.dispose()
       controller.dispose()
       lifecycle.abort()
       if (timer !== undefined) {

@@ -4,6 +4,7 @@ import {
   JobDetailRequest,
   JobPage,
   JobSummary,
+  JobStats,
   ListJobs
 } from "@effect-jobs/playground-contracts/Jobs"
 import type { SandboxAccess, SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
@@ -23,7 +24,8 @@ const Status = Schema.Literals(["ok", "sandbox-expired", "stale-generation"])
 const ListRows = Schema.Array(
   Schema.Struct({
     status: Status,
-    items: Schema.Array(JobSummary).pipe(Schema.check(Schema.isMaxLength(51)))
+    items: Schema.Array(JobSummary).pipe(Schema.check(Schema.isMaxLength(51))),
+    stats: JobStats
   })
 ).pipe(Schema.check(Schema.isMinLength(1), Schema.isMaxLength(1)))
 const DetailRows = Schema.Array(
@@ -98,7 +100,7 @@ export const make = (mapping: Queries.Mapping) =>
               })
             : null
         return yield* Schema.decodeUnknownEffect(JobPage)(
-          { sandbox: request.sandbox, items, nextCursor },
+          { sandbox: request.sandbox, items, nextCursor, stats: row.stats },
           { onExcessProperty: "error" }
         ).pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" })))
       }

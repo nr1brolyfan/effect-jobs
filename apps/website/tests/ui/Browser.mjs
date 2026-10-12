@@ -97,6 +97,8 @@ try {
   )
   assert.equal(await page.getByRole("table", { name: "Background jobs" }).count(), 1)
   assert.equal(await page.locator(".stat-card").count(), 4)
+  assert.equal(await page.locator(".stat-value").first().textContent(), "13")
+  assert.equal(await page.locator(".stats-chart-panel canvas").count(), 1)
   assert.equal(
     await page
       .locator(
@@ -115,7 +117,7 @@ try {
     fullPage: true
   })
   checks.push(
-    "dark workspace shell, jobs-only navigation, truthful page statistics and semantic jobs table"
+    "dark workspace shell, jobs-only navigation, global statistics/chart and semantic jobs table"
   )
   await page.getByRole("button", { name: "Create jobs", exact: true }).click()
   assert.equal(

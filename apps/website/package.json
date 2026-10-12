@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@effect-jobs/playground-contracts": "workspace:*",
+    "chart.js": "4.5.1",
     "effect": "4.0.0",
-    "effect-jobs": "file:../..",
-    "@effect-jobs/playground-contracts": "workspace:*"
+    "effect-jobs": "file:../.."
   },
   "scripts": {
     "check": "tsc -p tsconfig.json",

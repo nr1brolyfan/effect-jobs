@@ -21,6 +21,15 @@ export const page = Schema.decodeUnknownSync(JobPage)(
   {
     sandbox: sandbox.ref,
     nextCursor: null,
+    stats: {
+      total: 1,
+      Pending: 0,
+      RetryScheduled: 0,
+      Active: 0,
+      Completed: 1,
+      Dead: 0,
+      Isolated: 0
+    },
     items: [
       {
         jobId: "demo-job-a",
