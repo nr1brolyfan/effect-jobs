@@ -15,6 +15,8 @@ const checks = []
 let local, browser, page
 const errors = []
 const cspErrors = []
+const network = []
+const websocketEvents = []
 const until = async (test, label, timeout = 30000) => {
   const deadline = Date.now() + timeout
   while (!(await test())) {
@@ -60,7 +62,15 @@ try {
     reads = 0
   page.on("websocket", (socket) => {
     sockets++
+    websocketEvents.push("opened")
+    socket.on("close", () => websocketEvents.push("closed"))
     socket.on("framereceived", () => frames++)
+  })
+  page.on("response", (response) => {
+    const path = new URL(response.url()).pathname
+    if (path.startsWith("/api/")) {
+      network.push({ path, status: response.status() })
+    }
   })
   page.on("request", (req) => {
     if (/\/api\/(demo\/)?jobs\?/.test(req.url())) {
@@ -72,6 +82,9 @@ try {
   await page.goto(local.origin + "/demo")
   await connected()
   await expect(page.locator(".job-list tr")).toHaveCount(5)
+  // Native details excludes collapsed controls from the accessibility tree.
+  // Open the launcher before checking the demo's actual disabled capabilities.
+  await page.locator(".scenario-panel summary").click()
   assert(
     await page.getByRole("button", { name: "Create jobs", exact: true }).isDisabled()
   )
@@ -109,7 +122,7 @@ try {
   )
   await page.getByLabel("State", { exact: true }).selectOption("RetryScheduled")
   await page.getByRole("button", { name: "Apply filters", exact: true }).click()
-  await expect(page.locator(".job-list .state-badge").first()).toHaveText(
+  await expect(page.locator(".job-list .status-cell").first()).toHaveText(
     "Retry scheduled"
   )
   await page.locator(".job-list .job-id").first().click()
@@ -130,11 +143,41 @@ try {
     await pool.query(`SELECT available_at FROM "${cfg.schema}".jobs WHERE id=$1`, [jobId])
   ).rows[0]
   assert.equal(Number(row.available_at), persisted)
-  assert.match(await retryTime.textContent(), /2026/)
+  const localTime = await page.evaluate(
+    (millis) =>
+      new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23",
+        timeZoneName: "short"
+      }).format(millis),
+    persisted
+  )
+  assert.equal(await retryTime.textContent(), localTime)
   const countdown = details.locator(".retry-countdown")
   const before = await countdown.textContent()
   await expect(countdown).not.toHaveText(before, { timeout: 2200 })
   assert.match(await countdown.textContent(), /In |Eligible now/)
+  // Only the local countdown clock advances. The displayed job is still the
+  // authoritative RetryScheduled snapshot; no database lifecycle is fabricated.
+  await page.evaluate((millis) => {
+    window.restoreRetryClock = Date.now
+    Date.now = () => millis
+  }, persisted)
+  try {
+    await expect(countdown).toHaveText("Eligible now · waiting for a worker", {
+      timeout: 2200
+    })
+  } finally {
+    await page.evaluate(() => {
+      Date.now = window.restoreRetryClock
+      delete window.restoreRetryClock
+    })
+  }
   assert.equal(await details.evaluate((node) => node === document.activeElement), true)
   await page.keyboard.press("Escape")
   assert.equal(await details.isVisible(), false)
@@ -153,18 +196,27 @@ try {
   await connected()
   const chart = page.getByRole("region", { name: "Job distribution" })
   await chart.locator("svg.recharts-surface").waitFor()
-  const desktopWidth = await chart
-    .locator("svg.recharts-surface")
-    .evaluate((node) => node.getBoundingClientRect().width)
+  const svg = chart.locator("svg.recharts-surface")
+  const desktop = await svg.boundingBox()
+  assert(desktop.width > 0)
+  // Aim inside the ring; a sector's bounding-box center can lie in its hole.
+  await page.mouse.move(desktop.x + desktop.width * 0.8, desktop.y + desktop.height * 0.2)
+  await expect(chart.locator(".recharts-tooltip-wrapper")).toContainText("jobs ·")
   await page.setViewportSize({ width: 390, height: 844 })
-  await until(
-    async () =>
-      (await chart
-        .locator("svg.recharts-surface")
-        .evaluate((node) => node.getBoundingClientRect().width)) < desktopWidth,
-    "chart did not resize"
-  )
+  await until(async () => {
+    const box = await svg.boundingBox()
+    const panel = await chart.boundingBox()
+    return box.width > 0 && box.width <= panel.width && panel.width <= 390
+  }, "mobile chart did not fit its resized panel")
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+  // The chart deliberately caps its ring at 220px; 390px does not necessarily
+  // shrink it. A narrower viewport must shrink the actual ResponsiveContainer.
+  await page.setViewportSize({ width: 240, height: 844 })
+  await until(
+    async () => (await svg.boundingBox()).width < desktop.width,
+    "narrow SVG did not resize"
+  )
+  await page.setViewportSize({ width: 390, height: 844 })
   const require = createRequire(resolve("package.json"))
   // CSP disallows injected scripts; evaluate the pinned audit in the automation world.
   await page.evaluate(readFileSync(require.resolve("axe-core/axe.min.js"), "utf8"))
@@ -193,6 +245,26 @@ try {
   checks.push(
     "real WebSocket signals and offline/online authoritative HTTP reconciliation"
   )
+  // Advance only the app-owned rotation deadline, as in the original Demo gate.
+  await pool.query(`UPDATE "${cfg.schema}".demo_control SET rotate_at=0`)
+  let rotated
+  await until(async () => {
+    rotated = await (await dispatch("/api/demo")).json()
+    return rotated.ref.sandboxId !== demo.ref.sandboxId
+  }, "demo did not rotate")
+  await expect(page.locator(".sandbox-scope")).toContainText(rotated.ref.sandboxId)
+  await connected()
+  await expect(page.locator(".job-list tr")).toHaveCount(5)
+  const retiredRead = await dispatch(
+    "/api/demo/jobs?" +
+      new URLSearchParams({
+        sandboxId: demo.ref.sandboxId,
+        generation: String(demo.ref.generation),
+        limit: "5"
+      })
+  )
+  assert.equal(retiredRead.status, 404)
+  checks.push("real demo rotation reconciles new authority and rejects retired requests")
   await page.goto(local.origin + "/jobs")
   await connected()
   const cookie = (await context.cookies()).find(
@@ -244,6 +316,18 @@ try {
   await page.locator(".sandbox-scope").filter({ hasText: "generation 2" }).waitFor()
   await expect(page.locator(".job-list tr")).toHaveCount(0)
   assert.equal(await details.isVisible(), false)
+  const staleStatus = await page.evaluate(async (ref) => {
+    const response = await fetch(
+      "/api/jobs?" +
+        new URLSearchParams({
+          sandboxId: ref.sandboxId,
+          generation: String(ref.generation),
+          limit: "5"
+        })
+    )
+    return response.status
+  }, privateView.ref)
+  assert.equal(staleStatus, 409)
   checks.push(
     "private HttpOnly auth and unauthorized read denial; real six-handler completion/detail; generation reset clears authority"
   )
@@ -307,6 +391,9 @@ try {
       JSON.stringify(
         {
           errors,
+          checks,
+          network,
+          websocketEvents,
           cspErrorCount: cspErrors.length,
           connection: await page.locator(".connection-status").allTextContents(),
           headings: await page.getByRole("heading").allTextContents()

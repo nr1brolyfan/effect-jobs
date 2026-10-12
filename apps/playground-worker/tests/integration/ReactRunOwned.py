@@ -49,8 +49,26 @@ try:
                 except subprocess.TimeoutExpired:
                     os.killpg(process.pid, signal.SIGKILL)
                     process.wait(timeout=10)
+            # The node test's process group owns workerd and Chromium too.
+            # A successful parent exit is insufficient if a child remains alive.
+            try:
+                os.killpg(process.pid, 0)
+            except ProcessLookupError:
+                receipt['childProcessGroupAbsent'] = True
+            else:
+                os.killpg(process.pid, signal.SIGTERM)
+                for _ in range(40):
+                    try:
+                        os.killpg(process.pid, 0)
+                    except ProcessLookupError:
+                        receipt['childProcessGroupAbsent'] = True
+                        break
+                    time.sleep(0.05)
+                else:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    receipt['childProcessGroupAbsent'] = False
     receipt['exit'] = exit_code
-    if exit_code == 0:
+    if exit_code == 0 and receipt.get('childProcessGroupAbsent') is True:
         receipt['status'] = 'PASS'
 except Exception as error:
     receipt['failureClass'] = type(error).__name__
