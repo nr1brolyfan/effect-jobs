@@ -1,3 +1,4 @@
+import { JobOperatorResult } from "@effect-jobs/playground-contracts/Operators"
 import { Effect, Schema } from "effect"
 import { JobDetail, JobPage } from "@effect-jobs/playground-contracts/Jobs"
 import { SandboxView } from "@effect-jobs/playground-contracts/Sandbox"
@@ -74,6 +75,9 @@ const params = (
 export const issue = () => request("/api/sandbox/issue", SandboxView, "POST")
 export const client: Client = {
   source: "workerd",
+  operate: (input) => request("/api/jobs/operator", JobOperatorResult, "POST", input),
+  operatorReceipt: (input) =>
+    request("/api/jobs/operator/receipt", JobOperatorResult, "POST", input),
   describe: () => request("/api/sandbox", SandboxView, "POST"),
   list: (input) =>
     request(
@@ -91,6 +95,9 @@ export const client: Client = {
 }
 export const demoClient: Client = {
   ...client,
+  operate: () => Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
+  operatorReceipt: () =>
+    Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
   describe: () => request("/api/demo", SandboxView),
   list: (input) =>
     request(

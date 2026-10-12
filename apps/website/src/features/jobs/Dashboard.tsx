@@ -37,6 +37,7 @@ import { StatsChart } from "./StatsChart.js"
 import { jobIcon, jobName, type IconName } from "./Design.js"
 import * as RetryTime from "./RetryTime.js"
 import { styles, layout } from "./Dashboard.stylex.js"
+import { OperatorControls } from "./OperatorControls.js"
 import type { Runtime } from "./Runtime.js"
 
 // Semantic class names remain stable for browser qualification; all styling is compiled.
@@ -778,7 +779,17 @@ export const Dashboard = ({
                 </Button>
               </div>
               {state.detail ? (
-                <Details detail={state.detail} now={now} />
+                <>
+                  <Details detail={state.detail} now={now} />
+                  <OperatorControls
+                    key={`${state.sandbox.ref.generation}:${state.detail.job.jobId}:${state.detail.job.lifecycleVersion}`}
+                    runtime={runtime}
+                    detail={state.detail}
+                    sandbox={state.sandbox}
+                    now={now}
+                    blocked={state.busy || state.pending !== undefined}
+                  />
+                </>
               ) : (
                 <p {...stylex.props(layout.paragraph)}>
                   {state.detailError

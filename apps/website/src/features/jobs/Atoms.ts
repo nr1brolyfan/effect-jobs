@@ -1,5 +1,11 @@
 /* oxlint-disable effecttsgo/unstable-api-usage -- Owner-selected Atom API is pinned to Effect 4.0.0. */
-import { Effect, Schema } from "effect"
+import {
+  JobOperatorCommand,
+  JobOperatorResult,
+  type JobOperatorAction
+} from "@effect-jobs/playground-contracts/Operators"
+import * as OperatorEligibility from "./OperatorEligibility.js"
+import { Clock, Effect, Schema } from "effect"
 import * as Atom from "effect/reactivity/Atom"
 import * as AtomRegistry from "effect/reactivity/AtomRegistry"
 import {
@@ -59,6 +65,11 @@ export interface State {
   readonly detailError: PublicErrorCode | undefined
   readonly pending:
     | { readonly kind: "scenario" | "reset"; readonly request: ReceiptRequest }
+    | {
+        readonly kind: "operator"
+        readonly request: ReceiptRequest
+        readonly command: JobOperatorCommand
+      }
     | undefined
   readonly busy: boolean
   readonly notice: string
@@ -287,10 +298,13 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       )
     })
 
-  const read = (background: boolean): Effect.Effect<void, never, JobsClient> =>
+  const read = (
+    background: boolean,
+    force = false
+  ): Effect.Effect<void, never, JobsClient> =>
     Effect.gen(function* () {
       // A background read never steals ownership from any outstanding read.
-      if (disposed || (background && activeReads > 0)) {
+      if (disposed || (background && !force && activeReads > 0)) {
         return
       }
       const client = yield* JobsClient
@@ -623,6 +637,135 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         )
       )
     )
+  const acceptOperator = (
+    result: JobOperatorResult,
+    pending: Extract<NonNullable<State["pending"]>, { kind: "operator" }>
+  ) =>
+    Effect.gen(function* () {
+      if (
+        disposed ||
+        snapshot().pending !== pending ||
+        !sameRef(snapshot().sandbox.ref, pending.request.sandbox)
+      ) {
+        return
+      }
+      const command = pending.command
+      yield* ensureRef(result.sandbox, command.sandbox)
+      if (
+        result.requestId !== command.requestId ||
+        (result._tag !== "OutcomeUnknown" && result.action !== command.action) ||
+        (result._tag === "Rejected" && result.jobId !== command.jobId) ||
+        (result._tag === "Committed" &&
+          (result.sourceJobId !== command.jobId ||
+            result.sourceState !== command.expectedState ||
+            result.sourceLifecycleVersion !== command.expectedLifecycleVersion))
+      ) {
+        return yield* new PlaygroundError({ code: "unavailable" })
+      }
+      if (result._tag === "OutcomeUnknown") {
+        update({
+          notice:
+            "Operator outcome unknown. Do not replay. Look up the exact request receipt."
+        })
+        return
+      }
+      update({
+        pending: undefined,
+        notice:
+          result._tag === "Rejected"
+            ? `Operator rejected: ${result.reason}. No job was changed.`
+            : result.action === "redrive"
+              ? `Redrive acknowledged. New job: ${result.resultJobId}. Handler success is not confirmed.`
+              : "Operator acknowledged. Reconciling current job state."
+      })
+      // Fence pre-operation reads; receipt state is historical, never a row patch.
+      ++listRevision
+      ++detailRevision
+      update({ loading: false })
+      yield* read(true, true)
+    })
+  const operate = (
+    action: JobOperatorAction,
+    requestId: string,
+    confirmDuplicateEffects = false
+  ) =>
+    exclusive(
+      Effect.gen(function* () {
+        const state = snapshot()
+        if (
+          disposed ||
+          state.pending !== undefined ||
+          state.detail === undefined ||
+          state.selected !== state.detail.job.jobId
+        ) {
+          return
+        }
+        const available = OperatorEligibility.eligibility(
+          state.detail,
+          state.sandbox,
+          yield* Clock.currentTimeMillis
+        )
+        const entry =
+          action === "retry-now"
+            ? available.retryNow
+            : action === "cancel"
+              ? available.cancel
+              : available.redrive
+        if (!entry.enabled) {
+          update({ notice: OperatorEligibility.explanation(entry.reason) })
+          return
+        }
+        const command = yield* Schema.decodeUnknownEffect(JobOperatorCommand)(
+          {
+            sandbox: state.sandbox.ref,
+            requestId,
+            jobId: state.detail.job.jobId,
+            expectedState: state.detail.job.state,
+            expectedLifecycleVersion: state.detail.job.lifecycleVersion,
+            action,
+            ...(action === "redrive" ? { confirmDuplicateEffects } : {})
+          },
+          { onExcessProperty: "error" }
+        ).pipe(Effect.mapError(() => new PlaygroundError({ code: "invalid-request" })))
+        const pending = Object.freeze({
+          kind: "operator" as const,
+          command: Object.freeze({
+            ...command,
+            sandbox: Object.freeze({ ...command.sandbox })
+          }),
+          request: Object.freeze({
+            sandbox: Object.freeze({ ...command.sandbox }),
+            requestId: command.requestId
+          })
+        })
+        const revision = detailRevision
+        update({ pending, notice: "Sending one operator request…" })
+        const client = yield* JobsClient
+        yield* bounded(client.operate(pending.command)).pipe(
+          Effect.flatMap(decode(JobOperatorResult)),
+          Effect.flatMap((result) =>
+            revision === detailRevision ? acceptOperator(result, pending) : Effect.void
+          )
+        )
+      }).pipe(
+        Effect.catchTag("PlaygroundError", (error) =>
+          Effect.sync(() => {
+            if (disposed) {
+              return
+            }
+            if (snapshot().pending?.kind === "operator") {
+              update({
+                notice: `Operator not confirmed (${error.code}). Do not replay; look up the exact receipt.`
+              })
+            } else {
+              update({
+                notice: `Operator unavailable: ${error.code}. No command was sent.`
+              })
+            }
+          })
+        )
+      )
+    )
   const receipt = exclusive(
     Effect.gen(function* () {
       const pending = snapshot().pending
@@ -634,7 +777,15 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       }
       const client = yield* JobsClient
       update({ busy: true })
-      if (pending.kind === "scenario") {
+      if (pending.kind === "operator") {
+        const revision = detailRevision
+        yield* bounded(client.operatorReceipt(pending.request)).pipe(
+          Effect.flatMap(decode(JobOperatorResult)),
+          Effect.flatMap((result) =>
+            revision === detailRevision ? acceptOperator(result, pending) : Effect.void
+          )
+        )
+      } else if (pending.kind === "scenario") {
         yield* bounded(client.scenarioReceipt(pending.request)).pipe(
           Effect.flatMap(decode(ScenarioResult)),
           Effect.flatMap((result) => acceptScenario(result, pending.request))
@@ -671,6 +822,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     setPageSize,
     select,
     command,
+    operate,
     receipt,
     closeDetail: () => {
       ++detailRevision

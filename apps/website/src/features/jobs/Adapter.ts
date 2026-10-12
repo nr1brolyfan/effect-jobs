@@ -1,3 +1,8 @@
+import type {
+  JobOperatorCommand,
+  JobOperatorResult,
+  JobOperatorReceiptRequest
+} from "@effect-jobs/playground-contracts/Operators"
 import { Context, Effect } from "effect"
 import type {
   JobDetailRequest,
@@ -18,6 +23,12 @@ import type { PlaygroundError } from "@effect-jobs/playground-contracts/Services
 // Browser port. The HTTP owner supplies cookie/origin enforcement; no SandboxAccess
 // or credential enters this interface. No production endpoint is guessed here.
 export interface Client {
+  readonly operate: (
+    command: JobOperatorCommand
+  ) => Effect.Effect<JobOperatorResult, PlaygroundError>
+  readonly operatorReceipt: (
+    request: JobOperatorReceiptRequest
+  ) => Effect.Effect<JobOperatorResult, PlaygroundError>
   readonly source: "mock" | "local" | "workerd" | "hosted"
   readonly describe: () => Effect.Effect<SandboxView, PlaygroundError>
   readonly list: (request: ListJobs) => Effect.Effect<JobPage, PlaygroundError>

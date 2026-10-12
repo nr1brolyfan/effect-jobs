@@ -1,3 +1,4 @@
+import { Operators } from "@effect-jobs/playground-contracts/Operators"
 import { Cause, Effect, Redacted } from "effect"
 import {
   PlaygroundError,
@@ -132,6 +133,8 @@ export const handle = (
       ).pipe(Effect.provideService(JobsRead, app))
     }
     const operations: Record<string, Commands.Operation> = {
+      [routes.operator]: "operator",
+      [routes.operatorReceipt]: "operatorReceipt",
       [routes.scenarios]: "run",
       [routes.scenarioReceipt]: "scenarioReceipt",
       [routes.reset]: "reset",
@@ -145,7 +148,8 @@ export const handle = (
       return yield* reject("invalid-request")
     }
     return yield* Commands.handle(access, request, operation, origin).pipe(
-      Effect.provideService(Scenarios, app)
+      Effect.provideService(Scenarios, app),
+      Effect.provideService(Operators, app)
     )
   }).pipe(
     Effect.catchCause((cause) => {

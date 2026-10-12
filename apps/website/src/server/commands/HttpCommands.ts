@@ -16,7 +16,20 @@ import {
 // Separate from the read budget: a stream cancel promise may never settle.
 export const bodyCleanupBudgetMillis = 100
 
-export type Operation = "run" | "reset" | "scenarioReceipt" | "resetReceipt"
+import {
+  JobOperatorCommand,
+  JobOperatorReceiptRequest,
+  JobOperatorResult,
+  Operators
+} from "@effect-jobs/playground-contracts/Operators"
+
+export type Operation =
+  | "operator"
+  | "operatorReceipt"
+  | "run"
+  | "reset"
+  | "scenarioReceipt"
+  | "resetReceipt"
 const statuses = {
   "invalid-request": 400,
   "not-found": 404,
@@ -113,6 +126,27 @@ export const handle = (
       return yield* invalid()
     }
     const raw = yield* body(request)
+    if (operation === "operator" || operation === "operatorReceipt") {
+      const operators = yield* Operators
+      const result =
+        operation === "operator"
+          ? yield* operators.execute(
+              access,
+              yield* Schema.decodeUnknownEffect(JobOperatorCommand)(raw, {
+                onExcessProperty: "error"
+              }).pipe(Effect.mapError(invalid))
+            )
+          : yield* operators.receipt(
+              access,
+              yield* Schema.decodeUnknownEffect(JobOperatorReceiptRequest)(raw, {
+                onExcessProperty: "error"
+              }).pipe(Effect.mapError(invalid))
+            )
+      const decoded = yield* Schema.decodeUnknownEffect(JobOperatorResult)(result, {
+        onExcessProperty: "error"
+      }).pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" })))
+      return response(decoded, decoded._tag === "OutcomeUnknown" ? 202 : 200)
+    }
     const service = yield* Scenarios
     if (operation === "run") {
       const command = yield* Schema.decodeUnknownEffect(ScenarioCommand)(raw, {

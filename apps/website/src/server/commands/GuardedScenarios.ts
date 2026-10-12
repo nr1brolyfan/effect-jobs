@@ -132,7 +132,8 @@ export const make = Effect.gen(function* () {
 })
 export const layerNoDeps = Layer.effect(Scenarios, make)
 
-// There is no frozen operator command/receipt contract or safe library primitive.
+// Staged operator contracts exist; capabilities remain disabled until native
+// library persistence is integrated and qualified.
 export const operatorCapabilities = Object.freeze({
   retryJob: false,
   redriveJob: false,

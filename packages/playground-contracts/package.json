@@ -43,6 +43,10 @@
     "./MockLayer": {
       "types": "./src/MockLayer.ts",
       "import": "./dist/MockLayer.js"
+    },
+    "./Operators": {
+      "types": "./src/Operators.ts",
+      "import": "./dist/Operators.js"
     }
   }
 }

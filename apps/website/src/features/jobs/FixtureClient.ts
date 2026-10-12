@@ -47,6 +47,9 @@ const check = (ref: SandboxRef) =>
 
 export const client: Client = {
   source: "mock",
+  operate: () => Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
+  operatorReceipt: () =>
+    Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
   describe: () => Effect.succeed(Fixtures.sandbox),
   list: (request) =>
     Effect.gen(function* () {

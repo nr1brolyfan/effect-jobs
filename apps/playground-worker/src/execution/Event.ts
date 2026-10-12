@@ -1,3 +1,4 @@
+import * as OperatorsUnavailable from "../../../website/src/server/commands/OperatorsUnavailable.js"
 // @effect-diagnostics unstableApiUsage:off
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { JobWorker } from "effect-jobs/JobWorker"
@@ -129,7 +130,9 @@ export const run = <A, E>(
         Layer.provide(Layer.mergeAll(activeAuthority, commands))
       )
       const app = Application.layerNoDeps.pipe(
-        Layer.provide(Layer.mergeAll(activeAuthority, read, guarded))
+        Layer.provide(
+          Layer.mergeAll(activeAuthority, read, guarded, OperatorsUnavailable.layer)
+        )
       )
       return yield* operation.pipe(
         Effect.provide(app),

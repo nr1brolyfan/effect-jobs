@@ -205,7 +205,7 @@ export const make = (schema: string) =>
                   return yield* fail("limit-reached")
                 }
                 const inserted = yield* query(
-                  `INSERT INTO ${t.admission} VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING request_id`,
+                  `INSERT INTO ${t.admission}(sandbox_id,generation,operation,request_id) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING request_id`,
                   [
                     request.sandbox.sandboxId,
                     request.sandbox.generation,

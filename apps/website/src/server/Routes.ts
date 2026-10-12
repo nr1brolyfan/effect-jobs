@@ -4,6 +4,8 @@ export const routes = Object.freeze({
   sandbox: "/api/sandbox",
   jobs: "/api/jobs",
   jobDetail: "/api/jobs/detail",
+  operator: "/api/jobs/operator",
+  operatorReceipt: "/api/jobs/operator/receipt",
   scenarios: "/api/scenarios",
   scenarioReceipt: "/api/scenarios/receipt",
   reset: "/api/sandbox/reset",

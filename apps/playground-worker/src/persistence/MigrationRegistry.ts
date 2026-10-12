@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
 import * as Jobs from "effect-jobs/PostgreSqlSchema"
+import * as LegacyJobsV1 from "./LegacyJobsV1.js"
 import * as Authority from "./authority/Schema.js"
 import * as Demo from "../demo/Schema.js"
 
@@ -11,7 +12,7 @@ export interface MigrationDescriptor {
 }
 export const migrations = (schema: string): ReadonlyArray<MigrationDescriptor> => {
   const sql =
-    Jobs.migration(Jobs.tables({ schema })) +
+    LegacyJobsV1.migration(Jobs.tables({ schema })) +
     Authority.proposal(schema) +
     `
     ALTER TABLE "${schema}"."sandboxes"
