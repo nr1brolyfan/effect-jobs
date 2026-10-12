@@ -357,6 +357,13 @@ export const Dashboard = ({
   useLayoutEffect(() => {
     if (state.selected !== undefined && focusedSelection.current !== state.selected) {
       detailPanel.current?.focus({ preventScroll: true })
+    } else if (state.selected === undefined && focusedSelection.current !== undefined) {
+      // TanStack cell renderers change with selection. Restore focus only after
+      // React commits their replacement, using current authoritative page rows.
+      const previous = focusedSelection.current
+      const buttons = jobsPanel.current?.querySelectorAll<HTMLButtonElement>(".job-id")
+      const target = Array.from(buttons ?? []).find((button) => button.title === previous)
+      ;(target ?? jobsPanel.current)?.focus({ preventScroll: true })
     }
     focusedSelection.current = state.selected
   }, [state.selected])
@@ -367,15 +374,7 @@ export const Dashboard = ({
   const [scenario, setScenario] = useState<typeof ScenarioId.Type>("success")
   const [count, setCount] = useState(1)
   const close = () => {
-    const selected = state.selected
     runtime.closeDetail()
-    const buttons = jobsPanel.current?.querySelectorAll<HTMLButtonElement>(".job-id")
-    const target = Array.from(buttons ?? []).find((button) => button.title === selected)
-    if (target) {
-      target.focus({ preventScroll: true })
-    } else {
-      jobsPanel.current?.focus({ preventScroll: true })
-    }
   }
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {

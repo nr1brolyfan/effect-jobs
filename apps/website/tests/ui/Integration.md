@@ -43,13 +43,14 @@ bun apps/website/tests/ui/StatsChart.mjs
 node apps/website/tests/ui/Production.mjs
 node apps/website/tests/ui/Browser.mjs
 node apps/website/tests/ui/StatsChart.browser.mjs
+node apps/website/tests/ui/Focus.mjs
 node apps/website/tests/ui/Reconciliation.mjs
 python3 apps/playground-worker/tests/integration/ReactRunOwned.py
 ```
 
 Runtime attempts require an explicitly authorized finite disposable-resource
-window. The current continuation used all three attempts; the final focus-oracle
-repair has not been rerun against PG. Do not infer PASS from the harness source.
+window. The current continuation used all three attempts; the final focus behavior and oracle
+repairs have not been rerun against PG. Do not infer PASS from the harness source.
 
 ## Real runtime diagnosis
 
@@ -71,11 +72,16 @@ The third attempt passed those gates plus real detail reads, database availableA
 byte-value comparison, exact Europe/Warsaw local formatting, a ticking countdown,
 and Eligible now wording. The latter uses a temporary local browser-clock change
 only; persisted lifecycle and API snapshots remain authoritative. It then failed
-an assumption that Escape returns focus to the first row. Live reads can reorder
-or evict the selected row from the five-item server page. The corrected oracle
-requires focus on the exact selected job when present, otherwise the Jobs list
-region, matching the production focus contract. That final oracle still requires
-real PG reproduction in a new authorized finite window.
+focus restoration after Escape. A separate deterministic Focus.mjs reproduction
+also failed with an unchanged selected row. Closing details changed the table's
+selection-dependent cell render functions; the synchronous close callback focused
+an old button before React replaced it. Focus was lost when that button unmounted.
+The dashboard now restores focus in useLayoutEffect after the React commit.
+Focus.mjs passes Escape, Close details, and the fallback to Jobs list after the
+selected job leaves the page. Live reads can also reorder or evict the selected
+row, so the real oracle now locates that exact job instead of assuming the first
+row. The final focus source and oracle still require real PG reproduction in a
+new authorized finite window.
 
 Additional harness assertions cover actual responsive SVG shrinkage at a narrow
 240px viewport (the ring legitimately stays capped at 220px at 390px), pointer
