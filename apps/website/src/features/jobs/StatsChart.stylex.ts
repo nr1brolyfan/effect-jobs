@@ -24,7 +24,7 @@ export const styles = stylex.create({
     margin: 0,
     marginBottom: spacing.md,
     color: colors.muted,
-    fontSize: typography.small
+    fontSize: typography.secondary
   },
   body: {
     display: "grid",
@@ -79,7 +79,7 @@ export const styles = stylex.create({
   },
   totalLabel: {
     color: colors.muted,
-    fontSize: typography.small
+    fontSize: typography.secondary
   },
   legend: {
     display: "grid",
@@ -88,7 +88,7 @@ export const styles = stylex.create({
     margin: 0,
     padding: 0,
     minWidth: 0,
-    fontSize: typography.small
+    fontSize: typography.secondary
   },
   row: {
     display: "grid",
@@ -127,7 +127,7 @@ export const styles = stylex.create({
     borderRadius: radii.sm,
     boxShadow: shadows.panel,
     fontFamily: typography.fontFamily,
-    fontSize: typography.small,
+    fontSize: typography.secondary,
     pointerEvents: "none"
   }
 })

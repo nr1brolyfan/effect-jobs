@@ -27,7 +27,7 @@ export const styles = stylex.create({
   },
   controls: { display: "flex", gap: spacing.sm, flexWrap: "wrap" },
   details: { overflowWrap: "anywhere" },
-  retry: { fontFamily: typography.monoFamily, fontSize: typography.small },
+  retry: { fontSize: typography.secondary },
   search: { minWidth: 0 },
   notice: { color: colors.muted, fontSize: typography.small }
 })
@@ -41,14 +41,21 @@ export const layout = stylex.create({
     color: colors.text,
     fontFamily: typography.fontFamily
   },
-  paragraph: { margin: 0 },
-  heading: { margin: 0, fontSize: "13px", fontWeight: 550 },
+  paragraph: { margin: 0, maxWidth: "72ch" },
+  resultsStatus: {
+    padding: "8px 20px",
+    margin: 0,
+    minHeight: "38px",
+    color: colors.muted,
+    fontSize: typography.secondary
+  },
+  heading: { margin: 0, fontSize: typography.body, fontWeight: 550 },
   title: {
     margin: 0,
     fontSize: typography.title,
     lineHeight: 1.25,
     fontWeight: 550,
-    letterSpacing: "-1px"
+    letterSpacing: "-0.025em"
   },
   sidebar: {
     position: "fixed",
@@ -87,7 +94,7 @@ export const layout = stylex.create({
     backgroundColor: colors.raised
   },
   desktop: { display: { default: "block", "@media (max-width: 900px)": "none" } },
-  sublabel: { display: "block", color: colors.muted, fontSize: "10px" },
+  sublabel: { display: "block", color: colors.muted, fontSize: typography.small },
   workspace: {
     display: { default: "flex", "@media (max-width: 900px)": "none" },
     gap: "10px",
@@ -105,7 +112,7 @@ export const layout = stylex.create({
     color: colors.text,
     display: "grid",
     placeItems: "center",
-    fontSize: "12px",
+    fontSize: typography.secondary,
     fontWeight: 600,
     flexShrink: 0
   },
@@ -120,20 +127,20 @@ export const layout = stylex.create({
     display: { default: "block", "@media (max-width: 900px)": "none" },
     color: colors.muted,
     letterSpacing: "1.3px",
-    fontSize: "9px",
+    fontSize: typography.small,
     padding: "0 12px 10px"
   },
   navButton: {
     justifyContent: { default: "flex-start", "@media (max-width: 900px)": "center" },
-    minHeight: "40px",
+    minHeight: "44px",
     padding: "9px 12px",
     borderColor: "transparent",
     backgroundColor: "transparent",
     borderRadius: radii.md,
-    gap: { default: "12px", "@media (max-width: 900px)": 0 },
+    gap: { default: typography.body, "@media (max-width: 900px)": 0 },
     color: colors.muted,
-    fontSize: { default: "12px", "@media (max-width: 900px)": 0 },
-    width: { default: "auto", "@media (max-width: 900px)": "42px" },
+    fontSize: { default: typography.body, "@media (max-width: 900px)": 0 },
+    width: { default: "auto", "@media (max-width: 900px)": "44px" },
     overflow: "hidden"
   },
   navActive: {
@@ -177,10 +184,10 @@ export const layout = stylex.create({
     alignItems: "center",
     gap: "12px",
     color: colors.muted,
-    fontSize: "11px"
+    fontSize: typography.secondary
   },
   environment: {
-    fontSize: "10px",
+    fontSize: typography.small,
     border: `1px solid ${colors.border}`,
     backgroundColor: colors.raised,
     color: colors.accent,
@@ -198,17 +205,18 @@ export const layout = stylex.create({
     }
   },
   header: {
+    alignSelf: "stretch",
     display: "flex",
     justifyContent: "space-between",
     gap: "24px",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: "30px",
     flexDirection: { default: "row", "@media (max-width: 600px)": "column" }
   },
   eyebrow: {
     margin: "0 0 9px",
     color: colors.muted,
-    fontSize: "9px",
+    fontSize: typography.small,
     letterSpacing: "1.5px",
     fontWeight: 600
   },
@@ -240,7 +248,7 @@ export const layout = stylex.create({
     justifyContent: "space-between",
     gap: "10px",
     color: colors.muted,
-    fontSize: "11px"
+    fontSize: typography.secondary
   },
   statValue: {
     display: "block",
@@ -250,7 +258,7 @@ export const layout = stylex.create({
     fontWeight: 500,
     fontVariantNumeric: "tabular-nums"
   },
-  statNote: { margin: "8px 0 0", color: colors.muted, fontSize: "10px" },
+  statNote: { margin: "8px 0 0", color: colors.muted, fontSize: typography.small },
   jobsLayout: {
     display: "grid",
     gridTemplateColumns: "minmax(0, 1fr)",
@@ -289,9 +297,9 @@ export const layout = stylex.create({
     borderRadius: 0,
     backgroundColor: "transparent",
     color: colors.muted,
-    fontSize: "11px",
+    fontSize: typography.secondary,
     padding: "10px 10px 11px",
-    minHeight: "40px",
+    minHeight: "44px",
     borderBottom: "2px solid transparent"
   },
   tabActive: { color: colors.accent, borderBottomColor: colors.accent },
@@ -304,15 +312,16 @@ export const layout = stylex.create({
   },
   scroll: { width: "100%", overflowX: "auto" },
   table: {
+    fontVariantNumeric: "tabular-nums",
     width: "100%",
     borderCollapse: "collapse",
     textAlign: "left",
-    fontSize: "11px",
+    fontSize: typography.body,
     whiteSpace: "nowrap"
   },
   th: {
     color: colors.muted,
-    fontSize: "10px",
+    fontSize: typography.small,
     fontWeight: 500,
     backgroundColor: colors.raised,
     borderBlock: `1px solid ${colors.border}`,
@@ -335,7 +344,7 @@ export const layout = stylex.create({
   },
   jobName: {
     display: "block",
-    fontSize: "11px",
+    fontSize: typography.secondary,
     fontWeight: 550,
     color: colors.text,
     textTransform: "capitalize"
@@ -343,7 +352,9 @@ export const layout = stylex.create({
   jobId: {
     display: "block",
     cursor: "pointer",
-    padding: "1px 0",
+    padding: "5px 0",
+    minHeight: "32px",
+    "@media (pointer: coarse)": { minHeight: "44px" },
     borderWidth: 0,
     backgroundColor: "transparent",
     borderRadius: radii.sm,
@@ -353,13 +364,13 @@ export const layout = stylex.create({
     whiteSpace: "nowrap",
     textAlign: "left",
     color: colors.muted,
-    fontSize: "9px",
+    fontSize: typography.small,
     fontWeight: 400,
     fontFamily: typography.monoFamily,
     outline: { default: "none", ":focus-visible": `2px solid ${colors.focus}` },
     outlineOffset: "4px"
   },
-  cell: { color: colors.muted, fontFamily: typography.monoFamily, fontSize: "10px" },
+  cell: { color: colors.muted, fontSize: typography.body },
   pagination: {
     padding: "12px 20px",
     borderTop: `1px solid ${colors.border}`,
@@ -368,7 +379,12 @@ export const layout = stylex.create({
     gap: spacing.sm,
     flexWrap: "wrap"
   },
-  pageLabel: { marginRight: "auto", color: colors.muted, fontSize: "10px", order: -1 },
+  pageLabel: {
+    margin: 0,
+    color: colors.muted,
+    fontSize: typography.small,
+    flexBasis: "100%"
+  },
   empty: {
     minHeight: "200px",
     display: "flex",
@@ -401,16 +417,16 @@ export const layout = stylex.create({
     alignItems: "center",
     marginBottom: "12px"
   },
-  dt: { marginTop: "15px", color: colors.muted, fontSize: "10px" },
+  dt: { marginTop: "15px", color: colors.muted, fontSize: typography.small },
   dd: {
     margin: "4px 0 0",
     color: colors.text,
-    fontSize: "11px",
+    fontSize: typography.secondary,
     overflowWrap: "anywhere"
   },
   link: {
     color: colors.accent,
-    fontSize: "11px",
+    fontSize: typography.secondary,
     textUnderlineOffset: "4px",
     outline: { default: "none", ":focus-visible": `2px solid ${colors.focus}` },
     outlineOffset: "4px"
@@ -445,7 +461,7 @@ export const layout = stylex.create({
     gap: "10px 24px",
     justifyContent: "space-between",
     flexWrap: "wrap",
-    fontSize: "9px",
+    fontSize: typography.small,
     color: colors.muted,
     padding: "17px 1px 22px"
   },
@@ -457,6 +473,6 @@ export const layout = stylex.create({
     gap: "15px",
     justifyContent: "space-between",
     color: colors.muted,
-    fontSize: "10px"
+    fontSize: typography.small
   }
 })

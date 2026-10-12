@@ -6,17 +6,35 @@ import {
   useReactTable,
   type ColumnDef
 } from "@tanstack/react-table"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from "react"
 import type {
   JobDetail,
   JobFilters,
   JobSummary
 } from "@effect-jobs/playground-contracts/Jobs"
 import { ScenarioId } from "@effect-jobs/playground-contracts/Scenarios"
-import { Badge, Button, Field, Icon } from "../../ui/Primitives.js"
+import { DateTime } from "../../ui/DateTime.js"
+import { Pagination } from "../../ui/Pagination.js"
+import {
+  Badge,
+  Button,
+  Field,
+  Icon,
+  TabsRoot,
+  TabsList,
+  TabsTab,
+  TabsPanel
+} from "../../ui/Primitives.js"
 import { stateOrder, stateLabels } from "../../ui/Theme.stylex.js"
 import { StatsChart } from "./StatsChart.js"
-import { compactTime, jobIcon, jobName, type IconName } from "./Design.js"
+import { jobIcon, jobName, type IconName } from "./Design.js"
 import * as RetryTime from "./RetryTime.js"
 import { styles, layout } from "./Dashboard.stylex.js"
 import type { Runtime } from "./Runtime.js"
@@ -69,6 +87,7 @@ const classStyles = {
   selected: styles.selected,
   pagination: layout.pagination,
   "empty-state": layout.empty,
+  "results-status": layout.resultsStatus,
   "detail-panel": layout.detail,
   "detail-heading": layout.detailHeading,
   "scenario-panel": layout.scenario,
@@ -87,8 +106,6 @@ const classes = (names: string) => {
   return { ...props, className: [names, props.className].filter(Boolean).join(" ") }
 }
 
-const time = (millis: number | null) =>
-  millis === null ? "Not recorded" : new Date(millis).toISOString()
 const navigation: ReadonlyArray<readonly [string, IconName]> = [
   ["Overview", "grid"],
   ["Background Jobs", "jobs"],
@@ -107,7 +124,7 @@ const Details = ({
   const d = detail
   const retention = (value: JobDetail["policy"]["completedRetention"]) =>
     value._tag === "Forever" ? "Forever" : `${value.millis}ms`
-  const values: ReadonlyArray<readonly [string, string]> = [
+  const values: ReadonlyArray<readonly [string, ReactNode]> = [
     ["Job ID", d.job.jobId],
     ["State", d.job.state],
     [
@@ -118,8 +135,11 @@ const Details = ({
       "Producer identity",
       `${d.producer.operation} / ${d.producer.operationId} / ${d.producer.slot}`
     ],
-    ["Updated", time(d.job.updatedAt)],
-    ["Terminal timestamp", time(d.job.completedAt)],
+    ["Updated", <DateTime value={d.job.updatedAt} label="Updated" />],
+    [
+      "Terminal timestamp",
+      <DateTime value={d.job.completedAt} label="Terminal timestamp" />
+    ],
     [
       "Finalized attempts / stalled recoveries / lifecycle version",
       `${d.job.attemptsMade} / ${d.job.stalledCount} / ${d.job.lifecycleVersion}`
@@ -138,9 +158,14 @@ const Details = ({
     ],
     [
       "Observation",
-      d.observation === undefined
-        ? "Unknown; no observation supplied."
-        : `${d.observation.outcome} · ${d.observation.source} · ${time(d.observation.observedAt)}`
+      d.observation === undefined ? (
+        "Unknown; no observation supplied."
+      ) : (
+        <>
+          {d.observation.outcome} · {d.observation.source} ·{" "}
+          <DateTime value={d.observation.observedAt} label="Observed" />
+        </>
+      )
     ]
   ]
   return (
@@ -161,9 +186,10 @@ const Details = ({
             stylex.props(layout.dd, styles.retry).className
           ].join(" ")}
         >
-          <time dateTime={time(d.job.availableAt)} title={time(d.job.availableAt)}>
-            {RetryTime.exactTime(d.job.availableAt)}
-          </time>
+          <DateTime
+            value={d.job.availableAt}
+            label={d.job.state === "RetryScheduled" ? "Retry available at" : "Available"}
+          />
           {d.job.state === "RetryScheduled" && (
             <span
               className={["retry-countdown", stylex.props(styles.clock).className].join(
@@ -273,7 +299,14 @@ const JobsTable = ({
       {
         id: "updated",
         header: "Updated",
-        cell: ({ row }) => compactTime(row.original.updatedAt)
+        cell: ({ row }) => <DateTime value={row.original.updatedAt} label="Updated" />
+      },
+      {
+        id: "terminal",
+        header: "Terminal",
+        cell: ({ row }) => (
+          <DateTime value={row.original.completedAt} label="Terminal timestamp" />
+        )
       },
       {
         id: "failure",
@@ -349,6 +382,10 @@ export const Dashboard = ({
 }) => {
   const state = useAtomValue(runtime.stateAtom)
   const now = useAtomValue(runtime.now)
+  const paginationPanel = useRef<HTMLDivElement>(null)
+  const paginationFocus = useRef<HTMLButtonElement | HTMLSelectElement | undefined>(
+    undefined
+  )
   const detailPanel = useRef<HTMLElement>(null)
   const jobsPanel = useRef<HTMLElement>(null)
   const scenariosPanel = useRef<HTMLDetailsElement>(null)
@@ -367,6 +404,42 @@ export const Dashboard = ({
     }
     focusedSelection.current = state.selected
   }, [state.selected])
+  // Native disabled controls lose focus while a read is in flight. Restore only
+  // that control after loading, and only if the user has not moved elsewhere.
+  useLayoutEffect(() => {
+    if (!state.loading) {
+      const target = paginationFocus.current
+      paginationFocus.current = undefined
+      if (
+        target?.isConnected &&
+        !target.disabled &&
+        document.activeElement === document.body
+      ) {
+        target.focus({ preventScroll: true })
+      }
+    }
+  }, [state.loading])
+  useEffect(() => {
+    const abandon = (event: Event) => {
+      if (event instanceof KeyboardEvent && event.key !== "Tab") {
+        return
+      }
+      if (
+        event instanceof KeyboardEvent ||
+        !paginationPanel.current?.contains(event.target as Node)
+      ) {
+        paginationFocus.current = undefined
+      }
+    }
+    document.addEventListener("pointerdown", abandon)
+    document.addEventListener("focusin", abandon)
+    document.addEventListener("keydown", abandon)
+    return () => {
+      document.removeEventListener("pointerdown", abandon)
+      document.removeEventListener("focusin", abandon)
+      document.removeEventListener("keydown", abandon)
+    }
+  }, [])
   const [search, setSearch] = useState("")
   const [due, setDue] = useState(false)
   const [filterState, setFilterState] = useState<JobFilters["state"]>(undefined)
@@ -386,7 +459,7 @@ export const Dashboard = ({
     return () => window.removeEventListener("keydown", escape)
   })
   useEffect(() => setFilterState(state.filters.state), [state.filters.state])
-  const stats = state.page?.stats
+  const stats = state.stats
   const totals = [
     stats?.total,
     stats ? stats.Pending + stats.RetryScheduled + stats.Active : undefined,
@@ -443,7 +516,9 @@ export const Dashboard = ({
           <span {...classes("profile-avatar")}>DA</span>
           <div {...stylex.props(layout.desktop)}>
             <strong>{demo ? "Demo viewer" : "Demo admin"}</strong>
-            <span>{demo ? "Public · read only" : "Isolated sandbox"}</span>
+            <span {...stylex.props(layout.sublabel)}>
+              {demo ? "Public · read only" : "Isolated sandbox"}
+            </span>
           </div>
           <Icon name="shield" />
         </div>
@@ -461,36 +536,33 @@ export const Dashboard = ({
         <div {...classes("dashboard-canvas")}>
           <header {...classes("page-header")}>
             <div>
-              <p {...classes("eyebrow")}>WORKSPACE / OPERATIONS</p>
               <h1 {...stylex.props(layout.title)}>Background Jobs</h1>
               <p {...stylex.props(layout.subtitle)}>
                 Every job, every state. Your background work, in one place.
               </p>
             </div>
             <div {...classes("header-actions")}>
-              <Button onClick={() => void runtime.run(runtime.refresh)}>
-                <Icon name="refresh" />
-                Refresh reads
-              </Button>
-              <Button
-                variant="primary"
-                disabled={demo || !state.sandbox.capabilities.runScenario}
-                onClick={() => {
-                  if (scenariosPanel.current) {
-                    scenariosPanel.current.open = true
-                    scenariosPanel.current.scrollIntoView({
-                      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-                        ? "instant"
-                        : "smooth",
-                      block: "center"
-                    })
-                    scenarioControl.current?.focus({ preventScroll: true })
-                  }
-                }}
-              >
-                <Icon name="plus" />
-                Create jobs
-              </Button>
+              {!demo && (
+                <Button
+                  variant="primary"
+                  disabled={unavailable || !state.sandbox.capabilities.runScenario}
+                  onClick={() => {
+                    if (scenariosPanel.current) {
+                      scenariosPanel.current.open = true
+                      scenariosPanel.current.scrollIntoView({
+                        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+                          ? "instant"
+                          : "smooth",
+                        block: "center"
+                      })
+                      scenarioControl.current?.focus({ preventScroll: true })
+                    }
+                  }}
+                >
+                  <Icon name="plus" />
+                  Create jobs
+                </Button>
+              )}
             </div>
           </header>
           <div {...classes("jobs-overview")}>
@@ -514,15 +586,17 @@ export const Dashboard = ({
                       : String(totals[index]).padStart(2, "0")}
                   </strong>
                   <p {...classes("stat-note")}>
-                    {index === 0
-                      ? "Across all states"
-                      : index === 1
-                        ? "Pending, retry scheduled & active"
-                        : index === 2
-                          ? stats?.total
-                            ? `${Math.round((stats.Completed / stats.total) * 100)}% completed`
-                            : "No completed jobs yet"
-                          : `${stats?.Dead ?? 0} dead · ${stats?.Isolated ?? 0} isolated`}
+                    {stats === undefined
+                      ? "Waiting for statistics"
+                      : index === 0
+                        ? "Across all states"
+                        : index === 1
+                          ? "Pending, retry scheduled & active"
+                          : index === 2
+                            ? stats?.total
+                              ? `${Math.round((stats.Completed / stats.total) * 100)}% completed`
+                              : "No completed jobs yet"
+                            : `${stats?.Dead ?? 0} dead · ${stats?.Isolated ?? 0} isolated`}
                   </p>
                 </section>
               ))}
@@ -543,120 +617,160 @@ export const Dashboard = ({
               <div {...classes("panel-heading")}>
                 <h2 {...stylex.props(layout.heading)}>All background jobs</h2>
               </div>
-              <div {...classes("state-tabs")}>
-                {["All jobs", ...stateOrder].map((tab) => (
-                  <Button
-                    key={tab}
-                    {...classes(
-                      `state-tab${(state.filters.state ?? "All jobs") === tab ? " active-tab" : ""}`
-                    )}
-                    aria-pressed={(state.filters.state ?? "All jobs") === tab}
-                    onClick={() =>
-                      void runtime.run(
-                        runtime.filter({
-                          ...(state.filters.kind ? { kind: state.filters.kind } : {}),
-                          ...(tab === "All jobs"
-                            ? {}
-                            : { state: tab as JobSummary["state"] })
-                        })
-                      )
-                    }
-                  >
-                    {tab === "All jobs" ? tab : stateLabels[tab as JobSummary["state"]]}
-                  </Button>
-                ))}
-              </div>
-              <form
-                {...classes("filter-bar")}
-                aria-label="Job filters"
-                onSubmit={(event) => {
-                  event.preventDefault()
+              <TabsRoot
+                value={state.filters.state ?? "all"}
+                onValueChange={(value) => {
                   void runtime.run(
                     runtime.filter({
-                      ...(filterState === undefined ? {} : { state: filterState }),
-                      ...(kind === "" ? {} : { kind })
+                      ...state.filters,
+                      state: value === "all" ? undefined : (value as JobSummary["state"])
                     })
                   )
                 }}
               >
-                <Field label="State">
-                  <select
-                    value={filterState ?? ""}
-                    onChange={(event) =>
-                      setFilterState(
-                        event.target.value === ""
-                          ? undefined
-                          : (event.target.value as JobFilters["state"])
+                <TabsList aria-label="Job states" className="state-tabs">
+                  <TabsTab value="all" {...(stats ? { count: stats.total } : {})}>
+                    All jobs
+                  </TabsTab>
+                  {stateOrder.map((tab) => (
+                    <TabsTab
+                      key={tab}
+                      value={tab}
+                      {...(stats ? { count: stats[tab] } : {})}
+                    >
+                      {stateLabels[tab]}
+                    </TabsTab>
+                  ))}
+                </TabsList>
+                <TabsPanel value={state.filters.state ?? "all"} keepMounted>
+                  <form
+                    {...classes("filter-bar")}
+                    aria-label="Job filters"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      void runtime.run(
+                        runtime.filter({
+                          ...(filterState === undefined ? {} : { state: filterState }),
+                          ...(kind === "" ? {} : { kind })
+                        })
                       )
-                    }
+                    }}
                   >
-                    <option value="">All states</option>
-                    {stateOrder.map((value) => (
-                      <option key={value} value={value}>
-                        {stateLabels[value]}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Kind (exact)">
-                  <input
-                    value={kind}
-                    onChange={(event) => setKind(event.target.value)}
-                    placeholder="Exact kind"
-                    maxLength={128}
-                  />
-                </Field>
-                <Field label="Search this page">
-                  <input
-                    type="search"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search this page"
-                    aria-label="Search job ID on this page"
-                    maxLength={128}
-                  />
-                </Field>
-                <Field label="Due now">
-                  <input
-                    type="checkbox"
-                    checked={due}
-                    onChange={(event) => setDue(event.target.checked)}
-                    aria-label="Due Pending on this page (browser clock)"
-                  />
-                </Field>
-                <Button type="submit">Apply filters</Button>
-              </form>
-              {state.page === undefined ? (
-                <div {...classes("empty-state")}>
-                  <Icon name="jobs" />
-                  <strong>Connecting to your workspace</strong>
-                  <p {...stylex.props(layout.paragraph)}>
-                    Your live job snapshot will appear here.
+                    <Field label="State">
+                      <select
+                        value={filterState ?? ""}
+                        onChange={(event) =>
+                          setFilterState(
+                            event.target.value === ""
+                              ? undefined
+                              : (event.target.value as JobFilters["state"])
+                          )
+                        }
+                      >
+                        <option value="">All states</option>
+                        {stateOrder.map((value) => (
+                          <option key={value} value={value}>
+                            {stateLabels[value]}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Kind (exact)">
+                      <input
+                        value={kind}
+                        onChange={(event) => setKind(event.target.value)}
+                        placeholder="Exact kind"
+                        maxLength={128}
+                      />
+                    </Field>
+                    <Field label="Search this page">
+                      <input
+                        type="search"
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        placeholder="Search this page"
+                        aria-label="Search job ID on this page"
+                        maxLength={128}
+                      />
+                    </Field>
+                    <Field label="Due now">
+                      <input
+                        type="checkbox"
+                        checked={due}
+                        onChange={(event) => setDue(event.target.checked)}
+                        aria-label="Due Pending on this page (browser clock)"
+                      />
+                    </Field>
+                    <Button type="submit">Apply filters</Button>
+                  </form>
+                  <p role="status" {...classes("results-status")}>
+                    {state.loading || !state.resultsCurrent
+                      ? state.page
+                        ? `${state.loading ? "Loading results" : "Requested results unavailable"}; previous results remain visible (${state.displayedQuery?.filters.state ?? "all states"}, page ${state.displayedQuery?.pageNumber ?? 1}).`
+                        : state.loading
+                          ? "Loading results…"
+                          : "No current results. Refresh reads to retry."
+                      : `Page ${state.pageNumber} · ${state.page?.items.length ?? 0} results`}
                   </p>
-                </div>
-              ) : (
-                <JobsTable
-                  runtime={runtime}
-                  data={state.page.items}
-                  search={search}
-                  due={due}
-                />
-              )}
-              <nav {...classes("pagination")} aria-label="Pagination">
-                <Button
-                  disabled={state.cursor === undefined}
-                  onClick={() => void runtime.run(runtime.first)}
-                >
-                  First page
-                </Button>
-                <span {...stylex.props(layout.pageLabel)}>Page {state.pageNumber}</span>
-                <Button
-                  disabled={state.connection !== "connected" || !state.page?.nextCursor}
-                  onClick={() => void runtime.run(runtime.next)}
-                >
-                  Next page
-                </Button>
-              </nav>
+                  <div aria-busy={state.loading}>
+                    {state.page === undefined ? (
+                      <div {...classes("empty-state")}>
+                        <Icon name="jobs" />
+                        <strong>Connecting to your workspace</strong>
+                        <p {...stylex.props(layout.paragraph)}>
+                          Your live job snapshot will appear here.
+                        </p>
+                      </div>
+                    ) : (
+                      <JobsTable
+                        runtime={runtime}
+                        data={state.page.items}
+                        search={search}
+                        due={due}
+                      />
+                    )}
+                  </div>
+                  <div
+                    {...classes("pagination")}
+                    ref={paginationPanel}
+                    onFocusCapture={(event) => {
+                      const target = event.target
+                      if (
+                        target instanceof HTMLButtonElement ||
+                        target instanceof HTMLSelectElement
+                      ) {
+                        paginationFocus.current = target
+                      }
+                    }}
+                  >
+                    <Pagination
+                      {...state.pagination}
+                      disabled={state.loading || state.error === "sandbox-expired"}
+                      onPage={(n) => void runtime.run(runtime.goTo(n))}
+                      onFirst={() => void runtime.run(runtime.first)}
+                      onPrevious={() => void runtime.run(runtime.previous)}
+                      onNext={() => void runtime.run(runtime.next)}
+                    />
+                    <Field label="Rows per page">
+                      <select
+                        value={state.pageSize}
+                        disabled={state.loading}
+                        onChange={(event) =>
+                          void runtime.run(
+                            runtime.setPageSize(Number(event.target.value) as 20 | 50)
+                          )
+                        }
+                      >
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                      </select>
+                    </Field>
+                    <p {...stylex.props(layout.pageLabel)}>
+                      Pages follow known cursors; more appear as you browse.
+                    </p>
+                  </div>
+                </TabsPanel>
+              </TabsRoot>
             </section>
             <section
               ref={detailPanel}
@@ -701,8 +815,16 @@ export const Dashboard = ({
             <p {...classes("sandbox-scope")}>
               {demo ? "Public demo" : "Own sandbox"}: {state.sandbox.ref.sandboxId} ·
               generation {state.sandbox.ref.generation} · expires{" "}
-              {time(state.sandbox.expiresAt)}
+              <DateTime value={state.sandbox.expiresAt} label="Session expires" />
             </p>
+            <Button
+              variant="ghost"
+              disabled={state.loading}
+              onClick={() => void runtime.run(runtime.refresh)}
+            >
+              <Icon name="refresh" />
+              Refresh reads
+            </Button>
             {state.error === "sandbox-expired" && (
               <Button
                 disabled={state.pending !== undefined}
@@ -712,88 +834,90 @@ export const Dashboard = ({
               </Button>
             )}
           </div>
-          <details
-            ref={scenariosPanel}
-            {...classes("scenario-panel")}
-            role="region"
-            aria-label="Scenario launcher"
-          >
-            <summary {...stylex.props(layout.summary)}>
-              <div {...classes("scenario-summary-title")}>
-                <Icon name="terminal" />
-                <strong>Scenario lab</strong>
-                <span>Create jobs. Simulate failures. See what happens.</span>
-              </div>
-              <Icon name="plus" />
-            </summary>
-            <div {...classes("scenario-body")}>
-              <Field label="Fake provider behavior">
-                <select
-                  ref={scenarioControl}
-                  value={scenario}
-                  onChange={(event) =>
-                    setScenario(event.target.value as typeof ScenarioId.Type)
+          {!demo && (
+            <details
+              ref={scenariosPanel}
+              {...classes("scenario-panel")}
+              role="region"
+              aria-label="Scenario launcher"
+            >
+              <summary {...stylex.props(layout.summary)}>
+                <div {...classes("scenario-summary-title")}>
+                  <Icon name="terminal" />
+                  <strong>Scenario lab</strong>
+                  <span>Create jobs. Simulate failures. See what happens.</span>
+                </div>
+                <Icon name="plus" />
+              </summary>
+              <div {...classes("scenario-body")}>
+                <Field label="Fake provider behavior">
+                  <select
+                    ref={scenarioControl}
+                    value={scenario}
+                    onChange={(event) =>
+                      setScenario(event.target.value as typeof ScenarioId.Type)
+                    }
+                  >
+                    {ScenarioId.literals.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Jobs (1–10)">
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={count}
+                    onChange={(event) => setCount(event.target.valueAsNumber)}
+                  />
+                </Field>
+                <Button
+                  variant="primary"
+                  disabled={unavailable || !state.sandbox.capabilities.runScenario}
+                  onClick={() =>
+                    void runtime.run(
+                      runtime.command("scenario", crypto.randomUUID(), scenario, count)
+                    )
                   }
                 >
-                  {ScenarioId.literals.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Jobs (1–10)">
-                <input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={count}
-                  onChange={(event) => setCount(event.target.valueAsNumber)}
-                />
-              </Field>
-              <Button
-                variant="primary"
-                disabled={unavailable || !state.sandbox.capabilities.runScenario}
-                onClick={() =>
-                  void runtime.run(
-                    runtime.command("scenario", crypto.randomUUID(), scenario, count)
-                  )
-                }
-              >
-                Run scenario
-              </Button>
-              <Button
-                disabled={unavailable || !state.sandbox.capabilities.resetSandbox}
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "Reset only your sandbox generation? Running jobs are not cancelled."
-                    )
-                  ) {
-                    void runtime.run(
-                      runtime.command("reset", crypto.randomUUID(), "success", 1)
-                    )
-                  }
-                }}
-              >
-                Reset my sandbox
-              </Button>
-              <Button
-                disabled={state.pending === undefined || state.busy}
-                onClick={() => void runtime.run(runtime.receipt)}
-              >
-                Check exact request receipt
-              </Button>
-              <p {...stylex.props(layout.paragraph)}>
-                {state.pending
-                  ? `Pending ${state.pending.kind} request: ${state.pending.request.requestId}`
-                  : ""}
-              </p>
-              <p role="status" {...stylex.props(styles.notice)}>
-                {state.notice}
-              </p>
-            </div>
-          </details>
+                  Run scenario
+                </Button>
+                <Button
+                  disabled={unavailable || !state.sandbox.capabilities.resetSandbox}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Reset only your sandbox generation? Running jobs are not cancelled."
+                      )
+                    ) {
+                      void runtime.run(
+                        runtime.command("reset", crypto.randomUUID(), "success", 1)
+                      )
+                    }
+                  }}
+                >
+                  Reset my sandbox
+                </Button>
+                <Button
+                  disabled={state.pending === undefined || state.busy}
+                  onClick={() => void runtime.run(runtime.receipt)}
+                >
+                  Check exact request receipt
+                </Button>
+                <p {...stylex.props(layout.paragraph)}>
+                  {state.pending
+                    ? `Pending ${state.pending.kind} request: ${state.pending.request.requestId}`
+                    : ""}
+                </p>
+                <p role="status" {...stylex.props(styles.notice)}>
+                  {state.notice}
+                </p>
+              </div>
+            </details>
+          )}
           <footer {...classes("dashboard-footer")}>
             <p {...classes("source muted")}>Source: {runtime.source}.</p>
             <span>effect-jobs · initial alpha</span>
