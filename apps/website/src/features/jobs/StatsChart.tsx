@@ -38,6 +38,8 @@ export const StatsChart = ({ stats }: { readonly stats: JobStats | undefined }) 
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <PieChart accessibilityLayer={false}>
                   <Pie
+                    // Pie has its own tab stop even with the chart accessibility layer disabled.
+                    rootTabIndex={-1}
                     data={data}
                     dataKey="value"
                     nameKey="name"
