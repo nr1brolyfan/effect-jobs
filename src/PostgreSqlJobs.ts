@@ -5,7 +5,7 @@ import { JobOperators, type JobOperatorsService } from "./JobOperators.js"
 import { makeOperators } from "./internal/postgresql/Operators.js"
 import { JobIntegrityConflict } from "./JobContract.js"
 import { PostgreSqlFailure, PostgreSqlInvalidHandle } from "./PostgreSqlTransaction.js"
-import { Context, Effect, Layer, Schema } from "effect"
+import { Cause, Context, Effect, Layer, Schema } from "effect"
 import { JobBackendError, JobEnqueue, type JobEnqueueService } from "./JobEnqueue.js"
 import { EpochMillis } from "./JobPolicy.js"
 import type { JobsTransaction } from "./JobTransaction.js"
@@ -44,30 +44,45 @@ const neutralOperators = (
     operators
       .retryNow(expected)
       .pipe(
-        Effect.mapError((error) =>
-          error instanceof PostgreSqlFailure || error instanceof PostgreSqlInvalidHandle
-            ? backendError(error)
-            : error
+        Effect.catchCause((cause) =>
+          Effect.failCause(
+            Cause.map(cause, (error) =>
+              error instanceof PostgreSqlFailure ||
+              error instanceof PostgreSqlInvalidHandle
+                ? backendError(error)
+                : error
+            )
+          )
         )
       ),
   cancel: (expected) =>
     operators
       .cancel(expected)
       .pipe(
-        Effect.mapError((error) =>
-          error instanceof PostgreSqlFailure || error instanceof PostgreSqlInvalidHandle
-            ? backendError(error)
-            : error
+        Effect.catchCause((cause) =>
+          Effect.failCause(
+            Cause.map(cause, (error) =>
+              error instanceof PostgreSqlFailure ||
+              error instanceof PostgreSqlInvalidHandle
+                ? backendError(error)
+                : error
+            )
+          )
         )
       ),
   redrive: (definition, request) =>
     operators
       .redrive(definition, request)
       .pipe(
-        Effect.mapError((error) =>
-          error instanceof PostgreSqlFailure || error instanceof PostgreSqlInvalidHandle
-            ? backendError(error)
-            : error
+        Effect.catchCause((cause) =>
+          Effect.failCause(
+            Cause.map(cause, (error) =>
+              error instanceof PostgreSqlFailure ||
+              error instanceof PostgreSqlInvalidHandle
+                ? backendError(error)
+                : error
+            )
+          )
         )
       )
 })
