@@ -9,6 +9,7 @@ import * as Executor from "./execution/Executor.js"
 import { WakeAlarm, WakeUnavailable } from "./cloudflare/WakeCycle.js"
 import * as Live from "./live/SandboxLive.js"
 import * as Http from "../../website/src/server/HttpApplication.js"
+import * as PostCommit from "../../website/src/server/live/PostCommit.js"
 import { objectName } from "../../website/src/server/live/PostCommit.js"
 import { Application } from "../../website/src/server/Services.js"
 import * as Upgrade from "../../website/src/server/live/Upgrade.js"
@@ -126,7 +127,13 @@ export class Gateway extends DurableObject {
               )
             })
           : Http.handle(request, env.ORIGIN, admit, originConfig.localPreview)
-      const response = await safe(Event.run(config(this.env), kick(this.env), operation))
+      const response = await safe(
+        Event.run(
+          config(this.env),
+          kick(this.env),
+          operation.pipe(Effect.provide(PostCommit.layer(env.LIVE)))
+        )
+      )
       await this.ctx.storage.put("rates", budget)
       return response
     })

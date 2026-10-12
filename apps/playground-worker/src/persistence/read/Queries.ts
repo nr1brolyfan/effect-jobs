@@ -64,6 +64,7 @@ export const make = (mapping: Mapping) => {
            'RetryScheduled',count(*) FILTER(WHERE j.state='RetryScheduled'),
            'Active',count(*) FILTER(WHERE j.state='Active'),
            'Completed',count(*) FILTER(WHERE j.state='Completed'),
+           'Cancelled',count(*) FILTER(WHERE j.state='Cancelled'),
            'Dead',count(*) FILTER(WHERE j.state='Dead'),
            'Isolated',count(*) FILTER(WHERE j.state='Isolated')) AS stats ${scoped}
        ) SELECT (SELECT code FROM status) AS status, (SELECT stats FROM totals) AS stats,

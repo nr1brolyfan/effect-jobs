@@ -12,5 +12,5 @@ export default defineConfig({
       )
     }
   },
-  test: { include: ["tests/postgresql/*.test.ts"] }
+  test: { include: ["tests/postgresql/**/*.test.ts"] }
 })

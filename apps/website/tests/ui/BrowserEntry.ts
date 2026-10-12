@@ -55,7 +55,8 @@ const client: Client = {
           Active: 0,
           Completed: 0,
           Dead: 0,
-          Isolated: 0
+          Isolated: 0,
+          Cancelled: 0
         }
       })
     }

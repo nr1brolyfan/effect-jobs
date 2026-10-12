@@ -32,6 +32,7 @@ export const page = Schema.decodeUnknownSync(JobPage)(
       Completed: 3,
       Dead: 2,
       Isolated: 2,
+      Cancelled: 0,
       RetryScheduled: 0
     }
   },

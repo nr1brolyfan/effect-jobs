@@ -19,6 +19,7 @@ const profiles = [
     stalls: 0,
     code: codes.rejected
   },
+  { label: "cancelled", state: "Cancelled", attempts: 0, stalls: 0, code: null },
   { label: "completed", state: "Completed", attempts: 1, stalls: 0, code: null },
   { label: "dead", state: "Dead", attempts: 1, stalls: 0, code: codes.terminal },
   { label: "isolated", state: "Isolated", attempts: 1, stalls: 0, code: codes.invariant },
@@ -38,7 +39,11 @@ export const dashboard = profiles.map((profile, index) => ({
         availableAt: profile.label === "delayed" ? now + 60_000 : now,
         updatedAt: now,
         completedAt:
-          profile.state === "Completed" || profile.state === "Dead" ? now : null,
+          profile.state === "Completed" ||
+          profile.state === "Dead" ||
+          profile.state === "Cancelled"
+            ? now
+            : null,
         attemptsMade: profile.attempts,
         stalledCount: profile.stalls,
         lifecycleVersion:

@@ -113,6 +113,11 @@ export const OperatorControls = ({
         aria-labelledby="operator-confirm-title"
         aria-describedby="operator-confirm-warning"
         {...stylex.props(styles.dialog)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.stopPropagation()
+          }
+        }}
         onCancel={(event) => {
           event.preventDefault()
           dismiss()

@@ -38,7 +38,10 @@ export const JobSummary = Schema.Struct({
   Schema.check(
     Schema.makeFilter(
       (job) =>
-        (job.state === "Completed" || job.state === "Dead") === (job.completedAt !== null)
+        (job.state === "Completed" ||
+          job.state === "Dead" ||
+          job.state === "Cancelled") ===
+        (job.completedAt !== null)
     )
   )
 )
@@ -50,6 +53,7 @@ export const JobStats = Schema.Struct({
   Active: Counter,
   Completed: Counter,
   Dead: Counter,
+  Cancelled: Counter,
   Isolated: Counter
 }).pipe(
   Schema.check(
@@ -61,7 +65,8 @@ export const JobStats = Schema.Struct({
           stats.Active +
           stats.Completed +
           stats.Dead +
-          stats.Isolated
+          stats.Isolated +
+          stats.Cancelled
     )
   )
 )

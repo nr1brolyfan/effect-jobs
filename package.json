@@ -111,6 +111,10 @@
     "./PostgreSqlNative": {
       "types": "./dist/PostgreSqlNative.d.ts",
       "import": "./dist/PostgreSqlNative.js"
+    },
+    "./JobOperators": {
+      "types": "./dist/JobOperators.d.ts",
+      "import": "./dist/JobOperators.js"
     }
   },
   "files": [
@@ -123,7 +127,8 @@
     "specs/postgresql-backend.md",
     "specs/drizzle-compatibility.md",
     "specs/release-qualification.md",
-    "specs/api-refinements.md"
+    "specs/api-refinements.md",
+    "specs/operator-contract.md"
   ],
   "scripts": {
     "toolchain:setup": "effect-tsgo patch --typescript --oxlint",

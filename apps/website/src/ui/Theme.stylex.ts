@@ -7,7 +7,8 @@ export const stateOrder = [
   "Pending",
   "RetryScheduled",
   "Dead",
-  "Isolated"
+  "Isolated",
+  "Cancelled"
 ] as const
 
 // The literals also feed SVG fills. Keep this as the single state palette.
@@ -17,7 +18,8 @@ export const stateColors = {
   Pending: "#8e9b83",
   RetryScheduled: "#dfbd77",
   Dead: "#da9999",
-  Isolated: "#b7a0d5"
+  Isolated: "#b7a0d5",
+  Cancelled: "#a9b6c2"
 } as const satisfies Record<JobSummary["state"], string>
 
 export const stateLabels = {
@@ -26,7 +28,8 @@ export const stateLabels = {
   Pending: "Pending",
   RetryScheduled: "Retry scheduled",
   Dead: "Dead",
-  Isolated: "Isolated"
+  Isolated: "Isolated",
+  Cancelled: "Cancelled"
 } as const satisfies Record<JobSummary["state"], string>
 
 export const colors = stylex.defineVars({
@@ -45,7 +48,8 @@ export const colors = stylex.defineVars({
   pending: stateColors.Pending,
   retryScheduled: stateColors.RetryScheduled,
   dead: stateColors.Dead,
-  isolated: stateColors.Isolated
+  isolated: stateColors.Isolated,
+  cancelled: stateColors.Cancelled
 })
 
 export const spacing = stylex.defineVars({

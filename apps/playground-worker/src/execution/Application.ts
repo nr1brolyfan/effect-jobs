@@ -1,6 +1,8 @@
 import { Effect, Layer } from "effect"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
+import * as Operators from "../persistence/commands/OperatorPersistence.js"
+import * as OperatorTransactions from "../persistence/authority/PostgreSqlOperatorTransactions.js"
 import * as Authority from "../persistence/authority/PostgreSqlAuthority.js"
 import * as Commands from "../persistence/commands/Persistence.js"
 import * as Executor from "./Executor.js"
@@ -21,6 +23,9 @@ export const layerNoDeps = (schema: string) =>
       return Layer.mergeAll(
         Authority.authorityLayerNoDeps(schema),
         commands,
+        Operators.layerNoDeps.pipe(
+          Layer.provide(OperatorTransactions.layerNoDeps(schema))
+        ),
         Executor.workerLayerNoDeps(schema)
       )
     })

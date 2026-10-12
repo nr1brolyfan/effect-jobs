@@ -52,7 +52,15 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/jobs`)
   await expect(page.locator(".connection-status")).toContainText("connected")
   const chart = page.getByRole("region", { name: "Job distribution" })
-  const labels = ["Completed", "Active", "Pending", "Retry scheduled", "Dead", "Isolated"]
+  const labels = [
+    "Completed",
+    "Active",
+    "Pending",
+    "Retry scheduled",
+    "Dead",
+    "Isolated",
+    "Cancelled"
+  ]
   for (const width of [1280, 390, 240]) {
     await page.setViewportSize({ width, height: 900 })
     await expect(chart.locator("svg.recharts-surface")).toBeVisible()
@@ -65,7 +73,7 @@ try {
     )
     await expect(
       chart.getByRole("list", { name: "Jobs by state" }).getByRole("listitem")
-    ).toHaveCount(6)
+    ).toHaveCount(7)
     const rows = await chart.getByRole("listitem").allTextContents()
     labels.forEach((label, index) => assert(rows[index].startsWith(label)))
     assert.match(await chart.innerText(), /13\s*Total jobs/)
@@ -77,7 +85,15 @@ try {
     assert(fills.length > 0)
     assert(
       fills.every((fill) =>
-        ["#c7e89f", "#8ebed6", "#8e9b83", "#dfbd77", "#da9999", "#b7a0d5"].includes(fill)
+        [
+          "#c7e89f",
+          "#8ebed6",
+          "#8e9b83",
+          "#dfbd77",
+          "#da9999",
+          "#b7a0d5",
+          "#a9b6c2"
+        ].includes(fill)
       )
     )
   }
@@ -112,7 +128,7 @@ try {
   }
   assert.deepEqual(errors, [])
   console.log(
-    `PASS: Chromium ${browser.version()}; chart DOM, six-state legend/total/palette, responsive SVG, bidirectional Tab exclusion, pointer tooltip and motion preferences`
+    `PASS: Chromium ${browser.version()}; chart DOM, seven-state legend/total/palette, responsive SVG, bidirectional Tab exclusion, pointer tooltip and motion preferences`
   )
 } finally {
   await browser?.close()

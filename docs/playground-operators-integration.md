@@ -1,4 +1,4 @@
-# Private operator integration checkpoint
+# Private job operators
 
 The private boundary defines POST `/api/jobs/operator` and POST
 `/api/jobs/operator/receipt`. Strict commands bind sandbox, generation, request ID,
@@ -8,13 +8,12 @@ rejected. Accepted responses describe historical operator acceptance, not handle
 completion. Unknown responses retain the exact command identity and permit only
 read-only receipt reconciliation. Distinct confirmations are distinct consequences.
 
-This checkpoint does **not enable operator execution**. The event composition
-still explicitly provides `OperatorsUnavailable`, and persisted capability hints
-remain false. The application transaction adapter and private source validation
-are staged for the separately authored root library operator service. No job
-lifecycle UPDATE is implemented in application code.
+Private credential-owned sandboxes enable supported operators through the root
+`JobOperators` API. Persisted demo ownership always denies mutations. The native
+operator, receipt, audit, quota and lineage writes share the exact application
+client transaction. No job lifecycle UPDATE is implemented in application code.
 
-## Implemented application scaffolding
+## Application integration
 
 - Atoms owns one immutable pending command across scenario/reset/operator actions.
   Responses are guarded against revoked authority and stale selection. Accepted
@@ -33,9 +32,9 @@ lifecycle UPDATE is implemented in application code.
   It invokes no handler/provider. The server hashes the complete scoped
   request/source tuple for a bounded deterministic new producer identity.
 - `LegacyJobsV1` freezes the accepted six-state SQL generator. Tests pin exact
-  v1/v2/v3 checksums for two schemas. `OperatorSchema.proposal` is the staged app
-  v4 fragment; it is deliberately unregistered until the root additive migration
-  is available. No existing database was migrated.
+  v1/v2/v3 checksums for two schemas. The registrar appends explicit v4 from
+  `PostgreSqlSchema.operatorMigration` and app receipt/lineage DDL. Setup remains
+  application-owned; event code never migrates a database.
 
 ## Explicit local origin configuration
 
@@ -53,22 +52,27 @@ The shared Cookies module selects names; it grants no authority by itself.
 The disposable launcher sets the flag only for its HTTP mode, preserving its
 strict HTTPS mode. Browser HTTP stays relative and WebSocket URLs use location.
 
-## Remaining integration and qualification
+## Local qualification
 
-The root author/coordinator must hand off the exact qualified operator commit
-before serial integration. Then wire `PostgreSqlJobs` factory/layer/exports and
-same-client `JobOperators` into private persistence, remove the explicit unavailable
-layer, enable only persisted private capabilities, append combined v4, and extend
-Cancelled DTO/stats/read/chart/filter fixtures. Preserve the original root source
-while its author is active.
+Run `bun run check`, `bun run playground:check`, `bun run build`,
+`bun run playground:build`, `bun run test`, `bun run check:postgresql`,
+`bun run test:release-imports`, and `bun run check:docs:api` for source gates.
+`PLAYGROUND_EVIDENCE_DIRECTORY=.multica/operators-qualification node
+apps/playground-worker/tests/integration/Build.mjs` prepares current app/packed
+artifacts. Bundle `OperatorProbe.ts` into that evidence directory with esbuild
+(platform=node, format=esm, external node:_, effect, effect/_, effect-jobs/*),
+then run `python3 apps/playground-worker/tests/integration/OperatorsRunOwned.py`.
+The foreground launcher owns fresh PostgreSQL 16.15 on loopback/tmpfs and a
+separate workerd/browser runtime. It removes its exact container ID and private
+configuration before returning. Never use an existing preview database/config.
 
-Real PG16.15 atomicity/concurrency/expiry/Unknown/migration checks and Chromium
-HTTP/WS/cookie/operator confirmation/CSP/StyleX/axe qualification remain required
-on the final combined bytes. Unit source tests do not qualify the staged SQL
-adapter, actual focus behavior or browser alias sessions. Use one owned disposable
-database/runtime at a separate port. Keep the existing preview untouched.
+The root package provides the focused `effect-jobs/JobOperators` subpath. See
+`specs/operator-contract.md` for the generic contract and explicit exclusions.
+Installed API qualification includes the operator Context tag, methods and
+Schema decoding-service requirements. The private contracts packed guard also
+checks browser import independence.
 
-There is no full-CI, hosted, deployment, soak or review claim at this checkpoint.
-The existing skipLibCheck limitation remains. Root backend/installed/new-subpath
-guards and the one frozen coordinator-controlled review set follow combined
-qualification. No push, PR, main merge or preview switch is authorized.
+Aggregate historical lint/format and upstream Drizzle declaration limitations
+remain separate from scoped qualification. No hosted, deployment, soak or review
+claim follows from local checks. The coordinator owns one frozen combined review
+set; no push, PR, main merge or preview switch is authorized here.

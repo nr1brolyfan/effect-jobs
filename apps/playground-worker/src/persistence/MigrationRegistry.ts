@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import * as Operators from "./commands/OperatorSchema.js"
 import * as Jobs from "effect-jobs/PostgreSqlSchema"
 import * as LegacyJobsV1 from "./LegacyJobsV1.js"
 import * as Authority from "./authority/Schema.js"
@@ -21,6 +22,8 @@ export const migrations = (schema: string): ReadonlyArray<MigrationDescriptor> =
     ALTER TABLE "${schema}"."associations"
       ADD CHECK (generation BETWEEN 1 AND 9007199254740991),
       ADD CHECK (jsonb_typeof(relations)='object');`
+  const operators =
+    Jobs.operatorMigration(Jobs.tables({ schema })) + Operators.proposal(schema)
   return Object.freeze([
     {
       id: "playground-v1",
@@ -36,6 +39,11 @@ export const migrations = (schema: string): ReadonlyArray<MigrationDescriptor> =
       id: "playground-demo-volume-v3",
       sql: Demo.volumeProposal(schema),
       checksum: createHash("sha256").update(Demo.volumeProposal(schema)).digest("hex")
+    },
+    {
+      id: "playground-operators-v4",
+      sql: operators,
+      checksum: createHash("sha256").update(operators).digest("hex")
     }
   ])
 }

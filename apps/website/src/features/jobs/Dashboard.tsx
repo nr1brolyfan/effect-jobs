@@ -789,6 +789,21 @@ export const Dashboard = ({
                     now={now}
                     blocked={state.busy || state.pending !== undefined}
                   />
+                  <p
+                    role="status"
+                    aria-label="Operator outcome"
+                    {...stylex.props(styles.notice)}
+                  >
+                    {state.notice}
+                  </p>
+                  {state.pending?.kind === "operator" && (
+                    <Button
+                      disabled={state.busy}
+                      onClick={() => void runtime.run(runtime.receipt)}
+                    >
+                      Check exact request receipt
+                    </Button>
+                  )}
                 </>
               ) : (
                 <p {...stylex.props(layout.paragraph)}>

@@ -1,4 +1,6 @@
-import * as OperatorsUnavailable from "../../../website/src/server/commands/OperatorsUnavailable.js"
+import { Operators as OperatorService } from "@effect-jobs/playground-contracts/Operators"
+import * as Operators from "../persistence/commands/OperatorPersistence.js"
+import * as OperatorTransactions from "../persistence/authority/PostgreSqlOperatorTransactions.js"
 // @effect-diagnostics unstableApiUsage:off
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { JobWorker } from "effect-jobs/JobWorker"
@@ -129,10 +131,32 @@ export const run = <A, E>(
       const guarded = Guarded.layerNoDeps.pipe(
         Layer.provide(Layer.mergeAll(activeAuthority, commands))
       )
-      const app = Application.layerNoDeps.pipe(
-        Layer.provide(
-          Layer.mergeAll(activeAuthority, read, guarded, OperatorsUnavailable.layer)
+      const operators = Layer.effect(
+        OperatorService,
+        Operators.make.pipe(
+          Effect.map((service) => ({
+            ...service,
+            execute: (access, command) =>
+              service
+                .execute(access, command)
+                .pipe(
+                  Effect.tap((result) =>
+                    result._tag === "Committed" ? kick : Effect.void
+                  )
+                ),
+            receipt: (access, request) =>
+              service
+                .receipt(access, request)
+                .pipe(
+                  Effect.tap((result) =>
+                    result._tag === "Committed" ? kick : Effect.void
+                  )
+                )
+          }))
         )
+      ).pipe(Layer.provide(OperatorTransactions.layerNoDeps(config.schema)))
+      const app = Application.layerNoDeps.pipe(
+        Layer.provide(Layer.mergeAll(activeAuthority, read, guarded, operators))
       )
       return yield* operation.pipe(
         Effect.provide(app),

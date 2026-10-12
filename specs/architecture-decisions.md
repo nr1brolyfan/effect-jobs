@@ -748,3 +748,13 @@ order, and adapter setup. Test cleanup racing with producer retries, receipt
 protection/expiry, bounded deletion, payload-parent deletion, and exclusion of
 Active/Pending/Isolated jobs. Acceptance closes the architecture decision, not
 runtime qualification, and does not authorize implementation or agent dispatch.
+
+## Bounded manual operator extension
+
+The later local playground scope adds the focused operator contract documented in
+`operator-contract.md`: strict future retry acceleration, Pending/RetryScheduled
+cancellation to Cancelled with Forever retention, and guarded Dead/valid Isolated
+redrive as a new job. Applications own private authority, immutable admission,
+receipts, lineage and the same-client transaction. Active interruption, artifact
+repair, same-ID budget reset and Cancelled cleanup remain outside this extension.
+This does not change the original extraction or grant publication/deployment.

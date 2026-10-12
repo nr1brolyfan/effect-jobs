@@ -45,6 +45,7 @@ export const makeServer = () => {
             Completed: 0,
             Dead: 0,
             Isolated: 0,
+            Cancelled: 0,
             RetryScheduled: 0
           }
         })

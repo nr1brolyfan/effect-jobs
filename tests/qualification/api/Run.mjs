@@ -47,6 +47,10 @@ const types = publicImports(
   readFileSync(join(root, "tests/types/api-refinements.ts"), "utf8")
 ).replace('"../core/codec/EncryptedFixture.js"', '"./EncryptedFixture.mjs"')
 writeFileSync(join(work, "Types.mts"), types)
+writeFileSync(
+  join(work, "Operators.mts"),
+  publicImports(readFileSync(join(root, "tests/types/operators.ts"), "utf8"))
+)
 // Keep full strict upstream declaration checking for the non-Drizzle new API.
 const nonDrizzle = types
   .slice(0, types.indexOf("makeJobTables({"))
@@ -65,10 +69,13 @@ import * as Codes from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import { EnqueueResults, type PreparedJob } from "effect-jobs/JobContract"
+import { JobOperators, JobOperatorExpected } from "effect-jobs/JobOperators"
 import { JobId } from "effect-jobs/JobId"
 import * as Registry from "effect-jobs/JobRegistry"
 import { encodeJobPayload, decodeJobPayload } from "effect-jobs/JobPayloadCodec"
 import { DocumentKeys, EncryptedDocument, keys, keysLayer } from "./EncryptedFixture.mjs"
+assert.equal(typeof JobOperators.of, "function")
+assert(Schema.is(JobOperatorExpected)({ jobId: "fixture", state: "Pending", lifecycleVersion: 0 }))
 const code = Codes.define({ boundary: "a".repeat(128) }).boundary
 assert.equal(JobFailures.Retry({ code }).code.length, 128)
 assert(Result.isFailure(Codes.parse("a".repeat(129))))
@@ -123,7 +130,7 @@ writeFileSync(
   JSON.stringify(
     {
       compilerOptions: { ...compilerOptions, skipLibCheck: false, noEmit: true },
-      include: ["Strict.mts", "EncryptedFixture.mts", "Runtime.mts"]
+      include: ["Strict.mts", "EncryptedFixture.mts", "Runtime.mts", "Operators.mts"]
     },
     null,
     2

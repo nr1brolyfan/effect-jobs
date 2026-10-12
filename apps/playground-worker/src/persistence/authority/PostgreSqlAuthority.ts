@@ -58,9 +58,9 @@ const view = (row: Record<string, unknown>) =>
       capabilities: {
         runScenario: row.demo_owned !== true,
         resetSandbox: row.demo_owned !== true,
-        retryJob: false,
-        redriveJob: false,
-        cancelJob: false
+        retryJob: row.demo_owned !== true,
+        redriveJob: row.demo_owned !== true,
+        cancelJob: row.demo_owned !== true
       }
     },
     { onExcessProperty: "error" }

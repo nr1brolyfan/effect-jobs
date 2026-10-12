@@ -131,12 +131,3 @@ export const make = Effect.gen(function* () {
   })
 })
 export const layerNoDeps = Layer.effect(Scenarios, make)
-
-// Staged operator contracts exist; capabilities remain disabled until native
-// library persistence is integrated and qualified.
-export const operatorCapabilities = Object.freeze({
-  retryJob: false,
-  redriveJob: false,
-  cancelJob: false
-})
-export const unsupportedOperatorAction = () => Effect.fail(fail("capability-unavailable"))

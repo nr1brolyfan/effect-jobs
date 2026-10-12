@@ -1,4 +1,5 @@
-import { Cause, Effect, Schema } from "effect"
+import { LiveNotifications } from "../live/PostCommit.js"
+import { Cause, Effect, Option, Schema } from "effect"
 import type { SandboxAccess } from "@effect-jobs/playground-contracts/Sandbox"
 import {
   ReceiptRequest,
@@ -145,6 +146,12 @@ export const handle = (
       const decoded = yield* Schema.decodeUnknownEffect(JobOperatorResult)(result, {
         onExcessProperty: "error"
       }).pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" })))
+      if (decoded._tag === "Committed") {
+        const notifications = yield* Effect.serviceOption(LiveNotifications)
+        if (Option.isSome(notifications)) {
+          yield* notifications.value.committed(decoded.sandbox)
+        }
+      }
       return response(decoded, decoded._tag === "OutcomeUnknown" ? 202 : 200)
     }
     const service = yield* Scenarios

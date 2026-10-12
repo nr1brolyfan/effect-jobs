@@ -88,6 +88,7 @@ export const styles = stylex.create({
   Pending: { color: colors.pending },
   RetryScheduled: { color: colors.retryScheduled },
   Dead: { color: colors.dead },
+  Cancelled: { color: colors.cancelled },
   Isolated: { color: colors.isolated },
   dot: {
     width: 5,

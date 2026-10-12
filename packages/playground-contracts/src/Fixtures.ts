@@ -29,7 +29,8 @@ export const page = Schema.decodeUnknownSync(JobPage)(
       Active: 0,
       Completed: 1,
       Dead: 0,
-      Isolated: 0
+      Isolated: 0,
+      Cancelled: 0
     },
     items: [
       {

@@ -138,5 +138,6 @@ export const stateDots = stylex.create({
   Pending: { backgroundColor: colors.pending },
   RetryScheduled: { backgroundColor: colors.retryScheduled },
   Dead: { backgroundColor: colors.dead },
+  Cancelled: { backgroundColor: colors.cancelled },
   Isolated: { backgroundColor: colors.isolated }
 })

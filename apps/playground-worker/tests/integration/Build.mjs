@@ -70,6 +70,20 @@ run("migration-bundle", [
   "--external:effect-jobs/*",
   `--outfile=${evidence}/Migrations.mjs`
 ])
+for (const name of ["OperatorProbe", "NativeDrizzleOperators"]) {
+  run(`${name}-bundle`, [
+    "apps/playground-worker/node_modules/.bin/esbuild",
+    `apps/playground-worker/tests/integration/${name}.ts`,
+    "--bundle",
+    "--platform=node",
+    "--format=esm",
+    "--external:node:*",
+    "--external:effect",
+    "--external:effect/*",
+    "--external:effect-jobs/*",
+    `--outfile=${evidence}/${name}.mjs`
+  ])
+}
 process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY = mkdtempSync(`${evidence}/artifact-`)
 const packed = run("pack", ["node", "scripts/pack-release.mjs"]).output.trim()
 delete process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY
@@ -93,6 +107,8 @@ const receipt = {
   archiveSha256: hash(packed),
   workerSha256: hash(`${root}/apps/playground-worker/dist/Worker.js`),
   testWorkerSha256: hash(`${evidence}/TestWorker.js`),
+  operatorProbeSha256: hash(`${evidence}/OperatorProbe.mjs`),
+  nativeDrizzleOperatorsSha256: hash(`${evidence}/NativeDrizzleOperators.mjs`),
   fixtureSha256: hash(`${evidence}/Admit.mjs`),
   migrationSha256: hash(`${evidence}/Migrations.mjs`),
   workerd: execFileSync(
