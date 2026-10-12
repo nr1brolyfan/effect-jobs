@@ -480,6 +480,36 @@ try {
     )
     csp.push(...(await page.evaluate(() => window.__csp ?? [])))
 
+    const retryUi = await seed("RetryScheduled", 1, view.ref)
+    const retryUiBefore = await snapshot(retryUi)
+    await page.reload()
+    await page.getByRole("button", { name: retryUi, exact: true }).click()
+    const retryControl = page.getByRole("button", { name: "Retry now", exact: true })
+    if (host === "localhost") {
+      await retryControl.tap()
+    } else {
+      await retryControl.focus()
+      await page.keyboard.press("Enter")
+    }
+    await page.getByRole("button", { name: "Confirm action", exact: true }).click()
+    await expect(page.locator('[aria-label="Operator outcome"]')).toContainText(
+      "committed",
+      { ignoreCase: true }
+    )
+    const retryUiAfter = await snapshot(retryUi)
+    assert(Number(retryUiAfter.available_at) < Number(retryUiBefore.available_at))
+    assert.deepEqual(retryUiAfter.policy, retryUiBefore.policy)
+    const [retryReceipt] = await sql(
+      `SELECT receipt FROM ${table("command_receipts")} WHERE receipt->'result'->>'sourceJobId'=$1 AND receipt->'result'->>'action'='retry-now'`,
+      [retryUi]
+    )
+    assert.equal(retryReceipt.receipt.result._tag, "Committed")
+    assert.equal(retryReceipt.receipt.result.resultJobId, retryUi)
+    check(
+      `${host} retry-now keyboard/touch preserves ID/policy and accelerates authoritative availability`
+    )
+    await page.getByRole("button", { name: "Close details" }).click()
+
     // A confirmed response lost after actual server COMMIT retains the request.
     const lostId = await seed("Pending", 0, view.ref)
     await page.reload()
