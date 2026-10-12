@@ -2,6 +2,12 @@ import { Effect } from "effect"
 import { PostgreSqlFailure } from "../../PostgreSqlTransaction.js"
 import type { ApplicationAdapter } from "../../PostgreSqlTransaction.js"
 
+const operatorChecks = {
+  state:
+    "state=ANYARRAY['Pending','Active','RetryScheduled','Completed','Dead','Isolated','Cancelled']",
+  terminal: "state=ANYARRAY['Completed','Dead','Cancelled']=completed_atISNOTNULL"
+} as const
+
 /** Explicit bounded introspection of only the two configured relations, never DDL. */
 export const ready = (adapter: ApplicationAdapter, jobs: string, payloads: string) =>
   adapter.ownedTransaction((query) =>
@@ -13,7 +19,7 @@ export const ready = (adapter: ApplicationAdapter, jobs: string, payloads: strin
         `SELECT job_id,format_version,payload,projection FROM ${payloads} LIMIT 0`
       )
       const constraints = yield* query.query(
-        `SELECT c.conrelid=$1::regclass AS jobs,c.conrelid=$2::regclass AS payloads,c.contype AS kind,
+        `SELECT c.conrelid=$1::regclass AS jobs,c.conrelid=$2::regclass AS payloads,c.contype AS kind, pg_catalog.pg_get_expr(c.conbin,c.conrelid) AS expression,
     ARRAY(SELECT a.attname::text FROM unnest(c.conkey) WITH ORDINALITY k(n,i)
       JOIN pg_catalog.pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=k.n ORDER BY k.i) AS columns,
     c.confrelid=$1::regclass AS target_jobs,c.confdeltype AS deletion,
@@ -44,6 +50,15 @@ export const ready = (adapter: ApplicationAdapter, jobs: string, payloads: strin
           c.deletion === "c"
       )
       if (
+        !Object.values(operatorChecks).every((expected) =>
+          constraints.some(
+            (c) =>
+              c.jobs === true &&
+              c.kind === "c" &&
+              typeof c.expression === "string" &&
+              c.expression.replace(/\s|\(|\)|::text/g, "") === expected
+          )
+        ) ||
         !has("jobs", "p", ["id"]) ||
         !has("jobs", "u", ["operation", "operation_id", "slot"]) ||
         !has("jobs", "u", ["lease_token"]) ||

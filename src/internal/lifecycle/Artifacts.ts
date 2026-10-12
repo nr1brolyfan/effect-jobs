@@ -11,7 +11,7 @@ const bytes = (maximum: number) =>
       Schema.makeFilter((value) => value.byteLength > 0 && value.byteLength <= maximum)
     )
   )
-const PreparedArtifact = Schema.Struct({
+export const PreparedArtifact = Schema.Struct({
   catalog: CatalogIdentity,
   producer: ProducerIdentity,
   policy: PersistedJobPolicy,

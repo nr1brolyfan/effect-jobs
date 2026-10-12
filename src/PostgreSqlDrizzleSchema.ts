@@ -82,7 +82,7 @@ export const makeJobTables = (options: Options = {}) => {
     unique().on(j.leaseToken),
     check(
       `${prefix}_state`,
-      sql`${j.state} IN ('Pending','Active','RetryScheduled','Completed','Dead','Isolated')`
+      sql`${j.state} IN ('Pending','Active','RetryScheduled','Completed','Dead','Isolated','Cancelled')`
     ),
     check(`${prefix}_attempts`, sql`${j.attemptsMade} >= 0`),
     check(`${prefix}_stalls`, sql`${j.stalledCount} >= 0`),
@@ -97,7 +97,7 @@ export const makeJobTables = (options: Options = {}) => {
     ),
     check(
       `${prefix}_completed`,
-      sql`(${j.state} IN ('Completed','Dead')) = (${j.completedAt} IS NOT NULL)`
+      sql`(${j.state} IN ('Completed','Dead','Cancelled')) = (${j.completedAt} IS NOT NULL)`
     ),
     index(`${prefix}_due`)
       .on(j.queue, j.kind, j.version, j.availableAt, j.id)
