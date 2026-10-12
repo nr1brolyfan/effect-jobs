@@ -333,7 +333,9 @@ try {
   throw error
 } finally {
   await browser?.close()
-  for (const socket of signals.clients) {socket.terminate()}
+  for (const socket of signals.clients) {
+    socket.terminate()
+  }
   await new Promise((done) => signals.close(done))
   await new Promise((done) => server.close(done))
 }
