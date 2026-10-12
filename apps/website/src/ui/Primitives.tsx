@@ -1,3 +1,5 @@
+// Adapted from shadcn-cssinjs (MIT); see Primitives.LICENSE and Primitives.md.
+import { Tabs as BaseTabs } from "@base-ui/react/tabs"
 import * as stylex from "@stylexjs/stylex"
 import {
   cloneElement,
@@ -158,3 +160,82 @@ export function Icon({
     </svg>
   )
 }
+
+// Controlled values and onValueChange use the pinned Base UI Root contract.
+export const TabsRoot = BaseTabs.Root
+export type TabsRootProps = BaseTabs.Root.Props
+export type TabsListProps = BaseTabs.List.Props
+export const TabsList = forwardRef<HTMLDivElement, TabsListProps>(function TabsList(
+  { className, activateOnFocus = false, ...props },
+  ref
+) {
+  return (
+    <BaseTabs.List
+      {...props}
+      ref={ref}
+      activateOnFocus={activateOnFocus}
+      className={(state) =>
+        [
+          stylex.props(
+            styles.tabsList,
+            state.orientation === "vertical" && styles.tabsVertical
+          ).className,
+          typeof className === "function" ? className(state) : className
+        ]
+          .filter(Boolean)
+          .join(" ")
+      }
+    />
+  )
+})
+
+export type TabsTabProps = BaseTabs.Tab.Props & { readonly count?: number }
+export const TabsTab = forwardRef<HTMLElement, TabsTabProps>(function TabsTab(
+  { className, children, count, ...props },
+  ref
+) {
+  return (
+    <BaseTabs.Tab
+      {...props}
+      ref={ref}
+      className={(state) =>
+        [
+          stylex.props(styles.button, styles.tab, state.active && styles.tabActive)
+            .className,
+          typeof className === "function" ? className(state) : className
+        ]
+          .filter(Boolean)
+          .join(" ")
+      }
+    >
+      {children}
+      {count === undefined ? null : (
+        <>
+          {" "}
+          <span {...stylex.props(styles.tabCount)}>{count.toLocaleString()}</span>
+        </>
+      )}
+    </BaseTabs.Tab>
+  )
+})
+
+export type TabsPanelProps = BaseTabs.Panel.Props
+export const TabsPanel = forwardRef<HTMLDivElement, TabsPanelProps>(function TabsPanel(
+  { className, ...props },
+  ref
+) {
+  return (
+    <BaseTabs.Panel
+      {...props}
+      ref={ref}
+      className={(state) =>
+        [
+          stylex.props(styles.tabsPanel).className,
+          typeof className === "function" ? className(state) : className
+        ]
+          .filter(Boolean)
+          .join(" ")
+      }
+    />
+  )
+})

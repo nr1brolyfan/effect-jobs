@@ -68,7 +68,8 @@ export const typography = stylex.defineVars({
   fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   monoFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
   small: "12px",
-  body: "13px",
+  secondary: "13px",
+  body: "14px",
   title: "28px"
 })
 
