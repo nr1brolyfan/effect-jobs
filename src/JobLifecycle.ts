@@ -46,7 +46,8 @@ export const JobState = Schema.Literals([
   "RetryScheduled",
   "Completed",
   "Dead",
-  "Isolated"
+  "Isolated",
+  "Cancelled"
 ])
 /**
  * Exact job/token/expiry/version fencing identity; handlers do not receive it.
@@ -92,7 +93,7 @@ export const JobSnapshot = SnapshotStruct.pipe(
             row.leaseExpiresAt !== null &&
             row.completedAt === null
           : row.leaseToken === null && row.leaseExpiresAt === null) &&
-        (row.state === "Completed" || row.state === "Dead"
+        (row.state === "Completed" || row.state === "Dead" || row.state === "Cancelled"
           ? row.completedAt !== null
           : row.completedAt === null) &&
         (!(
@@ -140,6 +141,8 @@ export class JobLifecycleError extends Data.TaggedError("JobLifecycleError")<{
     | "not-eligible"
     | "ownership-lost"
     | "execution-started"
+    | "state-version-conflict"
+    | "already-due"
 }> {}
 const invalid = (reason: JobLifecycleError["reason"]) => new JobLifecycleError({ reason })
 const decodeSnapshot = Schema.decodeUnknownResult(JobSnapshot, {
@@ -433,7 +436,7 @@ export const finalizationFromFailure = (
 
 /**
  * Pure terminal-retention eligibility at expiry <= dbNow. Pending, Active,
- * RetryScheduled and Isolated are excluded. Application/backend must coordinate
+ * RetryScheduled, Isolated and Cancelled are excluded. Application/backend must coordinate
  * domain references and deletion atomically; this result is not deletion authority.
  *
  * @category operations
@@ -463,3 +466,70 @@ export const cleanupEligible = (
   })
 
 const internalCodes = defineFailureCodes({ stall_limit_exceeded: "stall_limit_exceeded" })
+
+/** Exact optimistic operator guard; no worker ownership is fabricated. */
+const operatorExpected = Schema.Struct({
+  jobId: JobId,
+  state: JobState,
+  lifecycleVersion: Counter
+})
+const operatorPlan = (
+  input: unknown,
+  expected: {
+    readonly jobId: JobId
+    readonly state: typeof JobState.Type
+    readonly lifecycleVersion: number
+  },
+  dbNow: number,
+  action: "retryNow" | "cancel"
+): Result.Result<JobSnapshot, JobLifecycleError> =>
+  Result.gen(function* () {
+    const row = yield* validateSnapshot(input)
+    const guard = yield* Result.mapError(
+      Schema.decodeResult(operatorExpected, { onExcessProperty: "error" })(expected),
+      () => invalid("invalid-command")
+    )
+    yield* validateTime(dbNow)
+    if (
+      row.jobId !== guard.jobId ||
+      row.state !== guard.state ||
+      row.lifecycleVersion !== guard.lifecycleVersion
+    ) {
+      return yield* Result.fail(invalid("state-version-conflict"))
+    }
+    if (
+      action === "retryNow"
+        ? row.state !== "RetryScheduled"
+        : row.state !== "Pending" && row.state !== "RetryScheduled"
+    ) {
+      return yield* Result.fail(invalid("not-eligible"))
+    }
+    if (action === "retryNow" && row.availableAt <= dbNow) {
+      return yield* Result.fail(invalid("already-due"))
+    }
+    const lifecycleVersion = yield* increment(row.lifecycleVersion)
+    return {
+      ...row,
+      lifecycleVersion,
+      updatedAt: dbNow,
+      ...(action === "retryNow"
+        ? { availableAt: dbNow }
+        : { state: "Cancelled" as const, completedAt: dbNow })
+    }
+  })
+/** Strictly accelerates a future stored retry without changing any budget or policy.
+ * @category operations
+ */
+export const retryNow = (
+  input: unknown,
+  expected: Parameters<typeof operatorPlan>[1],
+  dbNow: number
+) => operatorPlan(input, expected, dbNow, "retryNow")
+/** Cancels only unowned executable rows. Cancelled retention is Forever.
+ * @category operations
+ */
+export const cancel = (
+  input: unknown,
+  expected: Parameters<typeof operatorPlan>[1],
+  dbNow: number
+) => operatorPlan(input, expected, dbNow, "cancel")

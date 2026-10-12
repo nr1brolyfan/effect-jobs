@@ -107,7 +107,7 @@ export const migration = (mapping: Tables = tables()): string => {
   operation text NOT NULL, operation_id text NOT NULL, slot text NOT NULL,
   queue text NOT NULL, kind text NOT NULL, version integer NOT NULL,
   policy jsonb NOT NULL, initial_available_at bigint,
-  state text NOT NULL CHECK (state IN ('Pending','Active','RetryScheduled','Completed','Dead','Isolated')),
+  state text NOT NULL CHECK (state IN ('Pending','Active','RetryScheduled','Completed','Dead','Isolated','Cancelled')),
   available_at bigint NOT NULL, updated_at bigint NOT NULL,
   attempts_made bigint NOT NULL DEFAULT 0 CHECK (attempts_made >= 0),
   stalled_count bigint NOT NULL DEFAULT 0 CHECK (stalled_count >= 0),
@@ -116,7 +116,7 @@ export const migration = (mapping: Tables = tables()): string => {
   UNIQUE (operation, operation_id, slot), UNIQUE (lease_token),
   CHECK ((state = 'Active') = (lease_token IS NOT NULL AND lease_expires_at IS NOT NULL)),
   CHECK (state = 'Active' OR (lease_token IS NULL AND lease_expires_at IS NULL)),
-  CHECK ((state IN ('Completed','Dead')) = (completed_at IS NOT NULL))
+  CHECK ((state IN ('Completed','Dead','Cancelled')) = (completed_at IS NOT NULL))
 );
 CREATE TABLE ${payloads} (
   job_id text PRIMARY KEY REFERENCES ${jobs}(id) ON DELETE CASCADE,
@@ -128,4 +128,44 @@ CREATE INDEX "${prefix}_due" ON ${jobs} (queue, kind, version, available_at, id)
   WHERE state IN ('Pending','RetryScheduled');
 CREATE INDEX "${prefix}_expired" ON ${jobs} (lease_expires_at, id) WHERE state = 'Active';
 CREATE INDEX "${prefix}_terminal" ON ${jobs} (cleanup_at, id) WHERE state IN ('Completed','Dead');`
+}
+
+/** Known catalog expressions for the additive operator migration.
+ * @internal
+ */
+const operatorChecks = {
+  state:
+    "state=ANYARRAY['Pending','Active','RetryScheduled','Completed','Dead','Isolated','Cancelled']",
+  terminal: "state=ANYARRAY['Completed','Dead','Cancelled']=completed_atISNOTNULL"
+} as const
+/** Adds Cancelled to exactly the two known legacy CHECKs; refuses unexpected schema.
+ * Does not alter rows, indexes or unrelated constraints. The application runs it
+ * in its migration transaction after preserving historical migration bytes.
+ * @category operations
+ */
+export const operatorMigration = (mapping: Tables = tables()): string => {
+  const { jobs } = relations(mapping)
+  const oldState =
+    "state=ANYARRAY['Pending','Active','RetryScheduled','Completed','Dead','Isolated']"
+  const oldTerminal = "state=ANYARRAY['Completed','Dead']=completed_atISNOTNULL"
+  const literal = (value: string) => "'" + value.replaceAll("'", "''") + "'"
+  return `DO $operator_migration$
+DECLARE c record; state_name text; terminal_name text; state_count integer := 0; terminal_count integer := 0;
+BEGIN
+  LOCK TABLE ${jobs} IN ACCESS EXCLUSIVE MODE;
+  FOR c IN SELECT conname, regexp_replace(pg_get_expr(conbin,conrelid), '[[:space:]()]|::text', '', 'g') AS expression
+    FROM pg_catalog.pg_constraint WHERE conrelid=${literal(jobs)}::regclass AND contype='c'
+  LOOP
+    IF c.expression IN (${literal(oldState)},${literal(operatorChecks.state)}) THEN
+      state_name := c.conname; state_count := state_count + 1;
+    ELSIF c.expression IN (${literal(oldTerminal)},${literal(operatorChecks.terminal)}) THEN
+      terminal_name := c.conname; terminal_count := terminal_count + 1;
+    END IF;
+  END LOOP;
+  IF state_count <> 1 OR terminal_count <> 1 THEN
+    RAISE EXCEPTION 'unsupported operator CHECK constraints';
+  END IF;
+  EXECUTE format('ALTER TABLE ${jobs} DROP CONSTRAINT %I, DROP CONSTRAINT %I', state_name, terminal_name);
+  EXECUTE format('ALTER TABLE ${jobs} ADD CONSTRAINT %I CHECK (state IN (''Pending'',''Active'',''RetryScheduled'',''Completed'',''Dead'',''Isolated'',''Cancelled'')), ADD CONSTRAINT %I CHECK ((state IN (''Completed'',''Dead'',''Cancelled'')) = (completed_at IS NOT NULL))', state_name, terminal_name);
+END $operator_migration$;`
 }

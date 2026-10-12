@@ -6,7 +6,7 @@ import { EpochMillis } from "../../JobPolicy.js"
 import type { TransactionQuery } from "../../PostgreSqlTransaction.js"
 
 /** pg int8 is text by default; accept only exact bounded decimal integer values. */
-const integer = (value: unknown): unknown =>
+export const integer = (value: unknown): unknown =>
   typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value) ? Number(value) : value
 export const snapshot = (row: Record<string, unknown>) =>
   Lifecycle.validateSnapshot({
@@ -81,7 +81,9 @@ export const writeSnapshot = (
   const retention =
     row.state === "Completed" ? row.policy.completedRetention : row.policy.deadRetention
   const expiry =
-    row.completedAt !== null && retention._tag === "Duration"
+    (row.state === "Completed" || row.state === "Dead") &&
+    row.completedAt !== null &&
+    retention._tag === "Duration"
       ? Lifecycle.addTimestamp(row.completedAt, retention.millis)
       : null
   const cleanupAt = expiry !== null && Result.isSuccess(expiry) ? expiry.success : null

@@ -15,11 +15,26 @@ export const insertOrCompare = (
   prepared: PreparedJob
 ) =>
   Effect.gen(function* () {
-    const { catalog, producer, encoded } = prepared
     const id = yield* Effect.sync(() => globalThis.crypto.randomUUID() as JobId)
     const now = yield* dbTime(query).pipe(
       Effect.mapError(() => new PostgreSqlFailure({ commitKnowledge: "NotCommitted" }))
     )
+    return yield* insertOrCompareAt(query, jobs, payloads, prepared, now, id)
+  })
+
+/** Reuses an operator-owned DB clock sample; normal enqueue still samples per call. */
+export const insertOrCompareAt = (
+  query: TransactionQuery,
+  jobs: string,
+  payloads: string,
+  prepared: PreparedJob,
+  now: number,
+  generatedId?: JobId
+) =>
+  Effect.gen(function* () {
+    const { catalog, producer, encoded } = prepared
+    const id =
+      generatedId ?? (yield* Effect.sync(() => globalThis.crypto.randomUUID() as JobId))
     const rows = yield* query.query(
       `INSERT INTO ${jobs} (id,operation,operation_id,slot,queue,kind,version,policy,initial_available_at,state,available_at,updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Pending',$10,$11)
