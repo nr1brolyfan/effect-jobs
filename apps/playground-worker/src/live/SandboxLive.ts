@@ -6,6 +6,7 @@ import {
 } from "@effect-jobs/playground-contracts/Sandbox"
 import type { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import { Ack, liveLimits, sameSandbox } from "../../../website/src/live/Protocol.js"
+import * as OriginPolicy from "../../../website/src/OriginPolicy.js"
 
 // Narrow Cloudflare FFI ports. No SDK, pool, timer or service starts on import.
 export interface HibernatingSocket {
@@ -42,6 +43,7 @@ const decodeAttachment = Schema.decodeUnknownSync(Attachment, {
 
 export interface LiveOptions<Env> {
   readonly origin: (env: Env) => string
+  readonly localPreview?: (env: Env) => boolean
   // HTTP composition authenticates the cookie and returns ONLY trusted authority.
   readonly authorize: (
     request: Request,
@@ -72,10 +74,15 @@ export const makeDurableObject = <Env, State extends LiveState>(
 
     // Cloudflare callbacks are Promise/throwing FFI; Effect authority is run here.
     async fetch(request: Request): Promise<Response> {
+      const policy = OriginPolicy.make({
+        configuredOrigin: options.origin(this.env),
+        localPreview: options.localPreview?.(this.env) === true
+      })
       if (
+        request.url.length > 4096 ||
         request.method !== "GET" ||
         request.headers.get("Upgrade")?.toLowerCase() !== "websocket" ||
-        request.headers.get("Origin") !== options.origin(this.env)
+        !policy.matches(new URL(request.url).origin, request.headers.get("Origin"))
       ) {
         return Response.json({ code: "invalid-request" }, { status: 400 })
       }
