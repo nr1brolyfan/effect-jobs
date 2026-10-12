@@ -7,6 +7,8 @@ import { JobsClient, type Client } from "../../src/features/jobs/Adapter.js"
 import * as Atoms from "../../src/features/jobs/Atoms.js"
 import * as FixtureClient from "../../src/features/jobs/FixtureClient.js"
 
+import { makeServer } from "./ReadsFixtures.js"
+
 const capable = {
   ...Fixtures.sandbox,
   capabilities: {
@@ -256,35 +258,40 @@ describe("jobs atom authority", () => {
   )
 
   it("combines exact filters and retains selection, cursor and filters during reconciliation", async () => {
+    const server = makeServer()
     const controller = Atoms.make(Fixtures.sandbox)
-    await execute(controller.refresh)
-    await execute(controller.next)
+    await execute(controller.refresh, server.client)
+    await execute(controller.next, server.client)
     const before = controller.snapshot()
     const job = before.page?.items[0]
     expect(job).toBeDefined()
     if (job === undefined) {
       return
     }
-    await execute(controller.select(job.jobId))
-    await execute(controller.refresh)
+    await execute(controller.select(job.jobId), server.client)
+    await execute(controller.refresh, server.client)
     expect(controller.snapshot().cursor).toBe(before.cursor)
     expect(controller.snapshot().pageNumber).toBe(2)
     expect(controller.snapshot().selected).toBe(job.jobId)
-    await execute(controller.filter({ state: "Dead", kind: "playground.scenario" }))
+    await execute(
+      controller.filter({ state: "Pending", kind: "playground.scenario" }),
+      server.client
+    )
     expect(controller.snapshot().cursor).toBeUndefined()
-    expect(controller.snapshot().page?.items).toHaveLength(2)
+    expect(controller.snapshot().page?.items).toHaveLength(20)
     expect(controller.snapshot().selected).toBe(job.jobId)
-    await execute(controller.filter({ state: "Dead", kind: "absent" }))
+    await execute(controller.filter({ state: "Pending", kind: "absent" }), server.client)
     expect(controller.snapshot().page?.items).toHaveLength(0)
   })
 
   it("keeps the current cursor on invalidation errors until an explicit first-page action", async () => {
+    const server = makeServer()
     const controller = Atoms.make(Fixtures.sandbox)
-    await execute(controller.refresh)
-    await execute(controller.next)
+    await execute(controller.refresh, server.client)
+    await execute(controller.next, server.client)
     const cursor = controller.snapshot().cursor
     await execute(controller.refresh, {
-      ...FixtureClient.client,
+      ...server.client,
       list: () => Effect.fail(new PlaygroundError({ code: "invalid-request" }))
     })
     expect(controller.snapshot()).toMatchObject({
@@ -293,7 +300,7 @@ describe("jobs atom authority", () => {
       error: "invalid-request",
       pageNumber: 2
     })
-    await execute(controller.first)
+    await execute(controller.first, server.client)
     expect(controller.snapshot()).toMatchObject({
       connection: "connected",
       pageNumber: 1
