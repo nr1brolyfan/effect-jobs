@@ -369,6 +369,7 @@ button svg,
 
 /* Every number and distribution comes from the current page, not fictional telemetry. */
 .stats-grid {
+  margin-bottom: 24px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;

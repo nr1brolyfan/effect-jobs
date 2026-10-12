@@ -98,6 +98,14 @@ try {
   assert.equal(await page.getByRole("table", { name: "Background jobs" }).count(), 1)
   assert.equal(await page.locator(".stat-card").count(), 4)
   assert.equal(
+    await page
+      .locator(
+        ".stats-caption, .read-limitations, .sort-label, .table-count, .playground-guide, .shared-feed"
+      )
+      .count(),
+    0
+  )
+  assert.equal(
     await page.locator('.sidebar-item[aria-current="page"]').innerText(),
     "Background Jobs"
   )
@@ -308,7 +316,7 @@ try {
   )
   assert.deepEqual(errors, [])
   checks.push("standalone development fixture entry loads without browser errors")
-  await page.getByRole("link", { name: "Read the jobs guide", exact: true }).click()
+  await page.goto(`${url}/docs/jobs`)
   await page
     .getByRole("heading", { name: "Reading durable jobs.", exact: true })
     .waitFor()

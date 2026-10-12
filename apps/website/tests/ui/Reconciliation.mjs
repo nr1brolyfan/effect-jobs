@@ -133,11 +133,11 @@ try {
   )
   const after = await page.evaluate(() => ({
     activeTag: document.activeElement?.tagName,
-    linkPresent: !!document.querySelector('a[href="#synthetic-entities"]')
+    linkPresent: !!document.querySelector('a[href="/docs/jobs#privacy"]')
   }))
   assert.equal(after.activeTag, "A")
   await page.keyboard.press("Enter")
-  await page.waitForURL((url) => url.hash === "#synthetic-entities")
+  await page.waitForURL((url) => url.pathname === "/docs/jobs" && url.hash === "#privacy")
   checks.push({
     id: "DX-2",
     before,
@@ -145,6 +145,10 @@ try {
     expected: "focused detail link retained after unchanged poll",
     actual: "corresponding link retains focus and keyboard activation"
   })
+  await page.goto(`${url}/poll`)
+  await page.locator('.connection-status[data-connection="connected"]').waitFor()
+  await page.getByRole("button", { name: "demo-job-01", exact: true }).click()
+  await link.waitFor()
   const refresh = page.getByRole("button", { name: "Refresh reads", exact: true })
   await refresh.focus()
   await page.evaluate(() => window.jobsBrowserTest.reconcile())

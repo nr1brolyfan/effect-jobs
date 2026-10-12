@@ -215,11 +215,7 @@ export const mount = (
     card.append(label, value, note, bar)
     stats.append(card)
   }
-  const statsCaption = element(
-    "p",
-    "CURRENT PAGE · Live snapshot, not global totals or historical trends."
-  )
-  statsCaption.className = "stats-caption"
+  stats.title = "Statistics for the current page, not global totals."
   const filters = element("form")
   filters.className = "filter-bar"
   filters.setAttribute("aria-label", "Job filters")
@@ -288,19 +284,6 @@ export const mount = (
     tabButtons.set(tab, control)
     quick.append(control)
   }
-  const expired = element("button", "Expired lease · unavailable")
-  expired.type = "button"
-  expired.disabled = true
-  quick.append(expired)
-  const limits = element("details")
-  const limitText = element(
-    "p",
-    "Order: job ID ascending. Global search, alternative sorting, total counters and lease-expiry filters are unavailable. Page counters describe the current read only."
-  )
-  limits.className = "read-limitations muted"
-  limits.append(element("summary", "Read limitations"), limitText)
-  const counters = element("p")
-  counters.className = "table-count"
   const content = element("div")
   content.className = "jobs-layout"
   const list = element("section")
@@ -338,12 +321,9 @@ export const mount = (
   const panelHeader = element("div")
   panelHeader.className = "panel-heading"
   const panelTitle = element("div")
-  panelTitle.append(element("h2", "All background jobs"), counters)
-  const sortLabel = element("span", "Job ID ↑")
-  sortLabel.className = "sort-label"
-  sortLabel.title = "The current API supports job ID ascending only"
-  panelHeader.append(panelTitle, sortLabel)
-  list.append(panelHeader, quick, filters, limits, tableScroll, empty, pagination)
+  panelTitle.append(element("h2", "All background jobs"))
+  panelHeader.append(panelTitle)
+  list.append(panelHeader, quick, filters, tableScroll, empty, pagination)
   const detail = element("section")
   detail.setAttribute("aria-label", "Job details")
   detail.tabIndex = -1
@@ -431,51 +411,6 @@ export const mount = (
   const capabilities = element("p")
   scenarioBody.append(capabilities)
   scenarios.append(scenarioSummary, scenarioBody)
-  const shared = element("section")
-  shared.className = "shared-feed muted"
-  shared.append(
-    element("h2", "Shared feed"),
-    element(
-      "p",
-      options.demo
-        ? "Public synthetic jobs · continuously generated · seeded rotation every 24 hours. Private visitor sandboxes are separate."
-        : "Explore the read-only public demo at /demo. Your sandbox data is never treated as a public feed."
-    )
-  )
-  const docs = element("section")
-  docs.className = "playground-guide"
-  docs.id = "jobs-explained"
-  docs.append(element("h2", "How to read this playground"))
-  const guide = element("a", "Read the jobs guide")
-  guide.href = "/docs/jobs"
-  docs.append(guide)
-  const explanations = [
-    [
-      "States",
-      "Pending waits for eligibility; RetryScheduled waits after a finalized retry; Active is owned by a worker; Completed, Dead and Isolated describe durable lifecycle state. Isolated is not automatically purged."
-    ],
-    [
-      "Unknown outcomes",
-      "A lost response does not prove rollback. Check the exact request receipt. Receipt absence does not grant permission to replay."
-    ],
-    [
-      "Attempts and leases",
-      "Attempts count finalized attempts, not all handler invocations. Unknown recovery may repeat an attempt number. Lease tokens and expiry are not exposed by this read API."
-    ],
-    [
-      "Privacy and isolation",
-      "Only allowlisted metadata and synthetic relations are visible. Payloads, protected fields, ciphertext and fingerprints are not exposed. Sandbox reset changes visibility and admission; it does not cancel workers."
-    ],
-    [
-      "Live reads",
-      "Pages are current reads, not historical snapshots. State changes may move rows between pages. Refresh keeps your current cursor and filters; First page explicitly restarts pagination."
-    ]
-  ]
-  for (const [title, text] of explanations) {
-    const item = element("details")
-    item.append(element("summary", title), element("p", text))
-    docs.append(item)
-  }
   root.classList.add("jobs-app")
   const sessionBar = element("div")
   sessionBar.className = "session-bar"
@@ -483,17 +418,7 @@ export const mount = (
   const footer = element("footer")
   footer.className = "dashboard-footer"
   footer.append(source, element("span", "effect-jobs · initial alpha"))
-  canvas.append(
-    header,
-    stats,
-    statsCaption,
-    content,
-    sessionBar,
-    scenarios,
-    docs,
-    shared,
-    footer
-  )
+  canvas.append(header, stats, content, sessionBar, scenarios, footer)
   main.append(topbar, canvas)
   root.replaceChildren(sidebar, main)
   let lastDetail: Controller.State["detail"]
@@ -518,7 +443,6 @@ export const mount = (
         job.jobId.toLowerCase().includes(search.value.toLowerCase()) &&
         (!due.checked || (job.state === "Pending" && job.availableAt <= Date.now()))
     )
-    counters.textContent = `${all.length} on current page · ${visible.length} visible`
     const completed = all.filter((job) => job.state === "Completed").length
     const active = all.filter((job) =>
       ["Pending", "RetryScheduled", "Active"].includes(job.state)
@@ -674,7 +598,7 @@ export const mount = (
       lastSelected !== state.selected ||
       detailBody.childNodes.length === 0
     ) {
-      const focusedLink = detailBody.querySelector('a[href="#synthetic-entities"]')
+      const focusedLink = detailBody.querySelector('a[href="/docs/jobs#privacy"]')
       const restoreLinkFocus =
         focusedLink !== null &&
         document.activeElement === focusedLink &&
@@ -751,7 +675,7 @@ export const mount = (
         }
         if (d.relations.syntheticOrderId !== undefined) {
           const link = element("a", `${d.relations.syntheticOrderId} (synthetic example)`)
-          link.href = "#synthetic-entities"
+          link.href = "/docs/jobs#privacy"
           detailBody.append(link)
           if (restoreLinkFocus) {
             link.focus({ preventScroll: true })
@@ -791,12 +715,6 @@ export const mount = (
   const localFilter = () => renderRows(controller.snapshot())
   search.addEventListener("input", localFilter)
   due.addEventListener("change", localFilter)
-  const entities = element(
-    "p",
-    "demo-order-a / demo-order-b / demo-customer: synthetic application relations, not external accounts."
-  )
-  entities.id = "synthetic-entities"
-  docs.append(entities)
   const reconcile = () => {
     if (document.visibilityState !== "hidden" && !controller.reading()) {
       run(controller.refresh)
