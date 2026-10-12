@@ -12,7 +12,7 @@ const { migrations } = await import(`${evidence}/Migrations.mjs`)
 const cfg = JSON.parse(readFileSync(process.env.PLAYGROUND_PRIVATE_CONFIG, "utf8"))
 const pool = new Pool({ host: "127.0.0.1", ...cfg, connectionTimeoutMillis: 2000 })
 const checks = []
-let local, browser, page
+let local, browser, page, retryLock
 const errors = []
 const cspErrors = []
 const network = []
@@ -51,6 +51,18 @@ try {
     timezoneId: "Europe/Warsaw"
   })
   page = await context.newPage()
+  // Capture real transports only to inject a socket disconnect later. Messages,
+  // authority and lifecycle continue to come from the production server.
+  await page.addInitScript(() => {
+    const NativeWebSocket = window.WebSocket
+    window.qualificationSockets = []
+    window.WebSocket = class extends NativeWebSocket {
+      constructor(...args) {
+        super(...args)
+        window.qualificationSockets.push(this)
+      }
+    }
+  })
   page.on("pageerror", (error) => errors.push(error.message))
   page.on("console", (msg) => {
     if (/content security policy/i.test(msg.text())) {
@@ -139,9 +151,18 @@ try {
       .locator("dd")
       .textContent()
   ).trim()
+  // Hold this real retry row through its persisted deadline. SKIP LOCKED keeps
+  // other workers running and leaves this job eligible, waiting for a worker.
+  // No timestamps, state, browser clocks or lifecycle results are rewritten.
+  retryLock = await pool.connect()
+  await retryLock.query("BEGIN")
   const row = (
-    await pool.query(`SELECT available_at FROM "${cfg.schema}".jobs WHERE id=$1`, [jobId])
+    await retryLock.query(
+      `SELECT available_at,state FROM "${cfg.schema}".jobs WHERE id=$1 FOR UPDATE`,
+      [jobId]
+    )
   ).rows[0]
+  assert.equal(row.state, "RetryScheduled")
   assert.equal(Number(row.available_at), persisted)
   const localTime = await page.evaluate(
     (millis) =>
@@ -162,22 +183,20 @@ try {
   const before = await countdown.textContent()
   await expect(countdown).not.toHaveText(before, { timeout: 2200 })
   assert.match(await countdown.textContent(), /In |Eligible now/)
-  // Only the local countdown clock advances. The displayed job is still the
-  // authoritative RetryScheduled snapshot; no database lifecycle is fabricated.
-  await page.evaluate((millis) => {
-    window.restoreRetryClock = Date.now
-    Date.now = () => millis
-  }, persisted)
-  try {
-    await expect(countdown).toHaveText("Eligible now · waiting for a worker", {
-      timeout: 2200
-    })
-  } finally {
-    await page.evaluate(() => {
-      Date.now = window.restoreRetryClock
-      delete window.restoreRetryClock
-    })
-  }
+  const remaining = persisted - Date.now()
+  assert(remaining > 0 && remaining <= 90000, "unexpected real retry deadline")
+  await expect(countdown).toHaveText("Eligible now · waiting for a worker", {
+    timeout: remaining + 2200
+  })
+  const eligible = (
+    await retryLock.query(
+      `SELECT state,available_at <= floor(extract(epoch FROM clock_timestamp())*1000) AS due
+     FROM "${cfg.schema}".jobs WHERE id=$1`,
+      [jobId]
+    )
+  ).rows[0]
+  assert.equal(eligible.state, "RetryScheduled")
+  assert.equal(eligible.due, true)
   assert.equal(await details.evaluate((node) => node === document.activeElement), true)
   await page.keyboard.press("Escape")
   assert.equal(await details.isVisible(), false)
@@ -189,15 +208,39 @@ try {
       ? selectedRow
       : page.getByRole("region", { name: "Jobs list", exact: true })
   ).toBeFocused()
+  await selectedRow.click()
+  await page.getByRole("button", { name: "Close details", exact: true }).click()
+  await expect(selectedRow).toBeFocused()
+  await selectedRow.click()
+  await retryLock.query("COMMIT")
+  retryLock.release()
+  retryLock = undefined
+  await until(
+    async () =>
+      (await pool.query(`SELECT state FROM "${cfg.schema}".jobs WHERE id=$1`, [jobId]))
+        .rows[0].state === "Completed",
+    "real retry did not complete after lock release"
+  )
+  await expect(
+    details
+      .locator("dt")
+      .filter({ hasText: /^State$/ })
+      .locator("..")
+      .locator("dd")
+  ).toHaveText("Completed")
+  await expect(selectedRow).toHaveCount(0)
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("region", { name: "Jobs list", exact: true })).toBeFocused()
   checks.push(
-    "real retry availableAt matches PostgreSQL, timezone display, one-second countdown, detail keyboard focus/escape"
+    "real retry availableAt/timezone/countdown, natural Eligible now and DB due state; worker completion; selected-row Escape/Close focus and evicted-row fallback"
   )
   await page.getByLabel("State", { exact: true }).selectOption("")
   await page.getByRole("button", { name: "Apply filters", exact: true }).click()
   await connected()
   const chart = page.getByRole("region", { name: "Job distribution" })
-  await chart.locator("svg.recharts-surface").waitFor()
+  await chart.scrollIntoViewIfNeeded()
   const svg = chart.locator("svg.recharts-surface")
+  await expect(svg).toBeVisible()
   const desktop = await svg.boundingBox()
   assert(desktop.width > 0)
   // Aim inside the ring; a sector's bounding-box center can lie in its hole.
@@ -207,16 +250,22 @@ try {
   await until(async () => {
     const box = await svg.boundingBox()
     const panel = await chart.boundingBox()
-    return box.width > 0 && box.width <= panel.width && panel.width <= 390
+    return (
+      box !== null &&
+      panel !== null &&
+      box.width > 0 &&
+      box.width <= panel.width &&
+      panel.width <= 390
+    )
   }, "mobile chart did not fit its resized panel")
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
   // The chart deliberately caps its ring at 220px; 390px does not necessarily
   // shrink it. A narrower viewport must shrink the actual ResponsiveContainer.
   await page.setViewportSize({ width: 240, height: 844 })
-  await until(
-    async () => (await svg.boundingBox()).width < desktop.width,
-    "narrow SVG did not resize"
-  )
+  await until(async () => {
+    const box = await svg.boundingBox()
+    return box !== null && box.width > 0 && box.width < desktop.width
+  }, "narrow SVG did not resize")
   await page.setViewportSize({ width: 390, height: 844 })
   const require = createRequire(resolve("package.json"))
   // CSP disallows injected scripts; evaluate the pinned audit in the automation world.
@@ -237,12 +286,19 @@ try {
     "responsive real Recharts SVG and 390px layout; mobile WCAG2/2.1 A/AA audit"
   )
   const previousReads = reads
+  const previousSockets = sockets
   await context.setOffline(true)
+  await page.evaluate(() => {
+    for (const socket of window.qualificationSockets) {
+      socket.close(1000, "qualification disconnect")
+    }
+  })
+  await until(async () => websocketEvents.includes("closed"), "real socket did not close")
   await page.waitForTimeout(300)
   await context.setOffline(false)
   await until(async () => reads > previousReads, "reconnect did not reconcile")
   await connected()
-  assert(frames > 0 && sockets > 0)
+  assert(frames > 0 && sockets > previousSockets)
   checks.push(
     "real WebSocket signals and offline/online authoritative HTTP reconciliation"
   )
@@ -420,6 +476,10 @@ try {
   )
   process.exitCode = 1
 } finally {
+  if (retryLock) {
+    await retryLock.query("ROLLBACK")
+    retryLock.release()
+  }
   await browser?.close()
   await local?.mf.dispose()
   await pool.end()

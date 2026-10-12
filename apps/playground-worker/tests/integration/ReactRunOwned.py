@@ -9,7 +9,7 @@ import subprocess
 import time
 
 root = pathlib.Path(__file__).resolve().parents[4]
-evidence = root / '.multica/react-qualification'
+evidence = root / os.environ.get('PLAYGROUND_EVIDENCE_DIRECTORY', '.multica/react-qualification')
 evidence.mkdir(parents=True, exist_ok=True)
 image = 'postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea'
 now = lambda: datetime.datetime.now(datetime.timezone.utc).isoformat()
