@@ -537,6 +537,8 @@ try {
         status: "PASS",
         checks,
         errors,
+        chromium: browser.version(),
+        localOrigin: local.origin,
         starterIds: ids,
         limits: { jobs: 100, commands: 200 },
         resetSemantics:

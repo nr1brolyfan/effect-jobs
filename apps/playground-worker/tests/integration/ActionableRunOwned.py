@@ -26,6 +26,7 @@ receipt['tree'] = subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], c
 receipt['sourceInputs'] = {p: hashlib.sha256((root / p).read_bytes()).hexdigest() for p in subprocess.check_output(['git', 'ls-files', '-co', '--exclude-standard', 'src', 'apps', 'packages/playground-contracts', 'package.json', 'bun.lock', 'tsconfig.playground.json'], cwd=root, text=True).splitlines() if (root / p).is_file()}
 receipt['inputs'] = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.glob('apps/playground-worker/tests/integration/Actionable*')) if p.is_file()}
 receipt['artifacts'] = {name: hashlib.sha256((evidence / name).read_bytes()).hexdigest() for name in ['ActionableProbe.mjs', 'Migrations.mjs']}
+receipt['tools'] = {'node': subprocess.check_output(['node', '--version'], cwd=root, text=True).strip(), 'bun': subprocess.check_output(['bun', '--version'], cwd=root, text=True).strip()}
 receipt['compiledArtifacts'] = {p: hashlib.sha256((root / p).read_bytes()).hexdigest() for p in ['apps/playground-worker/dist/Worker.js', 'apps/website/dist/Client.js', 'apps/website/dist/Jobs.css']}
 cid = None
 private = evidence / ('private-' + secrets.token_hex(8) + '.json')
@@ -48,6 +49,8 @@ try:
     cfg = {'user': env['POSTGRES_USER'], 'database': env['POSTGRES_DB'], 'password': env['POSTGRES_PASSWORD'], 'port': int(ports['5432/tcp'][0]['HostPort']), 'schema': 'operators_probe', **{key: secrets.token_hex(32) for key in ['encryptionKey', 'fingerprintKey', 'cursorKey']}}
     with os.fdopen(os.open(private, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as stream:
         json.dump(cfg, stream)
+    receipt['privateConfigSha256'] = hashlib.sha256(private.read_bytes()).hexdigest()
+    receipt['configShape'] = {'schema': cfg['schema'], 'host': '127.0.0.1', 'port': cfg['port'], 'secrets': 'fresh random; never exported'}
     testenv = os.environ.copy()
     testenv.update(OPERATORS_PG_CONFIG_FILE=str(private), PLAYGROUND_PRIVATE_CONFIG=str(private), PLAYGROUND_EVIDENCE_DIRECTORY=str(evidence))
     with (evidence / 'runtime.log').open('w') as log:
