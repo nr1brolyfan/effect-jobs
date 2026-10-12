@@ -10,14 +10,16 @@ export const Portal = BasePopover.Portal
 export const Title = BasePopover.Title
 export const Description = BasePopover.Description
 export type RootProps = BasePopover.Root.Props
-export type TriggerProps = BasePopover.Trigger.Props
+export type TriggerProps = BasePopover.Trigger.Props & {
+  readonly variant?: "default" | "timestamp"
+}
 export type PortalProps = BasePopover.Portal.Props
 export type PositionerProps = BasePopover.Positioner.Props
 export type PopupProps = BasePopover.Popup.Props
 export type CloseProps = BasePopover.Close.Props
 
 export const Trigger = forwardRef<HTMLButtonElement, TriggerProps>(function Trigger(
-  { className, ...props },
+  { className, variant = "default", ...props },
   ref
 ) {
   return (
@@ -26,7 +28,10 @@ export const Trigger = forwardRef<HTMLButtonElement, TriggerProps>(function Trig
       ref={ref}
       className={(state) =>
         [
-          stylex.props(controls.button, controls.ghost).className,
+          // Timestamp callers supply one complete StyleX result, without button defaults.
+          variant === "default"
+            ? stylex.props(controls.button, controls.ghost).className
+            : undefined,
           typeof className === "function" ? className(state) : className
         ]
           .filter(Boolean)

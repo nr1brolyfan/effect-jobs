@@ -4,7 +4,7 @@
 epoch milliseconds, including zero, or null/undefined. Import it from
 `../../ui/DateTime.js` in the jobs feature. The essential local date, year and
 time are always visible in a semantic `<time dateTime={iso}>`. A native button
-trigger opens the sibling-owned shared Popover. The accessible name identifies
+trigger opens the shared Base UI Popover. The accessible name identifies
 the field, visible time and resolved IANA timezone. No hover-only title is used.
 Use a field-specific label (for example `Updated` or `Retry available at`).
 
@@ -22,13 +22,18 @@ Date are presentation FFI; they must never feed timestamps back into scheduling,
 retry arithmetic, eligibility or persisted state. Invalid locale/timezone
 configuration is a caller error; production does not accept arbitrary zone input.
 
-## Integration ownership and complete timestamp inventory
+The trigger selects `Popover.Trigger variant="timestamp"`, which omits the
+shared default button classes. DateTime supplies one complete StyleX result:
+transparent, normal weight, no inline inset, two left-aligned lines and a visible
+keyboard focus ring. The column layout wraps within its container; coarse-pointer
+targets retain a minimum 44px height. Other Popover triggers keep default styling.
 
-C owns only DateTime.tsx, DateTime.stylex.ts, DateTimeFormat.ts and these
-date-specific tests/docs. B supplies `./Popover.js` exports Root, Trigger, Portal,
-Positioner, Popup, Close and their compatible Base UI props. D owns Dashboard
-wiring, after consuming all stream handoffs. Do not manufacture a replacement
-Popover in B's tracked path or install dependencies from this stream.
+DateTime has no visible Close button. Base UI owns Escape, outside-click/touch,
+Tab traversal and focus return. Escape returns focus to the trigger; leaving via
+Tab or clicking an outside control preserves the newly selected focus. Local,
+UTC and ISO values remain selectable. Other Popover instances retain Close.
+
+## Complete timestamp inventory
 
 Replace human-facing timestamps at all these locations, including currently
 absent presentation locations. Keep identifiers, durations and generation
@@ -56,7 +61,7 @@ rotation metadata during integration so no human-facing date remains raw ISO.
 
 ## Focused qualification
 
-Run from the repository root with the existing pinned toolchain; no installation:
+Run from the repository root with isolated, lockfile-pinned dependencies:
 
 ```sh
 node_modules/.bin/vitest run apps/website/tests/ui/DateTimeFormat.test.ts apps/website/tests/ui/RetryTime.test.ts
@@ -72,22 +77,28 @@ wording. DateTime.compile.mjs transpiles actual modules and extracts production
 StyleX with runtimeInjection false, checks focus/coarse-pointer CSS and emits
 source/CSS hashes. It does not render Popover or claim full build/CSP qualification.
 
-Deferred integration gates: actual B Popover prop typecheck and bundle; keyboard,
-touch and axe checks in Chromium; full production extraction/CSP/runtime matrix.
-The isolated C branch cannot render the component before B's Popover is present.
-No substitute or mock Popover evidence counts as satisfying this dependency.
+`bun apps/website/tests/ui/DateTime.browser.mjs --before` compiles the actual
+modules from frozen base `68f19504df18825e7e8db2769d06e18122484887` using
+`git show`, without accessing the running preview. The same harness without
+`--before` compiles current sources. It reuses the existing Primitives browser
+compiler and pinned Chromium dependency, with runtime StyleX injection disabled.
+The synthetic fixture contains constrained table/detail/session/retry values,
+null/undefined/invalid/zero, and an unrelated default Popover with Close.
 
-Once B is integrated, use a synthetic timestamp `2026-10-25T00:30:00.123Z` and
-Europe/Warsaw browser timezone. Tab to the trigger and open with Enter and Space;
-assert the named popup contains 02:30:00.123 GMT+02:00 and UTC 00:30:00.123, and
-`time[datetime]` retains the ISO value. Close with Escape and the Close button;
-verify focus returns to the trigger. Test Tab traversal, outside dismissal and
-multiple instances with unique heading associations. Repeat with touch at 390px:
-tap opens details, close is reachable, trigger and Close targets are at least
-44px tall, popup stays within viewport and ISO wraps. Test null/undefined/zero,
-seconds=false, no duplicate nested controls, axe and no runtime errors. Capture
-synthetic desktop/mobile evidence on the separate integration runtime, never the
-owner's preview or private session.
+Screenshots and receipts land under `.multica/datetime-browser/before` and
+`after`. Desktop and 390px emulated touch exercise Enter/Space, Escape and focus
+return, Tab traversal, outside click/tap, exact Europe/Warsaw and UTC milliseconds,
+semantic `datetime`, normal weight, zero inset, matching date/local left edges,
+44px touch target, viewport bounds and strict CSP. Keyboard tests wait for Base
+UI initial focus before advancing, so they exercise completed focus transitions.
+This is synthetic component evidence, not real backend or physical-device testing.
+
+Run `bun apps/website/tests/ui/Primitives.mjs` to verify default Popover behavior
+and existing shared controls. Build contracts before the full production website:
+`bun run --filter @effect-jobs/playground-contracts build`, then
+`bun apps/website/build.mjs`. Integrated Dashboard locations and real runtime/axe
+qualification remain the integration stream's responsibility; this slice does
+not repeat the previous completed review or backend matrix.
 
 ## Documentation read before implementation
 

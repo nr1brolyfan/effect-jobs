@@ -23,6 +23,7 @@ export function DateTime({ value, seconds = true, label = "Timestamp" }: DateTim
   return (
     <Popover.Root>
       <Popover.Trigger
+        variant="timestamp"
         {...stylex.props(styles.trigger)}
         type="button"
         aria-label={`${label}: ${formatted.compact} (${formatted.timeZone}). Show exact local and UTC time`}
@@ -51,9 +52,6 @@ export function DateTime({ value, seconds = true, label = "Timestamp" }: DateTim
                 <dt {...stylex.props(styles.term)}>ISO 8601 · UTC</dt>
                 <dd {...stylex.props(styles.iso)}>{formatted.iso}</dd>
               </dl>
-              <Popover.Close {...stylex.props(styles.close)} type="button">
-                Close
-              </Popover.Close>
             </div>
           </Popover.Popup>
         </Popover.Positioner>
