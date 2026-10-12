@@ -192,12 +192,13 @@ lease/finalization protocol; reset is not cancellation and never directly UPDATE
 lifecycle state. Active/Pending/Isolated rows are not reset cleanup candidates.
 App-owned retention coordinates terminal cleanup with mapping/receipt references.
 
-`retryJob`, `cancelJob` and `redriveJob` stay false until the capability study
-proves supported lifecycle operations. Mock `runScenario`/`resetSandbox` are also
-false: mocks return capability-unavailable, not fake durable success. No live
-email, payment or arbitrary outbound webhook is permitted; all provider data and
-effects are synthetic. Issuance/storage/CSRF/quotas/reset/fencing are obligations
-for downstream implementations, not functionality implemented by these tags.
+The later private operator integration enables `retryJob`, `cancelJob` and
+`redriveJob` for credential-owned live sandboxes through qualified native
+persistence. Public/demo authority keeps all mutation capabilities false. See
+`playground-operators-integration.md` for the exact supported matrix, immutable
+admissions/receipts and local qualification. Mock mutations remain unavailable;
+they never fabricate durable success. All provider effects are synthetic, with
+no live email, payment or arbitrary outbound webhook.
 
 ## Exclusive paths and dependency DAG
 
