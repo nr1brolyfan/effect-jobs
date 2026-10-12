@@ -137,9 +137,6 @@ export const make = Effect.gen(function* () {
   ) {
     const command = yield* decode(ScenarioCommand, input)
     // Planning has no writes. The seed is fixed server configuration, never client input.
-    const jobs = yield* Plan.plan(command, access.sandbox.ref, 0).pipe(
-      Effect.mapError(() => fail("invalid-request"))
-    )
     return yield* transactions
       .owned(access, command, "Scenario", (tx) =>
         Effect.gen(function* () {
@@ -166,6 +163,12 @@ export const make = Effect.gen(function* () {
               requestId: command.requestId
             }
           }
+          const jobs = yield* Plan.plan(
+            command,
+            current,
+            0,
+            command.scenario === "delayed-success" ? tx.dbNow + 120_000 : undefined
+          ).pipe(Effect.mapError(() => fail("invalid-request")))
           yield* tx.reserve(jobs.length)
           const jobIds = []
           for (const job of jobs) {

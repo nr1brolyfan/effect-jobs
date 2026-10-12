@@ -576,7 +576,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
           cursor: undefined,
           pageNumber: 1,
           notice:
-            "New sandbox generation. Old data is hidden; reset does not cancel running jobs."
+            "New generation with starter jobs. Old data is hidden and still counts toward capacity; reset does not cancel running jobs."
         })
         yield* refresh
       }

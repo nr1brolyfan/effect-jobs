@@ -15,6 +15,7 @@ import {
   StoredReceipt
 } from "../commands/Transactions.js"
 import * as Tables from "./Schema.js"
+import * as Traffic from "../../scenarios/PrivateTraffic.js"
 
 export const viewerMillis = 15_000
 const dbTime = "floor(extract(epoch FROM clock_timestamp())*1000)::bigint"
@@ -55,6 +56,14 @@ const view = (row: Record<string, unknown>) =>
     {
       ref: { sandboxId: row.sandbox_id, generation: Number(row.generation) },
       expiresAt: Number(row.expires_at),
+      ...(row.demo_owned === true
+        ? {}
+        : {
+            capacity: {
+              retainedJobs: Number(row.retained_jobs),
+              admittedCommands: Number(row.admitted_commands ?? 0)
+            }
+          }),
       capabilities: {
         runScenario: row.demo_owned !== true,
         resetSandbox: row.demo_owned !== true,
@@ -70,6 +79,7 @@ export const make = (schema: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
     const t = Tables.relations(schema)
+    const traffic = yield* Traffic.make(schema)
     const query = (text: string, values: ReadonlyArray<unknown> = []) =>
       sql
         .unsafe<Record<string, unknown>>(text, values)
@@ -78,6 +88,11 @@ export const make = (schema: string) =>
             () => new CommandTransactionFailure({ commitKnowledge: "Unknown" })
           )
         )
+    const described = (id: string) =>
+      query(
+        `SELECT s.*,(SELECT count(*)::int FROM ${t.admission} WHERE sandbox_id=s.sandbox_id) AS admitted_commands FROM ${t.sandboxes} s WHERE sandbox_id=$1`,
+        [id]
+      )
     const locked = (id: string) =>
       Effect.gen(function* () {
         const rows = yield* query(
@@ -119,7 +134,16 @@ export const make = (schema: string) =>
               `UPDATE ${t.sandboxes} SET viewer_until=LEAST(expires_at,$2::bigint+$3::bigint) WHERE sandbox_id=$1`,
               [row.sandbox_id, row.db_now, viewerMillis]
             )
-            return yield* view(row)
+            if (row.demo_owned !== true) {
+              yield* traffic
+                .ensure((yield* view(row)).ref, Number(row.db_now))
+                .pipe(
+                  Effect.catchTag("PlaygroundError", (error) =>
+                    error.code === "limit-reached" ? Effect.void : Effect.fail(error)
+                  )
+                )
+            }
+            return yield* view((yield* described(String(row.sandbox_id)))[0]!)
           })
         )
         .pipe(publicEffect)
@@ -133,12 +157,21 @@ export const make = (schema: string) =>
           )
           const hash = yield* digest(credential)
           const id = yield* Effect.sync(() => crypto.randomUUID())
-          const rows = yield* query(
-            `INSERT INTO ${t.sandboxes}(sandbox_id,generation,expires_at,credential_hash,viewer_until,next_generation_at)
-        VALUES ($1,1,${dbTime}+$3::bigint,$2,${dbTime}+$4::bigint,${dbTime}+5000) RETURNING *`,
-            [id, hash, limits.sandboxLifetimeMillis, viewerMillis]
+          return yield* sql.withTransaction(
+            Effect.gen(function* () {
+              const rows = yield* query(
+                `INSERT INTO ${t.sandboxes}(sandbox_id,generation,expires_at,credential_hash,viewer_until,next_generation_at)
+        VALUES ($1,1,${dbTime}+$3::bigint,$2,${dbTime}+$4::bigint,${dbTime}+5000) RETURNING *,${dbTime} AS db_now`,
+                [id, hash, limits.sandboxLifetimeMillis, viewerMillis]
+              )
+              yield* traffic.ensure((yield* view(rows[0]!)).ref, Number(rows[0]!.db_now))
+              const [created] = yield* described(id)
+              return {
+                sandbox: yield* view(created!),
+                credential: Redacted.make(credential)
+              }
+            })
           )
-          return { sandbox: yield* view(rows[0]!), credential: Redacted.make(credential) }
         }).pipe(publicEffect),
       authenticate: (credential) =>
         Effect.gen(function* () {
@@ -148,7 +181,7 @@ export const make = (schema: string) =>
           const hash = yield* digest(Redacted.value(credential))
           const row = yield* guard(
             yield* query(
-              `SELECT *,${dbTime} AS db_now FROM ${t.sandboxes} WHERE credential_hash=$1`,
+              `SELECT s.*,${dbTime} AS db_now,(SELECT count(*)::int FROM ${t.admission} WHERE sandbox_id=s.sandbox_id) AS admitted_commands FROM ${t.sandboxes} s WHERE credential_hash=$1`,
               [hash]
             )
           )
@@ -184,7 +217,10 @@ export const make = (schema: string) =>
           const fresh = yield* controls(
             sql.withTransaction(
               Effect.gen(function* () {
-                yield* guard(yield* locked(request.sandbox.sandboxId))
+                const admitted = yield* guard(yield* locked(request.sandbox.sandboxId))
+                if (admitted.demo_owned === true) {
+                  return yield* fail("capability-unavailable")
+                }
                 const prior = yield* query(
                   `SELECT request_id FROM ${t.admission} WHERE sandbox_id=$1 AND generation=$2 AND operation=$3 AND request_id=$4`,
                   [
@@ -227,6 +263,9 @@ export const make = (schema: string) =>
                 ) {
                   return yield* fail("sandbox-expired")
                 }
+                if (row.demo_owned === true) {
+                  return yield* fail("capability-unavailable")
+                }
                 const current = (yield* view(row)).ref
                 return yield* body({
                   admission: fresh ? "Fresh" : "Unresolved",
@@ -260,6 +299,17 @@ export const make = (schema: string) =>
                     ]).pipe(Effect.asVoid),
                   advanceGeneration: (expected) =>
                     Effect.gen(function* () {
+                      // Reset preserves lifetime quota/evidence; reject before hiding data if no complete starter set fits.
+                      const [capacity] = yield* query(
+                        `SELECT retained_jobs,(SELECT count(*) FROM ${t.admission} WHERE sandbox_id=$1) AS admissions FROM ${t.sandboxes} WHERE sandbox_id=$1`,
+                        [expected.sandboxId]
+                      )
+                      if (
+                        Number(capacity!.retained_jobs) + Traffic.starterCount > 100 ||
+                        Number(capacity!.admissions) >= 200
+                      ) {
+                        return yield* fail("limit-reached")
+                      }
                       const updated = yield* query(
                         `UPDATE ${t.sandboxes} SET generation=generation+1, next_generation_at=${dbTime}+5000
               WHERE sandbox_id=$1 AND generation=$2 AND generation<9007199254740991 RETURNING *`,
@@ -268,7 +318,9 @@ export const make = (schema: string) =>
                       if (!updated.length) {
                         return yield* fail("stale-generation")
                       }
-                      return (yield* view(updated[0]!)).ref
+                      const advanced = (yield* view(updated[0]!)).ref
+                      yield* traffic.ensure(advanced, Number(row.db_now))
+                      return advanced
                     }),
                   saveReceipt: (value) =>
                     query(`INSERT INTO ${t.receipts} VALUES ($1,$2,$3,$4,$5::jsonb)`, [

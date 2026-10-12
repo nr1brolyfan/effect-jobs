@@ -6,7 +6,7 @@ No import starts a worker, creates a database, reads an environment variable or
 calls an email, payment or webhook service. All associations are synthetic.
 
 `Plan.plan(command, authenticatedSandboxRef, serverSeed, availableAt?)` strictly
-decodes the five frozen scenario commands. Version 1 plus a fixed unsigned
+decodes the seven bounded scenario commands. Version 1 plus a fixed unsigned
 32-bit seed selects workloads and associations deterministically. The count is
 bounded to ten. Changing generation or request ID changes the hashed producer
 namespace; replaying the same request retains each consequence's slot/sequence.
@@ -15,11 +15,14 @@ receipts before using the plan. Neither a matching reference nor a plan grants
 write authority. A changed seed or scenario under an existing request must not
 overwrite that request's receipt or payload.
 
-The five commands map to success, confirmed rejection followed by success,
+The original five commands map to success, confirmed rejection followed by success,
 terminal rejection, accepted operation with response loss, and a success plan
 that the command adapter can enqueue twice to demonstrate deduplication.
-Isolated, delayed eligibility, unknown recovery and concurrent execution are
-internal qualification profiles and fixtures, not additional public command IDs.
+`isolated` now exposes a valid synthetic invariant failure and `delayed-success`
+uses server DB time plus a 120-second availability window. Retry-then-success
+uses a 120-second fixed retry delay for private interaction. Public demo owns its
+independent policy overrides. Unknown recovery and concurrent execution remain
+internal qualification profiles.
 Pass `availableAt` only from application configuration; it delays eligibility,
 not a promise of execution at that time. The current frozen HTTP command has
 no user-specified seed or delay field.

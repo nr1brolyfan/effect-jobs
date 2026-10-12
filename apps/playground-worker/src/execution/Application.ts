@@ -27,6 +27,6 @@ export const layerNoDeps = (schema: string) =>
           Layer.provide(OperatorTransactions.layerNoDeps(schema))
         ),
         Executor.workerLayerNoDeps(schema)
-      )
+      ).pipe(Layer.provide(Layer.succeed(JobEnqueue, backend.producer)))
     })
   )

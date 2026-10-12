@@ -36,11 +36,12 @@ binds the producer tuple to the actual sandbox/generation/job association.
 A reset that wins the lock prevents the late write; a provider commit that wins
 happened in the old generation. Old observations never move into the new one.
 
-Only communications generates: at most one synthetic job per event from one
-due active sandbox, with a deterministic server request ID and 5-second cadence.
-Job/association/audit/receipt and retained quota changes join one native producer
-transaction. A separate first-admission journal is durable before that transaction;
-an admitted request with no receipt stays OutcomeUnknown and cannot replay writes.
+Only communications generates: at most one mixed synthetic job per event from one
+due active private sandbox, with a deterministic server request ID and 5-second cadence.
+Internal generation locks the sandbox and commits its schedule, job, association,
+admission, audit, receipt and retained quota together in one native transaction.
+Manual commands retain their separate durable first-admission journal; an admitted
+manual request with no receipt stays OutcomeUnknown and cannot replay writes.
 Control/query uncertainty remains Unknown; mixed Causes, defects and interrupts
 are preserved internally. Commands reject an ambient transaction instead of
 claiming Committed while an outer transaction can still roll back.
@@ -60,7 +61,7 @@ it does not restore the quota. There is deliberately no cleanup adapter installe
 foreign keys protect evidence, and Pending/Active/Isolated rows are never deleted.
 Terminal/domain-coordinated retention is a later explicit integration decision;
 reset is visibility/admission revocation, not cancellation. `retryJob`, `redriveJob`
-and `cancelJob` remain false.
+and `cancelJob` are private-only capabilities with the accepted operator eligibility.
 
 ## Shared integration requests
 
@@ -84,3 +85,39 @@ The serial foundation owner must:
 Hosted runtime, actual scheduled alarm callbacks, Alchemy callback composition,
 crash/network/CPU behavior and integrated browser preview remain NotTested here.
 The qualification harness uses Miniflare/workerd + genuine PostgreSQL, not mocks.
+
+## Actionable private traffic
+
+Private authority issuance now enqueues six real starter jobs inside its native
+transaction. Authorized describe can initialize an unseeded existing generation
+once, serialized by the sandbox row lock and the `PrivateTraffic/starter-v1`
+receipt. Reset enqueues the same bounded set in the generation-advance transaction.
+All retained jobs, associations, receipts and provider evidence remain untouched.
+Starter enqueue, quota, admission, receipt and audit are atomic. An internal
+producer namespace separates generated consequences from manual request IDs.
+
+Private arrivals rotate through success, delayed success, retry, terminal failure,
+valid isolation and deduplication. Initial Pending availability and fixed retry
+waits are 120 seconds, leaving time for cancel/retry-now. The existing synthetic
+provider and worker produce every lifecycle transition; no lifecycle SQL seed is
+used. Dead/Isolated successors retain their source behavior, so redrive can fail
+again. Nothing automatically redrives or replenishes terminal sources. Manual
+`delayed-success` and `isolated` controls expose the same repeatable cases.
+Public demo scheduling, policies and read-only authority remain independent.
+
+Capacity metadata exposes retained jobs / 100 and admitted commands / 200 across
+all generations. Background traffic stops at the retained limit. Reset is a
+visibility/authority boundary and cannot free capacity without deleting evidence.
+The proposed capacity-preserving reset requires six free job slots and two free
+command slots; the server rejects it before generation advancement otherwise.
+The UI explains the lifetime limit and leaves Create jobs available to inspect the
+scenario controls. Acceptance of full-capacity reset behavior is an issue-local
+owner decision; this document does not grant deletion or a quota increase.
+
+Finite local qualification: build with
+`PLAYGROUND_EVIDENCE_DIRECTORY=.multica/actionable node apps/playground-worker/tests/integration/Build.mjs`,
+bundle `ActionableProbe.ts` to that directory (external Effect/library imports),
+then run `python3 apps/playground-worker/tests/integration/ActionableRunOwned.py`.
+The runner owns a fresh loopback PG16.15 tmpfs container, private random credentials,
+workerd and Chromium; it removes its exact container/config and process group.
+It never reads an existing private config or touches a running preview.

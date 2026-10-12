@@ -6,8 +6,9 @@ import * as Runtime from "effect-jobs/JobWorkerRuntime"
 import * as Worker from "effect-jobs/JobWorker"
 import * as Registry from "effect-jobs/JobRegistry"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
-import { CommandPersistence } from "../persistence/commands/Transactions.js"
-import { SandboxView } from "@effect-jobs/playground-contracts/Sandbox"
+import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
+import { JobEnqueue } from "effect-jobs/JobEnqueue"
+import * as Traffic from "../scenarios/PrivateTraffic.js"
 import * as Definitions from "../scenarios/Definitions.js"
 import * as Handlers from "../scenarios/Handlers.js"
 import * as Provider from "./PostgreSqlProvider.js"
@@ -84,7 +85,7 @@ export const snapshot = (schema: string, queue: QueueName) =>
       (SELECT min(j.available_at) FROM ${t.jobs} j JOIN ${t.associations} a ON a.job_id=j.id JOIN ${t.sandboxes} s ON s.sandbox_id=a.sandbox_id
         WHERE j.queue=$1 AND j.state IN ('Pending','RetryScheduled') AND a.generation=s.generation AND s.expires_at>t.now AND s.viewer_until>t.now) AS due,
       (SELECT min(lease_expires_at) FROM ${t.jobs} WHERE queue=$1 AND state='Active') AS recovery,
-       (SELECT min(next_generation_at) FROM ${t.sandboxes} WHERE NOT demo_owned AND expires_at>t.now AND viewer_until>t.now AND retained_jobs<100) AS generate FROM t`,
+       (SELECT min(s.next_generation_at) FROM ${t.sandboxes} s WHERE NOT s.demo_owned AND s.expires_at>t.now AND s.viewer_until>t.now AND s.retained_jobs<100 AND (SELECT count(*) FROM ${t.admission} WHERE sandbox_id=s.sandbox_id)<200) AS generate FROM t`,
       [queue]
     )
     const now = Number(row!.now)
@@ -103,50 +104,54 @@ export const snapshot = (schema: string, queue: QueueName) =>
     }
   })
 
-// One deterministic generator request per event, capped by retained quota and DB-time viewer authority.
-// Only the communications DO generates; all DOs drain their own fixed queue.
+// One mixed arrival per event. Selection, receipt, quota and schedule share the native transaction.
+// Unknown COMMIT is resolved by the next authoritative row/receipt read, never a client replay.
 export const generate = (schema: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
-    const persistence = yield* CommandPersistence
+    const backend = yield* PostgreSqlJobs
+    const traffic = yield* Traffic.make(schema).pipe(
+      Effect.provideService(JobEnqueue, backend.producer)
+    )
     const t = Tables.relations(schema)
-    const rows = yield* sql.unsafe<
-      Record<string, unknown>
-    >(`SELECT *,floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now FROM ${t.sandboxes}
-    WHERE NOT demo_owned AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint
+    return yield* sql.withTransaction(
+      Effect.gen(function* () {
+        const rows = yield* sql.unsafe<
+          Record<string, unknown>
+        >(`SELECT s.* FROM ${t.sandboxes} s
+      WHERE NOT demo_owned AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint
       AND viewer_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint
-      AND next_generation_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND retained_jobs<100 ORDER BY sandbox_id LIMIT 1`)
-    if (!rows[0]) {
-      return
-    }
-    const row = rows[0]
-    const sandbox = yield* Schema.decodeUnknownEffect(SandboxView)({
-      ref: { sandboxId: row.sandbox_id, generation: Number(row.generation) },
-      expiresAt: Number(row.expires_at),
-      capabilities: {
-        runScenario: true,
-        resetSandbox: true,
-        retryJob: false,
-        redriveJob: false,
-        cancelJob: false
-      }
-    })
-    const result = yield* persistence.run(
-      { sandbox },
-      {
-        sandbox: sandbox.ref,
-        requestId: `auto-${String(row.next_generation_at)}`,
-        scenario: "success",
-        count: 1
-      }
+      AND next_generation_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND retained_jobs<100 AND (SELECT count(*) FROM ${t.admission} WHERE sandbox_id=s.sandbox_id)<200
+      ORDER BY next_generation_at,sandbox_id LIMIT 1 FOR UPDATE SKIP LOCKED`)
+        const row = rows[0]
+        if (!row) {
+          return
+        }
+        const [clock] = yield* sql.unsafe<{ now: string }>(
+          "SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now"
+        )
+        const now = Number(clock!.now)
+        if (Number(row.viewer_until) <= now || Number(row.expires_at) <= now) {
+          return
+        }
+        const ref = yield* Schema.decodeUnknownEffect(SandboxRef)({
+          sandboxId: row.sandbox_id,
+          generation: Number(row.generation)
+        })
+        const sequence = Number(row.retained_jobs)
+        yield* traffic.append(
+          ref,
+          `auto-${String(row.next_generation_at)}`,
+          [Traffic.profile(sequence)],
+          now,
+          sequence
+        )
+        yield* sql.unsafe(
+          `UPDATE ${t.sandboxes} SET next_generation_at=$3::bigint+5000 WHERE sandbox_id=$1 AND generation=$2`,
+          [ref.sandboxId, ref.generation, now]
+        )
+      })
     )
-    // Advance even Unknown: read-only exact receipt is available; never authorize write replay.
-    yield* sql.unsafe(
-      `UPDATE ${t.sandboxes} SET next_generation_at=GREATEST(next_generation_at+5000,$3::bigint+5000)
-    WHERE sandbox_id=$1 AND generation=$2 AND next_generation_at=$4 AND viewer_until>$3::bigint AND expires_at>$3::bigint`,
-      [sandbox.ref.sandboxId, sandbox.ref.generation, row.now, row.next_generation_at]
-    )
-    return result
   })
 
 // Caller serializes native DO events and owns one event Scope/PgClient lifetime.

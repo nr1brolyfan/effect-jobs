@@ -1,4 +1,4 @@
-import { Data, Effect, Schema } from "effect"
+import { Data, Duration, Effect, Schema } from "effect"
 import { ScenarioCommand } from "@effect-jobs/playground-contracts/Scenarios"
 import type { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import * as JobPolicy from "effect-jobs/JobPolicy"
@@ -16,11 +16,14 @@ export interface PlannedJob {
 const workloads = Definitions.Workload.literals
 const behavior = (scenario: ScenarioCommand["scenario"]): Definitions.Behavior => {
   switch (scenario) {
+    case "delayed-success":
     case "success":
     case "deduplication":
       return "success"
     case "retry-then-success":
       return "retry-then-success"
+    case "isolated":
+      return "isolated"
     case "terminal-failure":
       return "dead"
     case "unknown-outcome":
@@ -36,7 +39,8 @@ export const plan = Effect.fn("Playground.plan")(function* (
   input: unknown,
   authorized: SandboxRef,
   seed: number,
-  availableAt?: number
+  availableAt?: number,
+  namespace?: "private-traffic-v1"
 ) {
   const command = yield* Schema.decodeUnknownEffect(ScenarioCommand)(input, {
     onExcessProperty: "error"
@@ -50,7 +54,12 @@ export const plan = Effect.fn("Playground.plan")(function* (
     return yield* new InvalidScenario()
   }
   const bytes = new TextEncoder().encode(
-    JSON.stringify([authorized.sandboxId, authorized.generation, command.requestId])
+    JSON.stringify([
+      authorized.sandboxId,
+      authorized.generation,
+      command.requestId,
+      ...(namespace === undefined ? [] : [namespace])
+    ])
   )
   const digest = yield* Effect.tryPromise({
     try: () => crypto.subtle.digest("SHA-256", bytes),
@@ -73,7 +82,11 @@ export const plan = Effect.fn("Playground.plan")(function* (
         order: (seed + index) % 2 === 0 ? "demo-order-a" : "demo-order-b"
       },
       producer: Definitions.Producer.identity({ operationId, slot: workload }),
-      policy: JobPolicy.make(),
+      policy: JobPolicy.make(
+        command.scenario === "retry-then-success"
+          ? { retryDelay: Duration.seconds(120) }
+          : {}
+      ),
       ...(availableAt === undefined ? {} : { availableAt })
     })
   }

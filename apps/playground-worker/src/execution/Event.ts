@@ -111,7 +111,9 @@ export const run = <A, E>(
       yield* backend.ready
       const stable = yield* keys(config)
       const authority = (yield* Authority.make(config.schema).pipe(
-        Effect.provideService(SqlClient, client)
+        Effect.provideService(SqlClient, client),
+        Effect.provideService(JobEnqueue, backend.producer),
+        Effect.provideService(DocumentKeys, stable)
       )).authority
       const activeAuthority = Layer.succeed(SandboxAuthority, {
         ...authority,

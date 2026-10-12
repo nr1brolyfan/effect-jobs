@@ -515,7 +515,6 @@ export const Dashboard = ({
               {!demo && (
                 <Button
                   variant="primary"
-                  disabled={unavailable || !state.sandbox.capabilities.runScenario}
                   onClick={() => {
                     if (scenariosPanel.current) {
                       scenariosPanel.current.open = true
@@ -535,6 +534,15 @@ export const Dashboard = ({
               )}
             </div>
           </header>
+          {!demo && (
+            <p role="status" {...stylex.props(layout.paragraph)}>
+              Start with the ready-made jobs below: cancel Pending, retry a scheduled
+              attempt, or inspect and redrive Dead / Isolated. Use Create jobs for
+              repeatable scenarios.
+              {state.sandbox.capacity &&
+                ` Retained capacity: ${state.sandbox.capacity.retainedJobs}/100 across all generations; commands: ${state.sandbox.capacity.admittedCommands}/200. Background traffic stops at capacity. Reset keeps old jobs and receipts and needs 6 free job slots and 2 command slots.`}
+            </p>
+          )}
           <div {...classes("jobs-overview")}>
             <div {...classes("stats-grid")} aria-label="All jobs statistics">
               {(
@@ -862,7 +870,7 @@ export const Dashboard = ({
               <summary {...stylex.props(layout.summary)}>
                 <div {...classes("scenario-summary-title")}>
                   <Icon name="terminal" />
-                  <strong>Scenario lab</strong>
+                  <strong>Create jobs · Scenario lab</strong>
                   <span>Create jobs. Simulate failures. See what happens.</span>
                 </div>
                 <Icon name="plus" />
@@ -894,7 +902,13 @@ export const Dashboard = ({
                 </Field>
                 <Button
                   variant="primary"
-                  disabled={unavailable || !state.sandbox.capabilities.runScenario}
+                  disabled={
+                    unavailable ||
+                    !state.sandbox.capabilities.runScenario ||
+                    (state.sandbox.capacity !== undefined &&
+                      (state.sandbox.capacity.retainedJobs + count > 100 ||
+                        state.sandbox.capacity.admittedCommands >= 200))
+                  }
                   onClick={() =>
                     void runtime.run(
                       runtime.command("scenario", crypto.randomUUID(), scenario, count)
@@ -904,11 +918,17 @@ export const Dashboard = ({
                   Run scenario
                 </Button>
                 <Button
-                  disabled={unavailable || !state.sandbox.capabilities.resetSandbox}
+                  disabled={
+                    unavailable ||
+                    !state.sandbox.capabilities.resetSandbox ||
+                    (state.sandbox.capacity !== undefined &&
+                      (state.sandbox.capacity.retainedJobs > 94 ||
+                        state.sandbox.capacity.admittedCommands > 198))
+                  }
                   onClick={() => {
                     if (
                       window.confirm(
-                        "Reset only your sandbox generation? Running jobs are not cancelled."
+                        "Start a new generation with 6 starter jobs? Old jobs and receipts remain and still use capacity. Running jobs are not cancelled."
                       )
                     ) {
                       void runtime.run(

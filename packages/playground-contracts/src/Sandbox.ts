@@ -22,6 +22,16 @@ export type Capabilities = typeof Capabilities.Type
 export const SandboxView = Schema.Struct({
   ref: SandboxRef,
   expiresAt: EpochMillis,
+  capacity: Schema.optional(
+    Schema.Struct({
+      retainedJobs: Schema.Int.pipe(
+        Schema.check(Schema.isBetween({ minimum: 0, maximum: 100 }))
+      ),
+      admittedCommands: Schema.Int.pipe(
+        Schema.check(Schema.isBetween({ minimum: 0, maximum: 200 }))
+      )
+    })
+  ),
   capabilities: Capabilities
 })
 export type SandboxView = typeof SandboxView.Type

@@ -54,6 +54,8 @@ describe("deterministic application planning", () => {
   it.each([
     ["success", "success"],
     ["deduplication", "success"],
+    ["delayed-success", "success"],
+    ["isolated", "isolated"],
     ["retry-then-success", "retry-then-success"],
     ["terminal-failure", "dead"],
     ["unknown-outcome", "accepted-response-lost"]
@@ -71,6 +73,14 @@ describe("deterministic application planning", () => {
       ).toBe(true)
     }
   )
+  it("keeps internal traffic producer identities separate from matching manual request IDs", async () => {
+    const manual = await Effect.runPromise(Plan.plan(command, sandbox.ref, 0))
+    const internal = await Effect.runPromise(
+      Plan.plan(command, sandbox.ref, 0, undefined, "private-traffic-v1")
+    )
+    expect(internal[0]!.producer.operationId).not.toBe(manual[0]!.producer.operationId)
+    expect(internal[0]!.payload).toEqual(manual[0]!.payload)
+  })
   it("replays a seed/version/request and spans six kinds, four queues and six slots", async () => {
     const first = await Effect.runPromise(jobs())
     expect(await Effect.runPromise(jobs())).toEqual(first)

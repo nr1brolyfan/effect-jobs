@@ -4,6 +4,8 @@ import { SandboxRef } from "./Sandbox.js"
 
 export const ScenarioId = Schema.Literals([
   "success",
+  "delayed-success",
+  "isolated",
   "retry-then-success",
   "terminal-failure",
   "unknown-outcome",
