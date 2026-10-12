@@ -106,6 +106,17 @@ try {
       ).rows[0].retained_jobs > 30
   )
   assert(signals > 0, "no live websocket signals")
+  // Exclude all seed IDs: Pending and RetryScheduled must also come from ongoing
+  // alarm traffic, not just the initial starter snapshot.
+  await until(async () => {
+    const { rows } = await pool.query(
+      `SELECT j.state,count(*)::int AS n FROM "${cfg.schema}".jobs j JOIN "${cfg.schema}".associations a ON a.job_id=j.id WHERE a.sandbox_id=$1 AND NOT(j.id=ANY($2::text[])) GROUP BY j.state`,
+      [initial.ref.sandboxId, firstPage.items.map((job) => job.jobId)]
+    )
+    return ["Pending", "RetryScheduled"].every((state) =>
+      rows.some((row) => row.state === state && row.n > 0)
+    )
+  }, 120000)
   // Accelerate the persisted rotation deadline; the production default remains 24h.
   await pool.query(`UPDATE "${cfg.schema}".demo_control SET rotate_at=0`)
   // Preserve a private sandbox marker and check cleanup never touches it.
@@ -168,6 +179,7 @@ try {
         "real seeded lifecycle across six workloads",
         "read-only demo",
         "alarm generates new jobs",
+        "ongoing non-seed jobs reach Pending and RetryScheduled",
         "live websocket updates",
         "atomic nonempty rotation",
         "browser follows new generation",

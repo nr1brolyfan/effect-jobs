@@ -13,6 +13,7 @@ import {
 } from "../providers/FakeProvider.js"
 import type { ProviderCommand, ProviderFailure } from "../providers/FakeProvider.js"
 import * as Tables from "../persistence/authority/Schema.js"
+import { maxRetainedJobs } from "../demo/Traffic.js"
 
 export const make = (schema: string) =>
   Effect.gen(function* () {
@@ -82,7 +83,7 @@ export const make = (schema: string) =>
                     `SELECT count(*)::int AS n FROM ${t.ledger} WHERE sandbox_id=$1`,
                     [command.sandbox.sandboxId]
                   ))[0]!.n
-                  if (size >= (sandbox.demo_owned === true ? 3000 : 100)) {
+                  if (size >= (sandbox.demo_owned === true ? maxRetainedJobs : 100)) {
                     return new LedgerFull()
                   }
                 }

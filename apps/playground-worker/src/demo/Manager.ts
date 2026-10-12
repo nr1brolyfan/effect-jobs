@@ -10,12 +10,13 @@ import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import * as Plan from "../scenarios/Plan.js"
 import * as Definitions from "../scenarios/Definitions.js"
 import { relations } from "../persistence/authority/Schema.js"
+import * as Traffic from "./Traffic.js"
 
 export const limits = Object.freeze({
   rotationMillis: 86_400_000,
-  tickMillis: 30_000,
+  tickMillis: 5_000,
   seedJobs: 30,
-  maxJobs: 3000,
+  maxJobs: Traffic.maxRetainedJobs,
   cleanupBatch: 50
 })
 const clock = "floor(extract(epoch FROM clock_timestamp())*1000)::bigint"
@@ -60,7 +61,8 @@ const seedBatch = (
   seed: number,
   behavior: Definitions.Behavior,
   availableAt: number,
-  count = 6
+  count = 6,
+  profiles?: ReadonlyArray<Traffic.Profile>
 ) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
@@ -76,10 +78,14 @@ const seedBatch = (
       availableAt
     )
     for (const job of jobs) {
+      const profile = profiles?.[job.payload.sequence - 1]
       const planned = {
         ...job,
-        payload: { ...job.payload, behavior },
-        policy: JobPolicy.make({ retryDelay: Duration.seconds(60) })
+        payload: { ...job.payload, behavior: profile?.behavior ?? behavior },
+        availableAt: availableAt + (profile?.waitMillis ?? 0),
+        policy: JobPolicy.make({
+          retryDelay: Duration.millis(profile?.retryMillis ?? 60_000)
+        })
       }
       const result = yield* Plan.enqueue(planned).pipe(
         Effect.provideService(JobEnqueue, backend.producer)
@@ -205,32 +211,27 @@ export const tick = (schema: string, rotationMillis: number = limits.rotationMil
             `SELECT retained_jobs FROM ${t.sandboxes} WHERE sandbox_id=$1 FOR UPDATE`,
             [d!.current_id]
           )
-          if (s!.retained_jobs + 1 > limits.maxJobs) {
+          const sequence = Number(d!.sequence)
+          const batch = Traffic.batch(sequence)
+          if (s!.retained_jobs + batch.jobs.length > limits.maxJobs) {
             yield* sql.unsafe(`UPDATE ${control} SET rotate_at=$1 WHERE singleton`, [now])
             return { phase: "quota" }
           }
-          const sequence = Number(d!.sequence)
-          // Six workloads and mixed outcomes; one new job every thirty seconds.
+          // Reproducible bursts of 1–3 jobs; delayed eligibility and visible retries.
           // Every alarm advances the durable slot; a missed alarm never backfills a burst.
-          const behaviors = [
-            "success",
-            "retry-then-success",
-            "dead",
-            "isolated",
-            "accepted-response-lost"
-          ] as const
           yield* seedBatch(
             schema,
             d!.current_id,
             `tick-${sequence}`,
             sequence,
-            behaviors[sequence % behaviors.length]!,
+            "success",
             now,
-            1
+            batch.jobs.length,
+            batch.jobs
           )
           yield* sql.unsafe(
             `UPDATE ${control} SET sequence=sequence+1,next_tick=$1 WHERE singleton`,
-            [now + limits.tickMillis]
+            [now + batch.afterMillis]
           )
           return { phase: "running" }
         }

@@ -30,6 +30,11 @@ export const migrations = (schema: string): ReadonlyArray<MigrationDescriptor> =
       id: "playground-demo-v2",
       sql: Demo.proposal(schema),
       checksum: createHash("sha256").update(Demo.proposal(schema)).digest("hex")
+    },
+    {
+      id: "playground-demo-volume-v3",
+      sql: Demo.volumeProposal(schema),
+      checksum: createHash("sha256").update(Demo.volumeProposal(schema)).digest("hex")
     }
   ])
 }

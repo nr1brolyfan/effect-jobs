@@ -16,13 +16,18 @@ rotation. DO storage is a wakeup hint, not database authority.
 - Publish only after all 30 associations exist and at least six jobs each have
   actually reached Completed, Dead and Isolated. The remaining seed initially
   includes Pending and RetryScheduled. No partial seed is exposed.
-- One new job every 30 seconds, cycling workloads and outcomes. The generator runs
+- Irregular batches of 1–3 jobs every 5–15 seconds, cycling workloads. Most succeed;
+  about 30% retry once, with rare permanent failures/isolation/unknown responses.
+  About 80% are scheduled 15–60 seconds ahead, and retries wait 45–90 seconds, keeping
+  Pending/RetryScheduled visible through real eligibility/retry policy, not fake
+  state writes or blocked handlers. Persisted slots reproduce the same batch after
+  a failed transaction. The generator runs
   independently of visitor traffic. Missed alarms do not backfill an unbounded burst.
 - Every 24 hours, prepare a separate candidate while keeping the old feed visible.
   Atomically switch the persisted pointer once the candidate qualifies. The browser
   reconciles the new identity and reconnects its invalidation WebSocket.
 - Keep at most two demo sandboxes. An unfinished retired generation blocks further
-  rotation; exceeding 3000 retained jobs requests early rotation rather than growing
+  rotation; exceeding 20,000 retained jobs requests early rotation rather than growing
   without bound. Outages extend only demo executor authority so old work can resume.
 
 ## Retention and security
@@ -44,8 +49,9 @@ The existing DTO allowlist still excludes payloads, ciphertext and lease tokens.
 
 ## Setup and verification
 
-Explicit migrations now include additive `playground-demo-v2`; the v1 descriptor is
-unchanged. Do not run migrations in request callbacks. Local `Preview.mjs` waits for
+Explicit migrations include `playground-demo-v2` and `playground-demo-volume-v3`;
+the v1/v2 descriptors are unchanged. The higher cap is demo-only; private sandboxes
+remain capped at 100. Do not run migrations in request callbacks. Local `Preview.mjs` waits for
 the seed to qualify before reporting its `/demo` URL.
 
 Build with `node apps/playground-worker/tests/integration/Build.mjs`.
