@@ -504,6 +504,10 @@ try {
   check(
     "mixed background generation continues beyond old limits but does not catch up or flood"
   )
+  // Bulk qualification plus live polling can exhaust the preserved 120/minute HTTP rate.
+  // Start the UI sequence in a fresh window without changing server limits.
+  const minute = Math.floor(Date.now() / 60000)
+  await wait(async () => Math.floor(Date.now() / 60000) > minute, 61000)
   await page.reload()
   await expect(page.locator(".connection-status")).toHaveAttribute(
     "data-connection",
