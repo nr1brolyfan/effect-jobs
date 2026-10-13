@@ -38,7 +38,7 @@ export function JobRelatedJobs({
                 {item.kind === "CorrectedRedrive" ? "Corrected redrive" : "Plain redrive"}
               </span>
             )}
-            {!item.sourceAvailable && (
+            {item.kind !== null && !item.sourceAvailable && (
               <span>Source no longer retained; only related evidence is available.</span>
             )}
           </li>
