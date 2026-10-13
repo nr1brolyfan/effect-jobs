@@ -13,9 +13,6 @@ import type { JobOperatorReason } from "@effect-jobs/playground-contracts/Operat
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import { OperatorTransactions } from "./OperatorTransactions.js"
 import { CommandTransactionFailure } from "./Transactions.js"
-import * as Definitions from "../../scenarios/Definitions.js"
-import * as Source from "./OperatorSource.js"
-import { DocumentKeys } from "../../scenarios/PrivateDocument.js"
 
 const fail = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
 const decode = <S extends Schema.Top & { readonly DecodingServices: never }>(
@@ -64,7 +61,6 @@ const recover = (request: JobOperatorReceiptRequest) => (cause: Cause.Cause<unkn
 export const make = Effect.gen(function* () {
   const transactions = yield* OperatorTransactions
   const backend = yield* PostgreSqlJobs
-  const keys = yield* DocumentKeys
   return Operators.of({
     execute: Effect.fn("Operators.execute")(function* (access, input) {
       const command = yield* decode(JobOperatorCommand, input)
@@ -105,39 +101,7 @@ export const make = Effect.gen(function* () {
             }
             const operate = Effect.gen(function* () {
               if (command.action === "redrive") {
-                const definition = yield* Source.validate(source, command.sandbox).pipe(
-                  Effect.provideService(DocumentKeys, keys)
-                )
-                yield* tx.assertCurrent
-                const produced = yield* backend.operators
-                  .redrive<typeof Definitions.Payload | typeof Definitions.ExportPayload>(
-                    definition,
-                    {
-                      expected,
-                      producer: yield* Source.producerIdentity(command)
-                    }
-                  )
-                  .pipe(Effect.provideService(DocumentKeys, keys))
-                // Fresh admissions cannot have a prior acceptance. Refuse any existing
-                // successor rather than infer source lineage from a producer tuple.
-                if (!produced.inserted) {
-                  return yield* fail("unavailable")
-                }
-                const result = yield* decode(JobOperatorResult.members[0], {
-                  _tag: "Committed",
-                  sandbox: command.sandbox,
-                  requestId: command.requestId,
-                  action: command.action,
-                  sourceJobId: command.jobId,
-                  sourceState: command.expectedState,
-                  sourceLifecycleVersion: command.expectedLifecycleVersion,
-                  resultJobId: produced.jobId,
-                  resultState: "Pending",
-                  resultLifecycleVersion: 0,
-                  observedAt: produced.dbNow
-                })
-                yield* tx.associateRedrive(result)
-                return result
+                return reject("investigation-required")
               }
               const transition = yield* command.action === "cancel"
                 ? backend.operators.cancel(expected)
@@ -157,13 +121,9 @@ export const make = Effect.gen(function* () {
               })
             }).pipe(
               Effect.catchTag("JobOperatorRejected", (error) =>
-                Effect.succeed(reject(error.reason))
-              ),
-              Effect.catchTag("OperatorSourceRejected", (error) =>
-                Effect.succeed(reject(error.reason))
-              ),
-              Effect.catchTag("JobPayloadCodecError", () =>
-                Effect.succeed(reject("invalid-artifact"))
+                error.reason === "lineage-conflict"
+                  ? Effect.fail(error)
+                  : Effect.succeed(reject(error.reason))
               )
             )
             const result = yield* operate

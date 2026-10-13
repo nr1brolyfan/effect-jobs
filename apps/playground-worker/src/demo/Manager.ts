@@ -10,6 +10,7 @@ import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import * as Plan from "../scenarios/Plan.js"
 import * as Definitions from "../scenarios/Definitions.js"
 import { relations } from "../persistence/authority/Schema.js"
+import * as RepairSchema from "../persistence/commands/RepairSchema.js"
 import * as Traffic from "./Traffic.js"
 
 export const limits = Object.freeze({
@@ -152,6 +153,31 @@ export const tick = (schema: string, rotationMillis: number = limits.rotationMil
               `DELETE FROM ${t.jobs} WHERE id=$1 AND state IN ('Completed','Dead','Isolated')`,
               [job.id]
             )
+          }
+          const [remaining] = yield* sql.unsafe<{ n: string }>(
+            `SELECT count(*) AS n FROM ${t.associations} WHERE sandbox_id=$1`,
+            [row.sandbox_id]
+          )
+          if (Number(remaining!.n) === 0) {
+            // Only whole retired-sandbox teardown removes durable problem evidence.
+            // Individual source/successor deletion preserves membership/tombstones.
+            const repairs = RepairSchema.relations(schema)
+            for (const table of [
+              repairs.audit,
+              repairs.edges,
+              `"${schema}"."operator_redrives"`,
+              repairs.members,
+              repairs.problems,
+              repairs.receipts,
+              t.receipts,
+              t.audit,
+              repairs.admission,
+              t.admission
+            ]) {
+              yield* sql.unsafe(`DELETE FROM ${table} WHERE sandbox_id=$1`, [
+                row.sandbox_id
+              ])
+            }
           }
           yield* sql.unsafe(
             `DELETE FROM ${t.sandboxes} s WHERE s.sandbox_id=$1 AND NOT EXISTS(SELECT 1 FROM ${t.associations} a WHERE a.sandbox_id=s.sandbox_id)`,

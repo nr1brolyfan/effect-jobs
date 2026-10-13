@@ -3,12 +3,40 @@ import { JobFilters, Cursor } from "@effect-jobs/playground-contracts/Jobs"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 
-const Position = Schema.Struct({
-  version: Schema.Literal(1),
-  sandbox: SandboxRef,
-  filters: JobFilters,
-  after: Schema.String.pipe(Schema.check(Schema.isMinLength(1), Schema.isMaxLength(128)))
-})
+const After = Schema.String.pipe(
+  Schema.check(Schema.isMinLength(1), Schema.isMaxLength(128))
+)
+const Position = Schema.Union([
+  Schema.Struct({
+    version: Schema.Literal(1),
+    sandbox: SandboxRef,
+    filters: JobFilters,
+    after: After
+  }).pipe(
+    Schema.check(
+      Schema.makeFilter(
+        (p) =>
+          p.filters.resolution === undefined && p.filters.needsAttention === undefined
+      )
+    )
+  ),
+  Schema.Struct({
+    version: Schema.Literal(2),
+    view: Schema.Literals(["jobs", "problems"]),
+    sandbox: SandboxRef,
+    filters: JobFilters,
+    after: After
+  }),
+  Schema.Struct({
+    version: Schema.Literal(2),
+    view: Schema.Literals(["history", "related"]),
+    sandbox: SandboxRef,
+    jobId: After,
+    after: Schema.String.pipe(
+      Schema.check(Schema.isMinLength(1), Schema.isMaxLength(512))
+    )
+  })
+])
 export type Position = typeof Position.Type
 export class CursorCodec extends Context.Service<
   CursorCodec,

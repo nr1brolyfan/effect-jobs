@@ -14,6 +14,7 @@ import * as Handlers from "../scenarios/Handlers.js"
 import * as Provider from "./PostgreSqlProvider.js"
 import * as Mode from "../persistence/authority/PrivateMode.js"
 import * as Tables from "../persistence/authority/Schema.js"
+import * as RepairReconciliation from "./RepairReconciliation.js"
 import { WakeAlarm } from "../cloudflare/WakeCycle.js"
 
 export const limits = Object.freeze({
@@ -186,6 +187,7 @@ export const run = (schema: string, queue: QueueName) =>
     const plans = yield* consumers
     const consumer = plans.find((plan) => plan.queue.name === queue)!
     const result = yield* Runtime.drain(consumer)
+    yield* RepairReconciliation.run(schema, { limit: 50 })
     yield* hints.reconcile
     const after = yield* snapshot(schema, queue)
     if (after.activeMillis === 0) {
