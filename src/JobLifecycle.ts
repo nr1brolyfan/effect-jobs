@@ -1,25 +1,12 @@
-import { define as defineFailureCodes } from "./FailureCode.js"
-/**
- * Pure lifecycle transition plans; backends own atomic fencing and database-time writes.
- */
 import { Data, Result, Schema } from "effect"
 import { JobId } from "./JobId.js"
 import { FailureCode, JobFailure } from "./JobFailure.js"
 import { EpochMillis, PersistedJobPolicy, maximumMillis } from "./JobPolicy.js"
 
-/**
- * Nonnegative safe integer Schema for durable counters, not a policy limit.
- *
- * @category schemas
- */
+/** Mechanical source bounds, not new execution-policy limits. */
 export const Counter = Schema.Int.pipe(
   Schema.check(Schema.isBetween({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }))
 )
-/**
- * Bounded lease token Schema: 1–128 hexadecimal/hyphen characters.
- *
- * @category schemas
- */
 export const LeaseToken = Schema.String.pipe(
   Schema.check(
     Schema.isMinLength(1),
@@ -27,19 +14,9 @@ export const LeaseToken = Schema.String.pipe(
     Schema.isPattern(/^[0-9a-f-]+$/iu)
   )
 )
-/**
- * Bounded backend recovery/cleanup batch Schema: integer 1–500.
- *
- * @category schemas
- */
 export const BatchLimit = Schema.Int.pipe(
   Schema.check(Schema.isBetween({ minimum: 1, maximum: 500 }))
 )
-/**
- * Durable states; OutcomeUnknown is an attempt outcome rather than a state.
- *
- * @category schemas
- */
 export const JobState = Schema.Literals([
   "Pending",
   "Active",
@@ -48,22 +25,12 @@ export const JobState = Schema.Literals([
   "Dead",
   "Isolated"
 ])
-/**
- * Exact job/token/expiry/version fencing identity; handlers do not receive it.
- *
- * @category schemas
- */
 export const JobOwnership = Schema.Struct({
   jobId: JobId,
   leaseToken: LeaseToken,
   leaseExpiresAt: EpochMillis,
   lifecycleVersion: Counter
 })
-/**
- * Decoded value of the JobOwnership Schema.
- *
- * @category models
- */
 export type JobOwnership = typeof JobOwnership.Type
 
 const SnapshotStruct = Schema.Struct({
@@ -105,7 +72,6 @@ export const JobSnapshot = SnapshotStruct.pipe(
     )
   )
 )
-/** Decoded complete lifecycle metadata; does not include or validate the payload. */
 export type JobSnapshot = typeof JobSnapshot.Type
 
 /** Retry uses the first stored policy; callers cannot replace its schedule. */
@@ -118,20 +84,9 @@ export const JobFinalization = Schema.Union([
   Schema.TaggedStruct("Dead", { code: FailureCode }),
   Schema.TaggedStruct("Isolate", { code: FailureCode })
 ])
-/** Confirmable durable transitions; OutcomeUnknown is deliberately absent. */
 export type JobFinalization = typeof JobFinalization.Type
-/**
- * Tagged constructors and matchers for durable finalization commands.
- *
- * @category constructors
- */
 export const JobFinalizations = Data.taggedEnum<JobFinalization>()
 
-/**
- * Bounded validation, arithmetic, eligibility or ownership failure for a pure plan.
- *
- * @category errors
- */
 export class JobLifecycleError extends Data.TaggedError("JobLifecycleError")<{
   readonly reason:
     | "invalid-snapshot"
@@ -151,23 +106,12 @@ const decodeOwnership = Schema.decodeUnknownResult(JobOwnership, {
 const decodeFinalization = Schema.decodeUnknownResult(JobFinalization, {
   onExcessProperty: "error"
 })
-/**
- * Validates complete lifecycle metadata and cross-field invariants, returning
- * Result rather than raw Schema diagnostics; does not validate payload artifacts.
- *
- * @category operations
- */
 export const validateSnapshot = (
   row: unknown
 ): Result.Result<JobSnapshot, JobLifecycleError> =>
   Result.mapError(decodeSnapshot(row), () => invalid("invalid-snapshot"))
 
-/**
- * Adds positive bounded milliseconds without overflow/clamping. Adapters supply
- * one DB-time snapshot for the entire atomic transition; reads no process clock.
- *
- * @category operations
- */
+/** No process clock: adapters supply one DB-time snapshot for the entire atomic write. */
 export const addTimestamp = (
   dbNow: number,
   millis: number
@@ -185,12 +129,6 @@ const validateTime = (dbNow: number): Result.Result<number, JobLifecycleError> =
   Schema.is(EpochMillis)(dbNow)
     ? Result.succeed(dbNow)
     : Result.fail(invalid("invalid-command"))
-/**
- * Checks exact Active job/token/version/expiry and leaseExpiresAt > dbNow.
- * A lease at the expiry millisecond is no longer owned.
- *
- * @category operations
- */
 export const isOwned = (
   row: JobSnapshot,
   ownership: JobOwnership,
@@ -203,11 +141,6 @@ export const isOwned = (
   row.leaseExpiresAt === ownership.leaseExpiresAt &&
   ownership.leaseExpiresAt > dbNow
 
-/**
- * Checks remaining lease >= attempt timeout + positive operation response budget.
- *
- * @category operations
- */
 export const usableLease = (
   row: JobSnapshot,
   dbNow: number,
@@ -220,20 +153,9 @@ export const usableLease = (
   row.leaseExpiresAt - dbNow - row.policy.attemptTimeoutMillis >=
     operationResponseBudgetMillis
 
-/**
- * One-based attemptsMade + 1; may repeat after unknown outcomes and recovery.
- * Not an invocation count or external idempotency key.
- *
- * @category operations
- */
 export const attemptNumber = (row: JobSnapshot): number => row.attemptsMade + 1
 
-/**
- * Plans a due Pending/RetryScheduled claim (availableAt <= dbNow) with a fixed lease.
- * Does not increment attempts; the backend must lock/CAS and commit atomically.
- *
- * @category operations
- */
+/** A plan is not a write. The backend must lock/CAS the input and commit the whole transition atomically. */
 export const claim = (
   input: unknown,
   leaseToken: string,
@@ -269,11 +191,6 @@ export const claim = (
     }
   })
 
-/**
- * Extracts fencing identity from an Active snapshot; otherwise returns ownership-lost.
- *
- * @category operations
- */
 export const ownershipOf = (
   row: JobSnapshot
 ): Result.Result<JobOwnership, JobLifecycleError> =>
@@ -286,12 +203,6 @@ export const ownershipOf = (
       })
     : Result.fail(invalid("ownership-lost"))
 
-/**
- * Plans release only before execution and while the exact lease remains owned.
- * Clears ownership without incrementing attempts; backend commits the plan atomically.
- *
- * @category operations
- */
 export const release = (
   input: unknown,
   expected: JobOwnership,
@@ -322,13 +233,6 @@ export const release = (
     }
   })
 
-/**
- * Plans one fenced Complete/Retry/Dead/Isolate transition and increments attempts once.
- * Uses first stored fixed delay; next availability >= notAfter or exhausted attempts
- * becomes Dead. notAfter limits retry scheduling, not handler execution.
- *
- * @category operations
- */
 export const finalize = (
   input: unknown,
   expected: JobOwnership,
@@ -378,12 +282,6 @@ export const finalize = (
     }
   })
 
-/**
- * Plans recovery at leaseExpiresAt <= dbNow. Increments stalls, not attempts;
- * exceeding maxStalledCount makes the job Dead. Backend owns bounded atomic recovery.
- *
- * @category operations
- */
 export const recoverExpired = (
   input: unknown,
   dbNow: number
@@ -408,18 +306,13 @@ export const recoverExpired = (
       lifecycleVersion,
       updatedAt: dbNow,
       completedAt: dead ? dbNow : null,
-      lastFailureCode: dead ? internalCodes.stall_limit_exceeded : null,
+      lastFailureCode: dead ? "stall_limit_exceeded" : null,
       leaseToken: null,
       leaseExpiresAt: null
     }
   })
 
-/**
- * Maps only validated explicit failure values; OutcomeUnknown returns null, leaving
- * no confirmed transition. Cause/defect/interruption classification belongs to the worker.
- *
- * @category operations
- */
+/** Only explicit validated single failures are known. Cause/defect/timeout classification is worker-owned. */
 export const finalizationFromFailure = (
   input: unknown
 ): Result.Result<JobFinalization | null, JobLifecycleError> =>
@@ -431,13 +324,7 @@ export const finalizationFromFailure = (
     (failure) => (failure._tag === "OutcomeUnknown" ? null : failure)
   )
 
-/**
- * Pure terminal-retention eligibility at expiry <= dbNow. Pending, Active,
- * RetryScheduled and Isolated are excluded. Application/backend must coordinate
- * domain references and deletion atomically; this result is not deletion authority.
- *
- * @category operations
- */
+/** Pure eligibility only; domain reference coordination and atomic deletion remain app/backend obligations. */
 export const cleanupEligible = (
   row: JobSnapshot,
   dbNow: number
@@ -461,5 +348,3 @@ export const cleanupEligible = (
     const expiresAt = yield* addTimestamp(stored.completedAt, retention.millis)
     return expiresAt <= dbNow
   })
-
-const internalCodes = defineFailureCodes({ stall_limit_exceeded: "stall_limit_exceeded" })

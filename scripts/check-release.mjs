@@ -3,7 +3,6 @@ import { createHash } from "node:crypto"
 import { execFileSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { releaseImports } from "./release-imports.mjs"
 
 assert(process.env.EFFECT_JOBS_ARCHIVE, "EFFECT_JOBS_ARCHIVE is required")
 const archive = resolve(process.env.EFFECT_JOBS_ARCHIVE)
@@ -55,20 +54,18 @@ for (const target of Object.values(manifest.exports)) {
     assert(entries.includes(`package/${path.slice(2)}`))
 }
 const graph = { javascriptFiles: 0, declarationFiles: 0, externalImports: new Set() }
-const sources = entries
-  .filter((entry) => /\.(js|d\.ts)$/.test(entry))
-  .map((entry) => ({ filename: entry, source: run("tar", ["-xOf", archive, entry]) }))
-const importsByFile = new Map(
-  releaseImports(sources).map(({ filename, imports }) => [filename, imports])
-)
-for (const { filename: entry, source } of sources) {
+for (const entry of entries.filter((entry) => /\.(js|d\.ts)$/.test(entry))) {
+  const source = run("tar", ["-xOf", archive, entry])
   if (entry.endsWith(".js")) {
     graph.javascriptFiles++
   } else {
     graph.declarationFiles++
   }
   assert(!/effect-auth/.test(source), `Private auth dependency in ${entry}`)
-  for (const specifier of importsByFile.get(entry)) {
+  for (const match of source.matchAll(
+    /(?:from\s*|import\s*\(|import\s*)["']([^"']+)["']/g
+  )) {
+    const specifier = match[1]
     if (!specifier.startsWith(".")) {
       assert(
         /^(effect(?:\/|$)|node:|drizzle-orm(?:\/|$))/.test(specifier),
@@ -80,18 +77,6 @@ for (const { filename: entry, source } of sources) {
   if (entry.endsWith(".js")) {
     assert(!/process\.env/.test(source), `Environment access in ${entry}`)
   }
-}
-// Payload files match final bytes. npm may normalize package.json whitespace;
-// manifest semantic equality is checked above. Check graph errors first so
-// adversarial import controls exercise that boundary independently.
-for (const entry of entries) {
-  if (entry.endsWith("/") || entry === "package/package.json") continue
-  const packed = execFileSync("tar", ["-xOf", archive, entry], { timeout: 60000 })
-  assert.deepEqual(
-    packed,
-    readFileSync(resolve(import.meta.dirname, "..", entry.slice("package/".length))),
-    `Packed byte mismatch: ${entry}`
-  )
 }
 const dryRun = JSON.parse(
   run("npm", [

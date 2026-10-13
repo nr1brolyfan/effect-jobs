@@ -29,13 +29,5 @@
     "/.opencode/skills/multica-platform/references/mentions.md",
     "/.opencode/skills/multica-platform/references/skill-import.md",
     "/AGENTS.md"
-  ],
-  "overrides": [
-    {
-      "files": ["README.md"],
-      "options": {
-        "embeddedLanguageFormatting": "off"
-      }
-    }
   ]
 }

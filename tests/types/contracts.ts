@@ -1,4 +1,3 @@
-import * as FailureCodes from "../../src/FailureCode.js"
 import { Context, Duration, Effect, Schema } from "effect"
 import type {
   HandlerInput,
@@ -70,9 +69,7 @@ export const overrideId: EnqueueInput<string> = {
   // @ts-expect-error No caller JobId override.
   jobId: id
 }
-export const outcome: JobFailure = JobFailures.OutcomeUnknown({
-  code: FailureCodes.define({ value: "lost_response" }).value
-})
+export const outcome: JobFailure = JobFailures.OutcomeUnknown({ code: "lost_response" })
 // @ts-expect-error Arbitrary domain errors are not library handler failures.
 export const domainFailure: JobFailure = { _tag: "DomainError", code: "x" }
 declare const handlerInput: HandlerInput<string>

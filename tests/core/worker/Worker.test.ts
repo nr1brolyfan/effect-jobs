@@ -1,4 +1,3 @@
-import * as FailureCodes from "../../../src/FailureCode.js"
 import assert from "node:assert/strict"
 import { inspect } from "node:util"
 import {
@@ -65,7 +64,7 @@ const seed = (count = 1, jobPolicy = policy) =>
             return EnqueueResults.Inserted({ jobId })
           }),
         (tx) =>
-          definition.enqueueInTransaction(tx, {
+          definition.enqueue(tx, {
             payload: { value: "PAYLOAD_SENTINEL" },
             producer: {
               operation: "test.produce",
@@ -140,30 +139,10 @@ it("executes a neutral schema-defined job on the real codec/registry/lifecycle e
 })
 
 for (const [name, failure, state] of [
-  [
-    "retry",
-    JobFailures.Retry({
-      code: FailureCodes.define({ value: "provider_rejected" }).value
-    }),
-    "RetryScheduled"
-  ],
-  [
-    "dead",
-    JobFailures.Dead({ code: FailureCodes.define({ value: "permanent" }).value }),
-    "Dead"
-  ],
-  [
-    "isolate",
-    JobFailures.Isolate({ code: FailureCodes.define({ value: "invalid" }).value }),
-    "Isolated"
-  ],
-  [
-    "unknown",
-    JobFailures.OutcomeUnknown({
-      code: FailureCodes.define({ value: "response_lost" }).value
-    }),
-    "Active"
-  ]
+  ["retry", JobFailures.Retry({ code: "provider_rejected" }), "RetryScheduled"],
+  ["dead", JobFailures.Dead({ code: "permanent" }), "Dead"],
+  ["isolate", JobFailures.Isolate({ code: "invalid" }), "Isolated"],
+  ["unknown", JobFailures.OutcomeUnknown({ code: "response_lost" }), "Active"]
 ] as const) {
   it(`persists only explicit ${name} using the first stored policy`, async () => {
     await run(
@@ -190,9 +169,7 @@ for (const [name, outcome] of [
     "typed plus defect",
     Effect.failCause(
       Cause.combine(
-        Cause.fail(
-          JobFailures.Retry({ code: FailureCodes.define({ value: "safe" }).value })
-        ),
+        Cause.fail(JobFailures.Retry({ code: "safe" })),
         Cause.die("RAW_ERROR_SENTINEL")
       )
     )
@@ -200,24 +177,15 @@ for (const [name, outcome] of [
   [
     "typed plus interruption",
     Effect.failCause(
-      Cause.combine(
-        Cause.fail(
-          JobFailures.Retry({ code: FailureCodes.define({ value: "safe" }).value })
-        ),
-        Cause.interrupt()
-      )
+      Cause.combine(Cause.fail(JobFailures.Retry({ code: "safe" })), Cause.interrupt())
     )
   ],
   [
     "two typed failures",
     Effect.failCause(
       Cause.combine(
-        Cause.fail(
-          JobFailures.Retry({ code: FailureCodes.define({ value: "safe" }).value })
-        ),
-        Cause.fail(
-          JobFailures.Dead({ code: FailureCodes.define({ value: "dead" }).value })
-        )
+        Cause.fail(JobFailures.Retry({ code: "safe" })),
+        Cause.fail(JobFailures.Dead({ code: "dead" }))
       )
     )
   ],
@@ -714,12 +682,12 @@ it("runs notification and protected OTP-style adapters on the SAME generic engin
           }),
         (tx) =>
           Effect.gen(function* () {
-            yield* notification.enqueueInTransaction(tx, {
+            yield* notification.enqueue(tx, {
               policy,
               producer: { operation: "auth.register", operationId: "a", slot: "notify" },
               payload: { userId: "subject", event: "registered" }
             })
-            yield* otp.enqueueInTransaction(tx, {
+            yield* otp.enqueue(tx, {
               policy,
               producer: { operation: "auth.issue", operationId: "b", slot: "deliver" },
               payload: {
@@ -1051,11 +1019,7 @@ it("recovery repeats attemptNumber but consumes only the independent stalled bud
           attempts.push(context.attemptNumber)
         }).pipe(
           Effect.andThen(
-            Effect.fail(
-              JobFailures.OutcomeUnknown({
-                code: FailureCodes.define({ value: "response_lost" }).value
-              })
-            )
+            Effect.fail(JobFailures.OutcomeUnknown({ code: "response_lost" }))
           )
         )
       )
@@ -1085,15 +1049,7 @@ it("limits finalized retries to three attempts using the fixed persisted delay",
       const worker = yield* make(test.store, ({ context }) =>
         Effect.sync(() => {
           attempts.push(context.attemptNumber)
-        }).pipe(
-          Effect.andThen(
-            Effect.fail(
-              JobFailures.Retry({
-                code: FailureCodes.define({ value: "rejected" }).value
-              })
-            )
-          )
-        )
+        }).pipe(Effect.andThen(Effect.fail(JobFailures.Retry({ code: "rejected" }))))
       )
       const once = drain(consumer(1)).pipe(
         Effect.provideService(Worker.JobWorker, worker)

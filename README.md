@@ -1,632 +1,239 @@
 # effect-jobs
 
-Background jobs for Effect, stored in your own database. Add a job in the same
-transaction as your application data, so both are saved together or neither is.
-
-PostgreSQL for now, with more databases planned.
-
-For example, save an invoice and enqueue its receipt email in the same transaction,
-then handle delivery in a separate worker.
-
-```ts
-const SendReceipt = Job.make({
-  queue: JobQueue.make("billing"),
-  kind: "invoice.receipt",
-  payload: Schema.Struct({ invoiceId: Schema.String })
-})
-
-const IssueInvoice = JobProducer.make({
-  operation: "billing.issue-invoice",
-  slots: ["receipt"]
-})
-
-// App setup: its Layer supplies a qualified PostgreSqlApplication adapter.
-const jobsStorage = yield* PostgreSqlJobs.make({
-  operationResponseBudgetMillis: 100
-}).pipe(Effect.provide(ApplicationPostgresLayer))
-
-// Application: invoice and job commit together, or neither does.
-yield* jobsStorage.withTransaction(() =>
-  Effect.gen(function* () {
-    yield* invoices.create({ id: invoiceId }) // Uses this same application transaction.
-    yield* SendReceipt.enqueue({
-      producer: IssueInvoice.identity({ operationId, slot: "receipt" }),
-      payload: { invoiceId },
-      policy: JobPolicy.defaultPolicy
-    })
-  })
-)
-
-// Worker: typed payload, separate deployment, durable retries.
-const ReceiptHandler = SendReceipt.handlerLayer(
-  ({ payload, context }) =>
-    Effect.gen(function* () {
-      const mailer = yield* ReceiptMailer
-
-      yield* mailer.send({
-        invoiceId: payload.invoiceId,
-        idempotencyKey: context.jobId // Execution is at least once, not exactly once.
-      })
-    }),
-  Codec.decodeJobPayload
-)
-```
-
-**Initial alpha · Effect · PostgreSQL · transaction-bound enqueue**
+Durable jobs for Effect: define a payload, enqueue in a transaction, install a
+handler, then explicitly run a bounded worker. Applications own pools, migrations
+and external-effect idempotency. **Initial alpha.**
 
 ## Install
 
-Examples target `0.1.0-alpha.1`. This prerelease changes the alpha.0 enqueue,
-policy, failure-code and encrypted-payload APIs; update callers before upgrading.
+```sh
+npm install effect-jobs@0.1.0-alpha.0 effect@4.0.0
+# Optional, only for Drizzle migration declarations:
+npm install drizzle-orm@1.0.0-rc.5-169397b
+```
+
+## Define → enqueue → handle → drain
+
+Application wiring: supply a qualified PostgreSQL `ApplicationAdapter` and an
+idempotent invoice renderer. This is composition code, not a complete database app;
+[adapter contract and real examples](specs/postgresql-backend.md).
+Use focused subpaths; the root export is empty.
+
+```ts
+import { Effect, Layer, Schema } from "effect"
+import * as Job from "effect-jobs/Job"
+import * as JobQueue from "effect-jobs/JobQueue"
+import * as JobProducer from "effect-jobs/JobProducer"
+import * as JobPolicy from "effect-jobs/JobPolicy"
+import * as Codec from "effect-jobs/JobPayloadCodec"
+import * as Consumer from "effect-jobs/JobConsumer"
+import * as Registry from "effect-jobs/JobRegistry"
+import * as Worker from "effect-jobs/JobWorker"
+import * as Runtime from "effect-jobs/JobWorkerRuntime"
+import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
+import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
+import type { ApplicationAdapter } from "effect-jobs/PostgreSqlTransaction"
+import type { HandlerInput } from "effect-jobs/JobContract"
+import type { JobFailure } from "effect-jobs/JobFailure"
+
+export const BillingQueue = JobQueue.make("billing")
+export const InvoiceProducer = JobProducer.make({
+  operation: "billing.issue-invoice",
+  slots: ["generate"]
+})
+export const GenerateInvoice = Job.make({
+  queue: BillingQueue,
+  kind: "invoice.generate",
+  version: 1,
+  payload: Schema.Struct({ invoiceId: Schema.String }),
+  encodePayload: Codec.encodeJobPayload
+})
+
+export const billing = (
+  applicationAdapter: ApplicationAdapter,
+  renderInvoice: (
+    input: HandlerInput<typeof GenerateInvoice.payload.Type>
+  ) => Effect.Effect<void, JobFailure>
+) => {
+  const JobsLayer = PostgreSqlJobs.layerNoDeps({
+    schema: "billing",
+    operationResponseBudgetMillis: 100
+  }).pipe(Layer.provide(Layer.succeed(PostgreSqlApplication, applicationAdapter)))
+  const HandlerLayer = GenerateInvoice.handlerLayer(renderInvoice, Codec.decodeJobPayload)
+  const enqueue = (operationId: string, invoiceId: string) =>
+    Effect.gen(function* () {
+      const backend = yield* PostgreSqlJobs.PostgreSqlJobs
+      return yield* backend.withTransaction((tx) =>
+        GenerateInvoice.enqueue(tx, {
+          producer: InvoiceProducer.identity({ operationId, slot: "generate" }),
+          payload: { invoiceId },
+          policy: JobPolicy.make()
+        })
+      )
+    }).pipe(Effect.provide(JobsLayer))
+  const drain = Effect.gen(function* () {
+    const backend = yield* PostgreSqlJobs.PostgreSqlJobs
+    yield* backend.ready // Explicit readiness; application migrations run beforehand.
+    const consumer = yield* Consumer.make(BillingQueue, {
+      localConcurrency: 2,
+      claimLimitPerRun: 20,
+      recoveryLimitPerRun: 20
+    })
+    const WorkerLayer = Worker.layer(backend.store, {
+      catalog: [GenerateInvoice],
+      operationResponseBudgetMillis: 100 // Same budget as the backend.
+    }).pipe(Layer.provideMerge(HandlerLayer), Layer.provide(Registry.layer))
+    return yield* Runtime.drain(consumer).pipe(Effect.provide(WorkerLayer))
+  }).pipe(Effect.provide(JobsLayer))
+  return { enqueue, drain } // Run these Effects explicitly at your application boundary.
+}
+```
+
+Reuse the operation ID across business retries. Matching duplicates return the
+original job ID and keep the first policy/availability; changed catalog or payload
+conflicts. Enqueue success is provisional until the owning transaction commits.
+Handlers receive payload/context, without SQL or finalization authority.
+
+## 1. Own the migration
+
+```ts
+import * as PostgreSqlSchema from "effect-jobs/PostgreSqlSchema"
+
+export const tables = PostgreSqlSchema.tables({ schema: "billing" })
+export const migrationSql = PostgreSqlSchema.migration(tables)
+// Application migration credentials create the schema and execute this DDL.
+// Use the same mapping in PostgreSqlJobs.layerNoDeps; runtime never runs migrations.
+```
+
+Optional Drizzle declarations, using the same mapping:
+
+```ts
+import { makeJobTables } from "effect-jobs/PostgreSqlDrizzleSchema"
+import { tables } from "./migration.js"
+
+export const jobTables = makeJobTables(tables)
+```
+
+Declarations supply no transaction adapter. See the concrete
+[Effect-native Drizzle qualification](specs/drizzle-compatibility.md).
+
+## 2. Join a business transaction
+
+Inside your application's active transaction callback, pass its **registered
+handle** to the backend. The domain writes and enqueue use that same connection:
+
+```ts
+import { Effect } from "effect"
+import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
+import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
+import { GenerateInvoice, InvoiceProducer } from "./billing.js"
+import * as JobPolicy from "effect-jobs/JobPolicy"
+
+// Call only inside the owning manager's callback; it controls commit/rollback.
+export const issueInvoice = (handle: unknown, operationId: string, invoiceId: string) =>
+  Effect.gen(function* () {
+    const backend = yield* PostgreSqlJobs
+    const application = yield* PostgreSqlApplication // Same adapter that built the backend.
+    const query = yield* application.validate(handle)
+    return yield* backend.joinTransaction(handle, (tx) =>
+      Effect.gen(function* () {
+        yield* query.query("INSERT INTO billing.invoices (id) VALUES ($1)", [invoiceId])
+        const result = yield* GenerateInvoice.enqueue(tx, {
+          producer: InvoiceProducer.identity({ operationId, slot: "generate" }),
+          payload: { invoiceId },
+          policy: JobPolicy.make()
+        })
+        yield* query.query("INSERT INTO billing.receipts (id, job_id) VALUES ($1, $2)", [
+          operationId,
+          result.jobId
+        ])
+        return result
+      })
+    )
+  })
+```
+
+The app also owns invoice/receipt tables. A query-shaped object or matching DSN
+cannot qualify a handle. Joined enqueue adds no connection, savepoint, commit or
+replay; propagate integrity conflicts. Unknown commit outcomes require
+application reconciliation, never blind write replay.
+
+## 3. Persist retries and choose retention
+
+```ts
+import { Duration, Effect } from "effect"
+import * as JobPolicy from "effect-jobs/JobPolicy"
+import { JobFailures } from "effect-jobs/JobFailure"
+
+export const policy = JobPolicy.make({
+  leaseDuration: Duration.seconds(90),
+  attemptTimeout: Duration.seconds(30),
+  retryDelay: Duration.seconds(5), // Fixed delay, persisted with the first enqueue.
+  maxAttempts: 3, // Finalized attempts, including the first.
+  maxStalledCount: 1,
+  completedRetention: Duration.days(90),
+  deadRetention: Duration.infinity
+}) // These are also the defaults of JobPolicy.make().
+
+// Only a known temporary rejection is safe to classify as Retry.
+export const rejected = Effect.fail(JobFailures.Retry({ code: "provider_busy" }))
+export const uncertain = Effect.fail(
+  JobFailures.OutcomeUnknown({ code: "response_lost" })
+)
+```
+
+At-least-once execution uses fixed, nonrenewing leases; recovery may repeat an
+attempt number and external effects. Timeouts do not prove nothing happened.
+Cleanup is explicit and bounded; domain receipts require coordinated app cleanup.
+Pending/Active/Isolated are never auto-purged. Deleting identity evidence ends the
+deduplication window. [Lifecycle and retention contracts](specs/architecture-decisions.md).
+
+## 4. Mark already protected payloads
+
+```ts
+import { Schema } from "effect"
+import * as JobPayload from "effect-jobs/JobPayload"
+import * as Codec from "effect-jobs/JobPayloadCodec"
+
+export const ProtectedDocument = JobPayload.protected(
+  Schema.Struct({
+    ciphertext: Schema.String,
+    keyId: Schema.String,
+    fingerprint: Schema.String // Own field; keyed semantic equality excludes ciphertext.
+  })
+)
+export const DocumentPayload = Schema.Struct({ document: ProtectedDocument })
+export const encodeDocument = (document: typeof ProtectedDocument.Type) =>
+  Codec.encodeJobPayload(DocumentPayload, { document })
+// Pass an envelope returned by your app's seal service; open it in your handler.
+```
+
+The marker performs no encryption/authentication. Applications manage separate
+encryption and stable fingerprint keys, retaining old decryption keys while
+artifacts remain. Never log payloads, identifiers, SQL, provider errors or keys.
+[Protection and codec bounds](specs/architecture-decisions.md#d5--explicit-application-owned-protection-and-codec-boundaries).
+
+## Alpha support and development
+
+Qualified pins: Node 24.15.0, Bun 1.4.2, Effect 4.0.0, PostgreSQL 16.15, pg 8.23.0;
+optional Drizzle 1.0.0-rc.5-169397b with native @effect/sql-pg 4.0.0. Other versions,
+arbitrary adapters, actual server crashes/network faults and Cloudflare deployment
+are unqualified. Full upstream Drizzle declarations fail strict checking; its
+consumer uses `skipLibCheck: true`. Non-Drizzle declarations are checked separately
+with `skipLibCheck: false`. [Evidence and reproduction](specs/release-qualification.md).
+
+Imports install/start no workers or cleanup. For a long-lived Node/Bun worker,
+explicitly build `PollingJobWorker.layerForPlan` in an application-owned Scope;
+see [worker examples](tests/qualification/release/Worker.mjs). Keep local concurrency
+consistent for each queue. Recurring schedules, administration APIs and other
+backends are outside this alpha.
 
 ```sh
-npm install effect-jobs@0.1.0-alpha.1 effect@4.0.0
+bun install --frozen-lockfile
+bun run build
+bun run verify
+bun run check:postgresql
+# Fixture installs and real-PG/installed gates: specs/release-qualification.md
 ```
 
-Imports are omitted below. Use package subpaths (`effect-jobs/Job`, `effect-jobs/JobPolicy`, …); the root export is empty. `Codec` refers to `JobPayloadCodec`; `Consumer`, `Worker`, `Runtime`, `Polling` and `Registry` refer to the corresponding `JobConsumer`, `JobWorker`, `JobWorkerRuntime`, `PollingJobWorker` and `JobRegistry` modules.
-
-`invoices`, mailers, credentials and protection services are application code, not library exports. Handler services return explicit `JobFailure` values.
-
-`NodeRuntime` is `@effect/platform-node/NodeRuntime`.
-`PgClient` is `@effect/sql-pg/PgClient`; `PostgreSqlNative` is the library module
-of the same name. The application provides its scoped `PgClient` Layer, with
-finite connection, statement and idle transaction timeouts.
-
-`FailureCode` is the `effect-jobs/FailureCode` module; `JobEnqueue` is the service
-exported by `effect-jobs/JobEnqueue`. Job version defaults to `1`, and the standard
-payload encoder is implicit. Custom versions/encoders remain explicit options.
-
-## One definition, multiple applications
-
-Share the contract, not the email provider or database connection.
-
-```ts
-// packages/billing-jobs/receipt.ts — imported by both producer and consumer
-export const BillingQueue = JobQueue.make("billing")
-
-export const SendReceipt = Job.make({
-  queue: BillingQueue,
-  kind: "invoice.receipt",
-  payload: Schema.Struct({ invoiceId: Schema.String })
-})
-
-export const IssueInvoice = JobProducer.make({
-  operation: "billing.issue-invoice",
-  slots: ["receipt"]
-})
-```
-
-```ts
-// apps/api — owns invoice writes; does not import the email provider
-const issueInvoice = (operationId: string, invoiceId: string) =>
-  jobsStorage.withTransaction(() =>
-    Effect.gen(function* () {
-      yield* invoices.createOnce({ operationId, invoiceId })
-
-      return yield* SendReceipt.enqueue({
-        producer: IssueInvoice.identity({ operationId, slot: "receipt" }),
-        payload: { invoiceId },
-        policy: receiptPolicy
-      })
-    })
-  )
-```
-
-```ts
-// apps/billing-worker — owns email credentials; does not import the API
-const ReceiptHandler = SendReceipt.handlerLayer(
-  ({ payload, context }) =>
-    Effect.gen(function* () {
-      const mailer = yield* ReceiptMailer
-
-      yield* mailer.send({
-        invoiceId: payload.invoiceId,
-        idempotencyKey: context.jobId
-      })
-    }),
-  Codec.decodeJobPayload
-)
-```
-
-Reuse `operationId` and `invoiceId` on request retries. Matching enqueues return the original job ID; changed content conflicts. Domain idempotency is still yours. `invoices.createOnce` must use the adapter's active transaction, not a separate connection.
-
-### One operation, two consequences
-
-Slots name independent consequences of the same business operation. Issuing an
-invoice can send a receipt and generate a PDF without their enqueue identities
-colliding:
-
-```ts
-const IssueInvoiceWithPdf = JobProducer.make({
-  operation: "billing.issue-invoice-with-pdf",
-  slots: ["send-receipt", "generate-pdf"]
-})
-
-// Inside the application's transaction; GeneratePdf is another job definition.
-yield* SendReceipt.enqueue({
-  producer: IssueInvoiceWithPdf.identity({ operationId, slot: "send-receipt" }),
-  payload: { invoiceId },
-  policy: JobPolicy.defaultPolicy
-})
-
-yield* GeneratePdf.enqueue({
-  producer: IssueInvoiceWithPdf.identity({ operationId, slot: "generate-pdf" }),
-  payload: { invoiceId },
-  policy: JobPolicy.defaultPolicy
-})
-```
-
-Retrying with the same operation ID and slots returns the existing matching jobs.
-Declared slots are checked by TypeScript. A slot names the consequence, not the
-job kind: two slots can enqueue the same job kind. Slots do not impose execution
-order or dependencies between jobs.
-
-## Long-running Node.js worker
-
-Producer and consumer connect to the same PostgreSQL jobs tables.
-
-```ts
-// The same app-owned PgClient is used by native Drizzle and this adapter.
-const client = yield* PgClient.PgClient
-const ApplicationPostgresLayer = PostgreSqlNative.layer({
-  client,
-  operationTimeoutMillis: 2000
-})
-const jobsStorage = yield* PostgreSqlJobs.make({
-  operationResponseBudgetMillis: 100
-}).pipe(Effect.provide(ApplicationPostgresLayer))
-
-const WorkerLayer = Worker.layer(jobsStorage.store, {
-  catalog: [SendReceipt],
-  operationResponseBudgetMillis: 100 // Same budget as the backend.
-}).pipe(
-  Layer.provideMerge(ReceiptHandler),
-  Layer.provide(Registry.layer),
-  Layer.provide(ReceiptMailerLayer)
-)
-
-const runWorker = Effect.gen(function* () {
-  yield* jobsStorage.ready // Checks readiness; does not run migrations.
-
-  const billing = yield* Consumer.make(BillingQueue, {
-    localConcurrency: 2, // Max simultaneous handlers in this consumer instance.
-    claimLimitPerRun: 20, // Max jobs claimed during one bounded drain.
-    recoveryLimitPerRun: 20 // Max expired leases processed for recovery per drain.
-  })
-
-  const plan = yield* Consumer.plan(billing)
-  const PollingLayer = Polling.layerForPlan(plan).pipe(Layer.provide(WorkerLayer))
-
-  yield* Effect.never.pipe(Effect.provide(PollingLayer))
-}).pipe(Effect.scoped)
-
-NodeRuntime.runMain(runWorker)
-```
-
-The Scope owns polling shutdown. Construction starts no workers. `localConcurrency` is per consumer instance, not a global queue limit; keep queue configuration consistent across replicas.
-
-For a bounded invocation instead of a server:
-
-```ts
-yield* Runtime.drain(billing).pipe(Effect.provide(WorkerLayer))
-// One bounded run, not “wait until every future retry has finished”.
-```
-
-The backend exposes its producer service as `jobsStorage.producer`.
-Provide it as `JobEnqueue` to effects that call `enqueue` or `enqueueStandalone`.
-`PostgreSqlNative.layer({ client, operationTimeoutMillis })` bridges the exact
-application-owned `PgClient@4.0.0`, including its active `transactionService`.
-Native `drizzle-orm/effect-postgres` transactions on that same client support
-ambient enqueue; missing or foreign-client transactions fail before preparation.
-Pools, keys, timeouts and transaction ownership remain application-owned.
-
-```ts
-// nativeDrizzle is drizzle-orm/effect-postgres; invoiceTable is app-owned.
-const db = yield* nativeDrizzle.makeWithDefaults()
-
-yield* db
-  .transaction((tx) =>
-    Effect.gen(function* () {
-      yield* tx.insert(invoiceTable).values({ id: invoiceId })
-
-      return yield* SendReceipt.enqueue({
-        producer: IssueInvoice.identity({ operationId, slot: "receipt" }),
-        payload: { invoiceId },
-        policy: JobPolicy.defaultPolicy
-      })
-    })
-  )
-  .pipe(Effect.provideService(JobEnqueue, jobsStorage.producer))
-```
-
-Alternatively, `jobsStorage.withTransaction` delegates to the same client manager
-and supplies `JobEnqueue`, as used by `issueInvoice`. Provide the scoped native
-PgClient Layer around the whole application; defining a Layer alone starts no work.
-
-`enqueue` requires an active transaction. For a job with no accompanying domain
-write, `enqueueStandalone` opens its own transaction and rejects active ones:
-
-```ts
-yield* SendReceipt.enqueueStandalone({
-  producer: IssueInvoice.identity({ operationId, slot: "receipt" }),
-  payload: { invoiceId },
-  policy: JobPolicy.defaultPolicy
-}).pipe(Effect.provideService(JobEnqueue, jobsStorage.producer))
-```
-
-## Choose what a failure means
-
-A receipt provider can reject a request, accept it, or leave you unable to tell which happened.
-
-This handler uses the public `invoiceId` payload, not an encrypted document.
-Define validated diagnostic codes before starting the worker:
-
-```ts
-const Codes = FailureCode.define({
-  ReceiptUnreadable: "receipt_unreadable",
-  ResponseLost: "response_lost",
-  ProviderBusy: "provider_busy",
-  InvalidRecipient: "invalid_recipient",
-  ProviderCredentials: "provider_credentials",
-  Unconfirmed: "unconfirmed"
-})
-```
-
-```ts
-const ReceiptHandler = SendReceipt.handlerLayer(
-  ({ payload, context }) =>
-    Effect.gen(function* () {
-      const templates = yield* ReceiptTemplates
-      const provider = yield* EmailProvider
-
-      const email = yield* templates
-        .load(payload.invoiceId)
-        .pipe(
-          Effect.mapError(() => JobFailures.Isolate({ code: Codes.ReceiptUnreadable }))
-        )
-
-      // Application adapter contract: bounded outcomes, no raw provider errors.
-      const result = yield* provider
-        .send({
-          email,
-          idempotencyKey: context.jobId
-        })
-        .pipe(
-          Effect.mapError(() => JobFailures.OutcomeUnknown({ code: Codes.ResponseLost }))
-        )
-
-      return yield* Match.value(result).pipe(
-        Match.tag("Accepted", () => Effect.void),
-        // Provider confirms the request was not accepted.
-        Match.tag("RateLimited", () =>
-          Effect.fail(JobFailures.Retry({ code: Codes.ProviderBusy }))
-        ),
-        Match.tag("InvalidRecipient", () =>
-          Effect.fail(JobFailures.Dead({ code: Codes.InvalidRecipient }))
-        ),
-        Match.tag("CredentialsRejected", () =>
-          Effect.fail(JobFailures.Isolate({ code: Codes.ProviderCredentials }))
-        ),
-        Match.tag("Unconfirmed", () =>
-          Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.Unconfirmed }))
-        ),
-        Match.exhaustive
-      )
-    }),
-  Codec.decodeJobPayload
-)
-```
-
-| Outcome          | Use it when                                  |
-| ---------------- | -------------------------------------------- |
-| `Retry`          | Another attempt is safe and may succeed.     |
-| `Dead`           | This job cannot succeed; stop attempting it. |
-| `Isolate`        | Quarantine the job for investigation.        |
-| `OutcomeUnknown` | The side effect may already have happened.   |
-
-A timeout is not proof that no email was sent. Unknown outcomes use bounded lease recovery, not a normal finalized retry; attempt numbers can repeat. Keep the provider key and body stable, and reconcile before its idempotency window expires. Never persist raw errors or sensitive response bodies as failure codes.
-
-## Policy belongs to the job
-
-```ts
-const receiptPolicy = JobPolicy.make({
-  attemptTimeout: Duration.seconds(20), // Time budget for one handler execution.
-  leaseDuration: Duration.seconds(60), // Fixed, nonrenewing; must exceed timeout.
-  retryDelay: Duration.seconds(10), // Fixed delay, not exponential backoff.
-  maxAttempts: 4, // Includes the first finalized attempt.
-  maxStalledCount: 1, // Separate bound for stalled recovery.
-  completedRetention: Duration.days(30), // Completed jobs become cleanup-eligible after 30 days.
-  deadRetention: Duration.infinity // Retain failures for investigation.
-})
-
-yield* SendReceipt.enqueue({
-  producer: IssueInvoice.identity({ operationId, slot: "receipt" }),
-  payload: { invoiceId },
-  policy: receiptPolicy,
-  availableAt: deliveryTimeMillis // Optional initial eligibility, epoch milliseconds.
-})
-```
-
-Policy is persisted at enqueue. Changing this constant affects new jobs, not existing ones; a matching duplicate keeps its first policy. Retention makes terminal jobs eligible for explicit cleanup—it does not start a cleanup worker. Removing identity evidence ends deduplication.
-
-## Encrypt only what needs to travel
-
-An opaque `invoiceId` plus a handler-side lookup is often enough. Otherwise bind
-the document schema to an application encryption codec. Enqueue accepts domain
-data; the handler receives decrypted, validated domain data.
-
-```ts
-// Plaintext document contract — shared by producer and consumer.
-const ReceiptDocument = Schema.Struct({
-  recipient: Schema.String,
-  invoiceNumber: Schema.String,
-  total: Schema.Struct({ amount: Schema.String, currency: Schema.String })
-})
-
-const SendPrivateReceipt = Job.make({
-  queue: BillingQueue,
-  kind: "invoice.private-receipt",
-
-  payload: Schema.Struct({
-    invoiceId: Schema.String,
-
-    document: JobPayload.encrypted({
-      schema: ReceiptDocument,
-      codec: ReceiptEncryption
-    })
-  })
-})
-
-const PrivateReceiptProducer = JobProducer.make({
-  operation: "billing.private-receipt",
-  slots: ["receipt"]
-})
-
-const receipt = yield* Schema.decodeUnknownEffect(ReceiptDocument)({
-  recipient: "alex@example.com",
-  invoiceNumber: "INV-2026-1042",
-  total: { amount: "49.00", currency: "EUR" }
-})
-
-yield* jobsStorage.withTransaction(() =>
-  SendPrivateReceipt.enqueue({
-    producer: PrivateReceiptProducer.identity({ operationId, slot: "receipt" }),
-    payload: { invoiceId, document: receipt },
-    policy: receiptPolicy
-  })
-)
-```
-
-```ts
-const PrivateReceiptHandler = SendPrivateReceipt.handlerLayer(
-  ({ payload, context }) =>
-    Effect.gen(function* () {
-      const mailer = yield* PrivateReceiptMailer
-
-      yield* mailer.send({ document: payload.document, idempotencyKey: context.jobId })
-    }),
-  Codec.decodeJobPayload
-)
-```
-
-`ReceiptEncryption` is an application codec with `envelope`, `seal` and `open`.
-It seals the schema's encoded document and opens it before domain validation.
-Its JSON envelope must contain `fingerprint`; other fields and the encryption
-algorithm are application-owned. Use authenticated encryption and a separate,
-stable keyed fingerprint independent of nonce/ciphertext randomness.
-
-Provide the codec's required key service Layers to both producer and consumer;
-validate configured keys before worker startup. No remote KMS retry contract is
-provided. Never log plaintext or keys. Register the private job and handler too.
-`JobPayload.protected` remains the lower-level marker for already-sealed values.
-
-## Cloudflare + Alchemy
-
-**Declaration-checked wiring with Alchemy `2.0.0-beta.81`; external PostgreSQL
-on Cloudflare is NotTested.** A Workers-compatible PostgreSQL application adapter
-and its service composition are still required.
-
-```text
-Application Worker ── commit invoice + two jobs ──▶ PostgreSQL
-        │                                        ▲
-        └── wake ──▶ Durable Object ── drain ──────┘
-                     alarm / execution           jobs / payloads / retries
-```
-
-Start with **one named DO per logical queue**, not one per job. That is an application topology, not a library requirement. Jobs live in PostgreSQL; the DO hosts bounded execution and wakeups.
-
-This consumer handles two job kinds in the same billing queue: receipt email and
-invoice PDF. Each consequence has its own producer slot.
-
-```ts
-// Shared definitions: reuse SendReceipt and BillingQueue from above.
-const GeneratePdf = Job.make({
-  queue: BillingQueue,
-  kind: "invoice.generate-pdf",
-  payload: Schema.Struct({ invoiceId: Schema.String })
-})
-
-const CloudInvoiceProducer = JobProducer.make({
-  operation: "billing.cloudflare.issue-invoice",
-  slots: ["send-receipt", "generate-pdf"]
-})
-
-// Consumer composition: application mailer/PDF services own external effects.
-const PdfHandler = GeneratePdf.handlerLayer(
-  ({ payload, context }) =>
-    Effect.gen(function* () {
-      const renderer = yield* InvoicePdfRenderer
-
-      yield* renderer.generate({
-        invoiceId: payload.invoiceId,
-        idempotencyKey: context.jobId
-      })
-    }),
-  Codec.decodeJobPayload
-)
-
-const BillingWorkerLayer = Worker.layer(jobsStorage.store, {
-  catalog: [SendReceipt, GeneratePdf],
-  operationResponseBudgetMillis: 100
-}).pipe(
-  Layer.provideMerge(Layer.mergeAll(ReceiptHandler, PdfHandler)),
-  Layer.provide(Registry.layer),
-  Layer.provide(Layer.mergeAll(ReceiptMailerLayer, InvoicePdfRendererLayer))
-)
-```
-
-```ts
-// src/billing-consumer.ts — one Effect-native DO handles both job kinds.
-export class BillingConsumer extends Cloudflare.DurableObject<BillingConsumer>()(
-  "BillingConsumer",
-  Effect.gen(function* () {
-    return Effect.gen(function* () {
-      const drain = yield* Alchemy.makeCallback(
-        "drain-billing",
-        Effect.fn(function* (_payload: null) {
-          yield* jobsStorage.ready
-
-          const billing = yield* Consumer.make(BillingQueue, {
-            localConcurrency: 2,
-            claimLimitPerRun: 20,
-            recoveryLimitPerRun: 20
-          })
-
-          yield* Runtime.drain(billing).pipe(Effect.provide(BillingWorkerLayer))
-        })
-      )
-
-      return {
-        wake: () => drain.schedule("billing", { after: "1 second", payload: null })
-      }
-    })
-  })
-) {}
-```
-
-```ts
-// src/invoice-application.ts — internal RPC; authenticate any public HTTP API.
-export default Cloudflare.Worker(
-  "InvoiceApplication",
-  { main: import.meta.url },
-  Effect.gen(function* () {
-    const consumers = yield* BillingConsumer
-
-    return {
-      issueInvoice: Effect.fn(function* (operationId: string, invoiceId: string) {
-        const jobs = yield* jobsStorage
-          .withTransaction(() =>
-            Effect.gen(function* () {
-              yield* invoices.createOnce({ operationId, invoiceId })
-
-              const receipt = yield* SendReceipt.enqueue({
-                producer: CloudInvoiceProducer.identity({
-                  operationId,
-                  slot: "send-receipt"
-                }),
-                payload: { invoiceId },
-                policy: JobPolicy.defaultPolicy
-              })
-
-              const pdf = yield* GeneratePdf.enqueue({
-                producer: CloudInvoiceProducer.identity({
-                  operationId,
-                  slot: "generate-pdf"
-                }),
-                payload: { invoiceId },
-                policy: JobPolicy.defaultPolicy
-              })
-
-              return { receipt: receipt.jobId, pdf: pdf.jobId }
-            })
-          )
-          .pipe(Effect.provideService(JobEnqueue, jobsStorage.producer))
-
-        yield* consumers.getByName("billing").wake() // After both jobs commit.
-
-        return jobs
-      })
-    }
-  })
-)
-```
-
-```ts
-// alchemy.run.ts
-export default Alchemy.Stack(
-  "Billing",
-  { providers: Cloudflare.providers(), state: Cloudflare.state() },
-  Effect.gen(function* () {
-    const application = yield* InvoiceApplication
-
-    return { application: application.workerName }
-  })
-)
-```
-
-One callback drains one bounded batch. **You still need subsequent wakeups for backlog, delayed jobs and retries, plus repair of missed wakeups.** PostgreSQL commit and DO scheduling are not atomic; a failed wake does not mean the invoice rolled back. Alchemy owns its alarms—do not set competing alarms manually.
-
-Besides calling `wake()` after commit, plan application-owned periodic wakeups
-to check delayed jobs, retries and expired leases. Start them explicitly and
-use an external Cron Trigger to repair missed wakeups. Alchemy owns native alarms;
-periodic scheduling is conceptual here, without a qualified recursive callback.
-
-Both jobs commit with the invoice or neither does. Reusing the operation ID
-deduplicates each slot independently. Email and PDF execution are independent:
-the receipt handler must not assume the PDF has already been generated.
-
-Start with one DO and concurrency `2`; add named consumers only after measuring throughput and provider limits. More DOs increase aggregate concurrency, not storage capacity. These fragments omit Workers-specific connections and service composition; Node's PostgreSQL setup cannot simply be reused unchanged.
-
-## Alpha boundaries
-
-PostgreSQL only. Application-owned adapters, pools, migrations and cleanup. No recurring scheduler or admin API. Every TypeScript fence is extracted and declaration-checked against source and
-the packed alpha.1 artifact. Node/Bun composition, handler, codec and encryption
-checks use explicit application fixtures. Real native PostgreSQL transaction
-gates are separate. Cloudflare external PostgreSQL, deployment, server crashes
-and arbitrary network faults are NotTested; upstream full strict Drizzle
-declaration failure remains a separately recorded limitation.
-
-[Transaction integration](specs/drizzle-compatibility.md) · [Lifecycle and protection](specs/architecture-decisions.md) · [Release qualification](specs/release-qualification.md) · [MIT](LICENSE)
-
-## Migrations
-
-Run DDL through your application's migration system, with migration credentials—not at worker startup.
-
-```ts
-// Application migration
-const tables = PostgreSqlSchema.tables() // public.jobs and public.job_payloads
-
-const ddl = PostgreSqlSchema.migration(tables)
-// Execute `ddl` using your migration runner.
-
-// Runtime: configure the same schema/table mapping, without DDL permissions.
-const jobsStorage = yield* PostgreSqlJobs.make({
-  ...tables,
-  operationResponseBudgetMillis: 100
-}).pipe(Effect.provide(ApplicationPostgresLayer))
-
-yield* jobsStorage.ready
-```
-
-```ts
-// Optional Drizzle declarations; not a transaction adapter or migration runner.
-const jobTables = makeJobTables(tables)
-```
-
-Application-owned dashboard indexes can extend the declarations without changing
-library columns or required indexes:
-
-```ts
-const jobTables = makeJobTables({
-  ...tables,
-
-  extraIndexes: (jobs) => [
-    index("jobs_dashboard").on(jobs.operation, jobs.slot, jobs.state, jobs.id)
-  ]
-})
-```
-
-Generate migrations from these declarations. The SQL migration helper includes
-only the library's baseline indexes; it does not know about `extraIndexes`.
-
-Payload versions are separate from database migrations. For an incompatible payload change, publish a new job version and keep the old definition/handler registered until old jobs no longer need it.
+Published consumers have no installation lifecycle scripts. [MIT](LICENSE).

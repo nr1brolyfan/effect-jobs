@@ -1,4 +1,3 @@
-import { define as defineFailureCodes } from "../../FailureCode.js"
 import { Cause, Effect, Exit, Result, Schema } from "effect"
 import { JobPayloadCodecError } from "../../JobContract.js"
 import { CatalogIdentity, ProducerIdentity } from "../../JobIdentity.js"
@@ -45,7 +44,7 @@ const finalizationFor = (exit: Exit.Exit<void, unknown>): JobFinalization | null
     return null
   }
   if (reason.error instanceof JobPayloadCodecError) {
-    return JobFinalizations.Isolate({ code: internalCodes.invalid_claimed_artifact })
+    return JobFinalizations.Isolate({ code: "invalid_claimed_artifact" })
   }
   const result = finalizationFromFailure(reason.error)
   return Result.isSuccess(result) ? result.success : null
@@ -135,7 +134,7 @@ export const executionFor = <E>(
         !policyEquals(prepared.success.policy, before.policy)
       ) {
         return yield* finalize(
-          JobFinalizations.Isolate({ code: internalCodes.invalid_claimed_artifact })
+          JobFinalizations.Isolate({ code: "invalid_claimed_artifact" })
         )
       }
       const { catalog, producer, encoded } = prepared.success
@@ -159,7 +158,7 @@ export const executionFor = <E>(
         encoded.semanticProjectionBytes.byteLength > 65_536
       ) {
         return yield* finalize(
-          JobFinalizations.Isolate({ code: internalCodes.invalid_claimed_artifact })
+          JobFinalizations.Isolate({ code: "invalid_claimed_artifact" })
         )
       }
       const context = Object.freeze({
@@ -183,7 +182,3 @@ export const executionFor = <E>(
       }
     }).pipe(Effect.timeout(before.policy.attemptTimeoutMillis), Effect.ignore)
   })
-
-const internalCodes = defineFailureCodes({
-  invalid_claimed_artifact: "invalid_claimed_artifact"
-})

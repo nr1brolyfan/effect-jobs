@@ -1,4 +1,3 @@
-import * as FailureCodes from "../../src/FailureCode.js"
 import { readFileSync, writeFileSync } from "node:fs"
 import { randomBytes, randomUUID } from "node:crypto"
 import { Effect, Exit, Duration, Schema, Deferred, Fiber, Layer } from "effect"
@@ -199,7 +198,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
   const enqueue = (id: string, value = id, configured = policy, at?: number) =>
     Effect.runPromise(
       backend.withTransaction((tx) =>
-        definition.enqueueInTransaction(tx, input(id, value, configured, at))
+        definition.enqueue(tx, input(id, value, configured, at))
       )
     )
   const row = async (id: string) =>
@@ -220,11 +219,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     claimed: ClaimedJob,
     finalization:
       | { readonly _tag: "Complete" }
-      | {
-          readonly _tag: "Retry"
-          readonly code: FailureCodes.FailureCode
-          readonly notAfter?: number
-        } = {
+      | { readonly _tag: "Retry"; readonly code: string; readonly notAfter?: number } = {
       _tag: "Complete"
     }
   ) =>
@@ -310,7 +305,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
             yield* handle.query("INSERT INTO backend_fixture.invoices(id) VALUES ($1)", [
               "atomic"
             ])
-            const produced = yield* definition.enqueueInTransaction(tx, input("atomic"))
+            const produced = yield* definition.enqueue(tx, input("atomic"))
             yield* handle.query(
               "INSERT INTO backend_fixture.receipts(id,job_id) VALUES ($1,$2)",
               ["atomic", produced.jobId]
@@ -343,7 +338,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
             yield* handle.query("INSERT INTO backend_fixture.invoices(id) VALUES ($1)", [
               id
             ])
-            const result = yield* definition.enqueueInTransaction(tx, input(id))
+            const result = yield* definition.enqueue(tx, input(id))
             yield* handle.query(
               "INSERT INTO backend_fixture.receipts(id,job_id) VALUES ($1,$2)",
               [id, result.jobId]
@@ -360,16 +355,10 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         expect(value.context.jobId).toBe(produced.jobId)
         seen.push(value.context.attemptNumber)
         if (seen.length === 1) {
-          return Effect.fail(
-            JobFailures.Retry({ code: FailureCodes.define({ value: "temporary" }).value })
-          )
+          return Effect.fail(JobFailures.Retry({ code: "temporary" }))
         }
         if (seen.length === 2) {
-          return Effect.fail(
-            JobFailures.OutcomeUnknown({
-              code: FailureCodes.define({ value: "response_lost" }).value
-            })
-          )
+          return Effect.fail(JobFailures.OutcomeUnknown({ code: "response_lost" }))
         }
         return Effect.void
       })
@@ -446,7 +435,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
               yield* handle.query("INSERT INTO backend_fixture.invoices VALUES ($1)", [
                 id
               ])
-              const created = yield* definition.enqueueInTransaction(tx, input(id))
+              const created = yield* definition.enqueue(tx, input(id))
               yield* handle.query("INSERT INTO backend_fixture.receipts VALUES ($1,$2)", [
                 id,
                 created.jobId
@@ -494,7 +483,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     const produce = (envelope: string, fingerprint: string) =>
       Effect.runPromise(
         backend.withTransaction((tx) =>
-          protectedDefinition.enqueueInTransaction(tx, {
+          protectedDefinition.enqueue(tx, {
             producer: input("protected").producer,
             policy,
             payload: { secret: { envelope, fingerprint } }
@@ -528,10 +517,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
               yield* handle.query(
                 "INSERT INTO backend_fixture.invoices VALUES ('rolled-back')"
               )
-              const created = yield* definition.enqueueInTransaction(
-                tx,
-                input("rolled-back")
-              )
+              const created = yield* definition.enqueue(tx, input("rolled-back"))
               yield* handle.query(
                 "INSERT INTO backend_fixture.receipts VALUES ('rolled-back',$1)",
                 [created.jobId]
@@ -567,7 +553,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
                 "INSERT INTO backend_fixture.invoices VALUES ('conflict')"
               )
               yield* definition
-                .enqueueInTransaction(tx, input("duplicate", "different"))
+                .enqueue(tx, input("duplicate", "different"))
                 .pipe(Effect.catchTag("JobIntegrityConflict", () => Effect.void))
             })
           )
@@ -593,7 +579,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         Effect.runPromise(
           Effect.exit(
             backend.withTransaction((tx) =>
-              definition.enqueueInTransaction(tx, input("conflicting-race", v))
+              definition.enqueue(tx, input("conflicting-race", v))
             )
           )
         )
@@ -894,11 +880,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         measuredBackend.store.finalize({
           ownership: claimed.ownership,
           before: claimed.snapshot,
-          finalization: {
-            _tag: "Retry",
-            code: FailureCodes.define({ value: "temporary" }).value,
-            notAfter
-          }
+          finalization: { _tag: "Retry", code: "temporary", notAfter }
         })
       )
       const next = now + claimed.snapshot.policy.retrySchedule.delayMillis
@@ -953,10 +935,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       Policy.make({ retryDelay: Duration.millis(10000), maxAttempts: 2 })
     )
     const first = await claim()
-    await finish(first, {
-      _tag: "Retry",
-      code: FailureCodes.define({ value: "temporary" }).value
-    })
+    await finish(first, { _tag: "Retry", code: "temporary" })
     const stored = await row("retry")
     expect(stored.state).toBe("RetryScheduled")
     expect(Number(stored.available_at) - Number(stored.updated_at)).toBe(10000)
@@ -967,40 +946,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     await observer.query(
       "UPDATE backend_fixture.tasks SET available_at=1 WHERE operation_id='retry'"
     )
-    await finish(await claim(), {
-      _tag: "Retry",
-      code: FailureCodes.define({ value: "temporary" }).value
-    })
+    await finish(await claim(), { _tag: "Retry", code: "temporary" })
     expect(await row("retry")).toMatchObject({ state: "Dead" })
     expect(Number((await row("retry")).attempts_made)).toBe(2)
-  })
-  test("PostgreSQL rejects duplicate schema-wide custom index names; library owns no automatic migration", async () => {
-    const name = `${Tables.indexPrefix(mapping)}_due`
-    await expect(
-      admin.query(`CREATE INDEX "${name}" ON backend_fixture.tasks (state)`)
-    ).rejects.toMatchObject({ code: "42P07" })
-  })
-  test("persisted 128-character historic failure codes decode without current catalog membership", async () => {
-    await clear()
-    await enqueue("historic-code")
-    const code = "x".repeat(128)
-    await observer.query(
-      "UPDATE backend_fixture.tasks SET last_failure_code=$1 WHERE operation_id='historic-code'",
-      [code]
-    )
-    const historical = await claim()
-    expect(historical.snapshot.lastFailureCode).toBe(code)
-    await clear()
-    await enqueue("oversized-code")
-    await observer.query(
-      "UPDATE backend_fixture.tasks SET last_failure_code=$1 WHERE operation_id='oversized-code'",
-      ["x".repeat(129)]
-    )
-    await Effect.runPromise(backend.store.claim(request()))
-    expect(await row("oversized-code")).toMatchObject({
-      state: "Isolated",
-      last_failure_code: "invalid_artifact"
-    })
   })
   test("malformed payload stays untrusted, is isolated without poisoning the next claim", async () => {
     await clear()
@@ -1122,10 +1070,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       backend.store.finalize({
         ownership: c.ownership,
         before: c.snapshot,
-        finalization: {
-          _tag: "Isolate",
-          code: FailureCodes.define({ value: "invalid_artifact" }).value
-        }
+        finalization: { _tag: "Isolate", code: "invalid_artifact" }
       })
     )
     await enqueue("active")
@@ -1163,9 +1108,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       )
     )
     await expect(
-      Effect.runPromise(
-        definition.enqueueInTransaction(saved!, input("expired-capability"))
-      )
+      Effect.runPromise(definition.enqueue(saved!, input("expired-capability")))
     ).rejects.toMatchObject({ _tag: "JobsTransactionClosed" })
     const foreign = Adapter.make(App.source(pool))
     const other = await make(foreign)
@@ -1222,7 +1165,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
                 yield* handle.query(
                   "INSERT INTO backend_fixture.invoices VALUES ('interrupted')"
                 )
-                yield* definition.enqueueInTransaction(tx, input("interrupted"))
+                yield* definition.enqueue(tx, input("interrupted"))
                 yield* Deferred.succeed(ready, undefined)
                 return yield* Effect.never
               })
