@@ -1,6 +1,10 @@
 {
   "extends": "../../tsconfig.playground.json",
-  "include": ["src/**/*.ts", "tests/integration/RepairPg.ts"],
+  "include": [
+    "src/**/*.ts",
+    "tests/integration/RepairPg.ts",
+    "tests/integration/RepairHistorical.ts"
+  ],
   "compilerOptions": {
     "plugins": [
       {
@@ -17,7 +21,10 @@
             }
           },
           {
-            "include": ["tests/integration/RepairPg.ts"],
+            "include": [
+              "tests/integration/RepairPg.ts",
+              "tests/integration/RepairHistorical.ts"
+            ],
             "options": {
               "allowedUnstableApis": [
                 "effect/sql/SqlClient#SqlClient",

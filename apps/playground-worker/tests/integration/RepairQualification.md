@@ -16,21 +16,38 @@ digest-pinned, tmpfs container at a time, one ephemeral loopback port and genera
 credentials. Cleanup removes the exact ID and private files on every normal
 exception path. An externally killed process is not a cleanup receipt.
 
-`REPAIR_AMBIENT_PROGRAM` can name an already-built original native consumer's
-Bun ambient program to finish that missing gate without repeating completed
-Node/native gates. `REPAIR_PHASE=recorded` runs only the remaining recorded-data
-slice. These options do not turn prior failures into passes. Resource receipts
-must be preserved before another finite attempt; do not automate resource retries.
+The default collector runs the original app PG reproduction and the combined
+slice. It consumes completed core retention/native/installed evidence rather than
+rerunning those matrices. `REPAIR_PHASE=supplementary` selects the populated
+historical migration plus combined slice; `REPAIR_PHASE=browser` selects only
+the combined slice. Preserve resource receipts before another finite attempt;
+do not automate resource retries. A failed gate makes the collector exit nonzero.
 
-The original app entrypoint is deliberately unchanged. Its registered migration
-scripts currently produce PostgreSQL `42601` through the pinned PgClient's
-extended protocol. The combined slice stops at the same migration prerequisite;
-it must not replace the stored seed with HTTP or recorded-state fixtures. Report
-this as an original-author qualification incompatibility, not absent Docker.
+The accepted original-author migration helper sends one PostgreSQL command with
+unchanged descriptor bytes, on the same owning client/transaction. `RepairPg.ts`
+uses it for recorded setup too. No SQL splitting, additional migration pool,
+changed checksum, fabricated lifecycle/history or HTTP fixture substitutes apply.
 Failure reports contain SQL classifications/codes, not provider messages or SQL.
 
+Bundle `RepairHistorical.ts` using the same externals as `RepairPg.ts`. Its
+qualification-only `LegacyPopulation.mjs` must be built from exact accepted base
+`358299e638c01c73bde356acbff3c134f5ceaef2` source in a private test directory.
+Resolve library and contract imports to that historical source, keeping Effect
+and pg external and using the pinned PgClient. The evidence includes the small
+population entrypoint and exact input hashes/build recipe. It uses the historical
+application's real issue/scenario/worker/redrive APIs, then migrates populated
+v1-v5 to v6 with tenant backfill and verifies preservation and scoped deletion.
+This test extraction never replaces integrated or owner source.
+
+The combined browser slice checks real stored encrypted bytes, tampering,
+relocking, private correction/resolution, counts/pagination and public admission.
+`REPAIR_MISSING_ONLY=true` selects remaining private scenarios after consuming
+the captured demo/crypto run. Its receipt explicitly retains the earlier Escape
+focus failure and exits nonzero even when the selected remaining scenarios pass.
+It is a continuation receipt, not an independent full-suite PASS.
+
 The worker tsconfig permits only `effect/sql/SqlClient#SqlClient` in the three
-integration SQL modules. The explicit qualification entrypoint also permits the
-pinned Reactivity layer it needs. This uses `allowedUnstableApis` from the
+integration SQL modules. The two explicit integration qualification entrypoints
+also permit the pinned Reactivity layer they need. This uses `allowedUnstableApis` from the
 installed `@effect/tsgo@0.48.0` documentation. No lint rule or severity changes;
 another source file importing SqlClient still reports unstable API usage.

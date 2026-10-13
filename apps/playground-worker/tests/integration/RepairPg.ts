@@ -83,7 +83,7 @@ export const prepareRecorded = async () => {
           Effect.gen(function* () {
             for (const migration of Migrations.migrations(cfg.schema)) {
               report.stage = `fresh app migration ${migration.id}`
-              yield* client.unsafe(migration.sql)
+              yield* client.unsafe(Qualification.migrationCommand(migration.sql))
             }
             yield* Migrations.backfillSyntheticTenants(cfg.schema).pipe(
               Effect.provideService(SqlClient, client)
@@ -122,6 +122,25 @@ export const prepareRecorded = async () => {
     "actual native encrypted seed/worker/corrected successor/audited resolution"
   )
   return sandbox
+}
+
+export const drainRecorded = () => {
+  const config: Event.Config = { ...cfg, connectionString: url, localPrivate: true }
+  return Effect.runPromise(
+    Event.run(
+      config,
+      Effect.void,
+      Effect.gen(function* () {
+        for (const plan of yield* Executor.consumers) {
+          yield* Drain.drain(plan)
+        }
+        const Reconcile = yield* Effect.promise(
+          () => import("../../src/execution/RepairReconciliation.js")
+        )
+        yield* Reconcile.run(cfg.schema, { limit: 50 })
+      })
+    ).pipe(Effect.timeout("30 seconds"))
+  )
 }
 
 if (process.env.REPAIR_PREPARE_ONLY !== "true") {

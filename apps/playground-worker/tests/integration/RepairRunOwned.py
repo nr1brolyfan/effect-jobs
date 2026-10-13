@@ -30,13 +30,18 @@ def call(args, timeout=30, extra=None):
 
 def gate(label, args, extra=None, timeout=600):
     start = now()
-    inputs = {
-        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in [pathlib.Path(__file__), out / 'RepairPg.mjs',
-                     root / 'apps/playground-worker/dist/Worker.js',
-                     root / 'apps/website/dist/Client.js', root / 'apps/website/dist/Jobs.css']
-        if path.is_file()
-    }
+    paths = [path for folder in ['src', 'packages/playground-contracts/src',
+             'apps/playground-worker/src', 'apps/website/src',
+             'apps/playground-worker/tests/integration', 'apps/playground-worker/tests/repairs']
+             for path in (root / folder).rglob('*') if path.is_file() and '__pycache__' not in path.parts]
+    paths += [root / name for name in ['package.json', 'bun.lock', 'tsconfig.playground.json',
+              'apps/playground-worker/tsconfig.json', 'apps/website/tsconfig.json',
+              '.oxfmtrc.json', 'apps/playground-worker/package.json', 'apps/website/package.json']]
+    paths += [out / 'RepairHistorical.mjs', out / 'LegacyPopulation.mjs', out / 'RepairPg.mjs', out / 'effect-jobs-0.1.0-alpha.1.tgz',
+              root / 'apps/playground-worker/dist/Worker.js',
+              root / 'apps/website/dist/Client.js', root / 'apps/website/dist/Jobs.css']
+    inputs = {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+              for path in paths if path.is_file()}
     try:
         result = call(args, timeout, extra)
         text = (result.stdout or '') + (result.stderr or '')
@@ -66,6 +71,9 @@ try:
     version = call(['docker.exe', 'info', '--format', '{{.ServerVersion}}'])
     assert version.returncode == 0
     receipt['dockerServer'] = version.stdout.strip()
+    receipt['runtime'] = {name: call(args).stdout.strip() for name, args in {
+        'node': ['node', '--version'], 'bun': ['bun', '--version'],
+        'dockerClient': ['docker.exe', '--version']}.items()}
     password = secrets.token_hex(32)
     secret_values.append(password)
     pg = {'POSTGRES_USER': 'qualification', 'POSTGRES_DB': 'effect_jobs_d6', 'POSTGRES_PASSWORD': password}
@@ -83,7 +91,6 @@ try:
     receipt['containerId'] = cid
     assert call(['docker.exe', 'start', cid]).returncode == 0
     gate('affected-playground-types', ['bun', 'run', 'playground:check'])
-    gate('affected-playground-build', ['bun', 'run', 'playground:build'])
 
     inspected = call(['docker.exe', 'inspect', '--format', '{{json .}}', cid])
     receipt['inspect'] = {'exit': inspected.returncode, 'stdoutBytes': len(inspected.stdout), 'stderr': inspected.stderr}
@@ -98,7 +105,7 @@ try:
     receipt['stage'] = 'bounded readiness'
     gate('owned-warning-lint', ['node_modules/.bin/oxlint', '--deny-warnings', 'apps/playground-worker/src/demo/Http.ts', 'apps/playground-worker/src/demo/RepairShowcase.ts', 'apps/playground-worker/src/persistence/SyntheticTenantBackfill.ts'])
     # One exact-resource readiness probe after independent setup work.
-    ready = call(['docker.exe', 'exec', cid, 'pg_isready', '-t', '10', '-U', 'qualification', '-d', 'effect_jobs_d6'], 15)
+    ready = call(['docker.exe', 'exec', cid, 'pg_isready', '-h', '127.0.0.1', '-t', '10', '-U', 'qualification', '-d', 'effect_jobs_d6'], 15)
     receipt['readiness'] = {'exit': ready.returncode, 'response': ready.stdout.strip()}
     if ready.returncode != 0:
         state = call(['docker.exe','inspect','--format','{{json .State}}',cid])
@@ -127,17 +134,9 @@ try:
                OPERATORS_PG_CONFIG_FILE=cfg, PLAYGROUND_PRIVATE_CONFIG=cfg,
                EFFECT_JOBS_ARCHIVE=str(out / 'effect-jobs-0.1.0-alpha.1.tgz'))
     # Rerun only missing gates; completed receipts are retained separately.
-    if env.get('REPAIR_PHASE') != 'recorded':
-        for runtime in ['node', 'bun']:
-            gate(runtime + '-operators-pg', [runtime, *(['--bun'] if runtime == 'bun' else []),
-                 'node_modules/vitest/vitest.mjs', 'run', '--config', 'tests/postgresql/vitest.config.ts',
-                 'tests/postgresql/operators/Operators.test.ts'], {'PG_EXPECT_RUNTIME': runtime})
-        ambient = env.get('REPAIR_AMBIENT_PROGRAM')
-        if ambient:
-            gate('native-bun-ambient', ['bun', ambient], {'AMBIENT_EVIDENCE_FILE': str(out/'bun-ambient-evidence.json')})
-        else:
-            gate('native-packed', ['node', 'tests/qualification/drizzle-native/Run.mjs'])
-        gate('installed-pg', ['node', 'scripts/qualify-postgresql.mjs'])
+    if env.get('REPAIR_PHASE') == 'supplementary':
+        gate('historical-populated-pg', ['node', str(out / 'RepairHistorical.mjs')])
+    elif env.get('REPAIR_PHASE') != 'browser':
         gate('app-pg', ['node', str(out / 'RepairPg.mjs')])
     gate('combined-pg-workerd-browser', ['node', 'apps/playground-worker/tests/integration/RepairCombined.mjs'])
 except Exception as error:
@@ -156,5 +155,5 @@ finally:
     receipt['finishedAt'] = now()
     (out / 'resource-receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
     print('cleanup: ' + str(receipt.get('cleanup')), flush=True)
-    if receipt.get('failureClass'):
+    if receipt.get('failureClass') or any(row['exit'] != 0 for row in receipt['gates']):
         sys.exit(1)
