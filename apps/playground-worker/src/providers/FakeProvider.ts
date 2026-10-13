@@ -1,7 +1,7 @@
 import { Context, Data, Effect } from "effect"
 import type { ProducerIdentity } from "effect-jobs/JobIdentity"
 import type { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
-import type { Behavior, Workload } from "../scenarios/Definitions.js"
+import type { Behavior, ProviderWorkload } from "../scenarios/Definitions.js"
 
 export class RetryRejected extends Data.TaggedError("RetryRejected")<{}> {}
 export class TerminalRejected extends Data.TaggedError("TerminalRejected")<{}> {}
@@ -22,7 +22,7 @@ export interface ProviderIdentity {
   readonly producer: ProducerIdentity
 }
 export interface ProviderCommand extends ProviderIdentity {
-  readonly workload: Workload
+  readonly workload: ProviderWorkload
   readonly behavior: Behavior
   readonly semanticProjection: Uint8Array
 }

@@ -111,7 +111,7 @@ export const executeSyntheticExport = Effect.fn("Playground.executeSyntheticExpo
       .execute({
         sandbox: payload.sandbox,
         producer: context.producer,
-        workload: "private-data-export",
+        workload: "synthetic-document-export",
         behavior: payload.behavior,
         semanticProjection: encoded.semanticProjectionBytes
       })

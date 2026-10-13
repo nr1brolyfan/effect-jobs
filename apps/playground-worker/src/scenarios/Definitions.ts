@@ -16,6 +16,12 @@ export const Workload = Schema.Literals([
   "simulated-payment"
 ])
 export type Workload = typeof Workload.Type
+// Trusted fixture is a provider catalog, not an additional public scenario slot.
+export const ProviderWorkload = Schema.Literals([
+  ...Workload.literals,
+  "synthetic-document-export"
+])
+export type ProviderWorkload = typeof ProviderWorkload.Type
 export const Behavior = Schema.Literals([
   "success",
   "retry-then-success",
