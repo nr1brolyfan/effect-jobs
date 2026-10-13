@@ -207,8 +207,9 @@ export const tick = (schema: string, rotationMillis: number = limits.rotationMil
           return { phase: "published", id: d!.candidate_id }
         }
         if (d!.current_id && now >= Number(d!.next_tick)) {
+          // Demo's DB cap is 20,000, so normalize v4 integer/v5 bigint to a number.
           const [s] = yield* sql.unsafe<{ retained_jobs: number }>(
-            `SELECT retained_jobs FROM ${t.sandboxes} WHERE sandbox_id=$1 FOR UPDATE`,
+            `SELECT retained_jobs::int AS retained_jobs FROM ${t.sandboxes} WHERE sandbox_id=$1 FOR UPDATE`,
             [d!.current_id]
           )
           const sequence = Number(d!.sequence)
