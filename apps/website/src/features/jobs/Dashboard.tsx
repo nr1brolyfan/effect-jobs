@@ -318,13 +318,42 @@ export const Dashboard = ({
   }, [runtime, state.resultsCurrent, state.page])
   useEffect(() => setFilterState(state.filters.state), [state.filters.state])
   useEffect(() => setKind(state.filters.kind ?? ""), [state.filters.kind])
+  const fullDetailFocus = useRef<{ identity: string; focused: boolean } | undefined>(
+    undefined
+  )
   useLayoutEffect(() => {
-    if (route._tag === "Detail" && state.detail?.job.jobId === route.jobId) {
-      document
-        .querySelector<HTMLElement>("[data-job-details-heading]")
-        ?.focus({ preventScroll: true })
+    if (route._tag !== "Detail") {
+      fullDetailFocus.current = undefined
+      return
     }
-  }, [route, state.selected])
+    const identity = JSON.stringify([
+      route.mode,
+      state.sandbox.ref.sandboxId,
+      route.generation,
+      route.jobId
+    ])
+    if (fullDetailFocus.current?.identity !== identity) {
+      fullDetailFocus.current = { identity, focused: false }
+    }
+    const detail = state.detail
+    if (
+      fullDetailFocus.current.focused ||
+      state.sandbox.expiresAt <= now ||
+      route.generation !== state.sandbox.ref.generation ||
+      state.selected !== route.jobId ||
+      state.detailError !== undefined ||
+      detail?.job.jobId !== route.jobId ||
+      detail.sandbox.sandboxId !== state.sandbox.ref.sandboxId ||
+      detail.sandbox.generation !== route.generation
+    ) {
+      return
+    }
+    const heading = document.querySelector<HTMLElement>("[data-job-details-heading]")
+    if (heading) {
+      heading.focus({ preventScroll: true })
+      fullDetailFocus.current.focused = true
+    }
+  }, [route, state.selected, state.detail, state.detailError, state.sandbox, now])
   const stats = state.stats
   const totals = [
     stats?.total,

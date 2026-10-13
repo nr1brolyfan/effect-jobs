@@ -875,6 +875,8 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       })
       ++listRevision
       ++detailRevision
+      // The replacement read owns the revision; the old foreground finalizer cannot clear it.
+      update({ loading: false })
       yield* read(true, true)
     })
   const repairCommand = (input: JobRepairCommand | JobResolutionCommand) =>
