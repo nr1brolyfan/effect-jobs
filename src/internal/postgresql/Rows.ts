@@ -2,6 +2,7 @@ import { Effect, Result, Schema } from "effect"
 import * as Lifecycle from "../../JobLifecycle.js"
 import { JobStoreProtocolError } from "../../JobStore.js"
 import type { ClaimedJob } from "../../JobStore.js"
+import { JobLineage } from "../../JobOperators.js"
 import { EpochMillis } from "../../JobPolicy.js"
 import type { TransactionQuery } from "../../PostgreSqlTransaction.js"
 
@@ -106,3 +107,26 @@ export const writeSnapshot = (
     ]
   )
 }
+
+/** Validate the durable immediate edge independently of worker lifecycle snapshots. */
+export const lineage = (row: Record<string, unknown>) =>
+  Effect.gen(function* () {
+    if (
+      row.original_source_job_id === null &&
+      row.source_job_id === null &&
+      row.redrive_kind === null
+    ) {
+      return null
+    }
+    const edge = yield* Schema.decodeUnknownEffect(JobLineage)({
+      originalSourceJobId: row.original_source_job_id,
+      sourceJobId: row.source_job_id,
+      kind: row.redrive_kind
+    }).pipe(
+      Effect.mapError(() => new JobStoreProtocolError({ reason: "invalid-artifact" }))
+    )
+    if (edge.originalSourceJobId === row.id) {
+      return yield* new JobStoreProtocolError({ reason: "invalid-artifact" })
+    }
+    return edge
+  })

@@ -5,7 +5,12 @@ import type { ApplicationAdapter } from "../../PostgreSqlTransaction.js"
 const operatorChecks = {
   state:
     "state=ANYARRAY['Pending','Active','RetryScheduled','Completed','Dead','Isolated','Cancelled']",
-  terminal: "state=ANYARRAY['Completed','Dead','Cancelled']=completed_atISNOTNULL"
+  terminal: "state=ANYARRAY['Completed','Dead','Cancelled']=completed_atISNOTNULL",
+  lineage:
+    "original_source_job_idISNULLANDsource_job_idISNULLANDredrive_kindISNULLORoriginal_source_job_idISNOTNULLANDredrive_kindISNOTNULL",
+  kind: "redrive_kind=ANYARRAY['Redrive','CorrectedRedrive']",
+  identity: "original_source_job_id<>id",
+  live: "source_job_id=original_source_job_id"
 } as const
 
 /** Explicit bounded introspection of only the two configured relations, never DDL. */
@@ -14,10 +19,27 @@ export const ready = (adapter: ApplicationAdapter, jobs: string, payloads: strin
     Effect.gen(function* () {
       yield* query.query(`SELECT id,operation,operation_id,slot,queue,kind,version,policy,initial_available_at,
     state,available_at,updated_at,attempts_made,stalled_count,lifecycle_version,lease_token,lease_expires_at,
-    completed_at,last_failure_code,cleanup_at FROM ${jobs} LIMIT 0`)
+    completed_at,last_failure_code,cleanup_at,original_source_job_id,source_job_id,redrive_kind FROM ${jobs} LIMIT 0`)
       yield* query.query(
         `SELECT job_id,format_version,payload,projection FROM ${payloads} LIMIT 0`
       )
+      const lineageColumns = yield* query.query(
+        `SELECT attname AS name,attnotnull AS required,atttypid='text'::regtype AS text
+         FROM pg_catalog.pg_attribute WHERE attrelid=$1::regclass AND NOT attisdropped
+         AND attname IN ('original_source_job_id','source_job_id','redrive_kind')`,
+        [jobs]
+      )
+      if (
+        lineageColumns.length !== 3 ||
+        !["original_source_job_id", "source_job_id", "redrive_kind"].every((name) =>
+          lineageColumns.some(
+            (column) =>
+              column.name === name && column.required === false && column.text === true
+          )
+        )
+      ) {
+        return yield* new PostgreSqlFailure({ commitKnowledge: "NotCommitted" })
+      }
       const constraints = yield* query.query(
         `SELECT c.conrelid=$1::regclass AS jobs,c.conrelid=$2::regclass AS payloads,c.contype AS kind, pg_catalog.pg_get_expr(c.conbin,c.conrelid) AS expression,
     ARRAY(SELECT a.attname::text FROM unnest(c.conkey) WITH ORDINALITY k(n,i)
@@ -63,7 +85,16 @@ export const ready = (adapter: ApplicationAdapter, jobs: string, payloads: strin
         !has("jobs", "u", ["operation", "operation_id", "slot"]) ||
         !has("jobs", "u", ["lease_token"]) ||
         !has("payloads", "p", ["job_id"]) ||
-        !fk
+        !fk ||
+        !constraints.some(
+          (c) =>
+            c.jobs === true &&
+            c.kind === "f" &&
+            names(c.columns, ["source_job_id"]) &&
+            c.target_jobs === true &&
+            names(c.target_columns, ["id"]) &&
+            c.deletion === "n"
+        )
       ) {
         return yield* new PostgreSqlFailure({ commitKnowledge: "NotCommitted" })
       }
@@ -75,6 +106,7 @@ export const ready = (adapter: ApplicationAdapter, jobs: string, payloads: strin
         [jobs]
       )
       const required = [
+        { columns: ["source_job_id"], predicate: "source_job_idISNOTNULL" },
         {
           columns: ["queue", "kind", "version", "available_at", "id"],
           predicate: "state=ANYARRAY['Pending','RetryScheduled']"

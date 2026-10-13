@@ -89,6 +89,9 @@ test("redrive uses copied bytes, no handler and one post-validation DB sample", 
           return [
             {
               id: "source",
+              original_source_job_id: null,
+              source_job_id: null,
+              redrive_kind: null,
               state: "Dead",
               lifecycle_version: 4,
               policy: Policy.defaultPolicy,
@@ -117,7 +120,7 @@ test("redrive uses copied bytes, no handler and one post-validation DB sample", 
           return [{ now: "200" }]
         }
         if (sql.startsWith('INSERT INTO "jobs"')) {
-          expect(values?.slice(8)).toEqual([200, 200, 200])
+          expect(values?.slice(8, 11)).toEqual([200, 200, 200])
           return [{ id: values?.[0] }]
         }
         if (sql.startsWith('INSERT INTO "payloads"')) {

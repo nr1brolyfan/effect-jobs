@@ -1,6 +1,10 @@
 import { Effect, Result, Schema } from "effect"
 import type { JobDefinition } from "../../Job.js"
-import type { JobOperatorsService } from "../../JobOperators.js"
+import type {
+  JobOperatorsService,
+  JobCorrectedRedriveRequest,
+  JobLineage
+} from "../../JobOperators.js"
 import {
   JobOperatorExpected,
   JobOperatorRejected,
@@ -8,7 +12,7 @@ import {
 } from "../../JobOperators.js"
 import * as Lifecycle from "../../JobLifecycle.js"
 import { CatalogIdentity, ProducerIdentity } from "../../JobIdentity.js"
-import { decodeJobPayload } from "../../JobPayloadCodec.js"
+import { decodeJobPayload, encodeJobPayload } from "../../JobPayloadCodec.js"
 import { PreparedArtifact } from "../lifecycle/Artifacts.js"
 import { PostgreSqlInvalidHandle } from "../../PostgreSqlTransaction.js"
 import type {
@@ -16,7 +20,7 @@ import type {
   PostgreSqlError,
   TransactionQuery
 } from "../../PostgreSqlTransaction.js"
-import { dbTime, snapshot, integer } from "./Rows.js"
+import { dbTime, snapshot, integer, lineage } from "./Rows.js"
 import { EpochMillis } from "../../JobPolicy.js"
 import { PostgreSqlConfigurationError } from "../../PostgreSqlSchema.js"
 import { insertOrCompareAt } from "./Producer.js"
@@ -72,6 +76,7 @@ export const makeOperators = (
       }
       const before = yield* planResult(snapshot(row))
       if (
+        before.jobId !== expected.jobId ||
         before.state !== expected.state ||
         before.lifecycleVersion !== expected.lifecycleVersion
       ) {
@@ -117,77 +122,123 @@ export const makeOperators = (
         after
       }
     })
-  const redrive = Effect.fn("JobOperators.redrive")(function* <S extends Schema.Top>(
-    definition: Pick<JobDefinition<S>, "catalog" | "payload">,
-    input: JobRedriveRequest
-  ) {
-    const query = yield* ambient
-    const request = yield* Schema.decodeEffect(
-      JobRedriveRequest,
-      strict
-    )(input).pipe(Effect.mapError(() => reject("invalid-input")))
-    const { row, before } = yield* lock(query, request.expected, true)
-    if (before.state !== "Dead" && before.state !== "Isolated") {
-      return yield* reject("not-eligible")
-    }
-    if (
-      before.policy.leaseDurationMillis - before.policy.attemptTimeoutMillis <
-      operationResponseBudgetMillis
-    ) {
-      return yield* reject("invalid-artifact")
-    }
-    const prepared = yield* Schema.decodeUnknownEffect(
-      PreparedArtifact,
-      strict
-    )({
-      catalog: { queue: row.queue, kind: row.kind, version: row.version },
-      producer: {
-        operation: row.operation,
-        operationId: row.operation_id,
-        slot: row.slot
-      },
-      policy: before.policy,
-      ...(row.initial_available_at === null
-        ? {}
-        : { availableAt: integer(row.initial_available_at) }),
-      encoded: {
-        formatVersion: row.format_version,
-        payloadBytes:
-          row.payload instanceof Uint8Array ? new Uint8Array(row.payload) : row.payload,
-        semanticProjectionBytes:
-          row.projection instanceof Uint8Array
-            ? new Uint8Array(row.projection)
-            : row.projection
-      }
-    }).pipe(Effect.mapError(() => reject("invalid-artifact")))
-    if (
-      !Schema.is(CatalogIdentity)(definition.catalog) ||
-      !Schema.toEquivalence(CatalogIdentity)(prepared.catalog, definition.catalog)
-    ) {
-      return yield* reject("unsupported-catalog")
-    }
-    if (Schema.toEquivalence(ProducerIdentity)(prepared.producer, request.producer)) {
-      return yield* reject("invalid-input")
-    }
-    yield* decodeJobPayload(definition.payload, prepared.encoded)
-    const now = yield* dbTime(query).pipe(
-      Effect.mapError((error) =>
-        error._tag === "JobStoreProtocolError" ? reject("invalid-artifact") : error
-      )
-    )
-    const result = yield* insertOrCompareAt(
-      query,
-      jobs,
-      payloads,
-      { ...prepared, producer: request.producer, availableAt: now },
-      now
-    )
-    return {
-      source: request.expected,
-      jobId: result.jobId,
-      inserted: result._tag === "Inserted",
-      dbNow: now
-    }
+  const sourceMetadata = Schema.Struct({
+    catalog: PreparedArtifact.fields.catalog,
+    producer: PreparedArtifact.fields.producer,
+    policy: PreparedArtifact.fields.policy,
+    availableAt: PreparedArtifact.fields.availableAt
   })
-  return { retryNow: transition("retryNow"), cancel: transition("cancel"), redrive }
+  const repair = <S extends Schema.Top>(
+    definition: Pick<JobDefinition<S>, "catalog" | "payload">,
+    input: JobRedriveRequest | JobCorrectedRedriveRequest<S["Type"]>,
+    corrected: boolean
+  ) =>
+    Effect.gen(function* () {
+      // Establish authority before any payload preparation or codec service access.
+      const query = yield* ambient
+      const request = yield* Schema.decodeUnknownEffect(
+        corrected
+          ? Schema.Struct({ ...JobRedriveRequest.fields, payload: Schema.Unknown })
+          : JobRedriveRequest,
+        strict
+      )(input).pipe(Effect.mapError(() => reject("invalid-input")))
+      const { row, before } = yield* lock(query, request.expected, !corrected)
+      if (before.state !== "Dead" && before.state !== "Isolated") {
+        return yield* reject("not-eligible")
+      }
+      if (
+        before.policy.leaseDurationMillis - before.policy.attemptTimeoutMillis <
+        operationResponseBudgetMillis
+      ) {
+        return yield* reject("invalid-artifact")
+      }
+      yield* lineage(row).pipe(Effect.mapError(() => reject("invalid-artifact")))
+      const metadata = yield* Schema.decodeUnknownEffect(
+        sourceMetadata,
+        strict
+      )({
+        catalog: { queue: row.queue, kind: row.kind, version: row.version },
+        producer: {
+          operation: row.operation,
+          operationId: row.operation_id,
+          slot: row.slot
+        },
+        policy: before.policy,
+        ...(row.initial_available_at === null
+          ? {}
+          : { availableAt: integer(row.initial_available_at) })
+      }).pipe(Effect.mapError(() => reject("invalid-artifact")))
+      if (
+        !Schema.is(CatalogIdentity)(definition.catalog) ||
+        !Schema.toEquivalence(CatalogIdentity)(metadata.catalog, definition.catalog)
+      ) {
+        return yield* reject("unsupported-catalog")
+      }
+      if (Schema.toEquivalence(ProducerIdentity)(metadata.producer, request.producer)) {
+        return yield* reject("invalid-input")
+      }
+      const encoded = corrected
+        ? yield* encodeJobPayload(
+            definition.payload,
+            (request as JobCorrectedRedriveRequest<S["Type"]>).payload
+          )
+        : yield* Schema.decodeUnknownEffect(
+            PreparedArtifact.fields.encoded,
+            strict
+          )({
+            formatVersion: row.format_version,
+            payloadBytes:
+              row.payload instanceof Uint8Array
+                ? new Uint8Array(row.payload)
+                : row.payload,
+            semanticProjectionBytes:
+              row.projection instanceof Uint8Array
+                ? new Uint8Array(row.projection)
+                : row.projection
+          }).pipe(Effect.mapError(() => reject("invalid-artifact")))
+      // Both forms authenticate canonical projection and decode with the exact definition.
+      yield* decodeJobPayload(definition.payload, encoded)
+      const now = yield* dbTime(query).pipe(
+        Effect.mapError((error) =>
+          error._tag === "JobStoreProtocolError" ? reject("invalid-artifact") : error
+        )
+      )
+      const edge: JobLineage = {
+        originalSourceJobId: request.expected.jobId,
+        sourceJobId: request.expected.jobId,
+        kind: corrected ? "CorrectedRedrive" : "Redrive"
+      }
+      const result = yield* insertOrCompareAt(
+        query,
+        jobs,
+        payloads,
+        { ...metadata, encoded, producer: request.producer, availableAt: now },
+        now,
+        undefined,
+        edge
+      )
+      return {
+        source: request.expected,
+        jobId: result.jobId,
+        inserted: result._tag === "Inserted",
+        dbNow: now,
+        lineage: edge
+      }
+    })
+  return {
+    retryNow: transition("retryNow"),
+    cancel: transition("cancel"),
+    redrive: Effect.fn("JobOperators.redrive")(
+      <S extends Schema.Top>(
+        definition: Pick<JobDefinition<S>, "catalog" | "payload">,
+        request: JobRedriveRequest
+      ) => repair(definition, request, false)
+    ),
+    correctedRedrive: Effect.fn("JobOperators.correctedRedrive")(
+      <S extends Schema.Top>(
+        definition: Pick<JobDefinition<S>, "catalog" | "payload">,
+        request: JobCorrectedRedriveRequest<S["Type"]>
+      ) => repair(definition, request, true)
+    )
+  }
 }

@@ -52,9 +52,13 @@ const invoke = (
   JobOperatorTransition | JobRedriveResult,
   JobBackendError | JobOperatorRejected | JobPayloadCodecError | JobIntegrityConflict
 > =>
-  method === "redrive" ? service.redrive(definition, request) : service[method](expected)
+  method === "correctedRedrive"
+    ? service.correctedRedrive(definition, { ...request, payload: { value: "fixed" } })
+    : method === "redrive"
+      ? service.redrive(definition, request)
+      : service[method](expected)
 const paths = ["layerNoDeps", "withTransaction"] as const
-const methods = ["retryNow", "cancel", "redrive"] as const
+const methods = ["retryNow", "cancel", "redrive", "correctedRedrive"] as const
 type Method = (typeof methods)[number]
 type OperatorError = PostgreSqlError | JobOperatorRejected
 const Diagnostic = Context.Reference<string>("test/operator-diagnostic", {
@@ -118,6 +122,7 @@ const serviceFor = (
 ): JobOperatorsService<PostgreSqlError> => ({
   retryNow: () => Effect.failCause(cause),
   cancel: () => Effect.failCause(cause),
+  correctedRedrive: () => Effect.failCause(cause),
   redrive: () => Effect.failCause(cause)
 })
 afterEach(() => vi.restoreAllMocks())
@@ -189,14 +194,24 @@ for (const path of paths) {
         source: expected,
         jobId: expected.jobId,
         inserted: true,
-        dbNow: 200
+        dbNow: 200,
+        lineage: {
+          originalSourceJobId: expected.jobId,
+          sourceJobId: expected.jobId,
+          kind: "Redrive" as const
+        }
       }
       const exit = await run(path, method, {
         retryNow: () => Effect.succeed(transition),
         cancel: () => Effect.succeed(transition),
+        correctedRedrive: () => Effect.succeed(redrive),
         redrive: () => Effect.succeed(redrive)
       })
-      expect(exit).toEqual(Exit.succeed(method === "redrive" ? redrive : transition))
+      expect(exit).toEqual(
+        Exit.succeed(
+          method === "redrive" || method === "correctedRedrive" ? redrive : transition
+        )
+      )
     })
   }
   test.each([

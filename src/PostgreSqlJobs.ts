@@ -84,6 +84,21 @@ const neutralOperators = (
             )
           )
         )
+      ),
+  correctedRedrive: (definition, request) =>
+    operators
+      .correctedRedrive(definition, request)
+      .pipe(
+        Effect.catchCause((cause) =>
+          Effect.failCause(
+            Cause.map(cause, (error) =>
+              error instanceof PostgreSqlFailure ||
+              error instanceof PostgreSqlInvalidHandle
+                ? backendError(error)
+                : error
+            )
+          )
+        )
       )
 })
 

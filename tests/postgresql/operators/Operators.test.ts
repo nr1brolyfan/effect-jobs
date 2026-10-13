@@ -552,6 +552,337 @@ describe.skipIf(!configPath)(
         )[0]
       ).toEqual({ state: "Dead", lifecycle_version: "0" })
     })
+    test.each(["Dead", "Isolated"] as const)(
+      "corrected %s replaces missing bytes, preserves source and deduplicates concurrently",
+      async (state) => {
+        const expected = await seed(state, state === "Dead")
+        await query(`DELETE FROM ${payloads} WHERE job_id=$1`, [expected.jobId])
+        const before = (
+          await query(`SELECT * FROM ${jobs} WHERE id=$1`, [expected.jobId])
+        )[0]
+        const request = { expected, producer: producer(), payload: { value: "fixed" } }
+        const results = await Promise.all([
+          run(() => operators.correctedRedrive(definition, request)),
+          run(() => operators.correctedRedrive(definition, request))
+        ])
+        expect(results[0]!.jobId).toBe(results[1]!.jobId)
+        expect(
+          results.map((r) => r.inserted).sort((a, b) => Number(a) - Number(b))
+        ).toEqual([false, true])
+        const child = (
+          await query(
+            `SELECT j.*,p.payload FROM ${jobs} j JOIN ${payloads} p ON p.job_id=j.id WHERE id=$1`,
+            [results[0]!.jobId]
+          )
+        )[0]
+        expect(child).toMatchObject({
+          state: "Pending",
+          attempts_made: "0",
+          stalled_count: "0",
+          lifecycle_version: "0",
+          policy: before.policy,
+          original_source_job_id: expected.jobId,
+          source_job_id: expected.jobId,
+          redrive_kind: "CorrectedRedrive"
+        })
+        expect(child.payload.toString("utf8")).toBe('{"value":"fixed"}')
+        expect(
+          (await query(`SELECT * FROM ${jobs} WHERE id=$1`, [expected.jobId]))[0]
+        ).toEqual(before)
+        await expect(
+          run(() => operators.redrive(definition, { expected, producer: producer() }))
+        ).rejects.toThrow()
+      }
+    )
+    test("source/kind lineage conflict poisons caught rejections and rolls back domain writes", async () => {
+      const first = await seed("Dead")
+      const second = await seed("Dead")
+      const tuple = producer()
+      await run(() => operators.redrive(definition, { expected: first, producer: tuple }))
+      for (const operation of [
+        () => operators.redrive(definition, { expected: second, producer: tuple }),
+        () =>
+          operators.correctedRedrive(definition, {
+            expected: first,
+            producer: tuple,
+            payload: { value: "valid" }
+          })
+      ]) {
+        await expect(
+          run((q) =>
+            Effect.gen(function* () {
+              yield* q.query(
+                "INSERT INTO operators_fixture.receipts VALUES ('lineage-conflict',$1,1,txid_current())",
+                [first.jobId]
+              )
+              yield* operation().pipe(
+                Effect.catchTag("JobOperatorRejected", (error) => {
+                  expect(error.reason).toBe("lineage-conflict")
+                  return Effect.void
+                })
+              )
+            })
+          )
+        ).rejects.toThrow()
+        expect(
+          await query(
+            "SELECT id FROM operators_fixture.receipts WHERE id='lineage-conflict'"
+          )
+        ).toEqual([])
+      }
+    })
+    test("corrected semantic conflict, rollback and unknown COMMIT retain exact evidence", async () => {
+      const expected = await seed("Dead")
+      const tuple = producer()
+      await run(() =>
+        operators.correctedRedrive(definition, {
+          expected,
+          producer: tuple,
+          payload: { value: "first" }
+        })
+      )
+      await expect(
+        run(() =>
+          operators.correctedRedrive(definition, {
+            expected,
+            producer: tuple,
+            payload: { value: "different" }
+          })
+        )
+      ).rejects.toThrow()
+      const rollbackTuple = producer()
+      await expect(
+        run((q) =>
+          Effect.gen(function* () {
+            yield* operators.correctedRedrive(definition, {
+              expected,
+              producer: rollbackTuple,
+              payload: { value: "rollback" }
+            })
+            yield* q.query(
+              "INSERT INTO operators_fixture.receipts VALUES ('broken',NULL,1,1)"
+            )
+          })
+        )
+      ).rejects.toThrow()
+      expect(
+        await query(`SELECT id FROM ${jobs} WHERE operation_id=$1`, [
+          rollbackTuple.operationId
+        ])
+      ).toEqual([])
+      const lost = await Effect.runPromiseExit(
+        App.transaction(
+          source,
+          () =>
+            Effect.gen(function* () {
+              const result = yield* operators.correctedRedrive(definition, {
+                expected,
+                producer: producer(),
+                payload: { value: "committed" }
+              })
+              const q = yield* adapter.ambient!
+              yield* q.query(
+                "INSERT INTO operators_fixture.receipts VALUES ('corrected-unknown',$1,$2,txid_current())",
+                [result.jobId, result.dbNow]
+              )
+            }),
+          "after-durable"
+        )
+      )
+      expect(failure(lost)).toMatchObject({ value: { commitKnowledge: "Unknown" } })
+      const receipt = (
+        await query(
+          "SELECT job_id FROM operators_fixture.receipts WHERE id='corrected-unknown'"
+        )
+      )[0]
+      expect(
+        (await query(`SELECT redrive_kind FROM ${jobs} WHERE id=$1`, [receipt.job_id]))[0]
+          .redrive_kind
+      ).toBe("CorrectedRedrive")
+    })
+    test("retention nulls live source, preserves durable identity and never cascades to successor", async () => {
+      const expected = await seed("Dead")
+      const child = await run(() =>
+        operators.correctedRedrive(definition, {
+          expected,
+          producer: producer(),
+          payload: { value: "retained" }
+        })
+      )
+      await query(`UPDATE ${jobs} SET cleanup_at=1 WHERE id=$1`, [expected.jobId])
+      await Effect.runPromise(makeCleanup(adapter, jobs).cleanup(100))
+      expect(await query(`SELECT id FROM ${jobs} WHERE id=$1`, [expected.jobId])).toEqual(
+        []
+      )
+      expect(
+        await query(`SELECT job_id FROM ${payloads} WHERE job_id=$1`, [expected.jobId])
+      ).toEqual([])
+      expect(
+        (
+          await query(
+            `SELECT original_source_job_id,source_job_id,redrive_kind FROM ${jobs} WHERE id=$1`,
+            [child.jobId]
+          )
+        )[0]
+      ).toEqual({
+        original_source_job_id: expected.jobId,
+        source_job_id: null,
+        redrive_kind: "CorrectedRedrive"
+      })
+      expect(
+        (
+          await query(`SELECT payload FROM ${payloads} WHERE job_id=$1`, [child.jobId])
+        )[0].payload.toString("utf8")
+      ).toBe('{"value":"retained"}')
+      for (const assignment of [
+        "source_job_id=id",
+        "original_source_job_id=id",
+        "redrive_kind=NULL",
+        "redrive_kind='Bogus'"
+      ]) {
+        await expect(
+          query(`UPDATE ${jobs} SET ${assignment} WHERE id=$1`, [child.jobId])
+        ).rejects.toThrow()
+      }
+    })
+    test("mapped additive lineage migration preserves ordinary rows and rejects CASCADE readiness", async () => {
+      const mapping = Tables.tables({
+        schema: "operators_lineage",
+        jobsTable: "mapped_jobs",
+        payloadsTable: "mapped_payloads"
+      })
+      const rel = Tables.relations(mapping)
+      await query('CREATE SCHEMA "operators_lineage"')
+      try {
+        await query(Tables.migration(mapping))
+        await run((q) =>
+          Effect.gen(function* () {
+            const encoded = yield* encodeJobPayload(definition.payload, {
+              value: "legacy"
+            })
+            yield* insertOrCompare(q, rel.jobs, rel.payloads, {
+              catalog: definition.catalog,
+              producer: producer(),
+              policy: Policy.defaultPolicy,
+              encoded
+            })
+          })
+        )
+        await query(
+          `DROP INDEX "operators_lineage"."${Tables.indexPrefix(mapping)}_source"`
+        )
+        await query(
+          `ALTER TABLE ${rel.jobs} DROP COLUMN original_source_job_id CASCADE, DROP COLUMN source_job_id CASCADE, DROP COLUMN redrive_kind CASCADE`
+        )
+        const before = await query(`SELECT * FROM ${rel.jobs}`)
+        await expect(
+          Effect.runPromise(ready(adapter, rel.jobs, rel.payloads))
+        ).rejects.toThrow()
+        await query(Tables.lineageMigration(mapping))
+        await Effect.runPromise(ready(adapter, rel.jobs, rel.payloads))
+        expect(await query(`SELECT * FROM ${rel.jobs}`)).toEqual(
+          before.map((r) => ({
+            ...r,
+            original_source_job_id: null,
+            source_job_id: null,
+            redrive_kind: null
+          }))
+        )
+        await query(
+          `ALTER TABLE ${rel.jobs} DROP CONSTRAINT "${Tables.indexPrefix(mapping)}_source_fk", ADD FOREIGN KEY (source_job_id) REFERENCES ${rel.jobs}(id) ON DELETE CASCADE`
+        )
+        await expect(
+          Effect.runPromise(ready(adapter, rel.jobs, rel.payloads))
+        ).rejects.toThrow()
+      } finally {
+        await query('DROP SCHEMA "operators_lineage" CASCADE')
+      }
+    })
+    test("concurrent different-source tuple reuse has one lineage winner", async () => {
+      const first = await seed("Dead")
+      const second = await seed("Dead")
+      const tuple = producer()
+      const outcomes = await Promise.allSettled(
+        [first, second].map((expected) =>
+          run(() =>
+            operators.correctedRedrive(definition, {
+              expected,
+              producer: tuple,
+              payload: { value: "same" }
+            })
+          )
+        )
+      )
+      expect(outcomes.filter((r) => r.status === "fulfilled")).toHaveLength(1)
+      expect(outcomes.filter((r) => r.status === "rejected")).toHaveLength(1)
+      const rows = await query(
+        `SELECT original_source_job_id,source_job_id,redrive_kind FROM ${jobs} WHERE operation_id=$1`,
+        [tuple.operationId]
+      )
+      expect(rows).toHaveLength(1)
+      expect([first.jobId, second.jobId]).toContain(rows[0].original_source_job_id)
+      expect(rows[0].source_job_id).toBe(rows[0].original_source_job_id)
+      expect(rows[0].redrive_kind).toBe("CorrectedRedrive")
+    })
+    test("source deletion winning the lock race refuses repair without a successor", async () => {
+      const expected = await seed("Dead")
+      const tuple = producer()
+      const held = await pool.connect()
+      try {
+        await held.query("BEGIN")
+        await held.query(`SELECT id FROM ${jobs} WHERE id=$1 FOR UPDATE`, [
+          expected.jobId
+        ])
+        const outcome = run(() =>
+          operators.correctedRedrive(definition, {
+            expected,
+            producer: tuple,
+            payload: { value: "fixed" }
+          })
+        )
+        const assertion = expect(outcome).rejects.toThrow()
+        await held.query(`DELETE FROM ${jobs} WHERE id=$1`, [expected.jobId])
+        await held.query("COMMIT")
+        await assertion
+        expect(
+          await query(`SELECT id FROM ${jobs} WHERE operation_id=$1`, [tuple.operationId])
+        ).toEqual([])
+      } finally {
+        await held.query("ROLLBACK")
+        held.release()
+      }
+    })
+    test("corrected rejection never repairs invalid metadata or accepts invalid replacement", async () => {
+      const expected = await seed("Isolated")
+      const invalid = producer()
+      await expect(
+        run(() =>
+          operators.correctedRedrive(definition, {
+            expected,
+            producer: invalid,
+            payload: { value: 12 } as never
+          })
+        )
+      ).rejects.toThrow()
+      expect(
+        await query(`SELECT id FROM ${jobs} WHERE operation_id=$1`, [invalid.operationId])
+      ).toEqual([])
+      await query(`UPDATE ${jobs} SET initial_available_at=-1 WHERE id=$1`, [
+        expected.jobId
+      ])
+      await expect(
+        run(() =>
+          operators.correctedRedrive(definition, {
+            expected,
+            producer: invalid,
+            payload: { value: "fixed" }
+          })
+        )
+      ).rejects.toThrow()
+      expect(
+        await query(`SELECT id FROM ${jobs} WHERE operation_id=$1`, [invalid.operationId])
+      ).toEqual([])
+    })
     test("Cancelled writeSnapshot never derives dead retention", async () => {
       const expected = await seed()
       await run((q) =>

@@ -33,12 +33,39 @@ export const JobRedriveRequest = Schema.Struct({
 })
 /** @category models */
 export type JobRedriveRequest = typeof JobRedriveRequest.Type
+/** Immediate repair edge; original identity survives source retention. @category schemas */
+export const JobRedriveKind = Schema.Literals(["Redrive", "CorrectedRedrive"])
+/** @category models */
+export type JobRedriveKind = typeof JobRedriveKind.Type
+/** Live reference may disappear without erasing original identity. @category schemas */
+export const JobLineage = Schema.Struct({
+  originalSourceJobId: JobId,
+  sourceJobId: Schema.NullOr(JobId),
+  kind: JobRedriveKind
+}).pipe(
+  Schema.check(
+    Schema.makeFilter(
+      (lineage) =>
+        lineage.sourceJobId === null ||
+        lineage.sourceJobId === lineage.originalSourceJobId
+    )
+  )
+)
+/** @category models */
+export type JobLineage = typeof JobLineage.Type
+/** Full replacement in the definition's decoded payload type. @category models */
+export interface JobCorrectedRedriveRequest<Payload> {
+  readonly expected: JobOperatorExpected
+  readonly producer: ProducerIdentity
+  readonly payload: Payload
+}
 /** Source remains unchanged; timestamp is sampled after validation. @category schemas */
 export const JobRedriveResult = Schema.Struct({
   source: JobOperatorExpected,
   jobId: JobId,
   inserted: Schema.Boolean,
-  dbNow: EpochMillis
+  dbNow: EpochMillis,
+  lineage: JobLineage
 })
 /** @category models */
 export type JobRedriveResult = typeof JobRedriveResult.Type
@@ -53,6 +80,7 @@ export class JobOperatorRejected extends Data.TaggedError("JobOperatorRejected")
     | "invalid-artifact"
     | "unsupported-catalog"
     | "arithmetic-bound"
+    | "lineage-conflict"
 }> {}
 /** All successes are provisional until the outer owner commits. @category models */
 export interface JobOperatorsService<E = never, R = never> {
@@ -69,6 +97,14 @@ export interface JobOperatorsService<E = never, R = never> {
     JobRedriveResult,
     E | JobOperatorRejected | JobPayloadCodecError | JobIntegrityConflict,
     R | S["DecodingServices"]
+  >
+  readonly correctedRedrive: <S extends Schema.Top>(
+    definition: Pick<JobDefinition<S>, "catalog" | "payload">,
+    request: JobCorrectedRedriveRequest<S["Type"]>
+  ) => Effect.Effect<
+    JobRedriveResult,
+    E | JobOperatorRejected | JobPayloadCodecError | JobIntegrityConflict,
+    R | S["EncodingServices"] | S["DecodingServices"]
   >
 }
 /** Trusted application composition, not caller authentication. @category services */

@@ -7,6 +7,7 @@ import {
   bigint,
   check,
   customType,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -48,7 +49,10 @@ const makeJobsColumns = () => ({
   leaseExpiresAt: bigint("lease_expires_at", { mode: "number" }),
   completedAt: bigint("completed_at", { mode: "number" }),
   lastFailureCode: text("last_failure_code"),
-  cleanupAt: bigint("cleanup_at", { mode: "number" })
+  cleanupAt: bigint("cleanup_at", { mode: "number" }),
+  originalSourceJobId: text("original_source_job_id"),
+  sourceJobId: text("source_job_id"),
+  redriveKind: text("redrive_kind")
 })
 /** Actual typed required jobs columns supplied to the extraIndexes callback.
  * @category models
@@ -78,6 +82,22 @@ export const makeJobTables = (options: Options = {}) => {
     mapping.schema === "public" ? pgTable : pgSchema(mapping.schema).table
   const prefix = indexPrefix(mapping)
   const jobs = table(mapping.jobsTable, makeJobsColumns(), (j) => [
+    check(
+      `${prefix}_lineage`,
+      sql`(${j.originalSourceJobId} IS NULL AND ${j.sourceJobId} IS NULL AND ${j.redriveKind} IS NULL)
+      OR (${j.originalSourceJobId} IS NOT NULL AND ${j.redriveKind} IS NOT NULL)`
+    ),
+    check(`${prefix}_edge_kind`, sql`${j.redriveKind} IN ('Redrive','CorrectedRedrive')`),
+    check(`${prefix}_edge_id`, sql`${j.originalSourceJobId} <> ${j.id}`),
+    check(`${prefix}_edge_live`, sql`${j.sourceJobId} = ${j.originalSourceJobId}`),
+    foreignKey({
+      name: `${prefix}_source_fk`,
+      columns: [j.sourceJobId],
+      foreignColumns: [j.id]
+    }).onDelete("set null"),
+    index(`${prefix}_source`)
+      .on(j.sourceJobId)
+      .where(sql`${j.sourceJobId} IS NOT NULL`),
     unique().on(j.operation, j.operationId, j.slot),
     unique().on(j.leaseToken),
     check(
