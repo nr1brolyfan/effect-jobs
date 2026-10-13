@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { randomUUID } from "node:crypto"
 import { Pool } from "pg"
-import { Cause, Effect, Exit, Option, Result, Schema } from "effect"
+import { Cause, Duration, Effect, Exit, Option, Result, Schema } from "effect"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import * as Tables from "../../../src/PostgreSqlSchema.js"
 import { ready } from "../../../src/internal/postgresql/Readiness.js"
@@ -63,7 +63,8 @@ describe.skipIf(!configPath)(
       (await pool.query(sql, values)).rows
     const seed = async (
       state: "Pending" | "RetryScheduled" | "Dead" | "Isolated" = "Pending",
-      exhausted = false
+      exhausted = false,
+      policy: Policy.JobPolicy = Policy.defaultPolicy
     ) => {
       const result = await run((q) =>
         Effect.gen(function* () {
@@ -71,7 +72,7 @@ describe.skipIf(!configPath)(
           return yield* insertOrCompare(q, jobs, payloads, {
             catalog: definition.catalog,
             producer: producer(),
-            policy: Policy.defaultPolicy,
+            policy,
             encoded,
             availableAt: Date.now() + 60000
           })
@@ -701,7 +702,16 @@ describe.skipIf(!configPath)(
       ).toBe("CorrectedRedrive")
     })
     test("retention nulls live source, preserves durable identity and never cascades to successor", async () => {
-      const expected = await seed("Dead")
+      const expected = await seed(
+        "Dead",
+        false,
+        Policy.make({ deadRetention: Duration.millis(1) })
+      )
+      const forever = await seed("Dead")
+      // Age both sources without waiting. The cleanup hint alone must not override Forever.
+      await query(`UPDATE ${jobs} SET completed_at=1,cleanup_at=2 WHERE id=ANY($1)`, [
+        [expected.jobId, forever.jobId]
+      ])
       const child = await run(() =>
         operators.correctedRedrive(definition, {
           expected,
@@ -709,8 +719,13 @@ describe.skipIf(!configPath)(
           payload: { value: "retained" }
         })
       )
-      await query(`UPDATE ${jobs} SET cleanup_at=1 WHERE id=$1`, [expected.jobId])
-      await Effect.runPromise(makeCleanup(adapter, jobs).cleanup(100))
+      expect(await Effect.runPromise(makeCleanup(adapter, jobs).cleanup(100))).toBe(1)
+      expect(await query(`SELECT id FROM ${jobs} WHERE id=$1`, [forever.jobId])).toEqual([
+        { id: forever.jobId }
+      ])
+      expect(
+        await query(`SELECT job_id FROM ${payloads} WHERE job_id=$1`, [forever.jobId])
+      ).toEqual([{ job_id: forever.jobId }])
       expect(await query(`SELECT id FROM ${jobs} WHERE id=$1`, [expected.jobId])).toEqual(
         []
       )
