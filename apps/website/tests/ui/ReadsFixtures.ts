@@ -38,6 +38,7 @@ export const makeServer = () => {
           items: visible,
           filteredTotal: filtered.length,
           nextCursor: remaining.length > request.limit ? visible.at(-1)!.jobId : null,
+          attentionStats: Fixtures.page.attentionStats,
           stats: {
             total: items.length,
             Pending: items.length,

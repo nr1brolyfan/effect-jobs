@@ -50,6 +50,18 @@ export const dashboard = profiles.map((profile, index) => ({
           profile.label === "pending" || profile.label === "delayed" ? 0 : 2,
         lastFailureCode: profile.code
       },
+      createdAt: null,
+      payload: { _tag: "Unavailable", reason: "not-stored" },
+      result: { _tag: "Unavailable", reason: "not-stored" },
+      history: { coverage: "RetainedFacts", attempts: null, items: [], nextCursor: null },
+      provider: null,
+      lineage: null,
+      problem: null,
+      related: { items: [], nextCursor: null },
+      eligibility: {
+        redrive: { enabled: false, reason: "public-read-only" },
+        correctedRedrive: { enabled: false, reason: "public-read-only" }
+      },
       producer: Definitions.Producer.identity({
         operationId: `synthetic-fixture-${index}`,
         slot: "welcome-email"

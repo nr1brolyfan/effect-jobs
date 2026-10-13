@@ -1,3 +1,7 @@
+import { JobDetailsDrawer } from "./details/JobDetailsDrawer.js"
+import { JobDetailsPage } from "./details/JobDetailsPage.js"
+import { JobPayloadPanel } from "./payload/JobPayloadPanel.js"
+import { JobRepairPanel } from "./repair/JobRepairPanel.js"
 import { useAtomValue } from "@effect/atom-react"
 import * as stylex from "@stylexjs/stylex"
 import {
@@ -6,19 +10,8 @@ import {
   useReactTable,
   type ColumnDef
 } from "@tanstack/react-table"
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode
-} from "react"
-import type {
-  JobDetail,
-  JobFilters,
-  JobSummary
-} from "@effect-jobs/playground-contracts/Jobs"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import type { JobFilters, JobSummary } from "@effect-jobs/playground-contracts/Jobs"
 import { ScenarioId } from "@effect-jobs/playground-contracts/Scenarios"
 import { DateTime } from "../../ui/DateTime.js"
 import { Pagination } from "../../ui/Pagination.js"
@@ -35,7 +28,6 @@ import {
 import { stateOrder, stateLabels } from "../../ui/Theme.stylex.js"
 import { StatsChart } from "./StatsChart.js"
 import { jobIcon, jobName, type IconName } from "./Design.js"
-import * as RetryTime from "./RetryTime.js"
 import { styles, layout } from "./Dashboard.stylex.js"
 import { OperatorControls } from "./OperatorControls.js"
 import type { Runtime } from "./Runtime.js"
@@ -115,119 +107,6 @@ const navigation: ReadonlyArray<readonly [string, IconName]> = [
   ["Settings", "settings"]
 ]
 
-const Details = ({
-  detail,
-  now
-}: {
-  readonly detail: JobDetail
-  readonly now: number
-}) => {
-  const d = detail
-  const retention = (value: JobDetail["policy"]["completedRetention"]) =>
-    value._tag === "Forever" ? "Forever" : `${value.millis}ms`
-  const values: ReadonlyArray<readonly [string, ReactNode]> = [
-    ["Job ID", d.job.jobId],
-    ["State", d.job.state],
-    [
-      "Catalog",
-      `${d.job.catalog.queue} / ${d.job.catalog.kind} / v${d.job.catalog.version}`
-    ],
-    [
-      "Producer identity",
-      `${d.producer.operation} / ${d.producer.operationId} / ${d.producer.slot}`
-    ],
-    ["Updated", <DateTime value={d.job.updatedAt} label="Updated" />],
-    [
-      "Terminal timestamp",
-      <DateTime value={d.job.completedAt} label="Terminal timestamp" />
-    ],
-    [
-      "Finalized attempts / stalled recoveries / lifecycle version",
-      `${d.job.attemptsMade} / ${d.job.stalledCount} / ${d.job.lifecycleVersion}`
-    ],
-    ["Failure code", d.job.lastFailureCode ?? "None recorded"],
-    ["Synthetic actor", d.relations.syntheticActor ?? "Not supplied"],
-    [
-      "Lease / attempt timeout",
-      `${d.policy.leaseDurationMillis}ms / ${d.policy.attemptTimeoutMillis}ms`
-    ],
-    ["Attempt / stalled limits", `${d.policy.maxAttempts} / ${d.policy.maxStalledCount}`],
-    ["Retry delay", `${d.policy.retrySchedule.delayMillis}ms (fixed)`],
-    [
-      "Completed / Dead retention",
-      `${retention(d.policy.completedRetention)} / ${retention(d.policy.deadRetention)}`
-    ],
-    [
-      "Observation",
-      d.observation === undefined ? (
-        "Unknown; no observation supplied."
-      ) : (
-        <>
-          {d.observation.outcome} · {d.observation.source} ·{" "}
-          <DateTime value={d.observation.observedAt} label="Observed" />
-        </>
-      )
-    ]
-  ]
-  return (
-    <div {...stylex.props(styles.details)}>
-      <dl>
-        {values.map(([label, value]) => (
-          <div key={label}>
-            <dt {...stylex.props(layout.dt)}>{label}</dt>
-            <dd {...stylex.props(layout.dd)}>{value}</dd>
-          </div>
-        ))}
-        <dt {...stylex.props(layout.dt)}>
-          {d.job.state === "RetryScheduled" ? "Next retry" : "Available"}
-        </dt>
-        <dd
-          className={[
-            "retry-schedule",
-            stylex.props(layout.dd, styles.retry).className
-          ].join(" ")}
-        >
-          <DateTime
-            value={d.job.availableAt}
-            label={d.job.state === "RetryScheduled" ? "Retry available at" : "Available"}
-          />
-          {d.job.state === "RetryScheduled" && (
-            <span
-              className={["retry-countdown", stylex.props(styles.clock).className].join(
-                " "
-              )}
-              title="Earliest retry eligibility, not a guaranteed start time. Countdown uses the browser clock."
-            >
-              {RetryTime.countdown(d.job.availableAt, now)}
-            </span>
-          )}
-        </dd>
-      </dl>
-      {d.observation?.outcome === "unknown" && (
-        <p {...stylex.props(layout.paragraph)}>
-          Unknown outcome: do not infer success or replay safety.
-        </p>
-      )}
-      {d.relations.syntheticOrderId !== undefined && (
-        <a {...stylex.props(layout.link)} href="/docs/jobs#privacy">
-          {d.relations.syntheticOrderId} (synthetic example)
-        </a>
-      )}
-      <p {...stylex.props(styles.muted)}>
-        Payload and protected fields are unavailable. Lease ownership and complete history
-        are not exposed.
-      </p>
-      <div {...stylex.props(styles.controls)}>
-        {["Retry", "Cancel", "Redrive"].map((label) => (
-          <Button key={label} disabled>
-            {label} · unavailable
-          </Button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 const JobsTable = ({
   runtime,
   data,
@@ -271,6 +150,7 @@ const JobsTable = ({
                 type="button"
                 {...classes("job-id")}
                 title={row.original.jobId}
+                data-job-id={row.original.jobId}
                 aria-pressed={selected === row.original.jobId}
                 onClick={() => {
                   void runtime.run(runtime.select(row.original.jobId))
@@ -383,6 +263,7 @@ export const Dashboard = ({
 }) => {
   const state = useAtomValue(runtime.stateAtom)
   const now = useAtomValue(runtime.now)
+  const route = useAtomValue(runtime.navigation.route)
   const detailPanel = useRef<HTMLElement>(null)
   const jobsPanel = useRef<HTMLElement>(null)
   const scenariosPanel = useRef<HTMLDetailsElement>(null)
@@ -417,7 +298,11 @@ export const Dashboard = ({
   const [scenario, setScenario] = useState<typeof ScenarioId.Type>("success")
   const [count, setCount] = useState(1)
   const close = () => {
-    runtime.closeDetail()
+    if (route._tag === "List") {
+      runtime.closeDetail()
+    } else {
+      runtime.navigation.close()
+    }
   }
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
@@ -428,16 +313,102 @@ export const Dashboard = ({
     window.addEventListener("keydown", escape)
     return () => window.removeEventListener("keydown", escape)
   })
+  useLayoutEffect(() => {
+    runtime.restoreViewport()
+  }, [runtime, state.resultsCurrent, state.page])
   useEffect(() => setFilterState(state.filters.state), [state.filters.state])
+  useEffect(() => setKind(state.filters.kind ?? ""), [state.filters.kind])
+  useLayoutEffect(() => {
+    if (route._tag === "Detail" && state.detail?.job.jobId === route.jobId) {
+      document
+        .querySelector<HTMLElement>("[data-job-details-heading]")
+        ?.focus({ preventScroll: true })
+    }
+  }, [route, state.selected])
   const stats = state.stats
   const totals = [
     stats?.total,
     stats ? stats.Pending + stats.RetryScheduled + stats.Active : undefined,
     stats?.Completed,
-    stats ? stats.Dead + stats.Isolated : undefined
+    state.page?.attentionStats.needsAttention
   ]
   const unavailable =
     state.busy || state.pending !== undefined || state.sandbox.expiresAt <= now
+  const detail = state.detail
+  const identity = `${demo ? "demo" : "private"}:${state.sandbox.ref.sandboxId}:${state.sandbox.ref.generation}:${detail?.job.jobId}`
+  const detailProps = detail
+    ? {
+        detail,
+        now,
+        onClose: close,
+        onOpenFull: () => runtime.navigation.openFull(detail.job.jobId),
+        onRelated: (jobId: typeof detail.job.jobId) => runtime.navigation.openFull(jobId),
+        payloadSlot: (
+          <JobPayloadPanel key={identity} detail={detail} identityKey={identity} />
+        ),
+        repairSlot: (
+          <>
+            <OperatorControls
+              runtime={runtime}
+              detail={detail}
+              sandbox={state.sandbox}
+              now={now}
+              blocked={unavailable}
+            />
+            <JobRepairPanel
+              key={identity}
+              detail={detail}
+              readOnly={
+                demo ||
+                state.busy ||
+                (state.pending !== undefined && state.pending.kind !== "repair") ||
+                state.sandbox.expiresAt <= now
+              }
+              pending={state.pending?.kind === "repair" ? state.pending.command : null}
+              onSubmit={(command) => void runtime.run(runtime.repair(command))}
+              onReceipt={() => void runtime.run(runtime.receipt)}
+              onResolve={(command) => void runtime.run(runtime.repair(command))}
+            />
+            <p role="status">{state.notice}</p>
+            {state.pending && state.pending.kind !== "repair" && (
+              <Button
+                disabled={state.busy}
+                onClick={() => void runtime.run(runtime.receipt)}
+              >
+                Check exact {state.pending.kind} receipt
+              </Button>
+            )}
+          </>
+        )
+      }
+    : undefined
+  if (route._tag !== "List") {
+    return (
+      <main>
+        {route._tag === "Detail" && detailProps && state.sandbox.expiresAt > now ? (
+          <JobDetailsPage {...detailProps} />
+        ) : (
+          <>
+            <p role="status">
+              {route._tag === "Stale"
+                ? "Stale generation. Return to this mode's list."
+                : route._tag === "Invalid"
+                  ? "Invalid job link."
+                  : state.detailError
+                    ? `Detail unavailable: ${state.detailError}.`
+                    : "Loading job details…"}
+            </p>
+            <Button onClick={close}>Back to jobs</Button>
+          </>
+        )}
+        {state.pending && (
+          <Button disabled={state.busy} onClick={() => void runtime.run(runtime.receipt)}>
+            Check exact request receipt
+          </Button>
+        )}
+      </main>
+    )
+  }
   return (
     <div {...classes("jobs-app")}>
       <aside {...classes("sidebar")} aria-label="Workspace navigation">
@@ -590,6 +561,7 @@ export const Dashboard = ({
           >
             <section
               ref={jobsPanel}
+              data-jobs-focus-fallback
               tabIndex={-1}
               {...classes("jobs-panel")}
               aria-label="Jobs list"
@@ -630,6 +602,8 @@ export const Dashboard = ({
                       event.preventDefault()
                       void runtime.run(
                         runtime.filter({
+                          resolution: state.filters.resolution,
+                          needsAttention: state.filters.needsAttention,
                           ...(filterState === undefined ? {} : { state: filterState }),
                           ...(kind === "" ? {} : { kind })
                         })
@@ -771,59 +745,51 @@ export const Dashboard = ({
                 </TabsPanel>
               </TabsRoot>
             </section>
-            <section
-              ref={detailPanel}
-              tabIndex={-1}
-              {...classes("detail-panel")}
-              aria-label="Job details"
-              hidden={state.selected === undefined}
-            >
-              <div {...classes("detail-heading")}>
-                <h2 {...stylex.props(layout.heading)}>Job details</h2>
-                <Button
-                  {...classes("icon-button")}
-                  aria-label="Close details"
-                  onClick={close}
-                >
-                  <Icon name="close" />
-                </Button>
-              </div>
-              {state.detail ? (
-                <>
-                  <Details detail={state.detail} now={now} />
-                  <OperatorControls
-                    key={`${state.sandbox.ref.generation}:${state.detail.job.jobId}:${state.detail.job.lifecycleVersion}`}
-                    runtime={runtime}
-                    detail={state.detail}
-                    sandbox={state.sandbox}
-                    now={now}
-                    blocked={state.busy || state.pending !== undefined}
-                  />
-                  <p
-                    role="status"
-                    aria-label="Operator outcome"
-                    {...stylex.props(styles.notice)}
-                  >
-                    {state.notice}
-                  </p>
-                  {state.pending?.kind === "operator" && (
-                    <Button
-                      disabled={state.busy}
-                      onClick={() => void runtime.run(runtime.receipt)}
-                    >
-                      Check exact request receipt
-                    </Button>
-                  )}
-                </>
-              ) : (
-                <p {...stylex.props(layout.paragraph)}>
-                  {state.detailError
-                    ? `Detail: ${state.detailError}. Selection retained.`
-                    : "Loading selected job…"}
-                </p>
-              )}
-            </section>
+            {detailProps && state.sandbox.expiresAt > now && (
+              <JobDetailsDrawer {...detailProps} />
+            )}
           </div>
+          <section aria-label="Problem resolution">
+            <p>
+              Needs attention counts unresolved problem chains. Execution counts include
+              every retained job.
+            </p>
+            <Field label="Resolution">
+              <select
+                value={
+                  state.filters.needsAttention
+                    ? "attention"
+                    : (state.filters.resolution ?? "all")
+                }
+                onChange={(event) => {
+                  const value = event.target.value
+                  void runtime.run(
+                    runtime.filter({
+                      ...state.filters,
+                      resolution:
+                        value === "Open" || value === "InProgress" || value === "Resolved"
+                          ? value
+                          : undefined,
+                      needsAttention: value === "attention" ? true : undefined
+                    })
+                  )
+                }}
+              >
+                <option value="all">All executions</option>
+                <option value="attention">Needs attention</option>
+                <option value="Open">Open</option>
+                <option value="InProgress">In progress</option>
+                <option value="Resolved">Resolved</option>
+              </select>
+            </Field>
+            {state.problemRows
+              ?.filter((row) => row.representative === null)
+              .map((row) => (
+                <p key={row.problem.rootJobId}>
+                  Job no longer retained: {row.problem.rootJobId} · {row.problem.state}
+                </p>
+              ))}
+          </section>
           <div {...classes("session-bar")}>
             <p
               role="status"

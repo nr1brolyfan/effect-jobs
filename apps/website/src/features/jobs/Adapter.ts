@@ -1,4 +1,17 @@
 import type {
+  JobRepairCommand,
+  JobRepairResult,
+  JobRepairReceiptRequest,
+  JobResolutionCommand,
+  JobResolutionResult
+} from "@effect-jobs/playground-contracts/Repairs"
+import type {
+  JobProblemPage,
+  JobDetailPageRequest,
+  JobHistory,
+  JobRelatedPage
+} from "@effect-jobs/playground-contracts/Jobs"
+import type {
   JobOperatorCommand,
   JobOperatorResult,
   JobOperatorReceiptRequest
@@ -23,6 +36,25 @@ import type { PlaygroundError } from "@effect-jobs/playground-contracts/Services
 // Browser port. The HTTP owner supplies cookie/origin enforcement; no SandboxAccess
 // or credential enters this interface. No production endpoint is guessed here.
 export interface Client {
+  readonly repair: (
+    command: JobRepairCommand
+  ) => Effect.Effect<JobRepairResult, PlaygroundError>
+  readonly repairReceipt: (
+    request: JobRepairReceiptRequest
+  ) => Effect.Effect<JobRepairResult, PlaygroundError>
+  readonly resolve: (
+    command: JobResolutionCommand
+  ) => Effect.Effect<JobResolutionResult, PlaygroundError>
+  readonly resolutionReceipt: (
+    request: JobRepairReceiptRequest
+  ) => Effect.Effect<JobResolutionResult, PlaygroundError>
+  readonly problems: (request: ListJobs) => Effect.Effect<JobProblemPage, PlaygroundError>
+  readonly history: (
+    request: JobDetailPageRequest
+  ) => Effect.Effect<JobHistory, PlaygroundError>
+  readonly related: (
+    request: JobDetailPageRequest
+  ) => Effect.Effect<JobRelatedPage, PlaygroundError>
   readonly operate: (
     command: JobOperatorCommand
   ) => Effect.Effect<JobOperatorResult, PlaygroundError>

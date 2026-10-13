@@ -100,6 +100,22 @@ export const build = async ({
       entrypoints: entries.map((path) => resolve(scratch, path)),
       root: scratch,
       outdir,
+      plugins: [
+        {
+          name: "scenario-wire-schema",
+          setup(build) {
+            build.onResolve(
+              { filter: /playground-worker\/src\/scenarios\/Definitions\.js$/ },
+              () => ({
+                path: resolve(
+                  repository,
+                  "apps/playground-worker/src/scenarios/Definitions.ts"
+                )
+              })
+            )
+          }
+        }
+      ],
       target: "browser",
       naming: "[name].js",
       minify: true,

@@ -48,6 +48,15 @@ const check = (ref: SandboxRef) =>
 
 export const client: Client = {
   source: "mock",
+  repair: () => Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
+  repairReceipt: () =>
+    Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
+  resolve: () => Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
+  resolutionReceipt: () =>
+    Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
+  problems: () => Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
+  history: () => Effect.succeed(Fixtures.detail.history),
+  related: () => Effect.succeed(Fixtures.detail.related),
   operate: () => Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
   operatorReceipt: () =>
     Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
@@ -74,6 +83,7 @@ export const client: Client = {
         items: visible,
         filteredTotal: filtered.length,
         stats: page.stats,
+        attentionStats: page.attentionStats,
         nextCursor:
           start + request.limit < filtered.length ? (visible.at(-1)?.jobId ?? null) : null
       }

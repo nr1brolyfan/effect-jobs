@@ -159,6 +159,7 @@ describe("jobs atom authority", () => {
                     items: [],
                     nextCursor: null,
                     filteredTotal: 0,
+                    attentionStats: Fixtures.page.attentionStats,
                     stats: Fixtures.page.stats
                   })
               })
@@ -457,6 +458,7 @@ describe("jobs atom authority", () => {
           items: [],
           nextCursor: null,
           filteredTotal: 0,
+          attentionStats: Fixtures.page.attentionStats,
           stats: Fixtures.page.stats
         })
     })

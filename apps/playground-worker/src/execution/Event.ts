@@ -1,3 +1,5 @@
+import * as Repairs from "../persistence/commands/RepairPersistence.js"
+import * as RepairTransactions from "../persistence/authority/PostgreSqlRepairTransactions.js"
 import { Operators as OperatorService } from "@effect-jobs/playground-contracts/Operators"
 import * as Operators from "../persistence/commands/OperatorPersistence.js"
 import * as OperatorTransactions from "../persistence/authority/PostgreSqlOperatorTransactions.js"
@@ -13,6 +15,7 @@ import * as Backend from "effect-jobs/PostgreSqlJobs"
 import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import {
+  JobsRead,
   SandboxAuthority,
   PlaygroundError
 } from "@effect-jobs/playground-contracts/Services"
@@ -89,6 +92,8 @@ export const run = <A, E>(
     | DocumentKeys
     | CommandPersistence
     | JobWorker
+    | Repairs.SyntheticRepairs
+    | JobsRead
   >
 ) =>
   Effect.scoped(
@@ -159,12 +164,18 @@ export const run = <A, E>(
           }))
         )
       ).pipe(Layer.provide(OperatorTransactions.layerNoDeps(config.schema)))
+      const repairs = Repairs.layerNoDeps.pipe(
+        Layer.provide(RepairTransactions.layerNoDeps(config.schema))
+      )
+      const syntheticRepairs = Repairs.syntheticLayerNoDeps.pipe(
+        Layer.provide(RepairTransactions.syntheticLayerNoDeps(config.schema))
+      )
       const app = Application.layerNoDeps.pipe(
-        Layer.provide(Layer.mergeAll(activeAuthority, read, guarded, operators))
+        Layer.provide(Layer.mergeAll(activeAuthority, read, guarded, operators, repairs))
       )
       return yield* operation.pipe(
         Effect.provide(app),
-        Effect.provide(Layer.mergeAll(worker, commands)),
+        Effect.provide(Layer.mergeAll(worker, commands, syntheticRepairs, read)),
         Effect.provideService(SqlClient, client),
         Effect.provideService(Backend.PostgreSqlJobs, backend),
         Effect.provideService(DocumentKeys, stable)

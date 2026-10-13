@@ -26,6 +26,7 @@ import * as Worker from "effect-jobs/JobWorker"
 import * as Runtime from "effect-jobs/JobWorkerRuntime"
 import * as Consumer from "effect-jobs/JobConsumer"
 import * as Policy from "effect-jobs/JobPolicy"
+import { JobOperators } from "effect-jobs/JobOperators"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import type { PreparedJob } from "effect-jobs/JobContract"
 import type { JobEnqueueService } from "effect-jobs/JobEnqueue"
@@ -50,7 +51,7 @@ const record: JobEnqueueService["enqueue"] = (effect) => Effect.flatMap(effect, 
 }))
 const producer: JobEnqueueService = { enqueue: record, enqueueStandalone: record }
 const backend = Fixture.jobsStorage
-Fixture.useBackend({ ...backend, producer, withTransaction: (body) => Effect.suspend(() => body({} as never)).pipe(Effect.provideService(JobEnqueue, producer)) })
+Fixture.useBackend({ ...backend, producer, withTransaction: (body) => Effect.suspend(() => body({} as never)).pipe(Effect.provideService(JobEnqueue, producer), Effect.provideService(JobOperators, backend.operators)) })
 await Effect.runPromise(issueInvoice("op", "invoice"))
 await Effect.runPromise(slots.pipe(Effect.provideService(JobEnqueue, producer)))
 assert.deepEqual(prepared.slice(1, 3).map((p) => p.producer.slot), ["send-receipt", "generate-pdf"])

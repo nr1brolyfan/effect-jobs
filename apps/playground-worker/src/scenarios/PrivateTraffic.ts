@@ -107,6 +107,7 @@ export const make = (schema: string) =>
             produced.jobId,
             JSON.stringify({
               syntheticActor: job!.payload.actor,
+              syntheticTenant: job!.payload.tenant,
               syntheticOrderId: job!.payload.order
             })
           ])

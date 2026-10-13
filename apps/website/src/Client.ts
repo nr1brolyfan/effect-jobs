@@ -3,7 +3,8 @@ import * as Http from "./integration/HttpClient.js"
 import * as Mount from "./features/jobs/Mount.js"
 const root = document.getElementById("jobs")
 if (root) {
-  const demo = location.pathname === "/demo"
+  const demo =
+    location.pathname === "/demo" || location.pathname.startsWith("/demo/jobs/")
   const client = demo ? Http.demoClient : Http.client
   if (demo) {
     root.textContent = "Preparing public demo…"

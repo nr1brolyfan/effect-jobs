@@ -48,6 +48,7 @@ const client: Client = {
         items: [],
         nextCursor: null,
         filteredTotal: 0,
+        attentionStats: Fixtures.page.attentionStats,
         stats: {
           total: 0,
           Pending: 0,

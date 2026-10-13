@@ -1,3 +1,6 @@
+import { LocalPrivate } from "../../../playground-worker/src/persistence/authority/PrivateMode.js"
+import { Repairs } from "@effect-jobs/playground-contracts/Repairs"
+import * as RepairHttp from "./commands/HttpRepairs.js"
 import * as OriginPolicy from "../OriginPolicy.js"
 import * as Cookies from "@effect-jobs/playground-contracts/Cookies"
 import { Operators } from "@effect-jobs/playground-contracts/Operators"
@@ -30,6 +33,9 @@ export const cookie = (request: Request, name: string) => {
 const reject = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
 export const authenticate = (request: Request, config: OriginPolicy.Config) =>
   Effect.gen(function* () {
+    if (!(yield* LocalPrivate)) {
+      return yield* reject("not-found")
+    }
     const app = yield* Application
     const policy = cookiePolicy(request, config)
     if (!policy) {
@@ -76,6 +82,9 @@ export const handle = (
     const origin = OriginPolicy.make(config).resolve(new URL(request.url).origin)
     if (request.url.length > 4096 || origin === undefined) {
       return yield* reject("invalid-request")
+    }
+    if (!(yield* LocalPrivate)) {
+      return response({ code: "not-found" }, 404)
     }
     const path = new URL(request.url).pathname
     const app = yield* Application
@@ -130,12 +139,33 @@ export const handle = (
       yield* requireEmptyBody(request)
       return response(yield* app.describe(access))
     }
-    if (path === routes.jobs || path === routes.jobDetail) {
-      return yield* Read.handle(
-        access,
-        request,
-        path.endsWith("detail") ? "detail" : "list"
-      ).pipe(Effect.provideService(JobsRead, app))
+    const readOperations: Record<string, Parameters<typeof Read.handle>[2]> = {
+      [routes.jobs]: "list",
+      [routes.jobDetail]: "detail",
+      [routes.problems]: "problems",
+      [routes.history]: "history",
+      [routes.related]: "related"
+    }
+    const readOperation = readOperations[path]
+    if (readOperation) {
+      return yield* Read.handle(access, request, readOperation).pipe(
+        Effect.provideService(JobsRead, app)
+      )
+    }
+    const repairOperations: Record<string, RepairHttp.Operation> = {
+      [routes.repair]: "repair",
+      [routes.repairReceipt]: "repairReceipt",
+      [routes.resolution]: "resolution",
+      [routes.resolutionReceipt]: "resolutionReceipt"
+    }
+    const repairOperation = repairOperations[path]
+    if (repairOperation) {
+      if (!csrf(request, config)) {
+        return yield* reject("invalid-request")
+      }
+      return yield* RepairHttp.handle(access, request, repairOperation, origin).pipe(
+        Effect.provideService(Repairs, app.repairs)
+      )
     }
     const operations: Record<string, Commands.Operation> = {
       [routes.operator]: "operator",

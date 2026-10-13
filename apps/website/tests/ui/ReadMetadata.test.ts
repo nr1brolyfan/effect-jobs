@@ -64,27 +64,37 @@ describe("same-snapshot scoped filtered pagination metadata", () => {
     ])
     const filtered = query.text.slice(
       query.text.indexOf("filtered AS ("),
-      query.text.indexOf("totals AS (")
+      query.text.indexOf(") SELECT", query.text.indexOf("filtered AS ("))
     )
     expect(filtered).toContain("count(*)")
-    expect(filtered).toContain("a.sandbox_id=$1 AND a.generation=$2")
-    expect(filtered).toContain("(SELECT code FROM status)='ok'")
+    expect(query.text).toContain("a.sandbox_id=$1 AND a.generation=$2")
+    expect(query.text).toContain("(SELECT code FROM status)='ok'")
     expect(filtered).toContain("j.state=$3")
     expect(filtered).toContain("j.kind=$4")
     expect(filtered).not.toContain("$5")
-    const totals = query.text.slice(query.text.indexOf("totals AS ("))
+    const totals = query.text.slice(
+      query.text.indexOf(") SELECT", query.text.indexOf("filtered AS ("))
+    )
     expect(totals).not.toContain("j.state=$3")
     expect(totals).not.toContain("j.kind=$4")
     expect(query.text).toContain(
-      '(SELECT total FROM filtered)::double precision AS "filteredTotal"'
+      '(SELECT n FROM filtered)::double precision AS "filteredTotal"'
     )
-    expect(query.text).toContain('j.id COLLATE "C" > $5 COLLATE "C"')
+    expect(query.text).toContain('j.id COLLATE "C">$5 COLLATE "C"')
     expect(query.text).not.toContain("OFFSET")
   })
 
   it("retains filtered cardinality even on an empty cursor page and preserves global stats", async () => {
     const result = await read(
-      [{ status: "ok", items: [], filteredTotal: 50, stats: Fixtures.page.stats }],
+      [
+        {
+          status: "ok",
+          items: [],
+          filteredTotal: 50,
+          attentionStats: Fixtures.page.attentionStats,
+          stats: Fixtures.page.stats
+        }
+      ],
       {},
       "signed-cursor"
     )
@@ -92,11 +102,20 @@ describe("same-snapshot scoped filtered pagination metadata", () => {
       items: [],
       nextCursor: null,
       filteredTotal: 50,
+      attentionStats: Fixtures.page.attentionStats,
       stats: Fixtures.page.stats
     })
     expect(
       await read(
-        [{ status: "ok", items: [], filteredTotal: 0, stats: Fixtures.page.stats }],
+        [
+          {
+            status: "ok",
+            items: [],
+            filteredTotal: 0,
+            attentionStats: Fixtures.page.attentionStats,
+            stats: Fixtures.page.stats
+          }
+        ],
         { state: "Dead" }
       )
     ).toMatchObject({ filteredTotal: 0, stats: { total: 1 } })
@@ -108,7 +127,13 @@ describe("same-snapshot scoped filtered pagination metadata", () => {
       expect(Schema.is(JobPage)({ ...Fixtures.page, filteredTotal })).toBe(false)
       expect(
         await read([
-          { status: "ok", items: [], filteredTotal, stats: Fixtures.page.stats }
+          {
+            status: "ok",
+            items: [],
+            filteredTotal,
+            attentionStats: Fixtures.page.attentionStats,
+            stats: Fixtures.page.stats
+          }
         ])
       ).toBe("unavailable")
     }
@@ -117,7 +142,15 @@ describe("same-snapshot scoped filtered pagination metadata", () => {
   it("rejects foreign filter cursor before querying and refuses expired authority", async () => {
     expect(
       await read(
-        [{ status: "ok", items: [], filteredTotal: 0, stats: Fixtures.page.stats }],
+        [
+          {
+            status: "ok",
+            items: [],
+            filteredTotal: 0,
+            attentionStats: Fixtures.page.attentionStats,
+            stats: Fixtures.page.stats
+          }
+        ],
         { state: "Dead" },
         "signed-cursor"
       )
@@ -128,6 +161,7 @@ describe("same-snapshot scoped filtered pagination metadata", () => {
           status: "sandbox-expired",
           items: [],
           filteredTotal: 0,
+          attentionStats: Fixtures.page.attentionStats,
           stats: Fixtures.page.stats
         }
       ])
@@ -138,6 +172,7 @@ describe("same-snapshot scoped filtered pagination metadata", () => {
           status: "stale-generation",
           items: [],
           filteredTotal: 0,
+          attentionStats: Fixtures.page.attentionStats,
           stats: Fixtures.page.stats
         }
       ])

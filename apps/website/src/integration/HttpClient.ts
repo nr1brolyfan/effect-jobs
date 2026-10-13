@@ -1,3 +1,12 @@
+import {
+  JobRepairResult,
+  JobResolutionResult
+} from "@effect-jobs/playground-contracts/Repairs"
+import {
+  JobProblemPage,
+  JobHistory,
+  JobRelatedPage
+} from "@effect-jobs/playground-contracts/Jobs"
 import * as Cookies from "@effect-jobs/playground-contracts/Cookies"
 import { JobOperatorResult } from "@effect-jobs/playground-contracts/Operators"
 import { Effect, Schema } from "effect"
@@ -72,6 +81,27 @@ const params = (
 export const issue = () => request("/api/sandbox/issue", SandboxView, "POST")
 export const client: Client = {
   source: "workerd",
+  repair: (input) => request("/api/jobs/repair", JobRepairResult, "POST", input),
+  repairReceipt: (input) =>
+    request("/api/jobs/repair/receipt", JobRepairResult, "POST", input),
+  resolve: (input) => request("/api/jobs/resolution", JobResolutionResult, "POST", input),
+  resolutionReceipt: (input) =>
+    request("/api/jobs/resolution/receipt", JobResolutionResult, "POST", input),
+  problems: (input) =>
+    request(
+      `/api/jobs/problems?${params(input, { state: input.filters.state, kind: input.filters.kind, resolution: input.filters.resolution, needsAttention: input.filters.needsAttention ? "true" : undefined, limit: String(input.limit), cursor: input.cursor })}`,
+      JobProblemPage
+    ),
+  history: (input) =>
+    request(
+      `/api/jobs/history?${params(input, { jobId: input.jobId, limit: String(input.limit), cursor: input.cursor })}`,
+      JobHistory
+    ),
+  related: (input) =>
+    request(
+      `/api/jobs/related?${params(input, { jobId: input.jobId, limit: String(input.limit), cursor: input.cursor })}`,
+      JobRelatedPage
+    ),
   operate: (input) => request("/api/jobs/operator", JobOperatorResult, "POST", input),
   operatorReceipt: (input) =>
     request("/api/jobs/operator/receipt", JobOperatorResult, "POST", input),
@@ -92,6 +122,27 @@ export const client: Client = {
 }
 export const demoClient: Client = {
   ...client,
+  repair: () => Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
+  repairReceipt: () =>
+    Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
+  resolve: () => Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
+  resolutionReceipt: () =>
+    Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
+  problems: (input) =>
+    request(
+      `/api/demo/jobs/problems?${params(input, { state: input.filters.state, kind: input.filters.kind, resolution: input.filters.resolution, needsAttention: input.filters.needsAttention ? "true" : undefined, limit: String(input.limit), cursor: input.cursor })}`,
+      JobProblemPage
+    ),
+  history: (input) =>
+    request(
+      `/api/demo/jobs/history?${params(input, { jobId: input.jobId, limit: String(input.limit), cursor: input.cursor })}`,
+      JobHistory
+    ),
+  related: (input) =>
+    request(
+      `/api/demo/jobs/related?${params(input, { jobId: input.jobId, limit: String(input.limit), cursor: input.cursor })}`,
+      JobRelatedPage
+    ),
   operate: () => Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
   operatorReceipt: () =>
     Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),

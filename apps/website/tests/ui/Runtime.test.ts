@@ -8,7 +8,10 @@ import * as FixtureClient from "../../src/features/jobs/FixtureClient.js"
 
 const browser = () => {
   const document = Object.assign(new EventTarget(), { visibilityState: "visible" })
-  const window = new EventTarget()
+  const window = Object.assign(new EventTarget(), {
+    location: { href: "http://localhost:8787/jobs" },
+    history: { pushState: () => {}, replaceState: () => {}, back: () => {} }
+  })
   vi.stubGlobal("document", document)
   vi.stubGlobal("window", window)
   return { document, window }

@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client"
 import { Effect, Schema, Scope } from "effect"
 import * as Atom from "effect/reactivity/Atom"
 import * as AtomRegistry from "effect/reactivity/AtomRegistry"
+import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
 import { JobId } from "effect-jobs/JobId"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import { JobDetailsDrawer } from "../../../src/features/jobs/details/JobDetailsDrawer.js"
@@ -45,7 +46,7 @@ const nav = Effect.runSync(
   }).pipe(Scope.provide(scope))
 )
 
-function detail(jobId: JobId) {
+function detail(jobId: JobId): JobDetail {
   const job = {
     ...Fixtures.detail.job,
     jobId,
@@ -97,7 +98,7 @@ function detail(jobId: JobId) {
           _tag: "Resolution" as const,
           rootJobId: source,
           state: "InProgress",
-          kind: "repair",
+          kind: "OperatorReconciled",
           reason: "Synthetic operator reason",
           observedAt: job.updatedAt
         }

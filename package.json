@@ -154,7 +154,7 @@
     "qualify:api:installed": "node tests/qualification/api/Run.mjs",
     "playground:check": "bun run toolchain:setup && tsc -p tsconfig.playground.json",
     "playground:lint": "oxlint --deny-warnings apps packages/playground-contracts",
-    "playground:test": "vitest run packages/playground-contracts/tests",
+    "playground:test": "vitest run packages/playground-contracts/tests apps/playground-worker/tests/repairs apps/website/tests/ui/repair apps/website/tests/ui/details/Navigation.test.ts apps/playground-worker/tests/details-integration apps/website/tests/ui/RepairAtoms.test.ts",
     "playground:build": "bun run --filter @effect-jobs/playground-contracts build && bun run --filter @effect-jobs/playground-website --filter @effect-jobs/playground-worker build",
     "playground:qualify": "node packages/playground-contracts/qualification/Run.mjs",
     "playground:preview": "python3 apps/playground-worker/tests/integration/RunOwned.py --preview",

@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto"
+import * as LegacyOperatorsV4 from "./LegacyOperatorsV4.js"
+import * as Repairs from "./commands/RepairSchema.js"
 import * as Operators from "./commands/OperatorSchema.js"
 import * as Jobs from "effect-jobs/PostgreSqlSchema"
 import * as LegacyJobsV1 from "./LegacyJobsV1.js"
@@ -24,7 +26,10 @@ export const migrations = (schema: string): ReadonlyArray<MigrationDescriptor> =
       ADD CHECK (generation BETWEEN 1 AND 9007199254740991),
       ADD CHECK (jsonb_typeof(relations)='object');`
   const operators =
-    Jobs.operatorMigration(Jobs.tables({ schema })) + Operators.proposal(schema)
+    LegacyOperatorsV4.operatorMigration(Jobs.tables({ schema })) +
+    Operators.proposal(schema)
+  const repairs =
+    Jobs.lineageMigration(Jobs.tables({ schema })) + Repairs.proposal(schema)
   return Object.freeze([
     {
       id: "playground-v1",
@@ -50,6 +55,15 @@ export const migrations = (schema: string): ReadonlyArray<MigrationDescriptor> =
       id: "playground-local-private-v5",
       sql: LocalPrivate.proposal(schema),
       checksum: createHash("sha256").update(LocalPrivate.proposal(schema)).digest("hex")
+    },
+    {
+      id: "playground-job-repairs-v6",
+      sql: repairs,
+      checksum: createHash("sha256").update(repairs).digest("hex")
     }
   ])
 }
+
+// Application setup calls this after applying v6 in its own migration transaction.
+// No pool or automatic migration runs on module import.
+export { run as backfillSyntheticTenants } from "./SyntheticTenantBackfill.js"

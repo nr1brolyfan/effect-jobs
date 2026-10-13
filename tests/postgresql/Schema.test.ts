@@ -39,14 +39,20 @@ describe("optional fixed Drizzle declarations", () => {
       "lease_expires_at",
       "completed_at",
       "last_failure_code",
-      "cleanup_at"
+      "cleanup_at",
+      "original_source_job_id",
+      "source_job_id",
+      "redrive_kind"
     ])
     expect(jobs.uniqueConstraints.map((u) => u.columns.map((c) => c.name))).toEqual([
       ["operation", "operation_id", "slot"],
       ["lease_token"]
     ])
-    expect(jobs.indexes).toHaveLength(3)
-    expect(jobs.checks).toHaveLength(7)
+    expect(jobs.indexes).toHaveLength(4)
+    expect(jobs.checks).toHaveLength(11)
+    expect(jobs.foreignKeys).toHaveLength(1)
+    expect(jobs.foreignKeys[0]?.onDelete).toBe("set null")
+    expect(jobs.foreignKeys[0]?.reference().foreignTable).toBe(custom.jobs)
     expect(payloads.columns.map((c) => c.name)).toEqual([
       "job_id",
       "format_version",

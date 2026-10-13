@@ -95,7 +95,7 @@ export const make = (schema: string) =>
         )
     const described = (id: string) =>
       query(
-        `SELECT s.*,(SELECT count(*) FROM ${t.admission} WHERE sandbox_id=s.sandbox_id) AS admitted_commands FROM ${t.sandboxes} s WHERE sandbox_id=$1`,
+        `SELECT s.*,((SELECT count(*) FROM ${t.admission} WHERE sandbox_id=s.sandbox_id)+(SELECT count(*) FROM "${schema}"."repair_admission" WHERE sandbox_id=s.sandbox_id)) AS admitted_commands FROM ${t.sandboxes} s WHERE sandbox_id=$1`,
         [id]
       )
     const locked = (id: string) =>
@@ -189,7 +189,7 @@ export const make = (schema: string) =>
           const hash = yield* digest(Redacted.value(credential))
           const row = yield* guard(
             yield* query(
-              `SELECT s.*,${dbTime} AS db_now,(SELECT count(*) FROM ${t.admission} WHERE sandbox_id=s.sandbox_id) AS admitted_commands FROM ${t.sandboxes} s WHERE credential_hash=$1`,
+              `SELECT s.*,${dbTime} AS db_now,((SELECT count(*) FROM ${t.admission} WHERE sandbox_id=s.sandbox_id)+(SELECT count(*) FROM "${schema}"."repair_admission" WHERE sandbox_id=s.sandbox_id)) AS admitted_commands FROM ${t.sandboxes} s WHERE credential_hash=$1`,
               [hash]
             )
           )
@@ -302,6 +302,7 @@ export const make = (schema: string) =>
                       jobId,
                       JSON.stringify({
                         syntheticActor: job.payload.actor,
+                        syntheticTenant: job.payload.tenant,
                         syntheticOrderId: job.payload.order
                       })
                     ]).pipe(Effect.asVoid),

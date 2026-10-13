@@ -1,6 +1,15 @@
 import { Context, Effect, Redacted, Schema } from "effect"
 import type { SandboxAccess, SandboxView } from "./Sandbox.js"
-import type { JobDetail, JobDetailRequest, JobPage, ListJobs } from "./Jobs.js"
+import type {
+  JobDetail,
+  JobDetailRequest,
+  JobPage,
+  ListJobs,
+  JobProblemPage,
+  JobHistory,
+  JobRelatedPage,
+  JobDetailPageRequest
+} from "./Jobs.js"
 import type {
   ReceiptRequest,
   ResetCommand,
@@ -52,6 +61,18 @@ export class JobsRead extends Context.Service<
       access: SandboxAccess,
       request: ListJobs
     ) => Effect.Effect<JobPage, PlaygroundError>
+    readonly problems: (
+      access: SandboxAccess,
+      request: ListJobs
+    ) => Effect.Effect<JobProblemPage, PlaygroundError>
+    readonly history: (
+      access: SandboxAccess,
+      request: JobDetailPageRequest
+    ) => Effect.Effect<JobHistory, PlaygroundError>
+    readonly related: (
+      access: SandboxAccess,
+      request: JobDetailPageRequest
+    ) => Effect.Effect<JobRelatedPage, PlaygroundError>
     readonly detail: (
       access: SandboxAccess,
       request: JobDetailRequest

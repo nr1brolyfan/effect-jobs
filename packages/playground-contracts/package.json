@@ -51,6 +51,14 @@
     "./Cookies": {
       "types": "./src/Cookies.ts",
       "import": "./dist/Cookies.js"
+    },
+    "./Repairs": {
+      "types": "./src/Repairs.ts",
+      "import": "./dist/Repairs.js"
+    },
+    "./SyntheticCryptoFixture": {
+      "types": "./src/SyntheticCryptoFixture.ts",
+      "import": "./dist/SyntheticCryptoFixture.js"
     }
   }
 }

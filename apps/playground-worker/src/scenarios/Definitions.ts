@@ -1,8 +1,10 @@
-import { Schema } from "effect"
+import { Effect, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
 import * as JobProducer from "effect-jobs/JobProducer"
 import * as JobQueue from "effect-jobs/JobQueue"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
+import * as Fixture from "@effect-jobs/playground-contracts/SyntheticCryptoFixture"
+import * as JobPayload from "effect-jobs/JobPayload"
 import { EncryptedDocument } from "./PrivateDocument.js"
 
 export const Workload = Schema.Literals([
@@ -41,6 +43,24 @@ export const ExportPayload = Schema.Struct({
 })
 export type ExportPayload = typeof ExportPayload.Type
 
+export const SyntheticExportPayload = Schema.Struct({
+  ...Payload.fields,
+  document: JobPayload.encrypted({
+    schema: Fixture.Document,
+    codec: {
+      envelope: Fixture.Envelope,
+      seal: (value) =>
+        Fixture.sealSyntheticDocument(value).pipe(
+          Effect.mapError(() => new JobPayload.JobEncryptionError())
+        ),
+      open: (value) =>
+        Fixture.openSyntheticDocument(value).pipe(
+          Effect.mapError(() => new JobPayload.JobEncryptionError())
+        )
+    }
+  })
+})
+export type SyntheticExportPayload = typeof SyntheticExportPayload.Type
 const communications = JobQueue.make("playground-communications")
 const media = JobQueue.make("playground-media")
 const commerce = JobQueue.make("playground-commerce")
@@ -75,6 +95,11 @@ export const SimulatedPayment = Job.make({
   kind: "playground.simulated-payment",
   payload: Payload
 })
+export const SyntheticDocumentExport = Job.make({
+  queue: privateData,
+  kind: "playground.synthetic-document-export",
+  payload: SyntheticExportPayload
+})
 export const Producer = JobProducer.make({
   operation: "playground.synthetic",
   slots: [
@@ -93,5 +118,6 @@ export const definitions = [
   WebhookDelivery,
   PrivateDataExport,
   CatalogSync,
-  SimulatedPayment
+  SimulatedPayment,
+  SyntheticDocumentExport
 ] as const

@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
+import { Repairs } from "@effect-jobs/playground-contracts/Repairs"
 import { Application } from "../../src/server/Services.js"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
@@ -29,7 +30,11 @@ const invalid = [
 ] as const
 
 const DeniedDemoLayer = Layer.mergeAll(
-  Layer.mock(Application, {}),
+  Layer.mock(Application, {
+    repairs: Effect.runSync(
+      Effect.service(Repairs).pipe(Effect.provide(Layer.mock(Repairs, {})))
+    )
+  }),
   Layer.succeed(
     SqlClient,
     new Proxy(

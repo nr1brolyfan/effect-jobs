@@ -1,3 +1,14 @@
+import {
+  JobRepairCommand,
+  JobRepairResult,
+  JobResolutionCommand,
+  JobResolutionResult
+} from "@effect-jobs/playground-contracts/Repairs"
+import {
+  JobProblemPage,
+  type JobProblemRow
+} from "@effect-jobs/playground-contracts/Jobs"
+import type { JobReturnContext } from "./details/Navigation.js"
 /* oxlint-disable effecttsgo/unstable-api-usage -- Owner-selected Atom API is pinned to Effect 4.0.0. */
 import {
   JobOperatorCommand,
@@ -51,6 +62,7 @@ export interface State {
   readonly cursor: string | undefined
   readonly pageNumber: number
   readonly page: JobPage | undefined
+  readonly problemRows: ReadonlyArray<JobProblemRow> | undefined
   readonly stats: JobStats | undefined
   readonly loading: boolean
   readonly pageSize: 20 | 50
@@ -69,6 +81,16 @@ export interface State {
         readonly kind: "operator"
         readonly request: ReceiptRequest
         readonly command: JobOperatorCommand
+      }
+    | {
+        readonly kind: "repair"
+        readonly request: ReceiptRequest
+        readonly command: JobRepairCommand
+      }
+    | {
+        readonly kind: "resolution"
+        readonly request: ReceiptRequest
+        readonly command: JobResolutionCommand
       }
     | undefined
   readonly busy: boolean
@@ -103,6 +125,9 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     cursor: Atom.make<string | undefined>(undefined).pipe(Atom.keepAlive),
     pageNumber: Atom.make(1).pipe(Atom.keepAlive),
     page: Atom.make<JobPage | undefined>(undefined).pipe(Atom.keepAlive),
+    problemRows: Atom.make<ReadonlyArray<JobProblemRow> | undefined>(undefined).pipe(
+      Atom.keepAlive
+    ),
     stats: Atom.make<JobStats | undefined>(undefined).pipe(Atom.keepAlive),
     pageSize: Atom.make<20 | 50>(20).pipe(Atom.keepAlive),
     displayedQuery: Atom.make<Query | undefined>(undefined).pipe(Atom.keepAlive),
@@ -135,6 +160,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       pageNumber,
       pageSize,
       page,
+      problemRows: get(atoms.problemRows),
       stats: get(atoms.stats),
       loading: get(atoms.loading),
       displayedQuery,
@@ -144,7 +170,9 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         displayedQuery.pageNumber === pageNumber &&
         displayedQuery.pageSize === pageSize &&
         displayedQuery.filters.state === filters.state &&
-        displayedQuery.filters.kind === filters.kind,
+        displayedQuery.filters.kind === filters.kind &&
+        displayedQuery.filters.resolution === filters.resolution &&
+        displayedQuery.filters.needsAttention === filters.needsAttention,
       pagination: {
         total: page?.filteredTotal,
         pageCount:
@@ -200,6 +228,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       write("pageNumber")
       write("page")
       write("stats")
+      write("problemRows")
       write("loading")
       write("pageSize")
       write("displayedQuery")
@@ -225,6 +254,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     ++selectionRevision
     update({
       page: undefined,
+      problemRows: undefined,
       stats: undefined,
       displayedQuery: undefined,
       detail: undefined,
@@ -389,9 +419,27 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
           limit: query.pageSize,
           ...(snapshot().cursor === undefined ? {} : { cursor: snapshot().cursor })
         }
-        const fetchPage = (input: ListJobs) =>
-          bounded(client.list(input)).pipe(
-            Effect.flatMap(decode(JobPage)),
+        let problemRows: ReadonlyArray<JobProblemRow> | undefined
+        const fetchPage = (input: ListJobs) => {
+          const problems =
+            input.filters.resolution !== undefined ||
+            input.filters.needsAttention === true
+          const operation = problems
+            ? bounded(client.problems(input)).pipe(
+                Effect.flatMap(decode(JobProblemPage)),
+                Effect.map((result) => {
+                  problemRows = result.items
+                  // Display only genuine retained summaries; tombstones render separately.
+                  return {
+                    ...result,
+                    items: result.items.flatMap((row) =>
+                      row.representative === null ? [] : [row.representative]
+                    )
+                  }
+                })
+              )
+            : bounded(client.list(input)).pipe(Effect.flatMap(decode(JobPage)))
+          return operation.pipe(
             Effect.flatMap((page) =>
               ensureRef(page.sandbox, input.sandbox).pipe(Effect.as(page))
             ),
@@ -401,12 +449,13 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
                 : Effect.fail(new PlaygroundError({ code: "unavailable" }))
             )
           )
+        }
         yield* fetchPage(request).pipe(
           Effect.flatMap((page) => {
             if (
               revision !== listRevision ||
               query.pageNumber === 1 ||
-              (page.items.length > 0 &&
+              ((page.items.length > 0 || (problemRows?.length ?? 0) > 0) &&
                 (query.pageNumber < Math.ceil(page.filteredTotal / query.pageSize) ||
                   (query.pageNumber === Math.ceil(page.filteredTotal / query.pageSize) &&
                     page.nextCursor === null)))
@@ -450,6 +499,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
                       : [...known.slice(0, query.pageNumber), page.nextCursor]
                 update({
                   page,
+                  problemRows,
                   pageNumber: query.pageNumber,
                   cursor: request.cursor,
                   stats: page.stats,
@@ -773,6 +823,142 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         )
       )
     )
+  const acceptRepair = (
+    result: JobRepairResult | JobResolutionResult,
+    pending: Extract<NonNullable<State["pending"]>, { kind: "repair" | "resolution" }>
+  ) =>
+    Effect.gen(function* () {
+      if (
+        disposed ||
+        snapshot().pending !== pending ||
+        !sameRef(snapshot().sandbox.ref, pending.request.sandbox)
+      ) {
+        return
+      }
+      yield* ensureRef(result.sandbox, pending.request.sandbox)
+      if (result.requestId !== pending.request.requestId) {
+        return yield* new PlaygroundError({ code: "unavailable" })
+      }
+      if (result._tag === "OutcomeUnknown") {
+        update({
+          notice: "Outcome unknown. Only the exact receipt may reconcile this command."
+        })
+        return
+      }
+      if (pending.kind === "repair") {
+        if (
+          (result._tag === "Rejected" &&
+            (!("jobId" in result) || result.jobId !== pending.command.jobId)) ||
+          (result._tag === "Committed" &&
+            (!("sourceJobId" in result) ||
+              result.sourceJobId !== pending.command.jobId ||
+              result.action !== pending.command.action ||
+              result.sourceState !== pending.command.expectedState ||
+              result.sourceLifecycleVersion !== pending.command.expectedLifecycleVersion))
+        ) {
+          return yield* new PlaygroundError({ code: "unavailable" })
+        }
+      } else if (
+        (result._tag === "Rejected" &&
+          (!("rootJobId" in result) || result.rootJobId !== pending.command.rootJobId)) ||
+        (result._tag === "Committed" &&
+          result.problem.rootJobId !== pending.command.rootJobId)
+      ) {
+        return yield* new PlaygroundError({ code: "unavailable" })
+      }
+      update({
+        pending: undefined,
+        notice:
+          result._tag === "Rejected"
+            ? `Request rejected: ${result.reason}.`
+            : "Acknowledged. Refreshing retained facts; execution state remains truthful."
+      })
+      ++listRevision
+      ++detailRevision
+      yield* read(true, true)
+    })
+  const repairCommand = (input: JobRepairCommand | JobResolutionCommand) =>
+    exclusive(
+      Effect.gen(function* () {
+        const state = snapshot()
+        if (
+          state.pending !== undefined ||
+          state.detail === undefined ||
+          state.selected !== state.detail.job.jobId ||
+          state.sandbox.expiresAt <= (yield* Clock.currentTimeMillis) ||
+          allowDemoRotation
+        ) {
+          return
+        }
+        const repair = "jobId" in input
+        if (
+          !sameRef(input.sandbox, state.sandbox.ref) ||
+          (repair
+            ? input.jobId !== state.detail.job.jobId
+            : input.rootJobId !== state.detail.problem?.rootJobId)
+        ) {
+          return
+        }
+        // The registry owns definitive identity. Snapshot validated JSON before the first yield to transport.
+        const requestId = crypto.randomUUID()
+        const command = repair
+          ? yield* Schema.decodeUnknownEffect(JobRepairCommand)(
+              { ...input, requestId },
+              { onExcessProperty: "error" }
+            ).pipe(
+              Effect.mapError(() => new PlaygroundError({ code: "invalid-request" }))
+            )
+          : yield* Schema.decodeUnknownEffect(JobResolutionCommand)(
+              { ...input, requestId },
+              { onExcessProperty: "error" }
+            ).pipe(
+              Effect.mapError(() => new PlaygroundError({ code: "invalid-request" }))
+            )
+        const freeze = (value: unknown): void => {
+          if (value !== null && typeof value === "object") {
+            Object.values(value).forEach(freeze)
+            Object.freeze(value)
+          }
+        }
+        const snapshotCommand = structuredClone(command)
+        freeze(snapshotCommand)
+        const request = Object.freeze({ sandbox: snapshotCommand.sandbox, requestId })
+        const pending: Extract<
+          NonNullable<State["pending"]>,
+          { kind: "repair" | "resolution" }
+        > = repair
+          ? { kind: "repair", request, command: snapshotCommand as JobRepairCommand }
+          : {
+              kind: "resolution",
+              request,
+              command: snapshotCommand as JobResolutionCommand
+            }
+        Object.freeze(pending)
+        update({ pending, notice: "Sending one guarded request…" })
+        const client = yield* JobsClient
+        if (pending.kind === "repair") {
+          yield* bounded(client.repair(pending.command)).pipe(
+            Effect.flatMap(decode(JobRepairResult)),
+            Effect.flatMap((result) => acceptRepair(result, pending))
+          )
+        } else {
+          yield* bounded(client.resolve(pending.command)).pipe(
+            Effect.flatMap(decode(JobResolutionResult)),
+            Effect.flatMap((result) => acceptRepair(result, pending))
+          )
+        }
+      }).pipe(
+        Effect.catchTag("PlaygroundError", (error) =>
+          Effect.sync(() =>
+            update({
+              notice: snapshot().pending
+                ? `Request not confirmed (${error.code}). Check its exact receipt; do not replay.`
+                : `Request unavailable: ${error.code}.`
+            })
+          )
+        )
+      )
+    )
   const receipt = exclusive(
     Effect.gen(function* () {
       const pending = snapshot().pending
@@ -784,7 +970,17 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       }
       const client = yield* JobsClient
       update({ busy: true })
-      if (pending.kind === "operator") {
+      if (pending.kind === "repair") {
+        yield* bounded(client.repairReceipt(pending.request)).pipe(
+          Effect.flatMap(decode(JobRepairResult)),
+          Effect.flatMap((result) => acceptRepair(result, pending))
+        )
+      } else if (pending.kind === "resolution") {
+        yield* bounded(client.resolutionReceipt(pending.request)).pipe(
+          Effect.flatMap(decode(JobResolutionResult)),
+          Effect.flatMap((result) => acceptRepair(result, pending))
+        )
+      } else if (pending.kind === "operator") {
         const revision = selectionRevision
         yield* bounded(client.operatorReceipt(pending.request)).pipe(
           Effect.flatMap(decode(JobOperatorResult)),
@@ -830,7 +1026,23 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     select,
     command,
     operate,
+    repair: repairCommand,
     receipt,
+    restore: (context: JobReturnContext | null, notice: string) => {
+      ++listRevision
+      ++detailRevision
+      update({
+        filters: context?.filters ?? {},
+        pageSize: context?.pageSize === 50 ? 50 : 20,
+        pageNumber: context?.pageNumber ?? 1,
+        cursors: context?.cursors ?? [undefined],
+        cursor: context?.cursors[(context?.pageNumber ?? 1) - 1],
+        notice,
+        page: undefined,
+        displayedQuery: undefined,
+        problemRows: undefined
+      })
+    },
     closeDetail: () => {
       ++detailRevision
       ++selectionRevision

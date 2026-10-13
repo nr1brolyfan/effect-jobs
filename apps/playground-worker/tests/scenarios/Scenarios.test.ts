@@ -516,18 +516,30 @@ describe("encrypted consumer payload and installed handlers", () => {
         const planned = yield* jobs()
         for (let index = 0; index < Definitions.definitions.length; index++) {
           const definition = Definitions.definitions[index]!
-          const job = planned[index]!
+          const job = planned[index % planned.length]!
           const encoded =
-            definition === Definitions.PrivateDataExport
-              ? yield* Codec.encodeJobPayload(
-                  Definitions.ExportPayload,
-                  Plan.exportPayload(job.payload)
-                )
-              : yield* Codec.encodeJobPayload(Definitions.Payload, job.payload)
+            definition === Definitions.SyntheticDocumentExport
+              ? yield* Codec.encodeJobPayload(Definitions.SyntheticExportPayload, {
+                  ...job.payload,
+                  document: {
+                    subject: job.payload.actor,
+                    tenant: job.payload.tenant,
+                    note: "Synthetic fixture"
+                  }
+                })
+              : definition === Definitions.PrivateDataExport
+                ? yield* Codec.encodeJobPayload(
+                    Definitions.ExportPayload,
+                    Plan.exportPayload(job.payload)
+                  )
+                : yield* Codec.encodeJobPayload(Definitions.Payload, job.payload)
           yield* registry.find(definition.catalog)!.execute(encoded, {
             jobId,
             catalog: definition.catalog,
-            producer: job.producer,
+            producer:
+              definition === Definitions.SyntheticDocumentExport
+                ? { ...job.producer, operationId: "synthetic-document-fixture" }
+                : job.producer,
             attemptNumber: 1
           })
         }

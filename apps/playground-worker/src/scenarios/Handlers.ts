@@ -88,6 +88,39 @@ export const executeExport = Effect.fn("Playground.executeExport")(function* ({
     .pipe(Effect.catchCause((cause) => Effect.failCause(Cause.map(cause, toJobFailure))))
 })
 
+export const executeSyntheticExport = Effect.fn("Playground.executeSyntheticExport")(
+  function* ({ payload, context }: HandlerInput<Definitions.SyntheticExportPayload>) {
+    const provider = yield* FakeProvider
+    if (
+      payload.document.subject !== payload.actor ||
+      payload.document.tenant !== payload.tenant
+    ) {
+      return yield* Effect.fail(JobFailures.Isolate({ code: codes.invariant }))
+    }
+    const encoded = yield* Codec.encodeJobPayload(
+      Definitions.SyntheticExportPayload,
+      payload
+    ).pipe(
+      Effect.catchCause((cause) =>
+        Effect.failCause(
+          Cause.map(cause, () => JobFailures.Isolate({ code: codes.codec }))
+        )
+      )
+    )
+    yield* provider
+      .execute({
+        sandbox: payload.sandbox,
+        producer: context.producer,
+        workload: "private-data-export",
+        behavior: payload.behavior,
+        semanticProjection: encoded.semanticProjectionBytes
+      })
+      .pipe(
+        Effect.catchCause((cause) => Effect.failCause(Cause.map(cause, toJobFailure)))
+      )
+  }
+)
+
 // Proposal for HandlerRegistry.ts; importing this module installs nothing.
 // Provide the same FakeProvider Layer and DocumentKeys Layer for all handlers.
 export const layerNoDeps = Layer.mergeAll(
@@ -98,6 +131,10 @@ export const layerNoDeps = Layer.mergeAll(
   ),
   Definitions.WebhookDelivery.handlerLayer(
     execute("webhook-delivery"),
+    Codec.decodeJobPayload
+  ),
+  Definitions.SyntheticDocumentExport.handlerLayer(
+    executeSyntheticExport,
     Codec.decodeJobPayload
   ),
   Definitions.PrivateDataExport.handlerLayer(executeExport, Codec.decodeJobPayload),

@@ -1,3 +1,4 @@
+import * as Navigation from "./details/Navigation.js"
 /* oxlint-disable effecttsgo/unstable-api-usage -- Owner-selected Atom API is pinned to Effect 4.0.0. */
 import { Effect, Exit, Fiber, Scope } from "effect"
 import type { SandboxView } from "@effect-jobs/playground-contracts/Sandbox"
@@ -43,6 +44,55 @@ export const make = (client: Client, sandbox: SandboxView, options: Options = {}
       )
     ).then(() => undefined)
   }
+  let viewportPending = false
+  let returnSelection: import("effect-jobs/JobId").JobId | null = null
+  const navigation = Effect.runSync(
+    Navigation.make(state.registry, window, {
+      mode: options.demo ? "demo" : "private",
+      sandbox: () => state.snapshot().sandbox.ref,
+      capture: () => {
+        const current = state.snapshot()
+        return {
+          sandbox: current.sandbox.ref,
+          filters: current.filters,
+          view:
+            current.filters.resolution || current.filters.needsAttention
+              ? "problems"
+              : "jobs",
+          pageSize: current.pageSize,
+          pageNumber: current.pageNumber,
+          cursors: state.registry.get(state.atoms.cursors),
+          scrollY: window.scrollY,
+          selectedJobId: current.selected ?? returnSelection
+        }
+      },
+      relock: () => {
+        returnSelection = state.snapshot().selected ?? returnSelection
+        state.closeDetail()
+      },
+      restore: (context, notice) => {
+        state.restore(context, notice)
+        viewportPending = true
+        void run(state.refresh)
+      }
+    }).pipe(Scope.provide(scope))
+  )
+  const followRoute = () => {
+    const route = state.registry.get(navigation.route)
+    if (route._tag === "Detail") {
+      void run(state.select(route.jobId))
+    }
+  }
+  const unsubscribeRoute = state.registry.subscribe(navigation.route, followRoute)
+  const unsubscribeError = state.registry.subscribe(state.atoms.error, (error) => {
+    if (
+      error === "sandbox-expired" ||
+      error === "stale-generation" ||
+      error === "not-found"
+    ) {
+      navigation.scopeChanged()
+    }
+  })
   let live: ReturnType<typeof Live.start> | undefined
   let liveScope: Scope.Closeable | undefined
   const connect = () => {
@@ -108,6 +158,7 @@ export const make = (client: Client, sandbox: SandboxView, options: Options = {}
     const identity = `${next.ref.sandboxId}:${next.ref.generation}`
     if (identity !== current) {
       liveIdentity = identity
+      navigation.scopeChanged()
       connect()
     }
   })
@@ -146,6 +197,8 @@ export const make = (client: Client, sandbox: SandboxView, options: Options = {}
     Scope.addFinalizer(
       scope,
       Effect.sync(() => {
+        unsubscribeRoute()
+        unsubscribeError()
         unsubscribe()
         if (liveScope) {
           Effect.runSync(Scope.close(liveScope, Exit.void))
@@ -158,17 +211,34 @@ export const make = (client: Client, sandbox: SandboxView, options: Options = {}
     )
   )
   connect()
-  void run(state.refresh)
+  void run(state.refresh).then(followRoute)
   const dispose = () => {
     if (closing) {
       return closing
     }
     closed = true
-    state.dispose()
-    closing = Effect.runPromise(Scope.close(scope, Exit.void))
+    closing = Effect.runPromise(Scope.close(scope, Exit.void)).then(() => state.dispose())
     return closing
   }
-  return { ...state, run, dispose, now, source: client.source }
+  return {
+    ...state,
+    run,
+    dispose,
+    now,
+    source: client.source,
+    navigation,
+    restoreViewport: () => {
+      if (!viewportPending || !state.snapshot().resultsCurrent) {
+        return
+      }
+      viewportPending = false
+      Navigation.restoreViewport(
+        state.registry.get(navigation.returnContext),
+        document,
+        window
+      )
+    }
+  }
 }
 
 import * as Atom from "effect/reactivity/Atom"

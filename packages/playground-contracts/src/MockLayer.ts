@@ -50,6 +50,10 @@ export const layer = Layer.mergeAll(
           items: items.slice(0, request.limit)
         }
       }),
+      problems: () =>
+        Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
+      history: () => Effect.succeed(Fixtures.detail.history),
+      related: () => Effect.succeed(Fixtures.detail.related),
       detail: Effect.fn("MockJobsRead.detail")(function* (access, request) {
         yield* authorize(access, request.sandbox)
         if (request.jobId !== Fixtures.detail.job.jobId) {

@@ -51,6 +51,10 @@ writeFileSync(
   join(work, "Operators.mts"),
   publicImports(readFileSync(join(root, "tests/types/operators.ts"), "utf8"))
 )
+writeFileSync(
+  join(work, "Repairs.mts"),
+  publicImports(readFileSync(join(root, "tests/types/repair-operators.ts"), "utf8"))
+)
 // Keep full strict upstream declaration checking for the non-Drizzle new API.
 const nonDrizzle = types
   .slice(0, types.indexOf("makeJobTables({"))
@@ -130,7 +134,13 @@ writeFileSync(
   JSON.stringify(
     {
       compilerOptions: { ...compilerOptions, skipLibCheck: false, noEmit: true },
-      include: ["Strict.mts", "EncryptedFixture.mts", "Runtime.mts", "Operators.mts"]
+      include: [
+        "Strict.mts",
+        "EncryptedFixture.mts",
+        "Runtime.mts",
+        "Operators.mts",
+        "Repairs.mts"
+      ]
     },
     null,
     2

@@ -1,3 +1,4 @@
+import * as RepairShowcase from "./demo/RepairShowcase.js"
 import * as OriginPolicy from "../../website/src/OriginPolicy.js"
 // Cloudflare callbacks are the Promise FFI. All database work is scoped Effect.
 // @effect-diagnostics unstableApiUsage:off
@@ -115,6 +116,12 @@ export class Gateway extends DurableObject {
       if (policy.resolve(new URL(request.url).origin) === undefined) {
         await this.ctx.storage.put("rates", budget)
         return Http.response({ code: "invalid-request" }, 400)
+      }
+      if (
+        !new URL(request.url).pathname.startsWith("/api/demo") &&
+        env.LOCAL_PRIVATE !== "true"
+      ) {
+        return Http.response({ code: "not-found" }, 404)
       }
       const operation = new URL(request.url).pathname.startsWith("/api/demo")
         ? DemoHttp.handle(request, env)
@@ -278,8 +285,24 @@ export class DemoGenerator extends DurableObject {
       ) {
         throw new Error("Invalid demo rotation interval")
       }
+      const schema = this.env.SCHEMA
       const result = await Effect.runPromise(
-        Event.run(config(this.env), Effect.void, Demo.tick(this.env.SCHEMA, rotation))
+        Event.run(
+          config(this.env),
+          Effect.void,
+          Effect.gen(function* () {
+            const result = yield* Demo.tick(schema, rotation)
+            if (
+              result.phase === "published" ||
+              result.phase === "running" ||
+              result.phase === "waiting"
+            ) {
+              const sandbox = yield* Demo.current(schema)
+              yield* RepairShowcase.run(schema, sandbox)
+            }
+            return result
+          })
+        )
       )
       await Effect.runPromise(kick(this.env))
       await this.ctx.storage.setAlarm(
@@ -297,7 +320,7 @@ export class SandboxLive extends Live.makeDurableObject<Env, State>(
         config(env),
         Effect.void,
         new URL(request.url).pathname === "/api/demo/changes"
-          ? Demo.current(env.SCHEMA).pipe(
+          ? DemoHttp.readyCurrent(env.SCHEMA).pipe(
               Effect.mapError(() => new HttpError({ code: "unavailable" }))
             )
           : Http.authenticate(request, {
@@ -332,22 +355,54 @@ export default {
     if (policy.resolve(url.origin) === undefined) {
       return Promise.resolve(Http.response({ code: "invalid-request" }, 400))
     }
-    if (url.pathname === "/demo" || url.pathname.startsWith("/api/demo")) {
+    const demoReads = new Set([
+      "/api/demo",
+      "/api/demo/jobs",
+      "/api/demo/jobs/detail",
+      "/api/demo/jobs/problems",
+      "/api/demo/jobs/history",
+      "/api/demo/jobs/related",
+      "/api/demo/changes"
+    ])
+    if (
+      (url.pathname === "/api/demo" || url.pathname.startsWith("/api/demo/")) &&
+      (request.method !== "GET" || !demoReads.has(url.pathname))
+    ) {
+      return Promise.resolve(Http.response({ code: "not-found" }, 404))
+    }
+    if (
+      url.pathname === "/demo" ||
+      url.pathname.startsWith("/demo/jobs/") ||
+      url.pathname === "/api/demo" ||
+      url.pathname.startsWith("/api/demo/")
+    ) {
       // Native RPC cannot be invoked by an untrusted HTTP caller.
       return env.DEMO.getByName("shared")
         .activate()
         .then(() =>
-          url.pathname === "/demo"
-            ? env.ASSETS.fetch(request)
+          url.pathname === "/demo" || url.pathname.startsWith("/demo/jobs/")
+            ? env.ASSETS.fetch(new Request(new URL("/demo", url), request))
             : env.GATEWAY.getByName("shared").fetch(request)
         )
         .catch(() => Http.response({ code: "unavailable" }, 503))
+    }
+    if (
+      (url.pathname === "/jobs" ||
+        url.pathname.startsWith("/jobs/") ||
+        url.pathname.startsWith("/api/")) &&
+      env.LOCAL_PRIVATE !== "true"
+    ) {
+      return Promise.resolve(Http.response({ code: "not-found" }, 404))
     }
     if (url.pathname.startsWith("/api/")) {
       return env.GATEWAY.getByName("shared")
         .fetch(request)
         .catch(() => Http.response({ code: "unavailable" }, 503))
     }
-    return env.ASSETS.fetch(request)
+    return env.ASSETS.fetch(
+      url.pathname.startsWith("/jobs/")
+        ? new Request(new URL("/jobs", url), request)
+        : request
+    )
   }
 }

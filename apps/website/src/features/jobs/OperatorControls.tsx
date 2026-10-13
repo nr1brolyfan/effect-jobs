@@ -66,7 +66,7 @@ export const OperatorControls = ({
   return (
     <section {...stylex.props(styles.panel)} aria-label="Job operators">
       <div {...stylex.props(styles.actions)}>
-        {(["retry-now", "cancel", "redrive"] as const).map((value) => {
+        {(["retry-now", "cancel"] as const).map((value) => {
           const entry =
             value === "retry-now"
               ? available.retryNow
@@ -88,7 +88,7 @@ export const OperatorControls = ({
           )
         })}
       </div>
-      {(["retry-now", "cancel", "redrive"] as const).map((value) => {
+      {(["retry-now", "cancel"] as const).map((value) => {
         const entry =
           value === "retry-now"
             ? available.retryNow
@@ -102,9 +102,6 @@ export const OperatorControls = ({
             {...stylex.props(styles.explanation)}
           >
             {labels[value]}: {Eligibility.explanation(entry.reason)}
-            {value === "redrive" && entry.enabled
-              ? " Full artifact and private subject/tenant validation occurs on submission; eligibility does not prove the artifact is valid."
-              : ""}
           </p>
         )
       })}

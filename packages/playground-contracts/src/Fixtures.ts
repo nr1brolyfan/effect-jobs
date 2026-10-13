@@ -22,6 +22,7 @@ export const page = Schema.decodeUnknownSync(JobPage)(
     sandbox: sandbox.ref,
     nextCursor: null,
     filteredTotal: 1,
+    attentionStats: { Open: 0, InProgress: 0, Resolved: 0, needsAttention: 0 },
     stats: {
       total: 1,
       Pending: 0,
@@ -53,6 +54,18 @@ export const detail = Schema.decodeUnknownSync(JobDetail)(
   {
     sandbox: sandbox.ref,
     job: page.items[0],
+    createdAt: null,
+    payload: { _tag: "Unavailable", reason: "not-stored" },
+    result: { _tag: "Unavailable", reason: "not-stored" },
+    history: { coverage: "RetainedFacts", attempts: null, items: [], nextCursor: null },
+    provider: null,
+    lineage: null,
+    problem: null,
+    related: { items: [], nextCursor: null },
+    eligibility: {
+      redrive: { enabled: false, reason: "public-read-only" },
+      correctedRedrive: { enabled: false, reason: "public-read-only" }
+    },
     producer: {
       operation: "playground.scenario",
       operationId: "demo-request-a",

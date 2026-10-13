@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 import { Effect, Layer, Redacted } from "effect"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import * as Cookies from "@effect-jobs/playground-contracts/Cookies"
+import { Repairs } from "@effect-jobs/playground-contracts/Repairs"
+import { LocalPrivate } from "../../src/persistence/authority/PrivateMode.js"
 import { Application } from "../../../website/src/server/Services.js"
 import * as Http from "../../../website/src/server/HttpApplication.js"
 
@@ -10,6 +12,9 @@ describe("explicit preview cookie authority", () => {
   const setup = () => {
     let issues = 0
     const layer = Layer.mock(Application, {
+      repairs: Effect.runSync(
+        Effect.service(Repairs).pipe(Effect.provide(Layer.mock(Repairs, {})))
+      ),
       issue: () =>
         Effect.sync(() => {
           issues++
@@ -33,7 +38,7 @@ describe("explicit preview cookie authority", () => {
           configuredOrigin,
           () => true,
           localPreview
-        ).pipe(Effect.provide(layer))
+        ).pipe(Effect.provide(layer), Effect.provideService(LocalPrivate, true))
       )
     return { run, issues: () => issues }
   }

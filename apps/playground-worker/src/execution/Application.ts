@@ -1,3 +1,5 @@
+import * as Repairs from "../persistence/commands/RepairPersistence.js"
+import * as RepairTransactions from "../persistence/authority/PostgreSqlRepairTransactions.js"
 import { Effect, Layer } from "effect"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
@@ -23,6 +25,7 @@ export const layerNoDeps = (schema: string) =>
       return Layer.mergeAll(
         Authority.authorityLayerNoDeps(schema),
         commands,
+        Repairs.layerNoDeps.pipe(Layer.provide(RepairTransactions.layerNoDeps(schema))),
         Operators.layerNoDeps.pipe(
           Layer.provide(OperatorTransactions.layerNoDeps(schema))
         ),
