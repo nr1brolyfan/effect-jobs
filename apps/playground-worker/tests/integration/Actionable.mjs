@@ -568,6 +568,9 @@ try {
           ? "Retry now"
           : "Redrive as new job"
     await page.getByRole("button", { name: button, exact: true }).click()
+    const operatorResponse = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === "/api/jobs/operator"
+    )
     await page
       .getByRole("button", {
         name:
@@ -577,6 +580,19 @@ try {
         exact: true
       })
       .click()
+    const acceptedResponse = await operatorResponse
+    const acceptedBody = await acceptedResponse.json()
+    console.log(
+      JSON.stringify({
+        operatorState: state,
+        status: acceptedResponse.status(),
+        result: acceptedBody._tag,
+        reason: acceptedBody.reason,
+        code: acceptedBody.code
+      })
+    )
+    assert.equal(acceptedResponse.status(), 200)
+    assert.equal(acceptedBody._tag, "Committed")
     if (state === "Pending" || state === "RetryScheduled") {
       await wait(
         async () =>
@@ -613,6 +629,13 @@ try {
   check(
     "actual Chromium cancel, retry-now and confirmed Dead/Isolated redrive remain admitted above retained100/admission200"
   )
+  await page.screenshot({
+    path: evidence + "/private-over-threshold.png",
+    fullPage: true
+  })
+  const overThresholdCapacity = (await describe(a)).capacity
+  assert(overThresholdCapacity.retainedJobs > 100)
+  assert(overThresholdCapacity.admittedCommands > 200)
   const resetContext = await browser.newContext({
     viewport: { width: 1440, height: 1000 }
   })
@@ -799,6 +822,7 @@ try {
         localOrigin: local.origin,
         starterIds: ids,
         limits: { localLifetimeQuota: null, batch: 10, demoRetained: 20000 },
+        overThresholdCapacity,
         resetSemantics:
           "same ID, generation+1, six starters independent of previous retained count; all history preserved"
       },
