@@ -1,4 +1,32 @@
 {
   "extends": "../../tsconfig.playground.json",
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "tests/integration/RepairPg.ts"],
+  "compilerOptions": {
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "overrides": [
+          {
+            "include": [
+              "src/demo/Http.ts",
+              "src/demo/RepairShowcase.ts",
+              "src/persistence/SyntheticTenantBackfill.ts"
+            ],
+            "options": {
+              "allowedUnstableApis": ["effect/sql/SqlClient#SqlClient"]
+            }
+          },
+          {
+            "include": ["tests/integration/RepairPg.ts"],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/sql/SqlClient#SqlClient",
+                "effect/reactivity/Reactivity#layer"
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
 }
