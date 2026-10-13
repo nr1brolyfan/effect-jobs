@@ -11,7 +11,6 @@ import { JobFinalization } from "effect-jobs/JobLifecycle"
 import * as Jobs from "effect-jobs/PostgreSqlJobs"
 import * as Native from "effect-jobs/PostgreSqlNative"
 import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
-import * as Tables from "effect-jobs/PostgreSqlSchema"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import { JobRepairCommand } from "@effect-jobs/playground-contracts/Repairs"
@@ -46,8 +45,7 @@ export const qualify = (client: PgClient, schema: string) =>
           for (const migration of Registry.migrations(schema)) {
             yield* client.unsafe(migration.sql)
           }
-          yield* client.unsafe(Tables.lineageMigration(Tables.tables({ schema })))
-          yield* client.unsafe(RepairSchema.proposal(schema))
+          yield* Registry.backfillSyntheticTenants(schema)
         })
       )
       const backend = yield* Jobs.make({
@@ -332,7 +330,7 @@ export const qualify = (client: PgClient, schema: string) =>
       )
       return {
         checks: [
-          "fresh v1-v6 and core lineage migration",
+          "registered v1-v6 and same-transaction synthetic tenant backfill",
           "actual core source immutability",
           "concurrent immutable admissions",
           "one scoped successor",
