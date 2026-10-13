@@ -11,7 +11,8 @@ export const styles = stylex.create({
     position: "fixed",
     inset: 0,
     backgroundColor: "rgba(0,0,0,0.6)",
-    zIndex: 40
+    // Confirmation is also portaled from the quick-details drawer (50/51).
+    zIndex: 60
   },
   popup: {
     position: "fixed",
@@ -26,7 +27,7 @@ export const styles = stylex.create({
     color: colors.text,
     border: `1px solid ${colors.border}`,
     borderRadius: radii.md,
-    zIndex: 41
+    zIndex: 61
   },
   form: { display: "grid", gap: spacing.md },
   editor: {
