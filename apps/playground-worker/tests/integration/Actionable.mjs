@@ -10,7 +10,10 @@ import { createLocal } from "./Local.mjs"
 const evidence = resolve(process.env.PLAYGROUND_EVIDENCE_DIRECTORY)
 const { migrations } = await import(`${evidence}/Migrations.mjs`)
 const probe = await import(`${evidence}/ActionableProbe.mjs`)
-const cfg = JSON.parse(readFileSync(process.env.PLAYGROUND_PRIVATE_CONFIG, "utf8"))
+const cfg = {
+  ...JSON.parse(readFileSync(process.env.PLAYGROUND_PRIVATE_CONFIG, "utf8")),
+  localPrivate: true
+}
 const pool = new Pool({
   host: "127.0.0.1",
   ...cfg,
@@ -25,7 +28,7 @@ const check = (name) => {
   checks.push(name)
   console.log(`PASS ${name}`)
 }
-let local, browser
+let local, browser, bounded
 const wait = async (fn, timeout = 25000) => {
   const end = Date.now() + timeout
   do {
@@ -39,11 +42,51 @@ const wait = async (fn, timeout = 25000) => {
 try {
   assert.match((await sql("SHOW server_version"))[0].server_version, /^16\.15/)
   await sql(`CREATE SCHEMA "${cfg.schema}"`)
-  for (const m of migrations(cfg.schema)) {
+  for (const m of migrations(cfg.schema).slice(0, 4)) {
     await sql(m.sql)
   }
   cfg.connectionString = `postgres://${cfg.user}:${cfg.password}@127.0.0.1:${cfg.port}/${cfg.database}`
-  local = await createLocal(cfg, { https: false })
+  const legacy = await Effect.runPromise(probe.issue({ ...cfg, localPrivate: false }))
+  const legacyId = legacy.sandbox.ref.sandboxId
+  const history = async () => {
+    const result = {}
+    for (const name of [
+      "sandboxes",
+      "jobs",
+      "job_payloads",
+      "associations",
+      "command_admission",
+      "command_receipts",
+      "command_audit",
+      "provider_ledger"
+    ]) {
+      result[name] = await sql(
+        `SELECT row_to_json(t) AS row FROM ${table(name)} t ORDER BY row_to_json(t)::text`
+      )
+    }
+    return result
+  }
+  const beforeMigration = await history()
+  await sql("BEGIN")
+  await sql(migrations(cfg.schema)[4].sql)
+  await sql("COMMIT")
+  assert.deepEqual(await history(), beforeMigration)
+  assert.equal(
+    (
+      await sql(
+        `SELECT data_type FROM information_schema.columns WHERE table_schema=$1 AND table_name='sandboxes' AND column_name='retained_jobs'`,
+        [cfg.schema]
+      )
+    )[0].data_type,
+    "bigint"
+  )
+  await sql(`UPDATE ${table("sandboxes")} SET viewer_until=0 WHERE sandbox_id=$1`, [
+    legacyId
+  ])
+  check(
+    "additive v5 migration preserves real v4 enqueued jobs, payloads, associations, admissions, receipts, audit and sandbox values"
+  )
+  local = await createLocal(cfg, { https: false, localPrivate: true })
   const dispatch = (path, who, body) =>
     local.mf.dispatchFetch(local.origin + path, {
       method: "POST",
@@ -350,71 +393,117 @@ try {
   check(
     "independent native concurrent resets: one generation advance and exactly one starter set"
   )
-  // Automatic arrivals must stop at the same retained limit, with no deletion of earlier generations.
-  // Freeze only this owned sandbox schedule to make the exact admission boundary deterministic.
+  // Cross the old job cap through real finite commands, preserving earlier history.
   await sql(
     `UPDATE ${table("sandboxes")} SET next_generation_at=expires_at WHERE sandbox_id=$1`,
     [ref.sandboxId]
   )
   let capacity = (await describe(a)).capacity.retainedJobs
-  while (capacity < 100) {
-    const count = Math.min(10, 100 - capacity)
+  while (capacity < 110) {
+    const count = Math.min(10, 110 - capacity)
     const r = await dispatch("/api/scenarios", a, {
       sandbox: current,
       requestId: randomUUID(),
-      scenario: "delayed-success",
+      scenario: "success",
       count
     })
     assert.equal(r.status, 200)
     assert.equal((await r.json())._tag, "Committed")
     capacity = (await describe(a)).capacity.retainedJobs
   }
-  const [budget] = await sql(
-    `SELECT count(*)::int AS n FROM ${table("command_admission")} WHERE sandbox_id=$1`,
-    [cView.ref.sandboxId]
+  // Genuine rejected operator commands produce immutable admissions/receipts without adding jobs.
+  let admissions = (await describe(a)).capacity.admittedCommands
+  for (let index = 0; index < 201 && admissions <= 200; index++) {
+    const response = await Effect.runPromise(
+      probe.operator(cfg, credential, {
+        sandbox: current,
+        requestId: randomUUID(),
+        action: "cancel",
+        jobId: `owned-missing-${index}`,
+        expectedState: "Pending",
+        expectedLifecycleVersion: 0
+      })
+    )
+    assert.equal(response._tag, "Rejected")
+    assert.equal(response.reason, "not-found")
+    admissions = Number(
+      (
+        await sql(
+          `SELECT count(*) AS n FROM ${table("command_admission")} WHERE sandbox_id=$1`,
+          [ref.sandboxId]
+        )
+      )[0].n
+    )
+  }
+  await wait(
+    async () =>
+      Number(
+        (
+          await sql(
+            `SELECT count(*) AS n FROM ${table("provider_ledger")} WHERE sandbox_id=$1`,
+            [ref.sandboxId]
+          )
+        )[0].n
+      ) > 100,
+    40000
   )
-  await sql(
-    `INSERT INTO ${table("command_admission")}(sandbox_id,generation,operation,request_id) SELECT $1,2,'Scenario','owned-budget-fixture-' || n FROM generate_series(1,$2::int) n`,
-    [cView.ref.sandboxId, 200 - budget.n]
-  )
-  await sql(
-    `UPDATE ${table("sandboxes")} SET viewer_until=expires_at,next_generation_at=1 WHERE sandbox_id=$1`,
-    [cView.ref.sandboxId]
-  )
-  // Pause only other exact-owned private sandbox schedules so the exhausted candidate is the only due source.
-  await sql(
-    `UPDATE ${table("sandboxes")} SET next_generation_at=expires_at WHERE sandbox_id=$1`,
-    [b.sandbox.ref.sandboxId]
-  )
-  await Effect.runPromise(probe.generate(cfg))
-  assert.equal((await describe(c)).capacity.admittedCommands, 200)
-  assert.equal((await describe(c)).capacity.retainedJobs, 12)
   check(
-    "command admission budget200 stops automatic writes independently of retained job capacity"
+    "durable synthetic provider handles more than100 retained identities through real worker execution"
   )
-  const retainedBefore = await sql(
-    `SELECT a.generation,j.id,j.policy,p.payload,p.projection FROM ${table("associations")} a JOIN ${table("jobs")} j ON j.id=a.job_id JOIN ${table("job_payloads")} p ON p.job_id=j.id WHERE a.sandbox_id=$1 ORDER BY j.id`,
-    [ref.sandboxId]
+  assert.equal(capacity, 110)
+  assert(admissions > 200)
+  assert.equal((await describe(a)).capacity.mode, "local")
+  check(
+    "local private real commands exceed retained100 and admission200; finite batch validation and stale generation fencing survive"
   )
-  assert.equal(retainedBefore.length, 100)
-  const rejected = await dispatch("/api/scenarios", a, {
+  const tooMany = await dispatch("/api/scenarios", a, {
     sandbox: current,
     requestId: randomUUID(),
     scenario: "success",
-    count: 1
+    count: 11
   })
-  assert.equal(rejected.status, 429)
-  const rejectedReset = await dispatch("/api/sandbox/reset", a, {
-    sandbox: current,
-    requestId: randomUUID()
-  })
-  assert.equal(rejectedReset.status, 429)
-  assert.equal((await describe(a)).ref.generation, 2)
-  const retainedAfter = await sql(
-    `SELECT a.generation,j.id,j.policy,p.payload,p.projection FROM ${table("associations")} a JOIN ${table("jobs")} j ON j.id=a.job_id JOIN ${table("job_payloads")} p ON p.job_id=j.id WHERE a.sandbox_id=$1 ORDER BY j.id`,
+  assert.equal(tooMany.status, 400)
+  const retained = async () =>
+    sql(
+      `SELECT a.generation,j.id,j.policy,p.payload,p.projection FROM ${table("associations")} a JOIN ${table("jobs")} j ON j.id=a.job_id JOIN ${table("job_payloads")} p ON p.job_id=j.id WHERE a.sandbox_id=$1 ORDER BY j.id`,
+      [ref.sandboxId]
+    )
+  const retainedBefore = await retained()
+  const receiptsBefore = await sql(
+    `SELECT * FROM ${table("command_receipts")} WHERE sandbox_id=$1 ORDER BY generation,operation,request_id`,
     [ref.sandboxId]
   )
-  assert.deepEqual(retainedAfter, retainedBefore)
+  const auditBefore = await sql(
+    `SELECT * FROM ${table("command_audit")} WHERE sandbox_id=$1 ORDER BY generation,operation,observed_at`,
+    [ref.sandboxId]
+  )
+  // Generator crosses both old thresholds and preserves paced one-job arrivals.
+  await sql(
+    `UPDATE ${table("sandboxes")} SET next_generation_at=1,viewer_until=expires_at WHERE sandbox_id=$1`,
+    [ref.sandboxId]
+  )
+  for (const other of [b.sandbox.ref.sandboxId, cView.ref.sandboxId]) {
+    await sql(
+      `UPDATE ${table("sandboxes")} SET next_generation_at=expires_at WHERE sandbox_id=$1`,
+      [other]
+    )
+  }
+  await Effect.runPromise(probe.generate(cfg))
+  assert.equal((await retained()).length, 111)
+  const [paced] = await sql(
+    `SELECT next_generation_at FROM ${table("sandboxes")} WHERE sandbox_id=$1`,
+    [ref.sandboxId]
+  )
+  assert(Number(paced.next_generation_at) > Date.now())
+  await Effect.runPromise(probe.generate(cfg))
+  assert.equal((await retained()).length, 111)
+  await sql(
+    `UPDATE ${table("sandboxes")} SET next_generation_at=expires_at WHERE sandbox_id=$1`,
+    [ref.sandboxId]
+  )
+  check(
+    "mixed background generation continues beyond old limits but does not catch up or flood"
+  )
   await page.reload()
   await expect(page.locator(".connection-status")).toHaveAttribute(
     "data-connection",
@@ -423,14 +512,106 @@ try {
   )
   await page.getByRole("button", { name: "Create jobs", exact: true }).click()
   await expect(
-    page.getByRole("button", { name: "Reset my sandbox", exact: true })
-  ).toBeDisabled()
-  await expect(
-    page.getByRole("button", { name: "Create jobs", exact: true })
+    page.getByRole("button", { name: "Run scenario", exact: true })
   ).toBeEnabled()
-  await expect(page.getByText(/Retained capacity: 100\/100/)).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Reset my sandbox", exact: true })
+  ).toBeEnabled()
+  await expect(page.getByText(/No lifetime quota/)).toBeVisible()
+  page.once("dialog", (dialog) => dialog.accept())
+  await page.getByRole("button", { name: "Reset my sandbox", exact: true }).click()
+  await expect(page.locator(".sandbox-scope")).toContainText("generation 3", {
+    timeout: 15000
+  })
+  const afterThresholdReset = await describe(a)
+  assert.equal(afterThresholdReset.ref.sandboxId, ref.sandboxId)
+  assert.equal(afterThresholdReset.ref.generation, 3)
+  assert.equal((await rows(afterThresholdReset.ref)).length, 6)
+  const retainedAfter = await retained()
+  for (const old of retainedBefore) {
+    assert.deepEqual(
+      retainedAfter.find((job) => job.id === old.id),
+      old
+    )
+  }
+  const receiptsAfter = await sql(
+    `SELECT * FROM ${table("command_receipts")} WHERE sandbox_id=$1 ORDER BY generation,operation,request_id`,
+    [ref.sandboxId]
+  )
+  for (const old of receiptsBefore) {
+    assert(receiptsAfter.some((value) => JSON.stringify(value) === JSON.stringify(old)))
+  }
+  const auditAfter = await sql(
+    `SELECT * FROM ${table("command_audit")} WHERE sandbox_id=$1 ORDER BY generation,operation,observed_at`,
+    [ref.sandboxId]
+  )
+  for (const old of auditBefore) {
+    assert(auditAfter.some((value) => JSON.stringify(value) === JSON.stringify(old)))
+  }
+  await wait(async () => {
+    const states = new Set((await rows(afterThresholdReset.ref)).map((job) => job.state))
+    return ["Pending", "RetryScheduled", "Dead", "Isolated", "Completed"].every((state) =>
+      states.has(state)
+    )
+  })
   check(
-    "quota100 truthful UI; enqueue/reset rejection preserves all IDs, artifacts, previous generation and receipts"
+    "actual Chromium same-ID generation+1 reset above old limits seeds six actionable jobs and preserves all historical job bytes, receipts and audit"
+  )
+  const thresholdStates = await rows(afterThresholdReset.ref)
+  for (const state of ["Pending", "RetryScheduled", "Dead", "Isolated"]) {
+    const source = thresholdStates.find((job) => job.state === state)
+    await open(source.id)
+    const button =
+      state === "Pending"
+        ? "Cancel job"
+        : state === "RetryScheduled"
+          ? "Retry now"
+          : "Redrive as new job"
+    await page.getByRole("button", { name: button, exact: true }).click()
+    await page
+      .getByRole("button", {
+        name:
+          state === "Dead" || state === "Isolated"
+            ? "Confirm possible duplicate effects"
+            : "Confirm action",
+        exact: true
+      })
+      .click()
+    if (state === "Pending" || state === "RetryScheduled") {
+      await wait(
+        async () =>
+          (await rows(afterThresholdReset.ref)).find((job) => job.id === source.id)
+            .state === (state === "Pending" ? "Cancelled" : "Completed")
+      )
+    } else {
+      await wait(
+        async () =>
+          (
+            await sql(
+              `SELECT * FROM ${table("operator_redrives")} WHERE source_job_id=$1`,
+              [source.id]
+            )
+          ).length === 1
+      )
+      const unchanged = (await rows(afterThresholdReset.ref)).find(
+        (job) => job.id === source.id
+      )
+      assert.deepEqual(unchanged, source)
+      const [lineage] = await sql(
+        `SELECT * FROM ${table("operator_redrives")} WHERE source_job_id=$1`,
+        [source.id]
+      )
+      const successor = (await rows(afterThresholdReset.ref)).find(
+        (job) => job.id === lineage.successor_job_id
+      )
+      assert.notEqual(successor.id, source.id)
+      assert.deepEqual(successor.payload, source.payload)
+      assert.deepEqual(successor.policy, source.policy)
+    }
+    await close()
+  }
+  check(
+    "actual Chromium cancel, retry-now and confirmed Dead/Isolated redrive remain admitted above retained100/admission200"
   )
   const resetContext = await browser.newContext({
     viewport: { width: 1440, height: 1000 }
@@ -524,6 +705,83 @@ try {
     0
   )
   check("public demo read-only, private bootstrap/generator excluded from demo authority")
+  await assert.rejects(
+    sql(`UPDATE ${table("sandboxes")} SET retained_jobs=20001 WHERE sandbox_id=$1`, [
+      demo.sandbox_id
+    ]),
+    (error) => error.code === "23514"
+  )
+  await assert.rejects(
+    sql(
+      `UPDATE ${table("sandboxes")} SET retained_jobs=9007199254740992 WHERE sandbox_id=$1`,
+      [ref.sandboxId]
+    ),
+    (error) => error.code === "23514"
+  )
+  check("unchanged public demo20000 constraint and local safe integer database bound")
+  bounded = await createLocal(cfg, { https: false })
+  const boundedIssue = await bounded.mf.dispatchFetch(
+    bounded.origin + "/api/sandbox/issue",
+    {
+      method: "POST",
+      headers: {
+        Origin: bounded.origin,
+        "Content-Type": "application/json",
+        LOCAL_PRIVATE: "true",
+        "X-Local-Private": "true"
+      }
+    }
+  )
+  assert.equal(boundedIssue.status, 200)
+  const boundedView = await boundedIssue.json()
+  assert.equal(boundedView.capacity.mode, "bounded")
+  const boundedCredential = boundedIssue.headers
+    .getSetCookie()
+    .find((value) => !value.includes("csrf"))
+    .split(";")[0]
+    .split("=")[1]
+  const boundedConfig = { ...cfg, localPrivate: false }
+  let boundedCount = 6
+  while (boundedCount < 100) {
+    const count = Math.min(10, 100 - boundedCount)
+    const result = await Effect.runPromise(
+      probe.scenario(boundedConfig, boundedCredential, {
+        sandbox: boundedView.ref,
+        requestId: randomUUID(),
+        scenario: "delayed-success",
+        count
+      })
+    )
+    assert.equal(result._tag, "Committed")
+    boundedCount += count
+  }
+  const blockedScenario = await Effect.runPromise(
+    probe.scenario(boundedConfig, boundedCredential, {
+      sandbox: boundedView.ref,
+      requestId: randomUUID(),
+      scenario: "success",
+      count: 1
+    })
+  )
+  assert.equal(blockedScenario.code, "limit-reached")
+  const blockedReset = await Promise.allSettled([
+    Effect.runPromise(
+      probe.reset(boundedConfig, boundedCredential, {
+        sandbox: boundedView.ref,
+        requestId: randomUUID()
+      })
+    )
+  ])
+  assert.equal(blockedReset[0].status, "rejected")
+  assert.equal(
+    (await Effect.runPromise(probe.describe(boundedConfig, boundedCredential))).ref
+      .generation,
+    1
+  )
+  check(
+    "trusted configuration only: localhost and spoofed request flags do not enable local mode; default bounded100/reset refusal remain enforced"
+  )
+
   await sql(`UPDATE ${table("sandboxes")} SET expires_at=1 WHERE sandbox_id=$1`, [
     b.sandbox.ref.sandboxId
   ])
@@ -540,9 +798,9 @@ try {
         chromium: browser.version(),
         localOrigin: local.origin,
         starterIds: ids,
-        limits: { jobs: 100, commands: 200 },
+        limits: { localLifetimeQuota: null, batch: 10, demoRetained: 20000 },
         resetSemantics:
-          "starter only when lifetime capacity permits; owner decision pending"
+          "same ID, generation+1, six starters independent of previous retained count; all history preserved"
       },
       null,
       2
@@ -550,6 +808,7 @@ try {
   )
 } finally {
   await browser?.close()
+  await bounded?.mf.dispose()
   await local?.mf.dispose()
   await pool.end()
 }

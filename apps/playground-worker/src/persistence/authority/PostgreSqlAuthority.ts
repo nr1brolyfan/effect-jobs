@@ -15,6 +15,7 @@ import {
   StoredReceipt
 } from "../commands/Transactions.js"
 import * as Tables from "./Schema.js"
+import * as Mode from "./PrivateMode.js"
 import * as Traffic from "../../scenarios/PrivateTraffic.js"
 
 export const viewerMillis = 15_000
@@ -51,7 +52,7 @@ const digest = (value: string) =>
       ).join(""),
     catch: () => fail("unavailable")
   })
-const view = (row: Record<string, unknown>) =>
+const view = (row: Record<string, unknown>, local = false) =>
   Schema.decodeUnknownEffect(SandboxView)(
     {
       ref: { sandboxId: row.sandbox_id, generation: Number(row.generation) },
@@ -60,6 +61,7 @@ const view = (row: Record<string, unknown>) =>
         ? {}
         : {
             capacity: {
+              mode: local ? "local" : "bounded",
               retainedJobs: Number(row.retained_jobs),
               admittedCommands: Number(row.admitted_commands ?? 0)
             }
@@ -78,6 +80,9 @@ const view = (row: Record<string, unknown>) =>
 export const make = (schema: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
+    const local = yield* Mode.LocalPrivate
+    const retainedMaximum = Mode.retainedMaximum(local)
+    const admissionMaximum = Mode.admissionMaximum(local)
     const t = Tables.relations(schema)
     const traffic = yield* Traffic.make(schema)
     const query = (text: string, values: ReadonlyArray<unknown> = []) =>
@@ -90,7 +95,7 @@ export const make = (schema: string) =>
         )
     const described = (id: string) =>
       query(
-        `SELECT s.*,(SELECT count(*)::int FROM ${t.admission} WHERE sandbox_id=s.sandbox_id) AS admitted_commands FROM ${t.sandboxes} s WHERE sandbox_id=$1`,
+        `SELECT s.*,(SELECT count(*) FROM ${t.admission} WHERE sandbox_id=s.sandbox_id) AS admitted_commands FROM ${t.sandboxes} s WHERE sandbox_id=$1`,
         [id]
       )
     const locked = (id: string) =>
@@ -136,14 +141,14 @@ export const make = (schema: string) =>
             )
             if (row.demo_owned !== true) {
               yield* traffic
-                .ensure((yield* view(row)).ref, Number(row.db_now))
+                .ensure((yield* view(row, local)).ref, Number(row.db_now))
                 .pipe(
                   Effect.catchTag("PlaygroundError", (error) =>
                     error.code === "limit-reached" ? Effect.void : Effect.fail(error)
                   )
                 )
             }
-            return yield* view((yield* described(String(row.sandbox_id)))[0]!)
+            return yield* view((yield* described(String(row.sandbox_id)))[0]!, local)
           })
         )
         .pipe(publicEffect)
@@ -164,10 +169,13 @@ export const make = (schema: string) =>
         VALUES ($1,1,${dbTime}+$3::bigint,$2,${dbTime}+$4::bigint,${dbTime}+5000) RETURNING *,${dbTime} AS db_now`,
                 [id, hash, limits.sandboxLifetimeMillis, viewerMillis]
               )
-              yield* traffic.ensure((yield* view(rows[0]!)).ref, Number(rows[0]!.db_now))
+              yield* traffic.ensure(
+                (yield* view(rows[0]!, local)).ref,
+                Number(rows[0]!.db_now)
+              )
               const [created] = yield* described(id)
               return {
-                sandbox: yield* view(created!),
+                sandbox: yield* view(created!, local),
                 credential: Redacted.make(credential)
               }
             })
@@ -181,11 +189,11 @@ export const make = (schema: string) =>
           const hash = yield* digest(Redacted.value(credential))
           const row = yield* guard(
             yield* query(
-              `SELECT s.*,${dbTime} AS db_now,(SELECT count(*)::int FROM ${t.admission} WHERE sandbox_id=s.sandbox_id) AS admitted_commands FROM ${t.sandboxes} s WHERE credential_hash=$1`,
+              `SELECT s.*,${dbTime} AS db_now,(SELECT count(*) FROM ${t.admission} WHERE sandbox_id=s.sandbox_id) AS admitted_commands FROM ${t.sandboxes} s WHERE credential_hash=$1`,
               [hash]
             )
           )
-          return { sandbox: yield* view(row) }
+          return { sandbox: yield* view(row, local) }
         }).pipe(publicEffect),
       describe: renew
     })
@@ -234,10 +242,10 @@ export const make = (schema: string) =>
                   return false
                 }
                 const [budget] = yield* query(
-                  `SELECT count(*)::int AS n FROM ${t.admission} WHERE sandbox_id=$1`,
+                  `SELECT count(*) AS n FROM ${t.admission} WHERE sandbox_id=$1`,
                   [request.sandbox.sandboxId]
                 )
-                if (Number(budget!.n) >= 200) {
+                if (Number(budget!.n) >= admissionMaximum) {
                   return yield* fail("limit-reached")
                 }
                 const inserted = yield* query(
@@ -266,7 +274,7 @@ export const make = (schema: string) =>
                 if (row.demo_owned === true) {
                   return yield* fail("capability-unavailable")
                 }
-                const current = (yield* view(row)).ref
+                const current = (yield* view(row, local)).ref
                 return yield* body({
                   admission: fresh ? "Fresh" : "Unresolved",
                   current,
@@ -280,7 +288,7 @@ export const make = (schema: string) =>
                       }
                       const reserved = yield* query(
                         `UPDATE ${t.sandboxes} SET retained_jobs=retained_jobs+$2::int
-              WHERE sandbox_id=$1 AND retained_jobs+$2::int<=100 RETURNING sandbox_id`,
+              WHERE sandbox_id=$1 AND retained_jobs<=${retainedMaximum}-$2::int RETURNING sandbox_id`,
                         [current.sandboxId, count]
                       )
                       if (!reserved.length) {
@@ -299,14 +307,15 @@ export const make = (schema: string) =>
                     ]).pipe(Effect.asVoid),
                   advanceGeneration: (expected) =>
                     Effect.gen(function* () {
-                      // Reset preserves lifetime quota/evidence; reject before hiding data if no complete starter set fits.
+                      // Reset retains all evidence and seeds the same sandbox's new generation.
                       const [capacity] = yield* query(
                         `SELECT retained_jobs,(SELECT count(*) FROM ${t.admission} WHERE sandbox_id=$1) AS admissions FROM ${t.sandboxes} WHERE sandbox_id=$1`,
                         [expected.sandboxId]
                       )
                       if (
-                        Number(capacity!.retained_jobs) + Traffic.starterCount > 100 ||
-                        Number(capacity!.admissions) >= 200
+                        Number(capacity!.retained_jobs) >
+                          retainedMaximum - Traffic.starterCount ||
+                        Number(capacity!.admissions) >= admissionMaximum
                       ) {
                         return yield* fail("limit-reached")
                       }
@@ -318,7 +327,7 @@ export const make = (schema: string) =>
                       if (!updated.length) {
                         return yield* fail("stale-generation")
                       }
-                      const advanced = (yield* view(updated[0]!)).ref
+                      const advanced = (yield* view(updated[0]!, local)).ref
                       yield* traffic.ensure(advanced, Number(row.db_now))
                       return advanced
                     }),

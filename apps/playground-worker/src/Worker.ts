@@ -31,6 +31,7 @@ export interface Env {
   readonly SCHEMA: string
   readonly ORIGIN: string
   readonly LOCAL_PREVIEW?: string
+  readonly LOCAL_PRIVATE?: string
   readonly ENCRYPTION_KEY: string
   readonly FINGERPRINT_KEY: string
   readonly CURSOR_KEY: string
@@ -45,6 +46,7 @@ export interface Env {
   readonly ASSETS: { fetch(request: Request): Promise<Response> }
 }
 const config = (env: Env): Event.Config => ({
+  localPrivate: env.LOCAL_PRIVATE === "true",
   connectionString: env.PG.connectionString,
   schema: env.SCHEMA,
   encryptionKey: env.ENCRYPTION_KEY,

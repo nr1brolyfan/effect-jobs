@@ -12,12 +12,14 @@ import {
   LedgerFull
 } from "../providers/FakeProvider.js"
 import type { ProviderCommand, ProviderFailure } from "../providers/FakeProvider.js"
+import * as Mode from "../persistence/authority/PrivateMode.js"
 import * as Tables from "../persistence/authority/Schema.js"
 import { maxRetainedJobs } from "../demo/Traffic.js"
 
 export const make = (schema: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
+    const local = yield* Mode.LocalPrivate
     const t = Tables.relations(schema)
     return FakeProvider.of({
       execute: (command: ProviderCommand) =>
@@ -80,10 +82,15 @@ export const make = (schema: string) =>
                 }
                 if (!existing) {
                   const size = (yield* sql.unsafe<{ n: number }>(
-                    `SELECT count(*)::int AS n FROM ${t.ledger} WHERE sandbox_id=$1`,
+                    `SELECT count(*) AS n FROM ${t.ledger} WHERE sandbox_id=$1`,
                     [command.sandbox.sandboxId]
                   ))[0]!.n
-                  if (size >= (sandbox.demo_owned === true ? maxRetainedJobs : 100)) {
+                  if (
+                    Number(size) >=
+                    (sandbox.demo_owned === true
+                      ? maxRetainedJobs
+                      : Mode.retainedMaximum(local))
+                  ) {
                     return new LedgerFull()
                   }
                 }

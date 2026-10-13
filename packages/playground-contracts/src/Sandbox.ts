@@ -24,11 +24,12 @@ export const SandboxView = Schema.Struct({
   expiresAt: EpochMillis,
   capacity: Schema.optional(
     Schema.Struct({
+      mode: Schema.Literals(["local", "bounded"]),
       retainedJobs: Schema.Int.pipe(
-        Schema.check(Schema.isBetween({ minimum: 0, maximum: 100 }))
+        Schema.check(Schema.isBetween({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }))
       ),
       admittedCommands: Schema.Int.pipe(
-        Schema.check(Schema.isBetween({ minimum: 0, maximum: 200 }))
+        Schema.check(Schema.isBetween({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }))
       )
     })
   ),

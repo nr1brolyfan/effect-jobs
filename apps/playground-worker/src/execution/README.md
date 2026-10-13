@@ -54,14 +54,24 @@ isolated. There is no network, real payment/email or arbitrary outbound webhook.
 adapter must project a separately typed local/workerd observation if desired.
 The ledger is app evidence, never a library eventlog or attempt history.
 
-Limits are 100 retained jobs and provider entries across ALL generations of one
-sandbox, 200 admitted commands across all generations, 10 jobs per request and
-one-hour expiry. Reset retains earlier jobs, associations, receipts and evidence;
-it does not restore the quota. There is deliberately no cleanup adapter installed:
-foreign keys protect evidence, and Pending/Active/Isolated rows are never deleted.
-Terminal/domain-coordinated retention is a later explicit integration decision;
-reset is visibility/admission revocation, not cancellation. `retryJob`, `redriveJob`
-and `cancelJob` are private-only capabilities with the accepted operator eligibility.
+Private `/jobs` is for local testing. Explicit trusted `LOCAL_PRIVATE="true"`
+configuration supplies `LocalPrivate` through `Event.run`; requests, Host and
+Origin headers cannot enable it. Local sandboxes have no retained-job, provider
+identity or command-admission lifetime quota. Counters remain safe integer numbers:
+v5 widens retained_jobs to bigint with a 0..Number.MAX_SAFE_INTEGER check. Queries
+avoid PostgreSQL int count casts and reservations refuse representation overflow.
+The default bounded mode retains 100 jobs/identities and 200 admissions.
+Ten jobs per request, one-hour expiry, viewer activation, HTTP rate limits, finite
+worker claims/recovery and paced arrivals remain enforced in either mode.
+Reset preserves the same ID, advances generation once and seeds six real jobs;
+old jobs, associations, admissions, receipts, audit and provider evidence remain.
+There is no cleanup adapter or automatic redrive replenishment. `retryJob`,
+`redriveJob` and `cancelJob` retain their accepted private operator eligibility.
+Public demo keeps its separate 20,000-job bound, rotation and retention behavior.
+
+Future hosting remains a separate task: host public read-only `/demo` alongside
+docs, and exclude private sandbox/mutation routes server-side. Hiding navigation
+is insufficient. This local change does not implement or authorize hosting.
 
 ## Shared integration requests
 
@@ -105,14 +115,14 @@ again. Nothing automatically redrives or replenishes terminal sources. Manual
 `delayed-success` and `isolated` controls expose the same repeatable cases.
 Public demo scheduling, policies and read-only authority remain independent.
 
-Capacity metadata exposes retained jobs / 100 and admitted commands / 200 across
-all generations. Background traffic stops at the retained limit. Reset is a
-visibility/authority boundary and cannot free capacity without deleting evidence.
-The proposed capacity-preserving reset requires six free job slots and two free
-command slots; the server rejects it before generation advancement otherwise.
-The UI explains the lifetime limit and leaves Create jobs available to inspect the
-scenario controls. Acceptance of full-capacity reset behavior is an issue-local
-owner decision; this document does not grant deletion or a quota increase.
+Capacity metadata identifies `local` or `bounded` mode and reports retained jobs
+and admissions across generations. The local UI explains that reset preserves
+history and adds six starters; old counts never disable local scenario/reset
+controls. Existing bounded-mode capacity checks remain visible and enforced.
+`playground-local-private-v5` is an explicit additive app migration; v1–v4 bytes
+and checksums remain unchanged, and demo-owned rows keep their existing bound.
+Apply it before running the new executor. The preview launcher explicitly enables
+local mode and creates its own fresh resources; it does not reuse prior configs.
 
 Finite local qualification: build with
 `PLAYGROUND_EVIDENCE_DIRECTORY=.multica/actionable node apps/playground-worker/tests/integration/Build.mjs`,

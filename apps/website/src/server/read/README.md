@@ -93,13 +93,12 @@ These are integration requests, not applied shared changes:
    No full-text search or created timestamp is available. Do not silently expose
    historical requested filters through unregistered ad-hoc HTTP parameters.
 
-At demo scale, at most 100 associations per sandbox must be enforced atomically
-by producer admission. Existing association PK, unique job FK, sandbox PK and
-library jobs PK support scoped lookup; deterministic ID sorting is bounded at
-this scale. No extra global jobs index is proposed without real EXPLAIN evidence.
-The seed harness captures EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON); it is not a
-claim that an index was measured or used. Scale beyond demo quota needs plans
-and a separately reviewed index proposal.
+Private `/jobs` local testing no longer has a lifetime100 association quota.
+Public demo retains its independent 20,000-job bound. Existing association PK,
+unique job FK, sandbox PK and library jobs PK support scoped lookup and pagination.
+The historical seed harness measured 100 jobs per sandbox; those EXPLAIN results
+are not a performance claim for larger local histories. Scale/index work requires
+actual query plans rather than an assumed extra global index.
 
 ## Qualification
 

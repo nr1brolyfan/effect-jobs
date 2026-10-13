@@ -12,6 +12,7 @@ import * as Traffic from "../scenarios/PrivateTraffic.js"
 import * as Definitions from "../scenarios/Definitions.js"
 import * as Handlers from "../scenarios/Handlers.js"
 import * as Provider from "./PostgreSqlProvider.js"
+import * as Mode from "../persistence/authority/PrivateMode.js"
 import * as Tables from "../persistence/authority/Schema.js"
 import { WakeAlarm } from "../cloudflare/WakeCycle.js"
 
@@ -71,6 +72,9 @@ export const workerLayerNoDeps = (schema: string) =>
 export const snapshot = (schema: string, queue: QueueName) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
+    const local = yield* Mode.LocalPrivate
+    const retainedMaximum = Mode.retainedMaximum(local)
+    const admissionMaximum = Mode.admissionMaximum(local)
     const t = Tables.relations(schema)
     const [row] = yield* sql.unsafe<{
       now: string
@@ -85,7 +89,7 @@ export const snapshot = (schema: string, queue: QueueName) =>
       (SELECT min(j.available_at) FROM ${t.jobs} j JOIN ${t.associations} a ON a.job_id=j.id JOIN ${t.sandboxes} s ON s.sandbox_id=a.sandbox_id
         WHERE j.queue=$1 AND j.state IN ('Pending','RetryScheduled') AND a.generation=s.generation AND s.expires_at>t.now AND s.viewer_until>t.now) AS due,
       (SELECT min(lease_expires_at) FROM ${t.jobs} WHERE queue=$1 AND state='Active') AS recovery,
-       (SELECT min(s.next_generation_at) FROM ${t.sandboxes} s WHERE NOT s.demo_owned AND s.expires_at>t.now AND s.viewer_until>t.now AND s.retained_jobs<100 AND (SELECT count(*) FROM ${t.admission} WHERE sandbox_id=s.sandbox_id)<200) AS generate FROM t`,
+       (SELECT min(s.next_generation_at) FROM ${t.sandboxes} s WHERE NOT s.demo_owned AND s.expires_at>t.now AND s.viewer_until>t.now AND s.retained_jobs<${retainedMaximum} AND (SELECT count(*) FROM ${t.admission} WHERE sandbox_id=s.sandbox_id)<${admissionMaximum}) AS generate FROM t`,
       [queue]
     )
     const now = Number(row!.now)
@@ -109,6 +113,9 @@ export const snapshot = (schema: string, queue: QueueName) =>
 export const generate = (schema: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
+    const local = yield* Mode.LocalPrivate
+    const retainedMaximum = Mode.retainedMaximum(local)
+    const admissionMaximum = Mode.admissionMaximum(local)
     const backend = yield* PostgreSqlJobs
     const traffic = yield* Traffic.make(schema).pipe(
       Effect.provideService(JobEnqueue, backend.producer)
@@ -121,7 +128,7 @@ export const generate = (schema: string) =>
         >(`SELECT s.* FROM ${t.sandboxes} s
       WHERE NOT demo_owned AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint
       AND viewer_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint
-      AND next_generation_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND retained_jobs<100 AND (SELECT count(*) FROM ${t.admission} WHERE sandbox_id=s.sandbox_id)<200
+      AND next_generation_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND retained_jobs<${retainedMaximum} AND (SELECT count(*) FROM ${t.admission} WHERE sandbox_id=s.sandbox_id)<${admissionMaximum}
       ORDER BY next_generation_at,sandbox_id LIMIT 1 FOR UPDATE SKIP LOCKED`)
         const row = rows[0]
         if (!row) {
@@ -144,7 +151,7 @@ export const generate = (schema: string) =>
           `auto-${String(row.next_generation_at)}`,
           [Traffic.profile(sequence)],
           now,
-          sequence
+          sequence % 0x1_0000_0000
         )
         yield* sql.unsafe(
           `UPDATE ${t.sandboxes} SET next_generation_at=$3::bigint+5000 WHERE sandbox_id=$1 AND generation=$2`,

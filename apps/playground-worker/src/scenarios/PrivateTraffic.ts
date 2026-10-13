@@ -8,6 +8,7 @@ import type { ScenarioId } from "@effect-jobs/playground-contracts/Scenarios"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import * as Plan from "./Plan.js"
 import { DocumentKeys } from "./PrivateDocument.js"
+import * as Mode from "../persistence/authority/PrivateMode.js"
 import * as Tables from "../persistence/authority/Schema.js"
 
 export const interactionMillis = 120_000
@@ -27,6 +28,9 @@ export const profile = (sequence: number) => starterScenarios[sequence % starter
 export const make = (schema: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
+    const local = yield* Mode.LocalPrivate
+    const retainedMaximum = Mode.retainedMaximum(local)
+    const admissionMaximum = Mode.admissionMaximum(local)
     const producer = yield* JobEnqueue
     const keys = yield* DocumentKeys
     const t = Tables.relations(schema)
@@ -42,16 +46,23 @@ export const make = (schema: string) =>
       seed = 0
     ) =>
       Effect.gen(function* () {
+        if (
+          !Number.isInteger(scenarios.length) ||
+          scenarios.length < 1 ||
+          scenarios.length > 10
+        ) {
+          return yield* new PlaygroundError({ code: "limit-reached" })
+        }
         const [budget] = yield* query(
-          `SELECT count(*)::int AS n FROM ${t.admission} WHERE sandbox_id=$1`,
+          `SELECT count(*) AS n FROM ${t.admission} WHERE sandbox_id=$1`,
           [ref.sandboxId]
         )
-        if (Number(budget!.n) >= 200) {
+        if (Number(budget!.n) >= admissionMaximum) {
           return yield* new PlaygroundError({ code: "limit-reached" })
         }
         const reserved = yield* query(
           `UPDATE ${t.sandboxes} SET retained_jobs=retained_jobs+$3::int
-        WHERE sandbox_id=$1 AND generation=$2 AND NOT demo_owned AND retained_jobs+$3::int<=100 RETURNING sandbox_id`,
+        WHERE sandbox_id=$1 AND generation=$2 AND NOT demo_owned AND retained_jobs<=${retainedMaximum}-$3::int RETURNING sandbox_id`,
           [ref.sandboxId, ref.generation, scenarios.length]
         )
         if (!reserved.length) {

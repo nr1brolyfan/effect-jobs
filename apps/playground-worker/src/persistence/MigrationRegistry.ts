@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import * as Operators from "./commands/OperatorSchema.js"
 import * as Jobs from "effect-jobs/PostgreSqlSchema"
 import * as LegacyJobsV1 from "./LegacyJobsV1.js"
+import * as LocalPrivate from "./authority/LocalPrivateSchema.js"
 import * as Authority from "./authority/Schema.js"
 import * as Demo from "../demo/Schema.js"
 
@@ -44,6 +45,11 @@ export const migrations = (schema: string): ReadonlyArray<MigrationDescriptor> =
       id: "playground-operators-v4",
       sql: operators,
       checksum: createHash("sha256").update(operators).digest("hex")
+    },
+    {
+      id: "playground-local-private-v5",
+      sql: LocalPrivate.proposal(schema),
+      checksum: createHash("sha256").update(LocalPrivate.proposal(schema)).digest("hex")
     }
   ])
 }

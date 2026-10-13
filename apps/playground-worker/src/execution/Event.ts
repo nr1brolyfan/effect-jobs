@@ -16,6 +16,7 @@ import {
   SandboxAuthority,
   PlaygroundError
 } from "@effect-jobs/playground-contracts/Services"
+import * as Mode from "../persistence/authority/PrivateMode.js"
 import * as Authority from "../persistence/authority/PostgreSqlAuthority.js"
 import * as Commands from "../persistence/commands/Persistence.js"
 import * as Executor from "./Executor.js"
@@ -27,6 +28,7 @@ import * as Guarded from "../../../website/src/server/commands/GuardedScenarios.
 import * as Application from "../../../website/src/server/Services.js"
 
 export interface Config {
+  readonly localPrivate?: boolean
   readonly connectionString: string
   readonly schema: string
   // Fresh task-owned configuration retained for the lifetime of synthetic jobs.
@@ -168,4 +170,7 @@ export const run = <A, E>(
         Effect.provideService(DocumentKeys, stable)
       )
     })
-  ).pipe(Effect.provide(Reactivity.layer))
+  ).pipe(
+    Effect.provideService(Mode.LocalPrivate, config.localPrivate === true),
+    Effect.provide(Reactivity.layer)
+  )

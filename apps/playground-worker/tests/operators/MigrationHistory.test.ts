@@ -13,6 +13,10 @@ describe("immutable historical playground migration bytes", () => {
       "bb94a55bddd16be6aa012af13e8b97939c3a2c474c09656113cb291b649e6c71",
       "705a092daa45767ce6c02e85a0d3a0037a0ccc416186c491ceca869f93d1b2c3"
     ])
+    expect(migrations("public")[3]!.checksum).toBe(
+      "e291633f941ce69611902c5be26e2e68e23f67bb9c5b45f893df70cdf6eedaff"
+    )
+    expect(migrations("public")[4]!.id).toBe("playground-local-private-v5")
     expect(
       migrations("operators_legacy")
         .slice(0, 3)

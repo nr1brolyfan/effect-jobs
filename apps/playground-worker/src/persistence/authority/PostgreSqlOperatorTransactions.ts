@@ -15,6 +15,7 @@ import {
   StoredOperatorReceipt
 } from "../commands/OperatorTransactions.js"
 import { CommandTransactionFailure } from "../commands/Transactions.js"
+import * as Mode from "./PrivateMode.js"
 import * as Tables from "./Schema.js"
 
 const fail = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
@@ -53,6 +54,9 @@ const decode = <S extends Schema.Top & { readonly DecodingServices: never }>(
 export const make = (schema: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
+    const local = yield* Mode.LocalPrivate
+    const retainedMaximum = Mode.retainedMaximum(local)
+    const admissionMaximum = Mode.admissionMaximum(local)
     const t = Tables.relations(schema)
     const lineage = `"${schema}"."operator_redrives"`
     const payloads = `"${schema}"."job_payloads"`
@@ -156,10 +160,10 @@ export const make = (schema: string) =>
                   return yield* fail("stale-generation")
                 }
                 const [budget] = yield* query(
-                  `SELECT count(*)::int AS n FROM ${t.admission} WHERE sandbox_id=$1`,
+                  `SELECT count(*) AS n FROM ${t.admission} WHERE sandbox_id=$1`,
                   [current.sandboxId]
                 )
-                if (Number(budget!.n) >= 200) {
+                if (Number(budget!.n) >= admissionMaximum) {
                   return yield* fail("limit-reached")
                 }
                 yield* query(
@@ -232,7 +236,7 @@ export const make = (schema: string) =>
                         return yield* fail("not-found")
                       }
                       const reserved = yield* query(
-                        `UPDATE ${t.sandboxes} SET retained_jobs=retained_jobs+1 WHERE sandbox_id=$1 AND retained_jobs<100 RETURNING sandbox_id`,
+                        `UPDATE ${t.sandboxes} SET retained_jobs=retained_jobs+1 WHERE sandbox_id=$1 AND retained_jobs<${retainedMaximum} RETURNING sandbox_id`,
                         [current.sandboxId]
                       )
                       if (reserved.length !== 1) {

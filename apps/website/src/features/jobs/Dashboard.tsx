@@ -540,7 +540,9 @@ export const Dashboard = ({
               attempt, or inspect and redrive Dead / Isolated. Use Create jobs for
               repeatable scenarios.
               {state.sandbox.capacity &&
-                ` Retained capacity: ${state.sandbox.capacity.retainedJobs}/100 across all generations; commands: ${state.sandbox.capacity.admittedCommands}/200. Background traffic stops at capacity. Reset keeps old jobs and receipts and needs 6 free job slots and 2 command slots.`}
+                (state.sandbox.capacity.mode === "local"
+                  ? ` Local testing: ${state.sandbox.capacity.retainedJobs} retained jobs; ${state.sandbox.capacity.admittedCommands} admitted commands across all generations. No lifetime quota. Reset keeps old jobs and receipts and adds 6 starter jobs.`
+                  : ` Retained capacity: ${state.sandbox.capacity.retainedJobs}/100 across all generations; commands: ${state.sandbox.capacity.admittedCommands}/200. Reset needs 6 free job slots and 2 command slots.`)}
             </p>
           )}
           <div {...classes("jobs-overview")}>
@@ -905,7 +907,7 @@ export const Dashboard = ({
                   disabled={
                     unavailable ||
                     !state.sandbox.capabilities.runScenario ||
-                    (state.sandbox.capacity !== undefined &&
+                    (state.sandbox.capacity?.mode === "bounded" &&
                       (state.sandbox.capacity.retainedJobs + count > 100 ||
                         state.sandbox.capacity.admittedCommands >= 200))
                   }
@@ -921,14 +923,14 @@ export const Dashboard = ({
                   disabled={
                     unavailable ||
                     !state.sandbox.capabilities.resetSandbox ||
-                    (state.sandbox.capacity !== undefined &&
+                    (state.sandbox.capacity?.mode === "bounded" &&
                       (state.sandbox.capacity.retainedJobs > 94 ||
                         state.sandbox.capacity.admittedCommands > 198))
                   }
                   onClick={() => {
                     if (
                       window.confirm(
-                        "Start a new generation with 6 starter jobs? Old jobs and receipts remain and still use capacity. Running jobs are not cancelled."
+                        "Start a new generation with 6 starter jobs? Old jobs and receipts remain. Running jobs are not cancelled."
                       )
                     ) {
                       void runtime.run(

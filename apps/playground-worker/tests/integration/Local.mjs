@@ -23,6 +23,7 @@ export const createLocal = async (
     instrument = false,
     https = true,
     demoRotationMillis = 86400000,
+    localPrivate = false,
     port: requestedPort = 0
   } = {}
 ) => {
@@ -85,6 +86,7 @@ export const createLocal = async (
       hyperdrives: { PG: cfg.connectionString },
       bindings: {
         ORIGIN: origin,
+        LOCAL_PRIVATE: localPrivate ? "true" : "false",
         LOCAL_PREVIEW: https ? "false" : "true",
         DEMO_ROTATION_MS: String(demoRotationMillis),
         SCHEMA: cfg.schema,

@@ -28,19 +28,26 @@ receipt['inputs'] = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).he
 receipt['artifacts'] = {name: hashlib.sha256((evidence / name).read_bytes()).hexdigest() for name in ['ActionableProbe.mjs', 'Migrations.mjs']}
 receipt['tools'] = {'node': subprocess.check_output(['node', '--version'], cwd=root, text=True).strip(), 'bun': subprocess.check_output(['bun', '--version'], cwd=root, text=True).strip()}
 receipt['compiledArtifacts'] = {p: hashlib.sha256((root / p).read_bytes()).hexdigest() for p in ['apps/playground-worker/dist/Worker.js', 'apps/website/dist/Client.js', 'apps/website/dist/Jobs.css']}
+docker = os.environ.get('DOCKER_BIN', 'docker')
+if docker == 'docker' and shutil.which('docker.exe'):
+    result = subprocess.run([docker, 'version', '--format', '{{.Server.Version}}'], capture_output=True, text=True, timeout=10)
+    if result.returncode != 0: docker = 'docker.exe'
+receipt['dockerClient'] = docker
 cid = None
 private = evidence / ('private-' + secrets.token_hex(8) + '.json')
 try:
     env = os.environ.copy()
     env.update(POSTGRES_USER='react_probe', POSTGRES_DB='react_probe', POSTGRES_PASSWORD=secrets.token_hex(32))
-    cid = subprocess.check_output(['docker', 'create', '--label', 'task=UPVE-2111', '--publish', '127.0.0.1::5432', '--tmpfs', '/var/lib/postgresql/data:rw', '-e', 'POSTGRES_USER', '-e', 'POSTGRES_DB', '-e', 'POSTGRES_PASSWORD', image], env=env, text=True, timeout=30).strip()
+    if docker.endswith('.exe'):
+        env['WSLENV'] = ':'.join(filter(None, [env.get('WSLENV', ''), 'POSTGRES_USER/w', 'POSTGRES_DB/w', 'POSTGRES_PASSWORD/w']))
+    cid = subprocess.check_output([docker, 'create', '--label', 'task=UPVE-2111', '--publish', '127.0.0.1::5432', '--tmpfs', '/var/lib/postgresql/data:rw', '-e', 'POSTGRES_USER', '-e', 'POSTGRES_DB', '-e', 'POSTGRES_PASSWORD', image], env=env, text=True, timeout=30).strip()
     receipt['containerId'] = cid
-    subprocess.run(['docker', 'start', cid], check=True, capture_output=True, timeout=30)
-    ports = json.loads(subprocess.check_output(['docker', 'inspect', '--format', '{{json .NetworkSettings.Ports}}', cid], text=True, timeout=10))
+    subprocess.run([docker, 'start', cid], check=True, capture_output=True, timeout=30)
+    ports = json.loads(subprocess.check_output([docker, 'inspect', '--format', '{{json .NetworkSettings.Ports}}', cid], text=True, timeout=10))
     assert ports['5432/tcp'][0]['HostIp'] == '127.0.0.1'
     receipt['ports'] = ports
     for _ in range(40):
-        ready = subprocess.run(['docker', 'exec', cid, 'pg_isready', '-U', 'react_probe', '-d', 'react_probe'], capture_output=True, timeout=5)
+        ready = subprocess.run([docker, 'exec', cid, 'pg_isready', '-U', 'react_probe', '-d', 'react_probe'], capture_output=True, timeout=5)
         if ready.returncode == 0:
             break
         time.sleep(0.25)
@@ -90,8 +97,8 @@ except Exception as error:
     receipt['failureClass'] = type(error).__name__
 finally:
     if cid:
-        removed = subprocess.run(['docker', 'rm', '--force', cid], capture_output=True, text=True, timeout=30)
-        absent = subprocess.run(['docker', 'inspect', '--format', '{{.Id}}', cid], capture_output=True, text=True, timeout=10)
+        removed = subprocess.run([docker, 'rm', '--force', cid], capture_output=True, text=True, timeout=30)
+        absent = subprocess.run([docker, 'inspect', '--format', '{{.Id}}', cid], capture_output=True, text=True, timeout=10)
         receipt['cleanup'] = {'exit': removed.returncode, 'absentVerified': absent.returncode != 0 and 'no such object' in absent.stderr.lower()}
         if not receipt['cleanup']['absentVerified']:
             receipt['status'] = 'FAIL'

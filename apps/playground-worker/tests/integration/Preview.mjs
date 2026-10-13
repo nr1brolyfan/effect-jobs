@@ -27,6 +27,7 @@ try {
   cfg.connectionString = `postgres://${cfg.user}:${cfg.password}@127.0.0.1:${cfg.port}/${cfg.database}`
   const local = await createLocal(cfg, {
     https: false,
+    localPrivate: true,
     port: Number(process.env.PLAYGROUND_PORT ?? 8787)
   })
   mf = local.mf

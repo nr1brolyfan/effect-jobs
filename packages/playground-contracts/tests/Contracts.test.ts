@@ -7,6 +7,7 @@ import { Changes, JobsRead, Scenarios, toPublicError } from "../src/Services.js"
 import * as Fixtures from "../src/Fixtures.js"
 import * as MockLayer from "../src/MockLayer.js"
 import { ScenarioJob, ScenarioProducer } from "../src/Definitions.js"
+import { SandboxView } from "../src/Sandbox.js"
 
 const access = { sandbox: Fixtures.sandbox }
 const run = <A, E>(effect: Effect.Effect<A, E, JobsRead | Changes | Scenarios>) =>
@@ -20,6 +21,27 @@ const request = Schema.decodeUnknownSync(ListJobs)({
 })
 
 describe("frozen playground boundaries", () => {
+  it("represents local lifetime counters above old quotas without unsafe numbers", () => {
+    const view = {
+      ...Fixtures.sandbox,
+      capacity: { mode: "local", retainedJobs: 106, admittedCommands: 202 }
+    }
+    expect(Schema.is(SandboxView)(view)).toBe(true)
+    for (const unsafe of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, Infinity]) {
+      expect(
+        Schema.is(SandboxView)({
+          ...view,
+          capacity: { ...view.capacity, retainedJobs: unsafe }
+        })
+      ).toBe(false)
+      expect(
+        Schema.is(SandboxView)({
+          ...view,
+          capacity: { ...view.capacity, admittedCommands: unsafe }
+        })
+      ).toBe(false)
+    }
+  })
   it("roundtrips privacy-safe fixtures and rejects payload/lease additions", () => {
     expect(
       Schema.decodeUnknownSync(JobDetail)(Schema.encodeSync(JobDetail)(Fixtures.detail))
