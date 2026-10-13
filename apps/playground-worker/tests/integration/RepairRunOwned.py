@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 root = pathlib.Path(__file__).resolve().parents[4]
-out = root / '.toolchain/repair-continuation'
+out = root / os.environ.get('REPAIR_OUTPUT_DIRECTORY', '.toolchain/repair-continuation')
 out.mkdir(parents=True, exist_ok=True)
 now = lambda: datetime.datetime.now(datetime.timezone.utc).isoformat()
 deadline = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=60)).isoformat()

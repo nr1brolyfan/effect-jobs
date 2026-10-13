@@ -46,6 +46,22 @@ the captured demo/crypto run. Its receipt explicitly retains the earlier Escape
 focus failure and exits nonzero even when the selected remaining scenarios pass.
 It is a continuation receipt, not an independent full-suite PASS.
 
+`REPAIR_REMAINING_ONLY=true` selects the original stored focus/navigation
+reproduction and the remaining page/cursor/scroll, problem-view/filter/related,
+mobile/direct-link, live-read, decrypt/navigation race and browser expiry groups.
+It skips previously completed crypto, private repair, counts and admission groups.
+`REPAIR_BROWSER_GROUP` selects comma-separated substrings of remaining group names
+for affected-only continuation. Such a receipt qualifies only its selected groups;
+consume earlier receipts explicitly before claiming combined coverage.
+`REPAIR_OUTPUT_DIRECTORY` chooses a new task-owned evidence directory containing
+the pinned RepairPg bundle and unchanged archive, preserving previous attempts.
+
+The expiry group advances only the browser clock beyond the real PG admission's
+expiresAt; it does not claim natural DB-time expiry coverage. The race group holds
+the real Web Crypto decrypt completion across navigation and reopening, without
+substituting crypto results, payloads or HTTP. Only boolean completion facts are
+observed; plaintext and key bytes are never copied into evidence.
+
 The worker tsconfig permits only `effect/sql/SqlClient#SqlClient` in the three
 integration SQL modules. The two explicit integration qualification entrypoints
 also permit the pinned Reactivity layer they need. This uses `allowedUnstableApis` from the
