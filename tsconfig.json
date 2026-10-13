@@ -5,10 +5,6 @@
     "types": ["node"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "paths": {
-      "drizzle-orm": ["./node_modules/drizzle-orm/index.d.ts"],
-      "drizzle-orm/*": ["./node_modules/drizzle-orm/*/index.d.ts"]
-    },
     "strict": true,
     "exactOptionalPropertyTypes": true,
     "noUncheckedIndexedAccess": true,

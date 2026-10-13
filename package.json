@@ -1,187 +1,45 @@
 {
   "name": "effect-jobs",
-  "version": "0.1.0-alpha.1",
-  "private": false,
+  "version": "0.0.0",
+  "private": true,
   "description": "Effect-native durable, transaction-bound background jobs.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "packageManager": "bun@1.4.2",
   "exports": {
-    "./PostgreSqlJobs": {
-      "types": "./dist/PostgreSqlJobs.d.ts",
-      "import": "./dist/PostgreSqlJobs.js"
-    },
-    "./PostgreSqlTransaction": {
-      "types": "./dist/PostgreSqlTransaction.d.ts",
-      "import": "./dist/PostgreSqlTransaction.js"
-    },
-    "./PostgreSqlSchema": {
-      "types": "./dist/PostgreSqlSchema.d.ts",
-      "import": "./dist/PostgreSqlSchema.js"
-    },
-    "./PostgreSqlDrizzleSchema": {
-      "types": "./dist/PostgreSqlDrizzleSchema.d.ts",
-      "import": "./dist/PostgreSqlDrizzleSchema.js"
-    },
-    "./JobWorker": {
-      "types": "./dist/JobWorker.d.ts",
-      "import": "./dist/JobWorker.js"
-    },
-    "./JobWorkerRuntime": {
-      "types": "./dist/JobWorkerRuntime.d.ts",
-      "import": "./dist/JobWorkerRuntime.js"
-    },
-    "./PollingJobWorker": {
-      "types": "./dist/PollingJobWorker.d.ts",
-      "import": "./dist/PollingJobWorker.js"
-    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./JobLifecycle": {
-      "types": "./dist/JobLifecycle.d.ts",
-      "import": "./dist/JobLifecycle.js"
-    },
-    "./JobStore": {
-      "types": "./dist/JobStore.d.ts",
-      "import": "./dist/JobStore.js"
-    },
-    "./Job": {
-      "types": "./dist/Job.d.ts",
-      "import": "./dist/Job.js"
-    },
-    "./JobQueue": {
-      "types": "./dist/JobQueue.d.ts",
-      "import": "./dist/JobQueue.js"
-    },
-    "./JobProducer": {
-      "types": "./dist/JobProducer.d.ts",
-      "import": "./dist/JobProducer.js"
-    },
-    "./JobRegistry": {
-      "types": "./dist/JobRegistry.d.ts",
-      "import": "./dist/JobRegistry.js"
-    },
-    "./JobConsumer": {
-      "types": "./dist/JobConsumer.d.ts",
-      "import": "./dist/JobConsumer.js"
-    },
-    "./JobPayload": {
-      "types": "./dist/JobPayload.d.ts",
-      "import": "./dist/JobPayload.js"
-    },
-    "./JobPayloadCodec": {
-      "types": "./dist/JobPayloadCodec.d.ts",
-      "import": "./dist/JobPayloadCodec.js"
-    },
-    "./JobId": {
-      "types": "./dist/JobId.d.ts",
-      "import": "./dist/JobId.js"
-    },
-    "./JobIdentity": {
-      "types": "./dist/JobIdentity.d.ts",
-      "import": "./dist/JobIdentity.js"
-    },
-    "./JobPolicy": {
-      "types": "./dist/JobPolicy.d.ts",
-      "import": "./dist/JobPolicy.js"
-    },
-    "./JobFailure": {
-      "types": "./dist/JobFailure.d.ts",
-      "import": "./dist/JobFailure.js"
-    },
-    "./JobContract": {
-      "types": "./dist/JobContract.d.ts",
-      "import": "./dist/JobContract.js"
-    },
-    "./JobTransaction": {
-      "types": "./dist/JobTransaction.d.ts",
-      "import": "./dist/JobTransaction.js"
-    },
-    "./FailureCode": {
-      "types": "./dist/FailureCode.d.ts",
-      "import": "./dist/FailureCode.js"
-    },
-    "./JobEnqueue": {
-      "types": "./dist/JobEnqueue.d.ts",
-      "import": "./dist/JobEnqueue.js"
-    },
-    "./PostgreSqlNative": {
-      "types": "./dist/PostgreSqlNative.d.ts",
-      "import": "./dist/PostgreSqlNative.js"
     }
   },
   "files": [
     "dist",
     "README.md",
-    "LICENSE",
-    "CHANGELOG.md",
-    "specs/architecture-decisions.md",
-    "specs/core-contract.md",
-    "specs/postgresql-backend.md",
-    "specs/drizzle-compatibility.md",
-    "specs/release-qualification.md",
-    "specs/api-refinements.md"
+    "LICENSE"
   ],
   "scripts": {
+    "prepare": "bun run toolchain:setup",
     "toolchain:setup": "effect-tsgo patch --typescript --oxlint",
     "check": "bun run toolchain:setup && tsc --project tsconfig.json --noEmit && tsc --project tsconfig.build.json --noEmit",
     "build": "bun run toolchain:setup && tsc --project tsconfig.build.json",
     "lint": "bun run toolchain:setup && oxlint --deny-warnings src tests",
     "format": "oxfmt --config .oxfmtrc.json --write .",
     "format:check": "oxfmt --config .oxfmtrc.json --check .",
-    "test": "bun run toolchain:setup && vitest run --exclude 'tests/poc/**'",
-    "check:postgresql": "tsc --project tests/postgresql/tsconfig.json --noEmit",
-    "test:postgresql:node": "PG_EXPECT_RUNTIME=node node node_modules/vitest/vitest.mjs run --config tests/postgresql/vitest.config.ts",
-    "test:postgresql:bun": "PG_EXPECT_RUNTIME=bun bun --bun node_modules/vitest/vitest.mjs run --config tests/postgresql/vitest.config.ts",
-    "qualify:postgresql:installed": "node scripts/qualify-postgresql.mjs",
-    "qualify:drizzle:native": "node tests/qualification/drizzle-native/Run.mjs",
-    "qualify:docs:readme": "node tests/docs/readme/Run.mjs",
-    "check:docs:api": "node tests/docs/api/Qualify.mjs",
-    "test:release-imports": "node --test tests/qualification/ReleaseImports.mjs",
-    "verify": "bun run check && bun run lint && bun run format:check && bun run build && bun run test && bun run test:release-imports && bun run check:docs:api",
-    "release:pack": "node scripts/pack-release.mjs",
-    "release:check": "node scripts/check-release.mjs",
-    "qualify:release": "node scripts/qualify-release.mjs",
-    "qualify:drizzle:indexes": "node tests/qualification/drizzle-indexes/Run.mjs",
-    "qualify:api:installed": "node tests/qualification/api/Run.mjs"
+    "test": "bun run toolchain:setup && vitest run",
+    "verify": "bun run check && bun run lint && bun run format:check && bun run build && bun run test"
   },
   "peerDependencies": {
-    "drizzle-orm": "1.0.0-rc.5-169397b",
     "effect": "4.0.0"
-  },
-  "peerDependenciesMeta": {
-    "drizzle-orm": {
-      "optional": true
-    }
   },
   "devDependencies": {
     "@effect/tsgo": "0.48.0",
     "@types/node": "26.4.1",
-    "drizzle-orm": "1.0.0-rc.5-169397b",
     "effect": "4.0.0",
     "oxfmt": "0.71.0",
     "oxlint": "1.86.0",
     "oxlint-tsgolint": "7.0.2003",
     "typescript": "7.0.2",
     "vitest": "4.1.11"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/nr1brolyfan/effect-jobs.git"
-  },
-  "homepage": "https://github.com/nr1brolyfan/effect-jobs#readme",
-  "bugs": {
-    "url": "https://github.com/nr1brolyfan/effect-jobs/issues"
-  },
-  "engines": {
-    "node": ">=24.15.0 <25"
-  },
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org",
-    "tag": "alpha"
   }
 }
