@@ -26,6 +26,23 @@ import * as Definitions from "../../src/scenarios/Definitions.js"
 import { keysLayer } from "../../src/scenarios/PrivateDocument.js"
 import * as Fixture from "./Fixtures.js"
 
+// PgClient uses the extended protocol even for unprepared statements. Send one
+// DO command and let PostgreSQL parse the unchanged descriptor through EXECUTE.
+// This retains nested DO bodies, strings, comments and command order without a
+// client-side SQL splitter. These registered migrations have no transaction control.
+export const migrationCommand = (sql: string): string => {
+  let suffix = ""
+  while (
+    sql.includes(`$repair_sql${suffix}$`) ||
+    sql.includes(`$repair_block${suffix}$`)
+  ) {
+    suffix += "_"
+  }
+  const body = `$repair_block${suffix}$`
+  const command = `$repair_sql${suffix}$`
+  return `DO ${body} BEGIN EXECUTE ${command}${sql}${command}; END ${body} LANGUAGE plpgsql;`
+}
+
 export const qualify = (client: PgClient, schema: string) =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -43,7 +60,7 @@ export const qualify = (client: PgClient, schema: string) =>
       yield* client.withTransaction(
         Effect.gen(function* () {
           for (const migration of Registry.migrations(schema)) {
-            yield* client.unsafe(migration.sql)
+            yield* client.unsafe(migrationCommand(migration.sql))
           }
           yield* Registry.backfillSyntheticTenants(schema)
         })
