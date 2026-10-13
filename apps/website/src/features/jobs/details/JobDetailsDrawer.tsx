@@ -20,9 +20,6 @@ function SelectedDrawer({
   repairSlot
 }: JobDetailsProps) {
   const [open, setOpen] = useState(true)
-  const [returnFocus] = useState(() =>
-    typeof document === "undefined" ? null : document.activeElement
-  )
   const leave = (action: () => void) => {
     setOpen(false)
     action()
@@ -40,10 +37,14 @@ function SelectedDrawer({
         <Dialog.Backdrop {...stylex.props(styles.backdrop)} />
         <Dialog.Popup
           {...stylex.props(styles.drawer)}
+          // Detail reads and live list renders can replace the original opener
+          // before this dialog mounts. Resolve the selected identity on close;
+          // a captured activeElement may be BODY or an unrelated control.
           finalFocus={() =>
-            returnFocus instanceof HTMLElement && returnFocus.isConnected
-              ? returnFocus
-              : document.querySelector<HTMLElement>("[data-jobs-focus-fallback]")
+            Array.from(
+              document.querySelectorAll<HTMLElement>("button[data-job-id]")
+            ).find((button) => button.dataset.jobId === detail.job.jobId) ??
+            document.querySelector<HTMLElement>("[data-jobs-focus-fallback]")
           }
         >
           <header {...stylex.props(styles.header)}>
