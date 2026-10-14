@@ -84,9 +84,14 @@ export const validate = (row: Readonly<Record<string, unknown>>, current: Sandbo
     const scoped = (payload: Definitions.Payload) =>
       payload.sandbox.sandboxId === current.sandboxId &&
       payload.sandbox.generation === current.generation
-    if (definition.catalog.kind === Definitions.PrivateDataExport.catalog.kind) {
+    if (
+      definition === Definitions.PrivateDataExport ||
+      definition === Definitions.SyntheticDocumentExport
+    ) {
       const payload = yield* Codec.decodeJobPayload(
-        Definitions.ExportPayload,
+        definition === Definitions.SyntheticDocumentExport
+          ? Definitions.SyntheticExportPayload
+          : Definitions.ExportPayload,
         encoded
       ).pipe(Effect.mapError(invalid))
       if (

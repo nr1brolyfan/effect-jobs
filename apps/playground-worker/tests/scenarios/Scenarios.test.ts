@@ -497,9 +497,17 @@ describe("encrypted consumer payload and installed handlers", () => {
             })
           ))._tag
         ).toBe("JobIntegrityConflict")
-        const bytes = [...stored.values()][0]!.encoded.payloadBytes
+        const prepared = [...stored.values()][0]!
+        expect(prepared.catalog).toEqual(Definitions.SyntheticDocumentExport.catalog)
+        expect(
+          yield* Codec.decodeJobPayload(
+            Definitions.SyntheticExportPayload,
+            prepared.encoded
+          )
+        ).toEqual(Plan.exportPayload(planned.payload))
+        const bytes = prepared.encoded.payloadBytes
         expect(new TextDecoder().decode(bytes)).not.toContain("synthetic private export")
-      }).pipe(Effect.provide(Layer.merge(enqueueLayer, PrivateDocument.keysLayer)))
+      }).pipe(Effect.provide(enqueueLayer))
     )
   })
 
@@ -538,7 +546,10 @@ describe("encrypted consumer payload and installed handlers", () => {
             catalog: definition.catalog,
             producer:
               definition === Definitions.SyntheticDocumentExport
-                ? { ...job.producer, operationId: "synthetic-document-fixture" }
+                ? Definitions.Producer.identity({
+                    slot: job.producer.slot,
+                    operationId: "synthetic-document-fixture"
+                  })
                 : job.producer,
             attemptNumber: 1
           })

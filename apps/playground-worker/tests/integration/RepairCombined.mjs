@@ -87,11 +87,11 @@ try {
       await page.goto(
         `${origin}/demo/jobs/${encrypted.id}?generation=${sandbox.ref.generation}`
       )
-      await page.getByLabel("Synthetic unlock code").waitFor({ timeout: 15000 })
-      await page.getByLabel("Synthetic unlock code").fill("wrong")
+      await page.getByLabel("Demo unlock code").waitFor({ timeout: 15000 })
+      await page.getByLabel("Demo unlock code").fill("wrong")
       await page.getByRole("button", { name: "Unlock locally" }).click()
       assert.equal(await page.getByLabel("Locally decrypted document").count(), 0)
-      await page.getByLabel("Synthetic unlock code").fill("123")
+      await page.getByLabel("Demo unlock code").fill("123")
       await page.getByRole("button", { name: "Unlock locally" }).click()
       await page.getByLabel("Locally decrypted document").waitFor()
       await page.getByRole("button", { name: "Relock" }).click()
@@ -204,12 +204,15 @@ try {
         await page.goto(
           `${origin}/demo/jobs/${encrypted.id}?generation=${sandbox.ref.generation}`
         )
-        await page.getByLabel("Synthetic unlock code").fill("123")
+        await page.getByLabel("Demo unlock code").fill("123")
         await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
         await expect(
-          page.getByText("Locked; key, envelope or document authentication failed.", {
-            exact: true
-          })
+          page.getByText(
+            "Locked; demo code or document authentication failed. Use demo code 123.",
+            {
+              exact: true
+            }
+          )
         ).toBeVisible()
         await expect(page.getByLabel("Locally decrypted document")).toHaveCount(0)
       } finally {
@@ -219,7 +222,7 @@ try {
         )
       }
       await page.reload()
-      await page.getByLabel("Synthetic unlock code").fill("123")
+      await page.getByLabel("Demo unlock code").fill("123")
       await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
       await expect(page.getByLabel("Locally decrypted document")).toBeVisible()
       await page.getByRole("button", { name: "Back to jobs", exact: true }).click()
@@ -227,7 +230,7 @@ try {
       await page.goto(
         `${origin}/demo/jobs/${encrypted.id}?generation=${sandbox.ref.generation + 1}`
       )
-      await expect(page.getByLabel("Synthetic unlock code")).toHaveCount(0)
+      await expect(page.getByLabel("Demo unlock code")).toHaveCount(0)
       report.checks.push(
         "actual stored ciphertext tamper rejects; original bytes restored; navigation relock and stale generation"
       )
@@ -334,7 +337,7 @@ try {
           await tab.goto(
             `${origin}/demo/jobs/${encrypted.id}?generation=${sandbox.ref.generation}`
           )
-          await expect(tab.getByLabel("Synthetic unlock code")).toBeVisible()
+          await expect(tab.getByLabel("Demo unlock code")).toBeVisible()
           await tab.getByRole("button", { name: "Back to jobs", exact: true }).click()
           await expect(tab.getByRole("table", { name: "Background jobs" })).toBeVisible()
           await expect(tab.locator("[data-jobs-focus-fallback]")).toBeFocused()
@@ -400,7 +403,7 @@ try {
         await page.goto(
           `${origin}/demo/jobs/${encrypted.id}?generation=${sandbox.ref.generation}`
         )
-        await expect(page.getByLabel("Synthetic unlock code")).toBeVisible()
+        await expect(page.getByLabel("Demo unlock code")).toBeVisible()
         // Hold the real Web Crypto completion, never substitute ciphertext or HTTP.
         await page.evaluate(() => {
           const original = crypto.subtle.decrypt.bind(crypto.subtle)
@@ -417,7 +420,7 @@ try {
             return result
           }
         })
-        await page.getByLabel("Synthetic unlock code").fill("123")
+        await page.getByLabel("Demo unlock code").fill("123")
         await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
         await expect
           .poll(() => page.evaluate(() => window.__repairDecrypt.entered))
@@ -438,7 +441,7 @@ try {
         await page.getByLabel("Search job ID on this page").fill(encrypted.id)
         if (await page.getByRole("button", { name: encrypted.id, exact: true }).count()) {
           await page.getByRole("button", { name: encrypted.id, exact: true }).click()
-          await expect(page.getByLabel("Synthetic unlock code")).toHaveValue("")
+          await expect(page.getByLabel("Demo unlock code")).toHaveValue("")
           await expect(page.getByLabel("Locally decrypted document")).toHaveCount(0)
         } else {
           throw new Error("Original encrypted identity not retained on this page")
@@ -463,7 +466,7 @@ try {
           await tab.goto(
             `${origin}/demo/jobs/${encrypted.id}?generation=${sandbox.ref.generation}`
           )
-          await tab.getByLabel("Synthetic unlock code").fill("123")
+          await tab.getByLabel("Demo unlock code").fill("123")
           await tab.getByRole("button", { name: "Unlock locally", exact: true }).click()
           await expect(tab.getByLabel("Locally decrypted document")).toBeVisible()
           // Advance only browser time beyond the actual stored admission expiry.
@@ -473,7 +476,7 @@ try {
           assert.ok(advance > 0)
           await tab.clock.fastForward(advance)
           await expect(tab.getByLabel("Locally decrypted document")).toHaveCount(0)
-          await expect(tab.getByLabel("Synthetic unlock code")).toHaveCount(0)
+          await expect(tab.getByLabel("Demo unlock code")).toHaveCount(0)
           await tab.getByRole("button", { name: "Back to jobs", exact: true }).click()
           await expect(tab.getByLabel("Locally decrypted document")).toHaveCount(0)
           assert.deepEqual(

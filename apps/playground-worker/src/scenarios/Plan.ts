@@ -130,7 +130,9 @@ export const enqueue = (job: PlannedJob) => {
     case "webhook-delivery":
       return Definitions.WebhookDelivery.enqueue(input)
     case "private-data-export":
-      return Definitions.PrivateDataExport.enqueue({
+      // All planner inputs are fixed synthetic data, including private sandboxes.
+      // Keep the generic private-key catalog for existing artifacts and consumers.
+      return Definitions.SyntheticDocumentExport.enqueue({
         ...input,
         payload: exportPayload(job.payload)
       })

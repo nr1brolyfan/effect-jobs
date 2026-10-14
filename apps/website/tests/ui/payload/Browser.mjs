@@ -187,23 +187,24 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}`)
   const plain = page.getByLabel("Locally decrypted document")
   const unlock = async () => {
-    await page.getByLabel("Synthetic unlock code").fill("123")
+    await page.getByLabel("Demo unlock code").fill("123")
     await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
     await expect(plain).toContainText("payload-browser-secret-synthetic")
   }
   const locked = async () => {
     await expect(plain).toHaveCount(0)
   }
-  await expect(page.getByText(/Synthetic demo; key material is public/)).toBeVisible()
+  await expect(page.getByText(/Synthetic demo data only/)).toBeVisible()
   await expect(page.getByText(/Shape validation does not verify/)).toBeVisible()
   await expect(page.getByText("Unavailable: not-stored.")).toBeVisible()
-  await page.getByLabel("Synthetic unlock code").fill("321")
+  await page.getByLabel("Demo unlock code").fill("321")
   await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
   await expect(page.getByRole("status")).toContainText("authentication failed")
   await locked()
   await unlock()
-  await expect(page.getByLabel("Synthetic unlock code")).toHaveValue("")
+  await expect(page.getByLabel("Demo unlock code")).toHaveValue("")
   await expect(page.getByRole("status")).toContainText("HMAC verified locally")
+  await page.getByText("Show encoded payload", { exact: true }).click()
   await page.getByRole("button", { name: "Copy encoded payload" }).click()
   const copied = await page.evaluate(() => window.copied)
   assert.equal(copied.length, 1)
@@ -224,7 +225,7 @@ try {
     }
     await page.getByRole("button", { name: action, exact: true }).click()
     await locked()
-    await expect(page.getByLabel("Synthetic unlock code")).toHaveValue("")
+    await expect(page.getByLabel("Demo unlock code")).toHaveValue("")
   }
   for (const event of ["pagehide", "popstate"]) {
     await unlock()
@@ -243,7 +244,7 @@ try {
   )
   for (const action of ["Relock", "Close fixture", "Change generation", "Change mode"]) {
     await page.evaluate(() => window.holdDecrypt())
-    await page.getByLabel("Synthetic unlock code").fill("123")
+    await page.getByLabel("Demo unlock code").fill("123")
     await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
     await expect.poll(() => page.evaluate(() => window.decryptStarted)).toBe(true)
     await page.getByRole("button", { name: action, exact: true }).click()
@@ -263,7 +264,7 @@ try {
     "held native decrypt completions after relock/close/generation/mode never republish plaintext; fresh unlock still works"
   )
   await page.getByRole("button", { name: "Tamper fixture" }).click()
-  await page.getByLabel("Synthetic unlock code").fill("123")
+  await page.getByLabel("Demo unlock code").fill("123")
   await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
   await expect(page.getByRole("status")).toContainText("authentication failed")
   await locked()

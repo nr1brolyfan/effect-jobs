@@ -132,7 +132,11 @@ const PayloadContent = ({ detail }: { readonly detail: JobDetail }) => {
         )
       } else {
         setPlaintext(null)
-        setStatus("Locked; key, envelope or document authentication failed.")
+        setStatus(
+          synthetic
+            ? "Locked; demo code or document authentication failed. Use demo code 123."
+            : "Locked; key, envelope or document authentication failed."
+        )
       }
     })
   }
@@ -174,18 +178,21 @@ const PayloadContent = ({ detail }: { readonly detail: JobDetail }) => {
               ? "Unencrypted JSON."
               : "Shape validation does not verify decrypted plaintext or authentication."}
           </p>
-          <pre {...stylex.props(styles.code)} tabIndex={0} aria-label="Encoded payload">
-            <HighlightedJson value={payload.encoded} />
-          </pre>
-          <div {...stylex.props(styles.actions)}>
-            <Button onClick={copyEncoded}>Copy encoded payload</Button>
-          </div>
+          <details open={payload.encryption === "None"}>
+            <summary>Show encoded payload</summary>
+            <pre {...stylex.props(styles.code)} tabIndex={0} aria-label="Encoded payload">
+              <HighlightedJson value={payload.encoded} />
+            </pre>
+            <div {...stylex.props(styles.actions)}>
+              <Button onClick={copyEncoded}>Copy encoded payload</Button>
+            </div>
+          </details>
           {synthetic || compatible ? (
             <>
               <p {...stylex.props(styles.note)}>
                 {synthetic
-                  ? "Synthetic demo; key material is public; unlock code 123. This is a demonstration gate, not password security."
-                  : "Compatible PrivateDocumentV1 only. Supply two distinct 32-byte keys locally as 64 hex characters each. Keys are never sent to the server."}
+                  ? "Synthetic demo data only. Use demo code 123 to decrypt locally. Fixture key material is public; this code provides no security."
+                  : "Advanced: compatible PrivateDocumentV1 only. Supply two distinct 32-byte keys locally as 64 hex characters each. Keys are never sent to the server."}
               </p>
               <form
                 {...stylex.props(styles.form)}
@@ -196,8 +203,13 @@ const PayloadContent = ({ detail }: { readonly detail: JobDetail }) => {
                 }}
               >
                 {synthetic ? (
-                  <Field label="Synthetic unlock code">
-                    <input ref={code} type="password" autoComplete="off" maxLength={3} />
+                  <Field label="Demo unlock code">
+                    <input
+                      ref={code}
+                      type="password"
+                      autoComplete="off"
+                      maxLength={128}
+                    />
                   </Field>
                 ) : (
                   <>

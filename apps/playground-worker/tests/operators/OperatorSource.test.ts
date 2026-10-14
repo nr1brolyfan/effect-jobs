@@ -64,19 +64,24 @@ describe("private redrive source authority", () => {
   it("refuses decodable encrypted exports with mismatched domain authority", async () => {
     await Effect.runPromise(
       Effect.gen(function* () {
-        for (const tenant of ["demo-tenant-a", "demo-tenant-b"] as const) {
-          const encoded = yield* Codec.encodeJobPayload(Definitions.ExportPayload, {
-            ...payload,
-            document: { subject: "demo-customer", tenant, note: "synthetic" }
-          })
-          const input = {
-            ...row(encoded),
-            queue: Definitions.PrivateDataExport.catalog.queue,
-            kind: Definitions.PrivateDataExport.catalog.kind,
-            version: Definitions.PrivateDataExport.catalog.version
+        for (const definition of [
+          Definitions.PrivateDataExport,
+          Definitions.SyntheticDocumentExport
+        ]) {
+          for (const tenant of ["demo-tenant-a", "demo-tenant-b"] as const) {
+            const encoded = yield* Codec.encodeJobPayload(definition.payload, {
+              ...payload,
+              document: { subject: "demo-customer", tenant, note: "synthetic" }
+            })
+            const input = {
+              ...row(encoded),
+              queue: definition.catalog.queue,
+              kind: definition.catalog.kind,
+              version: definition.catalog.version
+            }
+            const result = yield* Effect.exit(Source.validate(input, ref))
+            expect(Exit.isSuccess(result)).toBe(tenant === payload.tenant)
           }
-          const result = yield* Effect.exit(Source.validate(input, ref))
-          expect(Exit.isSuccess(result)).toBe(tenant === payload.tenant)
         }
       }).pipe(Effect.provide(keysLayer))
     )

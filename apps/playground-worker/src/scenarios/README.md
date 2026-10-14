@@ -105,3 +105,24 @@ packed consumer with strict declarations, Node tests, Node/Bun runtime smoke
 and browser bundles. Each subprocess has a ten-minute timeout. This qualifies
 local public library APIs and application bytes, not PostgreSQL, workerd,
 Cloudflare hosting, durable reset fencing or worker execution in those runtimes.
+
+## Synthetic payload unlock
+
+`Plan.enqueue` routes the synthetic private-data-export workload to the explicit
+`playground.synthetic-document-export` catalog for initial private starter jobs,
+new private scenarios/traffic and public demo traffic. The existing public
+showcase uses this same catalog. Its real encrypted Schema seals persisted bytes
+with `SyntheticCryptoFixture`, and the executor opens and validates those bytes.
+The payload panel accepts one **Demo unlock code**, `123`, then performs AES-GCM,
+Schema and HMAC verification locally. Public fixture keys and this code provide
+no confidentiality; never use this catalog for real private data. No executor
+configuration keys are exported or reused. Encoded payload is collapsed by
+default, under **Show encoded payload**.
+
+The generic `PrivateDataExport` / `PrivateDocumentV1` codec and its independently
+managed keys remain compatible with retained artifacts. Existing generic records
+are not re-encrypted or retroactively unlocked by `123`; they retain the advanced
+local key fields. Use a fresh preview sandbox for the synthetic starter examples.
+Decrypted-field editing is unavailable. Plain redrive preserves the immutable
+envelope; encrypted corrected-redrive remains disabled. Unlock input/plaintext
+only live in the mounted browser panel; close, navigation and expiry revoke it.
