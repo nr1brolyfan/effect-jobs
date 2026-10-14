@@ -43,8 +43,6 @@ export const styles = stylex.create({
     flexWrap: "wrap",
     gap: spacing.sm
   },
-  info: { color: colors.muted, fontSize: typography.secondary },
-  infoBody: { display: "grid", gap: spacing.sm, paddingTop: spacing.sm },
   form: { display: "grid", gap: spacing.sm },
   plaintext: { userSelect: "none" },
   result: {

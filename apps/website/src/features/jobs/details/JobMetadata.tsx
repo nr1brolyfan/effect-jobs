@@ -1,13 +1,7 @@
 import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
 import * as stylex from "@stylexjs/stylex"
 import { Panel } from "../../../ui/Primitives.js"
-import {
-  PropertyGrid,
-  Absent,
-  DetailTime,
-  DetailHelp,
-  formatDuration
-} from "./PropertyGrid.js"
+import { PropertyGrid, Absent, DetailTime, formatDuration } from "./PropertyGrid.js"
 import { styles } from "./PropertyGrid.stylex.js"
 
 export function JobScheduling({ detail }: { readonly detail: JobDetail }) {
@@ -33,10 +27,6 @@ export function JobScheduling({ detail }: { readonly detail: JobDetail }) {
           { label: "Created", value: <Absent reason="Creation time is not stored" /> }
         ]}
       />
-      <DetailHelp summary="About timestamps">
-        Availability and lifecycle updates are retained facts, not creation times. Exact
-        local and UTC values are available from each timestamp.
-      </DetailHelp>
     </Panel>
   )
 }
@@ -99,9 +89,6 @@ export function JobMetadata({ detail }: { readonly detail: JobDetail }) {
                 }
               ]}
             />
-            <DetailHelp summary="About retention">
-              Isolated jobs are not automatically purged.
-            </DetailHelp>
           </section>
           <section {...stylex.props(styles.section)}>
             <h2 {...stylex.props(styles.heading)}>Application relations</h2>

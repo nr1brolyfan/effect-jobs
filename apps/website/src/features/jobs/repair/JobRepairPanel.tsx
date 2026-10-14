@@ -190,15 +190,6 @@ const RepairForm = ({
           </Button>
         </div>
       )}
-      {!readOnly && !detail.eligibility.correctedRedrive.enabled && (
-        <details {...stylex.props(styles.explanation)}>
-          <summary>Correction unavailable</summary>
-          <p>
-            {detail.eligibility.correctedRedrive.reason}. Encrypted corrections cannot
-            submit decrypted documents.
-          </p>
-        </details>
-      )}
       <Dialog.Root
         open={action !== null && !readOnly && pending === null}
         onOpenChange={(open) => {

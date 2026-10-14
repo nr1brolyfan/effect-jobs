@@ -27,20 +27,6 @@ export const styles = stylex.create({
   value: { margin: 0, minWidth: 0, overflowWrap: "anywhere", lineHeight: 1.5 },
   mono: { fontFamily: typography.monoFamily, fontSize: typography.secondary },
   absent: { color: colors.muted },
-  help: {
-    marginTop: spacing.md,
-    color: colors.muted,
-    fontSize: typography.secondary,
-    lineHeight: 1.5
-  },
-  summary: {
-    cursor: "pointer",
-    borderRadius: "4px",
-    outlineStyle: { default: "none", ":focus-visible": "solid" },
-    outlineWidth: "2px",
-    outlineColor: colors.focus
-  },
-  explanation: { marginTop: spacing.sm, marginBottom: 0 },
   panel: {
     padding: spacing.lg,
     minWidth: 0,

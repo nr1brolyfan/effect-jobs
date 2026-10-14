@@ -1,7 +1,7 @@
 import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
 import * as stylex from "@stylexjs/stylex"
 import { Panel, Badge } from "../../../ui/Primitives.js"
-import { PropertyGrid, Absent, DetailTime, DetailHelp } from "./PropertyGrid.js"
+import { PropertyGrid, Absent, DetailTime } from "./PropertyGrid.js"
 import { styles as propertyStyles } from "./PropertyGrid.stylex.js"
 import { styles } from "./JobTimeline.stylex.js"
 
@@ -124,12 +124,6 @@ export function JobTimeline({ detail }: { readonly detail: JobDetail }) {
           }
         })}
       </ol>
-      <DetailHelp summary="Evidence coverage">
-        Only retained snapshots, committed receipts and resolution audit facts are shown;
-        a snapshot is not a historical transition. Full attempt start/end history and
-        handler results are not stored. Provider counts are synthetic PostgreSQL evidence,
-        without invocation timestamps; they do not prove real provider effects.
-      </DetailHelp>
       {detail.history.nextCursor !== null && (
         <span {...stylex.props(styles.empty)}>More retained facts available</span>
       )}

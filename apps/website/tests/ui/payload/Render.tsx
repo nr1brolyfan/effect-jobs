@@ -71,7 +71,17 @@ const Harness = () => {
             job: {
               ...value.job,
               jobId: `${value.job.jobId}-other` as typeof value.job.jobId
-            }
+            },
+            payload:
+              value.payload._tag === "Available"
+                ? {
+                    ...value.payload,
+                    encoded: {
+                      document: encrypted,
+                      currentJob: `${value.job.jobId}-other`
+                    }
+                  }
+                : value.payload
           }))
         }
       >

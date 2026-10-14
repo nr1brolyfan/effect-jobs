@@ -49,6 +49,7 @@ const PayloadContent = ({
   const [plaintext, setPlaintext] = useState<Document | null>(null)
   const [status, setStatus] = useState(lockedStatus)
   const [busy, setBusy] = useState(false)
+  const [copyBusy, setCopyBusy] = useState(false)
   const code = useRef<HTMLInputElement>(null)
   const encryption = useRef<HTMLInputElement>(null)
   const fingerprint = useRef<HTMLInputElement>(null)
@@ -68,6 +69,7 @@ const PayloadContent = ({
     lifetime.current.revision++
     lifetime.current.controller?.abort()
     lifetime.current.controller = null
+    setCopyBusy(false)
     clearInputs()
   }
   const relock = () => {
@@ -144,15 +146,33 @@ const PayloadContent = ({
       }
     })
   }
-  const copyEncoded = () => {
-    if (payload._tag !== "Available" || !canCopyEncoded) {
+  // Only the allowlisted synthetic fixture may export a locally decrypted document.
+  // Real private envelopes keep their existing encoded-only copy policy.
+  const displayed =
+    payload._tag === "Available" &&
+    plaintext !== null &&
+    typeof payload.encoded === "object" &&
+    payload.encoded !== null &&
+    !Array.isArray(payload.encoded)
+      ? Object.fromEntries([...Object.entries(payload.encoded), ["document", plaintext]])
+      : payload._tag === "Available"
+        ? payload.encoded
+        : null
+  const canCopy = synthetic || canCopyEncoded
+  const copyPayload = () => {
+    if (payload._tag !== "Available" || !canCopy || copyBusy || busy) {
       return
     }
     const revision = lifetime.current.revision
+    setCopyBusy(true)
+    setStatus("Copying payload…")
+    // Explicit browser gesture/Clipboard FFI; no Atom, server or storage receives JSON.
     void Effect.runPromiseExit(
       Effect.tryPromise({
         try: () =>
-          navigator.clipboard.writeText(JSON.stringify(payload.encoded, null, 2)),
+          navigator.clipboard.writeText(
+            JSON.stringify(synthetic ? displayed : payload.encoded, null, 2)
+          ),
         catch: () =>
           new BrowserDocumentCrypto.PayloadUnlockError({ reason: "unavailable" })
       })
@@ -160,9 +180,8 @@ const PayloadContent = ({
       if (!lifetime.current.mounted || revision !== lifetime.current.revision) {
         return
       }
-      setStatus(
-        Exit.isSuccess(exit) ? "Encoded payload copied." : "Clipboard unavailable."
-      )
+      setCopyBusy(false)
+      setStatus(Exit.isSuccess(exit) ? "Payload copied." : "Clipboard unavailable.")
     })
   }
   return (
@@ -185,57 +204,30 @@ const PayloadContent = ({
             <span {...stylex.props(styles.note)}>
               Schema {payload.catalog.version} · {payload.validation}
             </span>
-            {canCopyEncoded ? (
-              <Button onClick={copyEncoded}>Copy encoded payload</Button>
+            {canCopy ? (
+              <Button onClick={copyPayload} disabled={copyBusy || busy}>
+                Copy payload
+              </Button>
             ) : null}
           </div>
           <pre
             {...stylex.props(styles.code, plaintext !== null && styles.plaintext)}
             tabIndex={0}
             aria-label={plaintext === null ? "Encoded payload" : "Readable payload"}
-            onCopy={plaintext !== null ? (event) => event.preventDefault() : undefined}
-            onCut={plaintext !== null ? (event) => event.preventDefault() : undefined}
+            onCopy={
+              plaintext !== null && !synthetic
+                ? (event) => event.preventDefault()
+                : undefined
+            }
+            onCut={
+              plaintext !== null && !synthetic
+                ? (event) => event.preventDefault()
+                : undefined
+            }
             draggable={false}
           >
-            <HighlightedJson
-              value={
-                plaintext !== null &&
-                typeof payload.encoded === "object" &&
-                payload.encoded !== null &&
-                !Array.isArray(payload.encoded)
-                  ? Object.fromEntries([
-                      ...Object.entries(payload.encoded),
-                      ["document", plaintext]
-                    ])
-                  : payload.encoded
-              }
-            />
+            <HighlightedJson value={displayed} />
           </pre>
-          <details {...stylex.props(styles.info)}>
-            <summary>Payload info</summary>
-            <div {...stylex.props(styles.infoBody)}>
-              <p {...stylex.props(styles.note)}>
-                {payload.catalog.queue} / {payload.catalog.kind} · schema{" "}
-                {payload.catalog.version}
-                {" · "}format {payload.formatVersion} · {payload.validation}
-              </p>
-              <p {...stylex.props(styles.note)}>
-                {payload.encryption === "None"
-                  ? "Unencrypted JSON."
-                  : "Shape validation does not verify document authentication. Decrypted copying and correction are unavailable; navigation relocks."}
-              </p>
-              {synthetic ? (
-                <p {...stylex.props(styles.note)}>
-                  Public fixture keys; demo code provides no security.
-                </p>
-              ) : compatible ? (
-                <p {...stylex.props(styles.note)}>
-                  Two distinct 32-byte keys, each 64 hex characters. Keys stay in this
-                  browser.
-                </p>
-              ) : null}
-            </div>
-          </details>
           {synthetic || compatible ? (
             <>
               <p {...stylex.props(styles.note)}>

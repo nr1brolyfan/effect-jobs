@@ -2,7 +2,6 @@ import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
 import type { JobId } from "effect-jobs/JobId"
 import * as stylex from "@stylexjs/stylex"
 import { Badge, Button, Panel } from "../../../ui/Primitives.js"
-import { DetailHelp } from "./PropertyGrid.js"
 import { styles as propertyStyles } from "./PropertyGrid.stylex.js"
 import { styles } from "./JobRelatedJobs.stylex.js"
 
@@ -54,9 +53,7 @@ export function JobRelatedJobs({
         </ul>
       )}
       {detail.related.nextCursor !== null && (
-        <DetailHelp summary="More related evidence">
-          More related evidence is available beyond this bounded page.
-        </DetailHelp>
+        <span {...stylex.props(styles.empty)}>More related jobs available</span>
       )}
     </Panel>
   )

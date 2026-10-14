@@ -77,7 +77,6 @@ export const OperatorControls = ({
             <Button
               key={value}
               disabled={blocked || !entry.enabled}
-              aria-describedby={`operator-${value}-reason`}
               onClick={(event) => {
                 trigger.current = event.currentTarget
                 setAction(value)
@@ -88,26 +87,6 @@ export const OperatorControls = ({
           )
         })}
       </div>
-      <details {...stylex.props(styles.explanation)}>
-        <summary>Action availability</summary>
-        {(["retry-now", "cancel"] as const).map((value) => {
-          const entry =
-            value === "retry-now"
-              ? available.retryNow
-              : value === "cancel"
-                ? available.cancel
-                : available.redrive
-          return (
-            <p
-              key={value}
-              id={`operator-${value}-reason`}
-              {...stylex.props(styles.explanation)}
-            >
-              {labels[value]}: {Eligibility.explanation(entry.reason)}
-            </p>
-          )
-        })}
-      </details>
       <dialog
         ref={dialog}
         aria-labelledby="operator-confirm-title"

@@ -44,21 +44,6 @@ export function DetailTime({
   )
 }
 
-export function DetailHelp({
-  summary = "About these facts",
-  children
-}: {
-  readonly summary?: string
-  readonly children: ReactNode
-}) {
-  return (
-    <details {...stylex.props(styles.help)}>
-      <summary {...stylex.props(styles.summary)}>{summary}</summary>
-      <p {...stylex.props(styles.explanation)}>{children}</p>
-    </details>
-  )
-}
-
 export function formatDuration(millis: number): string {
   const units = [
     [86_400_000, "days"],

@@ -83,7 +83,10 @@ let browser
 try {
   browser = await chromium.launch({ headless: true })
   for (const host of ["127.0.0.1", "localhost"]) {
-    const page = await browser.newPage()
+    const context = await browser.newContext({
+      permissions: ["clipboard-read", "clipboard-write"]
+    })
+    const page = await context.newPage()
     page.on("pageerror", (error) => errors.push(error.message))
     const origin = `http://${host}:${server.address().port}`
     await page.goto(origin + `/demo/jobs/${summary.jobId}?generation=1`)
@@ -94,12 +97,24 @@ try {
     await expect(
       page.getByRole("region", { name: "Job payload" }).locator("pre")
     ).toHaveCount(1)
-    await expect(
-      page.getByRole("button", { name: "Copy encoded payload", exact: true })
-    ).toHaveCount(0)
+    const copyDisplayed = async () => {
+      const viewer = page.getByRole("region", { name: "Job payload" }).locator("pre")
+      const text = await viewer.textContent()
+      await page.getByRole("button", { name: "Copy payload", exact: true }).click()
+      await expect(
+        page.getByRole("status").filter({ hasText: "Payload copied." })
+      ).toBeVisible()
+      assert.equal(await page.evaluate(() => navigator.clipboard.readText()), text)
+      return JSON.parse(text)
+    }
+    assert.deepEqual(await copyDisplayed(), detail.payload.encoded)
+    await expect(page.locator("aside summary")).toHaveText([
+      "Identity & execution policy"
+    ])
     await page.getByLabel("Demo unlock code", { exact: true }).fill("000")
     await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
     await expect(page.getByLabel("Readable payload", { exact: true })).toHaveCount(0)
+    assert.deepEqual(await copyDisplayed(), detail.payload.encoded)
     await page.getByLabel("Demo unlock code", { exact: true }).fill("123")
     await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
     await expect(page.getByLabel("Readable payload", { exact: true })).toContainText(
@@ -112,6 +127,11 @@ try {
     await expect(page.getByLabel("Readable payload", { exact: true })).toContainText(
       "demo-order-a"
     )
+    const readable = await copyDisplayed()
+    assert.equal(readable.document.note, "Synthetic browser integration fixture")
+    assert.equal(readable.order, "demo-order-a")
+    await page.getByRole("button", { name: "Relock", exact: true }).click()
+    assert.deepEqual(await copyDisplayed(), detail.payload.encoded)
     assert.deepEqual(
       await page.evaluate(() => [localStorage.length, sessionStorage.length]),
       [0, 0]
@@ -121,6 +141,14 @@ try {
     await expect(page.getByLabel("Readable payload", { exact: true })).toHaveCount(0)
     await page.getByRole("button", { name: summary.jobId, exact: true }).click()
     await expect(page.getByRole("dialog")).toBeVisible()
+    assert.deepEqual(await copyDisplayed(), detail.payload.encoded)
+    await page.getByLabel("Demo unlock code", { exact: true }).fill("123")
+    await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
+    await expect(page.getByLabel("Readable payload", { exact: true })).toBeVisible()
+    assert.equal(
+      (await copyDisplayed()).document.note,
+      "Synthetic browser integration fixture"
+    )
     await page.getByRole("button", { name: "Open full details", exact: true }).click()
     await expect(
       page.getByRole("heading", { name: "Job details", exact: true })
@@ -136,7 +164,7 @@ try {
     await expect(page.getByRole("dialog")).toBeVisible()
     await page.getByRole("button", { name: "Close job details", exact: true }).click()
     await expect(page.getByRole("dialog")).toHaveCount(0)
-    await page.close()
+    await context.close()
   }
   assert.deepEqual(errors, [])
   assert(
@@ -151,7 +179,7 @@ try {
         "production artifacts + synthetic HTTP; PG stored fixture and real worker NotTested",
       checks: [
         "nested demo direct link uses GET-only demo bootstrap",
-        "code123 real crypto/wrong code",
+        "code123 real crypto/wrong code; actual Clipboard API equals complete displayed JSON in locked/unlocked/relocked states, drawer/fullpage",
         "no storage writes",
         "Back/drawer/full/close relock",
         "post-layout return focus",
