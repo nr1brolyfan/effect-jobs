@@ -111,8 +111,19 @@ export const eligibility = (
       : null)
   const correction =
     common ??
-    ((selected && "document" in selected.payload.fields) ||
-    (payloadView._tag === "Available" && payloadView.encryption !== "None")
+    (selected === Definitions.SyntheticDocumentExport &&
+    payloadView._tag === "Unavailable"
+      ? "invalid-artifact"
+      : null) ??
+    ((selected &&
+      "document" in selected.payload.fields &&
+      selected !== Definitions.SyntheticDocumentExport) ||
+    (payloadView._tag === "Available" &&
+      payloadView.encryption !== "None" &&
+      !(
+        selected === Definitions.SyntheticDocumentExport &&
+        payloadView.encryption === "SyntheticDocumentV1"
+      ))
       ? "encrypted-correction-unavailable"
       : payloadView._tag === "Unavailable" && payloadView.reason === "unsupported-catalog"
         ? "unsupported-catalog"

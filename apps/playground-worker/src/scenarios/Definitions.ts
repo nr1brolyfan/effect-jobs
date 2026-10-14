@@ -49,6 +49,13 @@ export const ExportPayload = Schema.Struct({
 })
 export type ExportPayload = typeof ExportPayload.Type
 
+// Readable synthetic editor shape; never accepted as a repair command payload.
+export const SyntheticReadablePayload = Schema.Struct({
+  ...Payload.fields,
+  document: Fixture.Document
+})
+export type SyntheticReadablePayload = typeof SyntheticReadablePayload.Type
+
 export const SyntheticExportPayload = Schema.Struct({
   ...Payload.fields,
   document: JobPayload.encrypted({

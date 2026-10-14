@@ -1,5 +1,6 @@
 import { JobDetailsDrawer } from "./details/JobDetailsDrawer.js"
 import { JobDetailsPage } from "./details/JobDetailsPage.js"
+import { SyntheticDocumentSession } from "./payload/SyntheticDocumentSession.js"
 import { JobPayloadPanel } from "./payload/JobPayloadPanel.js"
 import { JobRepairPanel } from "./repair/JobRepairPanel.js"
 import { useAtomValue } from "@effect/atom-react"
@@ -420,7 +421,11 @@ export const Dashboard = ({
     return (
       <main>
         {route._tag === "Detail" && detailProps && state.sandbox.expiresAt > now ? (
-          <JobDetailsPage {...detailProps} />
+          <SyntheticDocumentSession
+            key={JSON.stringify([identity, "page", detail?.payload])}
+          >
+            <JobDetailsPage {...detailProps} />
+          </SyntheticDocumentSession>
         ) : (
           <>
             <p role="status">
@@ -780,7 +785,11 @@ export const Dashboard = ({
               </TabsRoot>
             </section>
             {detailProps && state.sandbox.expiresAt > now && (
-              <JobDetailsDrawer {...detailProps} />
+              <SyntheticDocumentSession
+                key={JSON.stringify([identity, "drawer", detail?.payload])}
+              >
+                <JobDetailsDrawer {...detailProps} />
+              </SyntheticDocumentSession>
             )}
           </div>
           <section aria-label="Problem resolution">

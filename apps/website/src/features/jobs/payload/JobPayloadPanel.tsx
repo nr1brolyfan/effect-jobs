@@ -4,6 +4,7 @@ import * as stylex from "@stylexjs/stylex"
 import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
 import type { Document } from "@effect-jobs/playground-contracts/SyntheticCryptoFixture"
 import { Button, Field } from "../../../ui/Primitives.js"
+import { useSyntheticDocumentSession } from "./SyntheticDocumentSession.js"
 import * as BrowserDocumentCrypto from "./BrowserDocumentCrypto.js"
 import { styles } from "./JobPayloadPanel.stylex.js"
 
@@ -40,6 +41,7 @@ const PayloadContent = ({
   readonly detail: JobDetail
   readonly canCopyEncoded: boolean
 }) => {
+  const session = useSyntheticDocumentSession()
   const lockedStatus =
     detail.payload._tag === "Unavailable"
       ? "Payload unavailable."
@@ -66,6 +68,7 @@ const PayloadContent = ({
     }
   }
   const revoke = () => {
+    session?.revoke()
     lifetime.current.revision++
     lifetime.current.controller?.abort()
     lifetime.current.controller = null
@@ -100,6 +103,12 @@ const PayloadContent = ({
     payload.catalog.queue === "playground-private" &&
     payload.catalog.kind === "playground.private-data-export" &&
     payload.catalog.version === 1
+  useLayoutEffect(() => {
+    if (synthetic && session && session.document === null) {
+      setPlaintext(null)
+      setStatus(lockedStatus)
+    }
+  }, [synthetic, session?.document])
   const unlock = () => {
     if (payload._tag !== "Available" || busy || (!synthetic && !compatible)) {
       return
@@ -134,6 +143,9 @@ const PayloadContent = ({
       lifetime.current.controller = null
       setBusy(false)
       if (Exit.isSuccess(exit)) {
+        if (synthetic) {
+          session?.unlock(exit.value)
+        }
         setPlaintext(exit.value)
         setStatus("Unlocked · verified locally.")
       } else {

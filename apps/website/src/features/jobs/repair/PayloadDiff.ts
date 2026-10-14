@@ -1,4 +1,6 @@
 import { Schema } from "effect"
+import type { Document } from "@effect-jobs/playground-contracts/SyntheticCryptoFixture"
+import * as BrowserDocumentCrypto from "../payload/BrowserDocumentCrypto.js"
 import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
 import * as Definitions from "../../../../../playground-worker/src/scenarios/Definitions.js"
 
@@ -48,7 +50,18 @@ export const validReason = (value: string) =>
   ) &&
   !value.includes("\0") &&
   new TextEncoder().encode(value).length <= 1024
-export const parseReplacement = (detail: JobDetail, text: string) => {
+export const parseReplacement = (
+  detail: JobDetail,
+  text: string,
+  document: Document | null = null
+) => {
+  const synthetic =
+    detail.payload._tag === "Available" &&
+    detail.payload.encryption === "SyntheticDocumentV1" &&
+    BrowserDocumentCrypto.isSyntheticCatalog(detail.job.catalog)
+  if (synthetic && document === null) {
+    return { valid: false as const, rule: "unlock-required: use demo code 123" }
+  }
   if (new TextEncoder().encode(text).length > 65536) {
     return { valid: false as const, rule: "payload-too-large" }
   }
@@ -60,8 +73,11 @@ export const parseReplacement = (detail: JobDetail, text: string) => {
   )
   if (
     !definition ||
+    (definition === Definitions.SyntheticDocumentExport && !synthetic) ||
     definition.catalog.kind === Definitions.PrivateDataExport.catalog.kind ||
-    (detail.payload._tag === "Available" && detail.payload.encryption !== "None")
+    (detail.payload._tag === "Available" &&
+      detail.payload.encryption !== "None" &&
+      !synthetic)
   ) {
     return { valid: false as const, rule: "encrypted-or-unsupported-catalog" }
   }
@@ -79,9 +95,16 @@ export const parseReplacement = (detail: JobDetail, text: string) => {
       }
     }
     check(parsed, 0)
-    const payload = Schema.decodeUnknownSync(Definitions.Payload)(parsed, {
-      onExcessProperty: "error"
-    })
+    const syntheticPayload = synthetic
+      ? Schema.decodeUnknownSync(Definitions.SyntheticReadablePayload)(parsed, {
+          onExcessProperty: "error"
+        })
+      : null
+    const payload =
+      syntheticPayload ??
+      Schema.decodeUnknownSync(Definitions.Payload)(parsed, {
+        onExcessProperty: "error"
+      })
     if (
       payload.sandbox.sandboxId !== detail.sandbox.sandboxId ||
       payload.sandbox.generation !== detail.sandbox.generation ||
@@ -90,9 +113,19 @@ export const parseReplacement = (detail: JobDetail, text: string) => {
     ) {
       return { valid: false as const, rule: "identity-mismatch" }
     }
+    if (
+      syntheticPayload &&
+      (syntheticPayload.document.subject !== payload.actor ||
+        syntheticPayload.document.tenant !== payload.tenant)
+    ) {
+      return {
+        valid: false as const,
+        rule: "document-identity-mismatch: subject and tenant must match payload"
+      }
+    }
     if (detail.payload._tag === "Available") {
       const old = Schema.decodeUnknownSync(Definitions.Payload)(detail.payload.encoded, {
-        onExcessProperty: "error"
+        onExcessProperty: synthetic ? "ignore" : "error"
       })
       if (
         old.tenant !== payload.tenant ||
@@ -105,10 +138,21 @@ export const parseReplacement = (detail: JobDetail, text: string) => {
     return {
       valid: true as const,
       payload,
+      document: syntheticPayload?.document ?? null,
       changes:
-        detail.payload._tag === "Available" ? diff(detail.payload.encoded, payload) : null
+        detail.payload._tag === "Available"
+          ? diff(
+              synthetic
+                ? { ...(detail.payload.encoded as object), document }
+                : detail.payload.encoded,
+              payload
+            )
+          : null
     }
   } catch {
-    return { valid: false as const, rule: "schema-invalid" }
+    return {
+      valid: false as const,
+      rule: "schema-invalid: check required payload fields; document subject demo-customer, tenant demo-tenant-a/b, note up to 256 characters"
+    }
   }
 }

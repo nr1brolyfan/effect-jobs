@@ -1,4 +1,12 @@
-import { useEffect, useId, useRef, useState } from "react"
+import { Effect, Exit, Schema } from "effect"
+import {
+  sealSyntheticDocument,
+  openSyntheticDocument
+} from "@effect-jobs/playground-contracts/SyntheticCryptoFixture"
+import { useSyntheticDocumentSession } from "../payload/SyntheticDocumentSession.js"
+import * as Definitions from "../../../../../playground-worker/src/scenarios/Definitions.js"
+import * as BrowserDocumentCrypto from "../payload/BrowserDocumentCrypto.js"
+import { useLayoutEffect, useId, useRef, useState } from "react"
 import { Dialog } from "@base-ui/react/dialog"
 import * as stylex from "@stylexjs/stylex"
 import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
@@ -33,6 +41,18 @@ const RepairForm = ({
   onReceipt,
   onResolve
 }: Props) => {
+  const session = useSyntheticDocumentSession()
+  const synthetic =
+    detail.payload._tag === "Available" &&
+    detail.payload.encryption === "SyntheticDocumentV1" &&
+    BrowserDocumentCrypto.isSyntheticCatalog(detail.job.catalog)
+  const [sealing, setSealing] = useState(false)
+  const [cryptoError, setCryptoError] = useState("")
+  const lifetime = useRef({
+    revision: 0,
+    mounted: true,
+    controller: null as AbortController | null
+  })
   const [action, setAction] = useState<
     "redrive" | "corrected-redrive" | "manual-close" | "reconcile-applied" | null
   >(null)
@@ -47,8 +67,15 @@ const RepairForm = ({
   const trigger = useRef<HTMLButtonElement | null>(null)
   const panel = useRef<HTMLElement | null>(null)
   const submitted = useRef(false)
-  const versionKey = `${detail.job.lifecycleVersion}:${detail.problem?.version ?? 0}:${readOnly}`
+  const versionKey = `${detail.job.lifecycleVersion}:${detail.problem?.version ?? 0}:${readOnly}:${synthetic ? session?.revision : "plain"}`
+  const currentVersion = useRef(versionKey)
+  currentVersion.current = versionKey
   const close = () => {
+    lifetime.current.revision++
+    lifetime.current.controller?.abort()
+    lifetime.current.controller = null
+    setSealing(false)
+    setCryptoError("")
     setAction(null)
     setReason("")
     setInvestigation("Unconfirmed")
@@ -58,13 +85,27 @@ const RepairForm = ({
     setEditor("")
     setSnapshot(null)
   }
-  useEffect(() => {
+  useLayoutEffect(() => {
+    lifetime.current.mounted = true
+    window.addEventListener("pagehide", close)
+    window.addEventListener("popstate", close)
+    return () => {
+      lifetime.current.mounted = false
+      lifetime.current.revision++
+      lifetime.current.controller?.abort()
+      window.removeEventListener("pagehide", close)
+      window.removeEventListener("popstate", close)
+    }
+  }, [])
+  useLayoutEffect(() => {
     if (action !== null && snapshot !== versionKey) {
       close()
     }
   }, [versionKey, action, snapshot])
   const correction =
-    action === "corrected-redrive" ? PayloadDiff.parseReplacement(detail, editor) : null
+    action === "corrected-redrive"
+      ? PayloadDiff.parseReplacement(detail, editor, session?.document ?? null)
+      : null
   const resolving = action === "manual-close" || action === "reconcile-applied"
   const investigationValid =
     investigation === "KnownFailure" ||
@@ -72,6 +113,7 @@ const RepairForm = ({
       investigation === "AcceptDuplicateRisk") &&
       PayloadDiff.validReason(investigationReason))
   const disabled =
+    sealing ||
     readOnly ||
     pending !== null ||
     snapshot !== versionKey ||
@@ -89,9 +131,15 @@ const RepairForm = ({
     setSnapshot(versionKey)
     setAction(next)
     setEditor(
-      detail.payload._tag === "Available" && detail.payload.encryption === "None"
-        ? JSON.stringify(detail.payload.encoded, null, 2)
-        : ""
+      synthetic && session?.document && detail.payload._tag === "Available"
+        ? JSON.stringify(
+            { ...(detail.payload.encoded as object), document: session.document },
+            null,
+            2
+          )
+        : detail.payload._tag === "Available" && detail.payload.encryption === "None"
+          ? JSON.stringify(detail.payload.encoded, null, 2)
+          : ""
     )
   }
   const submit = () => {
@@ -137,6 +185,52 @@ const RepairForm = ({
         investigation: checkedInvestigation
       }
       if (action === "corrected-redrive" && correction?.valid) {
+        if (correction.document) {
+          if (!session?.document) {
+            return
+          }
+          const ticket = lifetime.current.revision
+          const sessionRevision = session.revision
+          const controller = new AbortController()
+          lifetime.current.controller = controller
+          setSealing(true)
+          setCryptoError("")
+          // Explicit submit owns WebCrypto FFI. Only the freshly authenticated
+          // encoded representation crosses into Atom/network command ownership.
+          const correctedDocument = correction.document
+          const work = Effect.gen(function* () {
+            const envelope = yield* sealSyntheticDocument(correctedDocument)
+            yield* openSyntheticDocument(envelope)
+            return yield* Schema.decodeUnknownEffect(
+              Schema.toEncoded(Definitions.SyntheticExportPayload)
+            )(
+              { ...correction.payload, document: envelope },
+              { onExcessProperty: "error" }
+            )
+          })
+          void Effect.runPromiseExit(work, { signal: controller.signal }).then((exit) => {
+            if (
+              !lifetime.current.mounted ||
+              lifetime.current.revision !== ticket ||
+              currentVersion.current !== versionKey ||
+              !session.current(sessionRevision) ||
+              controller.signal.aborted
+            ) {
+              return
+            }
+            lifetime.current.controller = null
+            setSealing(false)
+            if (Exit.isSuccess(exit)) {
+              onSubmit({ ...base, action, payload: exit.value })
+              session.revoke()
+              close()
+            } else {
+              submitted.current = false
+              setCryptoError("Encryption verification failed. Try again or relock.")
+            }
+          })
+          return
+        }
         onSubmit({ ...base, action, payload: correction.payload })
       } else if (action === "redrive") {
         onSubmit({ ...base, action })
@@ -171,7 +265,10 @@ const RepairForm = ({
             Redrive as new job
           </Button>
           <Button
-            disabled={!detail.eligibility.correctedRedrive.enabled}
+            disabled={
+              !detail.eligibility.correctedRedrive.enabled ||
+              (synthetic && !session?.document)
+            }
             onClick={(event) => begin("corrected-redrive", event.currentTarget)}
           >
             Correct and redrive
@@ -280,12 +377,17 @@ const RepairForm = ({
                       value={editor}
                       onChange={(event) => setEditor(event.target.value)}
                       spellCheck={false}
+                      disabled={sealing}
+                      autoComplete="off"
                     />
                   </Field>
                   <div role="status">
-                    {correction?.valid
-                      ? "Schema valid"
-                      : `Validation: ${correction?.rule ?? "schema-invalid"}`}
+                    {cryptoError ||
+                      (sealing
+                        ? "Encrypting and verifying…"
+                        : correction?.valid
+                          ? "Schema valid"
+                          : `Validation: ${correction?.rule ?? "schema-invalid"}`)}
                   </div>
                   {correction?.valid &&
                     (correction.changes === null ? (
@@ -312,6 +414,16 @@ const RepairForm = ({
                   </Field>
                 )}
               <div {...stylex.props(styles.actions)}>
+                {synthetic && action === "corrected-redrive" && (
+                  <Button
+                    onClick={() => {
+                      session?.revoke()
+                      close()
+                    }}
+                  >
+                    Relock
+                  </Button>
+                )}
                 <Dialog.Close render={<Button />}>Keep current problem</Dialog.Close>
                 <Button type="submit" disabled={disabled} variant="primary">
                   {resolving ? "Record resolution" : "Submit repair"}

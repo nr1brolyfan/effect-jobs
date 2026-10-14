@@ -235,6 +235,12 @@ const makeService = (transactions: typeof RepairTransactions.Service) =>
                     )
                     changes = prepared.changes
                     yield* tx.assertCurrent
+                    if (prepared._tag === "Synthetic") {
+                      return yield* backend.operators.correctedRedrive(
+                        Definitions.SyntheticDocumentExport,
+                        { expected, producer, payload: prepared.payload }
+                      )
+                    }
                     return yield* backend.operators.correctedRedrive(
                       {
                         catalog: prepared.definition.catalog,

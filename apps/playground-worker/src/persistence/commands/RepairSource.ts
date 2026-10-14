@@ -235,12 +235,28 @@ export const replacement = (
 ) =>
   Effect.gen(function* () {
     const selected = yield* definition(row)
-    if ("document" in selected.payload.fields) {
+    const synthetic = selected === Definitions.SyntheticDocumentExport
+    if ("document" in selected.payload.fields && !synthetic) {
       return yield* rejected("encrypted-correction-unavailable")
     }
-    const next = yield* Schema.decodeUnknownEffect(Definitions.Payload)(input, {
-      onExcessProperty: "error"
-    }).pipe(Effect.mapError(() => rejected("invalid-payload")))
+    // Decode/authenticate the encoded envelope, never accept a plaintext document.
+    const nextSynthetic = synthetic
+      ? yield* Schema.decodeUnknownEffect(Definitions.SyntheticExportPayload)(input, {
+          onExcessProperty: "error"
+        }).pipe(Effect.mapError(() => rejected("invalid-payload")))
+      : null
+    const next =
+      nextSynthetic ??
+      (yield* Schema.decodeUnknownEffect(Definitions.Payload)(input, {
+        onExcessProperty: "error"
+      }).pipe(Effect.mapError(() => rejected("invalid-payload"))))
+    if (
+      nextSynthetic &&
+      (nextSynthetic.document.subject !== next.actor ||
+        nextSynthetic.document.tenant !== next.tenant)
+    ) {
+      return yield* rejected("invalid-payload")
+    }
     if (
       next.sandbox.sandboxId !== current.sandboxId ||
       next.sandbox.generation !== current.generation
@@ -255,11 +271,22 @@ export const replacement = (
     ) {
       return yield* rejected("invalid-payload")
     }
-    const old = yield* artifact(row).pipe(
-      Effect.flatMap((bytes) => Codec.decodeJobPayload(Definitions.Payload, bytes)),
-      Effect.catchTag("RepairSourceRejected", () => Effect.succeed(null)),
-      Effect.catchTag("JobPayloadCodecError", () => Effect.succeed(null))
-    )
+    const oldSynthetic = synthetic
+      ? yield* artifact(row).pipe(
+          Effect.flatMap((bytes) =>
+            Codec.decodeJobPayload(Definitions.SyntheticExportPayload, bytes)
+          ),
+          Effect.catchTag("RepairSourceRejected", () => Effect.succeed(null)),
+          Effect.catchTag("JobPayloadCodecError", () => Effect.succeed(null))
+        )
+      : null
+    const old = synthetic
+      ? oldSynthetic
+      : yield* artifact(row).pipe(
+          Effect.flatMap((bytes) => Codec.decodeJobPayload(Definitions.Payload, bytes)),
+          Effect.catchTag("RepairSourceRejected", () => Effect.succeed(null)),
+          Effect.catchTag("JobPayloadCodecError", () => Effect.succeed(null))
+        )
     if (
       old &&
       (old.actor !== next.actor ||
@@ -275,6 +302,35 @@ export const replacement = (
     if (!old && relations.syntheticTenant !== next.tenant) {
       return yield* rejected("invalid-payload")
     }
+    if (nextSynthetic) {
+      return {
+        _tag: "Synthetic" as const,
+        payload: nextSynthetic,
+        changes: old
+          ? [
+              ...changedPaths(old, next),
+              ...(oldSynthetic
+                ? Object.keys(nextSynthetic.document)
+                    .filter(
+                      (key) =>
+                        canonicalJson(
+                          oldSynthetic.document[key as keyof typeof oldSynthetic.document]
+                        ) !==
+                        canonicalJson(
+                          nextSynthetic.document[
+                            key as keyof typeof nextSynthetic.document
+                          ]
+                        )
+                    )
+                    .map((key) => ({
+                      kind: "Changed" as const,
+                      path: `/document/${key}`
+                    }))
+                : [])
+            ]
+          : null
+      }
+    }
     const encoded = yield* Codec.encodeJobPayload(Definitions.Payload, next).pipe(
       Effect.mapError(() => rejected("invalid-payload"))
     )
@@ -282,6 +338,7 @@ export const replacement = (
       Effect.mapError(() => rejected("invalid-payload"))
     )
     return {
+      _tag: "Plain" as const,
       definition: selected,
       payload: next,
       changes: old ? changedPaths(old, next) : null
