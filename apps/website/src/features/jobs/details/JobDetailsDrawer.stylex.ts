@@ -13,7 +13,7 @@ export const styles = stylex.create({
     top: 0,
     bottom: 0,
     right: 0,
-    width: "min(100%, 620px)",
+    width: "min(100%, 680px)",
     boxSizing: "border-box",
     overflowY: "auto",
     overscrollBehavior: "contain",
@@ -21,10 +21,14 @@ export const styles = stylex.create({
     color: colors.text,
     fontFamily: typography.fontFamily,
     fontSize: typography.body,
-    padding: spacing.lg,
-    borderLeft: `1px solid ${colors.border}`,
+    padding: { default: spacing.lg, "@media (max-width: 480px)": spacing.md },
+    borderLeftWidth: "1px",
+    borderLeftStyle: "solid",
+    borderLeftColor: colors.border,
     zIndex: 51,
-    outline: { default: "none", ":focus-visible": `2px solid ${colors.focus}` },
+    outlineStyle: { default: "none", ":focus-visible": "solid" },
+    outlineWidth: "2px",
+    outlineColor: colors.focus,
     overflowWrap: "anywhere"
   },
   header: {
@@ -32,6 +36,15 @@ export const styles = stylex.create({
     justifyContent: "space-between",
     alignItems: "center",
     gap: spacing.md
+  },
+  title: { margin: 0, fontSize: "20px", lineHeight: 1.3 },
+  identity: {
+    fontFamily: typography.monoFamily,
+    fontSize: typography.secondary,
+    color: colors.muted,
+    overflowWrap: "anywhere",
+    marginTop: spacing.sm,
+    marginBottom: spacing.lg
   },
   content: { display: "grid", gap: spacing.lg, minWidth: 0 }
 })

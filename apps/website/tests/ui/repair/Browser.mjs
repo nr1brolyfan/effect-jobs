@@ -249,7 +249,7 @@ try {
   await page.evaluate(() => window.repairFixture.revise())
   await expect(page.getByRole("dialog")).toHaveCount(0)
   await page.evaluate(() => window.repairFixture.readonly())
-  await expect(page.getByText("This feed is read only.", { exact: true })).toBeVisible()
+  await expect(page.getByText("Read only", { exact: true })).toBeVisible()
   await expect(correct).toHaveCount(0)
   checks.push(
     "stale lifecycle/version closes editor; read-only removes mutation controls"

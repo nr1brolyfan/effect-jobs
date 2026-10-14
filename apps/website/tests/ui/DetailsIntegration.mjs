@@ -90,34 +90,42 @@ try {
     await expect(
       page.getByRole("heading", { name: "Job details", exact: true })
     ).toBeVisible()
-    await page.getByLabel("Synthetic unlock code", { exact: true }).fill("000")
-    await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
+    await expect(page.getByLabel("Encoded payload", { exact: true })).toBeVisible()
     await expect(
-      page.getByLabel("Locally decrypted document", { exact: true })
+      page.getByRole("region", { name: "Job payload" }).locator("pre")
+    ).toHaveCount(1)
+    await expect(
+      page.getByRole("button", { name: "Copy encoded payload", exact: true })
     ).toHaveCount(0)
-    await page.getByLabel("Synthetic unlock code", { exact: true }).fill("123")
+    await page.getByLabel("Demo unlock code", { exact: true }).fill("000")
     await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
+    await expect(page.getByLabel("Readable payload", { exact: true })).toHaveCount(0)
+    await page.getByLabel("Demo unlock code", { exact: true }).fill("123")
+    await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
+    await expect(page.getByLabel("Readable payload", { exact: true })).toContainText(
+      "Synthetic browser integration fixture"
+    )
+    await expect(page.getByLabel("Encoded payload", { exact: true })).toHaveCount(0)
     await expect(
-      page.getByLabel("Locally decrypted document", { exact: true })
-    ).toContainText("Synthetic browser integration fixture")
+      page.getByRole("region", { name: "Job payload" }).locator("pre")
+    ).toHaveCount(1)
+    await expect(page.getByLabel("Readable payload", { exact: true })).toContainText(
+      "demo-order-a"
+    )
     assert.deepEqual(
       await page.evaluate(() => [localStorage.length, sessionStorage.length]),
       [0, 0]
     )
     await page.getByRole("button", { name: "Back to jobs", exact: true }).click()
     await expect(page.locator(".job-list tr")).toHaveCount(1)
-    await expect(
-      page.getByLabel("Locally decrypted document", { exact: true })
-    ).toHaveCount(0)
+    await expect(page.getByLabel("Readable payload", { exact: true })).toHaveCount(0)
     await page.getByRole("button", { name: summary.jobId, exact: true }).click()
     await expect(page.getByRole("dialog")).toBeVisible()
     await page.getByRole("button", { name: "Open full details", exact: true }).click()
     await expect(
       page.getByRole("heading", { name: "Job details", exact: true })
     ).toBeVisible()
-    await expect(
-      page.getByLabel("Locally decrypted document", { exact: true })
-    ).toHaveCount(0)
+    await expect(page.getByLabel("Readable payload", { exact: true })).toHaveCount(0)
     await page.getByRole("button", { name: "Back to jobs", exact: true }).click()
     await expect(page.locator(".job-list tr")).toHaveCount(1)
     await expect(

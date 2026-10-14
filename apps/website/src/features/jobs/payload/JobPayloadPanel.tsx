@@ -33,13 +33,19 @@ const HighlightedJson = ({ value }: { readonly value: unknown }) => {
   )
 }
 
-const PayloadContent = ({ detail }: { readonly detail: JobDetail }) => {
+const PayloadContent = ({
+  detail,
+  canCopyEncoded
+}: {
+  readonly detail: JobDetail
+  readonly canCopyEncoded: boolean
+}) => {
   const lockedStatus =
     detail.payload._tag === "Unavailable"
       ? "Payload unavailable."
       : detail.payload.encryption === "None"
-        ? "Encoded payload available."
-        : "Locked; plaintext and authentication are unverified."
+        ? "Encoded payload."
+        : "Locked."
   const [plaintext, setPlaintext] = useState<Document | null>(null)
   const [status, setStatus] = useState(lockedStatus)
   const [busy, setBusy] = useState(false)
@@ -113,7 +119,7 @@ const PayloadContent = ({ detail }: { readonly detail: JobDetail }) => {
     const controller = new AbortController()
     lifetime.current.controller = controller
     setBusy(true)
-    setStatus("Verifying encrypted document…")
+    setStatus("Verifying…")
     // React event/Web Crypto boundary; cancellation plus revision blocks stale completions.
     void Effect.runPromiseExit(work, { signal: controller.signal }).then((exit) => {
       if (
@@ -127,21 +133,19 @@ const PayloadContent = ({ detail }: { readonly detail: JobDetail }) => {
       setBusy(false)
       if (Exit.isSuccess(exit)) {
         setPlaintext(exit.value)
-        setStatus(
-          "Unlocked; AES-GCM authentication, document Schema and HMAC verified locally."
-        )
+        setStatus("Unlocked · verified locally.")
       } else {
         setPlaintext(null)
         setStatus(
           synthetic
-            ? "Locked; demo code or document authentication failed. Use demo code 123."
-            : "Locked; key, envelope or document authentication failed."
+            ? "Locked · authentication failed. Demo code: 123."
+            : "Locked · authentication failed."
         )
       }
     })
   }
   const copyEncoded = () => {
-    if (payload._tag !== "Available") {
+    if (payload._tag !== "Available" || !canCopyEncoded) {
       return
     }
     const revision = lifetime.current.revision
@@ -165,34 +169,79 @@ const PayloadContent = ({ detail }: { readonly detail: JobDetail }) => {
     <section {...stylex.props(styles.panel)} aria-label="Job payload">
       <h3 {...stylex.props(styles.heading)}>Payload</h3>
       {payload._tag === "Unavailable" ? (
-        <p {...stylex.props(styles.note)}>Unavailable: {payload.reason}.</p>
+        <span
+          {...stylex.props(styles.note)}
+          aria-label={`Payload unavailable: ${payload.reason.replaceAll("-", " ")}.`}
+          title={`Payload unavailable: ${payload.reason.replaceAll("-", " ")}.`}
+        >
+          —
+        </span>
       ) : (
         <>
-          <p {...stylex.props(styles.note)}>
-            Catalog {payload.catalog.queue} / {payload.catalog.kind} · schema version{" "}
-            {payload.catalog.version} · format {payload.formatVersion}
-          </p>
-          <p {...stylex.props(styles.note)}>
-            Stored encoded shape: {payload.validation}.{" "}
-            {payload.encryption === "None"
-              ? "Unencrypted JSON."
-              : "Shape validation does not verify decrypted plaintext or authentication."}
-          </p>
-          <details open={payload.encryption === "None"}>
-            <summary>Show encoded payload</summary>
-            <pre {...stylex.props(styles.code)} tabIndex={0} aria-label="Encoded payload">
-              <HighlightedJson value={payload.encoded} />
-            </pre>
-            <div {...stylex.props(styles.actions)}>
+          <div {...stylex.props(styles.viewerHeader)}>
+            <span {...stylex.props(styles.note)}>
+              {plaintext === null ? "Encoded JSON" : "Readable JSON · decrypted locally"}
+            </span>
+            <span {...stylex.props(styles.note)}>
+              Schema {payload.catalog.version} · {payload.validation}
+            </span>
+            {canCopyEncoded ? (
               <Button onClick={copyEncoded}>Copy encoded payload</Button>
+            ) : null}
+          </div>
+          <pre
+            {...stylex.props(styles.code, plaintext !== null && styles.plaintext)}
+            tabIndex={0}
+            aria-label={plaintext === null ? "Encoded payload" : "Readable payload"}
+            onCopy={plaintext !== null ? (event) => event.preventDefault() : undefined}
+            onCut={plaintext !== null ? (event) => event.preventDefault() : undefined}
+            draggable={false}
+          >
+            <HighlightedJson
+              value={
+                plaintext !== null &&
+                typeof payload.encoded === "object" &&
+                payload.encoded !== null &&
+                !Array.isArray(payload.encoded)
+                  ? Object.fromEntries([
+                      ...Object.entries(payload.encoded),
+                      ["document", plaintext]
+                    ])
+                  : payload.encoded
+              }
+            />
+          </pre>
+          <details {...stylex.props(styles.info)}>
+            <summary>Payload info</summary>
+            <div {...stylex.props(styles.infoBody)}>
+              <p {...stylex.props(styles.note)}>
+                {payload.catalog.queue} / {payload.catalog.kind} · schema{" "}
+                {payload.catalog.version}
+                {" · "}format {payload.formatVersion} · {payload.validation}
+              </p>
+              <p {...stylex.props(styles.note)}>
+                {payload.encryption === "None"
+                  ? "Unencrypted JSON."
+                  : "Shape validation does not verify document authentication. Decrypted copying and correction are unavailable; navigation relocks."}
+              </p>
+              {synthetic ? (
+                <p {...stylex.props(styles.note)}>
+                  Public fixture keys; demo code provides no security.
+                </p>
+              ) : compatible ? (
+                <p {...stylex.props(styles.note)}>
+                  Two distinct 32-byte keys, each 64 hex characters. Keys stay in this
+                  browser.
+                </p>
+              ) : null}
             </div>
           </details>
           {synthetic || compatible ? (
             <>
               <p {...stylex.props(styles.note)}>
                 {synthetic
-                  ? "Synthetic demo data only. Use demo code 123 to decrypt locally. Fixture key material is public; this code provides no security."
-                  : "Advanced: compatible PrivateDocumentV1 only. Supply two distinct 32-byte keys locally as 64 hex characters each. Keys are never sent to the server."}
+                  ? "Synthetic demo data only · demo code: 123."
+                  : "PrivateDocumentV1 · local keys required."}
               </p>
               <form
                 {...stylex.props(styles.form)}
@@ -240,21 +289,6 @@ const PayloadContent = ({ detail }: { readonly detail: JobDetail }) => {
                   <Button onClick={relock}>Relock</Button>
                 </div>
               </form>
-              {plaintext !== null ? (
-                <pre
-                  {...stylex.props(styles.code, styles.plaintext)}
-                  aria-label="Locally decrypted document"
-                  onCopy={(event) => event.preventDefault()}
-                  onCut={(event) => event.preventDefault()}
-                  draggable={false}
-                >
-                  <HighlightedJson value={plaintext} />
-                </pre>
-              ) : null}
-              <p {...stylex.props(styles.note)}>
-                Decrypted copying and browser correction are unavailable. Closing or
-                navigating relocks the document.
-              </p>
             </>
           ) : payload.encryption !== "None" ? (
             <p {...stylex.props(styles.note)}>
@@ -263,13 +297,24 @@ const PayloadContent = ({ detail }: { readonly detail: JobDetail }) => {
           ) : null}
         </>
       )}
-      <p role="status" {...stylex.props(styles.note)}>
-        {status}
-      </p>
-      <h3 {...stylex.props(styles.heading)}>Result</h3>
-      {detail.result._tag === "Unavailable" ? (
-        <p {...stylex.props(styles.note)}>Unavailable: {detail.result.reason}.</p>
+      {payload._tag === "Available" ? (
+        <p role="status" {...stylex.props(styles.note)}>
+          {status}
+        </p>
       ) : null}
+      <dl {...stylex.props(styles.result)}>
+        <dt>Result</dt>
+        <dd {...stylex.props(styles.resultValue)}>
+          {detail.result._tag === "Unavailable" ? (
+            <span
+              aria-label={`Result unavailable: ${detail.result.reason.replaceAll("-", " ")}.`}
+              title={`Result unavailable: ${detail.result.reason.replaceAll("-", " ")}.`}
+            >
+              —
+            </span>
+          ) : null}
+        </dd>
+      </dl>
     </section>
   )
 }
@@ -278,13 +323,16 @@ const PayloadContent = ({ detail }: { readonly detail: JobDetail }) => {
 // selected detail identity and generation; no plaintext belongs in return context.
 export const JobPayloadPanel = ({
   detail,
-  identityKey
+  identityKey,
+  allowCopyEncoded = false
 }: {
   readonly detail: JobDetail
   readonly identityKey: string
+  readonly allowCopyEncoded?: boolean
 }) => (
   <PayloadContent
     key={JSON.stringify([identityKey, detail.sandbox, detail.job.jobId, detail.payload])}
     detail={detail}
+    canCopyEncoded={allowCopyEncoded}
   />
 )

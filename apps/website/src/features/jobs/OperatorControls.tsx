@@ -88,23 +88,26 @@ export const OperatorControls = ({
           )
         })}
       </div>
-      {(["retry-now", "cancel"] as const).map((value) => {
-        const entry =
-          value === "retry-now"
-            ? available.retryNow
-            : value === "cancel"
-              ? available.cancel
-              : available.redrive
-        return (
-          <p
-            key={value}
-            id={`operator-${value}-reason`}
-            {...stylex.props(styles.explanation)}
-          >
-            {labels[value]}: {Eligibility.explanation(entry.reason)}
-          </p>
-        )
-      })}
+      <details {...stylex.props(styles.explanation)}>
+        <summary>Action availability</summary>
+        {(["retry-now", "cancel"] as const).map((value) => {
+          const entry =
+            value === "retry-now"
+              ? available.retryNow
+              : value === "cancel"
+                ? available.cancel
+                : available.redrive
+          return (
+            <p
+              key={value}
+              id={`operator-${value}-reason`}
+              {...stylex.props(styles.explanation)}
+            >
+              {labels[value]}: {Eligibility.explanation(entry.reason)}
+            </p>
+          )
+        })}
+      </details>
       <dialog
         ref={dialog}
         aria-labelledby="operator-confirm-title"

@@ -185,7 +185,7 @@ try {
     }
   })
   await page.goto(`http://127.0.0.1:${server.address().port}`)
-  const plain = page.getByLabel("Locally decrypted document")
+  const plain = page.getByLabel("Readable payload")
   const unlock = async () => {
     await page.getByLabel("Demo unlock code").fill("123")
     await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
@@ -195,16 +195,26 @@ try {
     await expect(plain).toHaveCount(0)
   }
   await expect(page.getByText(/Synthetic demo data only/)).toBeVisible()
+  await page.getByText("Payload info", { exact: true }).click()
   await expect(page.getByText(/Shape validation does not verify/)).toBeVisible()
-  await expect(page.getByText("Unavailable: not-stored.")).toBeVisible()
+  await expect(page.getByLabel("Result unavailable: not stored.")).toHaveText("—")
+  await expect(page.getByText("Schema 1 · Valid", { exact: true })).toBeVisible()
   await page.getByLabel("Demo unlock code").fill("321")
   await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
   await expect(page.getByRole("status")).toContainText("authentication failed")
   await locked()
   await unlock()
   await expect(page.getByLabel("Demo unlock code")).toHaveValue("")
-  await expect(page.getByRole("status")).toContainText("HMAC verified locally")
-  await page.getByText("Show encoded payload", { exact: true }).click()
+  await expect(page.getByRole("status")).toContainText("verified locally")
+  await expect(page.locator('section[aria-label="Job payload"] pre')).toHaveCount(1)
+  await expect(plain).toContainText('"sandboxId": "fixture-sandbox"')
+  await expect(plain).toContainText('"behavior": "success"')
+  await expect(plain).toContainText('"document": {')
+  await expect(plain).not.toContainText('"ciphertext"')
+  await expect(page.getByRole("button", { name: "Copy encoded payload" })).toHaveCount(0)
+  await page.getByRole("button", { name: "Change mode", exact: true }).click()
+  await locked()
+  await unlock()
   await page.getByRole("button", { name: "Copy encoded payload" }).click()
   const copied = await page.evaluate(() => window.copied)
   assert.equal(copied.length, 1)
@@ -217,7 +227,7 @@ try {
     false
   )
   checks.push(
-    "real AES-GCM/HMAC unlock; wrong code locked; input cleared; encoded-only clipboard and decrypted copy blocked; shape/auth/result distinction"
+    "single contextual JSON viewer; real AES-GCM/HMAC unlock; wrong code locked; input cleared; public copy hidden; private encoded-only clipboard and decrypted copy blocked; shape/auth/result distinction"
   )
   for (const action of ["Relock", "Change mode", "Change generation", "Change job"]) {
     if ((await plain.count()) === 0) {
@@ -225,6 +235,7 @@ try {
     }
     await page.getByRole("button", { name: action, exact: true }).click()
     await locked()
+    await expect(page.getByLabel("Encoded payload")).toContainText("ciphertext")
     await expect(page.getByLabel("Demo unlock code")).toHaveValue("")
   }
   for (const event of ["pagehide", "popstate"]) {
@@ -274,6 +285,7 @@ try {
     page.getByRole("button", { name: "Unlock locally", exact: true })
   ).toHaveCount(0)
   await page.getByRole("button", { name: "Missing fixture" }).click()
+  await expect(page.getByLabel("Payload unavailable: not stored.")).toHaveText("—")
   await expect(page.getByRole("button", { name: "Copy encoded payload" })).toHaveCount(0)
   await page.getByRole("button", { name: "Compatible private fixture" }).click()
   const enc = page.getByLabel("Local encryption key (hex)")
@@ -299,6 +311,9 @@ try {
     "<script>never-execute</script>"
   )
   assert.equal(await page.locator("script").count(), 1)
+  if ((await page.getByRole("button", { name: "Copy encoded payload" }).count()) === 0) {
+    await page.getByRole("button", { name: "Change mode", exact: true }).click()
+  }
   await page.getByRole("button", { name: "Copy encoded payload" }).click()
   assert.equal(JSON.parse(await page.evaluate(() => window.copied.at(-1))).value, 42)
   const tokenColors = await page
@@ -326,6 +341,37 @@ try {
       []
     )
   await audit()
+  const borders = await page
+    .locator(
+      'section[aria-label="Job payload"], section[aria-label="Job payload"] pre, section[aria-label="Job payload"] dl'
+    )
+    .evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const style = getComputedStyle(node)
+        return {
+          width: style.borderTopWidth,
+          style: style.borderTopStyle,
+          color: style.borderTopColor
+        }
+      })
+    )
+  assert.equal(borders.length, 3)
+  assert.ok(
+    borders.every(
+      (border) =>
+        border.width === "1px" &&
+        border.style === "solid" &&
+        border.color === "rgb(55, 68, 49)"
+    )
+  )
+  assert.equal(
+    await page
+      .locator(
+        'section[aria-label="Job payload"] [style], section[aria-label="Job payload"][style]'
+      )
+      .count(),
+    0
+  )
   await page.screenshot({ path: resolve(output, "desktop.png"), fullPage: true })
   await page.setViewportSize({ width: 390, height: 844 })
   await audit()

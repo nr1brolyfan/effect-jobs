@@ -4,10 +4,11 @@ import { colors, radii, spacing, typography } from "./Theme.stylex.js"
 export const styles = stylex.create({
   trigger: {
     display: "inline-flex",
-    alignItems: "flex-start",
-    justifyContent: "center",
-    flexDirection: "column",
-    gap: 0,
+    alignItems: "baseline",
+    justifyContent: "flex-start",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
     minWidth: 0,
     maxWidth: "100%",
     minHeight: { default: 32, "@media (pointer: coarse)": 44 },

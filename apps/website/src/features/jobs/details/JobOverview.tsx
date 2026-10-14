@@ -1,6 +1,8 @@
 import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
 import * as stylex from "@stylexjs/stylex"
 import { Badge, Panel } from "../../../ui/Primitives.js"
+import { PropertyGrid, Absent, DetailHelp } from "./PropertyGrid.js"
+import { styles as propertyStyles } from "./PropertyGrid.stylex.js"
 import { styles } from "./JobOverview.stylex.js"
 
 // Only allowlisted codes receive an explanation; never echo provider messages.
@@ -51,7 +53,7 @@ export function JobOverview({ detail }: { readonly detail: JobDetail }) {
   const explanation = causeAndNextStep(detail)
   return (
     <Panel aria-label="Job overview" {...stylex.props(styles.panel)}>
-      <h2>Overview</h2>
+      <h2 {...stylex.props(propertyStyles.heading)}>Overview</h2>
       <div {...stylex.props(styles.badges)}>
         <span>
           Execution: <Badge state={detail.job.state} />
@@ -62,7 +64,7 @@ export function JobOverview({ detail }: { readonly detail: JobDetail }) {
             ? detail.problem.state === "InProgress"
               ? "In progress"
               : detail.problem.state
-            : "No recorded problem"}
+            : "None"}
         </span>
         {detail.lineage && (
           <span {...stylex.props(styles.label)}>
@@ -72,42 +74,48 @@ export function JobOverview({ detail }: { readonly detail: JobDetail }) {
           </span>
         )}
       </div>
-      <p>{explanation.cause}</p>
-      <p>
-        <strong>Next step:</strong> {explanation.next}
-      </p>
-      <dl {...stylex.props(styles.counters)}>
-        <dt>Confirmed finalized attempts</dt>
-        <dd>
-          {detail.job.attemptsMade} / {detail.policy.maxAttempts}
-        </dd>
-        <dt>Stalled recoveries</dt>
-        <dd>
-          {detail.job.stalledCount} / {detail.policy.maxStalledCount}
-        </dd>
-        <dt>Lifecycle version</dt>
-        <dd>{detail.job.lifecycleVersion}</dd>
-        <dt>Last recorded failure code</dt>
-        <dd>{detail.job.lastFailureCode ?? "Not recorded"}</dd>
-      </dl>
-      <p {...stylex.props(styles.note)}>
-        Unknown outcomes can repeat an attempt number. These counters are not a complete
-        invocation history.
-      </p>
-      {detail.problem && (
-        <p>
-          Needs attention counts unresolved problems once per repair chain. Resolution is
-          separate from execution state.
-        </p>
-      )}
-      {detail.lineage && (
-        <p>
-          Source: <code>{detail.lineage.originalSourceJobId}</code>.{" "}
-          {detail.lineage.sourceJobId === null
-            ? "Source no longer retained; its payload, diff and history are unavailable."
-            : "Source identity retained."}
-        </p>
-      )}
+      <PropertyGrid
+        items={[
+          ...(detail.problem
+            ? [
+                {
+                  label: "Outcome",
+                  value:
+                    detail.problem.outcomeKnowledge === "KnownFailure"
+                      ? "Known failure"
+                      : "Unknown"
+                }
+              ]
+            : []),
+          {
+            label: "Attempts finalized",
+            value: `${detail.job.attemptsMade} / ${detail.policy.maxAttempts}`
+          },
+          {
+            label: "Stalled recoveries",
+            value: `${detail.job.stalledCount} / ${detail.policy.maxStalledCount}`
+          },
+          { label: "Lifecycle version", value: detail.job.lifecycleVersion },
+          {
+            label: "Failure code",
+            value: detail.job.lastFailureCode ?? <Absent />,
+            mono: true
+          },
+          ...(detail.lineage
+            ? [{ label: "Source", value: detail.lineage.originalSourceJobId, mono: true }]
+            : [])
+        ]}
+      />
+      <DetailHelp summary="Status & next step">
+        {explanation.cause} {explanation.next}
+      </DetailHelp>
+      <DetailHelp summary="About counters & resolution">
+        Attempts count confirmed finalizations; unknown outcomes can repeat an attempt
+        number. These are not a complete invocation history. Resolution is separate from
+        execution; unresolved problems are counted once per repair chain.
+        {detail.lineage?.sourceJobId === null &&
+          " Source no longer retained; its payload, diff and history are unavailable."}
+      </DetailHelp>
     </Panel>
   )
 }

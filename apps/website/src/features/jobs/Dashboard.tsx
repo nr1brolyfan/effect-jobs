@@ -373,7 +373,12 @@ export const Dashboard = ({
         onOpenFull: () => runtime.navigation.openFull(detail.job.jobId),
         onRelated: (jobId: typeof detail.job.jobId) => runtime.navigation.openFull(jobId),
         payloadSlot: (
-          <JobPayloadPanel key={identity} detail={detail} identityKey={identity} />
+          <JobPayloadPanel
+            key={identity}
+            detail={detail}
+            identityKey={identity}
+            allowCopyEncoded={!demo}
+          />
         ),
         repairSlot: (
           <>

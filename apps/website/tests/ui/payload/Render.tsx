@@ -19,7 +19,7 @@ const original = {
     _tag: "Available",
     formatVersion: 1,
     catalog: Crypto.syntheticDocumentCatalog,
-    encoded: { document: encrypted },
+    encoded: { sandboxId: "fixture-sandbox", behavior: "success", document: encrypted },
     validation: "Valid",
     encryption: "SyntheticDocumentV1"
   },
@@ -160,7 +160,13 @@ const Harness = () => {
       >
         Plain fixture
       </button>
-      {shown ? <JobPayloadPanel detail={detail} identityKey={identity} /> : null}
+      {shown ? (
+        <JobPayloadPanel
+          detail={detail}
+          identityKey={identity}
+          allowCopyEncoded={identity.startsWith("private:")}
+        />
+      ) : null}
     </>
   )
 }

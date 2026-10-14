@@ -171,14 +171,18 @@ try {
   ).toBeFocused()
   await expect(page.getByText("Locked synthetic payload")).toBeVisible()
   assert.match(page.url(), /\/jobs\/synthetic-source\?generation=1$/)
+  await page.getByText("About counters & resolution", { exact: true }).click()
   await expect(
     page.getByText(
       "Source no longer retained; its payload, diff and history are unavailable.",
       { exact: false }
     )
   ).toBeVisible()
-  await expect(page.getByText("Handler result unavailable: not stored.")).toBeVisible()
-  await expect(page.getByText("Confirmed finalized attempts")).toBeVisible()
+  await expect(page.locator('[aria-label="Handler result is not stored"]')).toBeVisible()
+  await expect(page.locator('[aria-label="Handler result is not stored"]')).toHaveText(
+    "—"
+  )
+  await expect(page.getByText("Attempts finalized", { exact: true })).toBeVisible()
   await audit()
   await page.screenshot({ path: resolve(output, "full-desktop.png"), fullPage: true })
   await page.getByRole("button", { name: "Toggle synthetic unlock" }).click()

@@ -152,15 +152,8 @@ const RepairForm = ({
       aria-label="Repair and resolution"
     >
       <h3 {...stylex.props(styles.heading)}>Repair and resolution</h3>
-      <p {...stylex.props(styles.explanation)}>
-        Execution stays {detail.job.state}. Resolution:{" "}
-        {detail.problem?.state === "InProgress"
-          ? "In progress"
-          : (detail.problem?.state ?? "Not applicable")}
-        .
-      </p>
       {readOnly ? (
-        <p {...stylex.props(styles.explanation)}>This feed is read only.</p>
+        <p {...stylex.props(styles.explanation)}>Read only</p>
       ) : pending ? (
         <div role="status">
           <p>
@@ -197,11 +190,14 @@ const RepairForm = ({
           </Button>
         </div>
       )}
-      {!detail.eligibility.correctedRedrive.enabled && (
-        <p {...stylex.props(styles.explanation)}>
-          Correction unavailable: {detail.eligibility.correctedRedrive.reason}. Encrypted
-          corrections cannot submit decrypted documents.
-        </p>
+      {!readOnly && !detail.eligibility.correctedRedrive.enabled && (
+        <details {...stylex.props(styles.explanation)}>
+          <summary>Correction unavailable</summary>
+          <p>
+            {detail.eligibility.correctedRedrive.reason}. Encrypted corrections cannot
+            submit decrypted documents.
+          </p>
+        </details>
       )}
       <Dialog.Root
         open={action !== null && !readOnly && pending === null}
@@ -227,7 +223,7 @@ const RepairForm = ({
             <Dialog.Description id={description} {...stylex.props(styles.explanation)}>
               {resolving
                 ? "This records an operator assertion and never changes execution state or provider evidence."
-                : "A new job has a fresh budget. External effects may repeat. The source remains immutable. The server rechecks authority, payload and investigation."}
+                : "External effects may repeat. A new job gets a fresh budget; the source stays unchanged."}
             </Dialog.Description>
             <form
               {...stylex.props(styles.form)}
@@ -297,15 +293,12 @@ const RepairForm = ({
                   </Field>
                   <div role="status">
                     {correction?.valid
-                      ? "Replacement schema is valid; server validation remains authoritative."
+                      ? "Schema valid"
                       : `Validation: ${correction?.rule ?? "schema-invalid"}`}
                   </div>
                   {correction?.valid &&
                     (correction.changes === null ? (
-                      <p>
-                        Source diff unavailable: original payload is not retained or
-                        valid.
-                      </p>
+                      <p>Source diff unavailable</p>
                     ) : (
                       <ul {...stylex.props(styles.changes)}>
                         {correction.changes.map((change) => (

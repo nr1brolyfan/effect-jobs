@@ -247,13 +247,13 @@ try {
   if (!baseline) {
     assert.equal(desktop.fontWeight, "400")
     assert.equal(desktop.paddingInlineStart, "0px")
-    assert.equal(desktop.alignItems, "flex-start")
-    assert.equal(desktop.flexDirection, "column")
-    assert(Math.abs(desktop.dateX - desktop.hintX) < 1)
+    assert.equal(desktop.alignItems, "baseline")
+    assert.equal(desktop.flexDirection, "row")
+    assert(desktop.hintX > desktop.dateX)
     assert(Math.abs(desktop.dateX - desktop.buttonX) < 1)
     assert(desktop.width <= desktop.containerWidth)
     assert(Math.abs(details.dateX - details.containerX) < 1)
-    assert(Math.abs(details.dateX - details.hintX) < 1)
+    assert(details.hintX > details.dateX)
     assert.deepEqual(focusRing, { style: "solid", width: "2px" })
   }
   const touch = await browser.newContext({

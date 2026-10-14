@@ -1,0 +1,127 @@
+import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
+import * as stylex from "@stylexjs/stylex"
+import { Panel } from "../../../ui/Primitives.js"
+import {
+  PropertyGrid,
+  Absent,
+  DetailTime,
+  DetailHelp,
+  formatDuration
+} from "./PropertyGrid.js"
+import { styles } from "./PropertyGrid.stylex.js"
+
+export function JobScheduling({ detail }: { readonly detail: JobDetail }) {
+  return (
+    <Panel {...stylex.props(styles.panel)}>
+      <h2 {...stylex.props(styles.heading)}>Scheduling</h2>
+      <PropertyGrid
+        items={[
+          {
+            label: "Available",
+            value: <DetailTime value={detail.job.availableAt} label="Available" />
+          },
+          {
+            label: "Updated",
+            value: <DetailTime value={detail.job.updatedAt} label="Lifecycle updated" />
+          },
+          {
+            label: "Terminal at",
+            value: (
+              <DetailTime value={detail.job.completedAt} label="Terminal completion" />
+            )
+          },
+          { label: "Created", value: <Absent reason="Creation time is not stored" /> }
+        ]}
+      />
+      <DetailHelp summary="About timestamps">
+        Availability and lifecycle updates are retained facts, not creation times. Exact
+        local and UTC values are available from each timestamp.
+      </DetailHelp>
+    </Panel>
+  )
+}
+
+export function JobMetadata({ detail }: { readonly detail: JobDetail }) {
+  const { job, producer, policy } = detail
+  return (
+    <Panel {...stylex.props(styles.panel)}>
+      <details>
+        <summary {...stylex.props(styles.sectionSummary)}>
+          Identity & execution policy
+        </summary>
+        <div {...stylex.props(styles.advanced)}>
+          <section {...stylex.props(styles.section)}>
+            <h2 {...stylex.props(styles.heading)}>Identity</h2>
+            <PropertyGrid
+              items={[
+                { label: "Job", value: job.jobId, mono: true },
+                { label: "Queue", value: job.catalog.queue, mono: true },
+                { label: "Kind", value: job.catalog.kind, mono: true },
+                { label: "Schema version", value: job.catalog.version },
+                { label: "Producer operation", value: producer.operation, mono: true },
+                { label: "Operation identity", value: producer.operationId, mono: true },
+                { label: "Slot", value: producer.slot, mono: true },
+                { label: "Generation", value: detail.sandbox.generation }
+              ]}
+            />
+          </section>
+          <section {...stylex.props(styles.section)}>
+            <h2 {...stylex.props(styles.heading)}>Execution policy</h2>
+            <PropertyGrid
+              items={[
+                { label: "Attempt limit", value: policy.maxAttempts },
+                { label: "Recovery limit", value: policy.maxStalledCount },
+                {
+                  label: "Attempt timeout",
+                  value: formatDuration(policy.attemptTimeoutMillis)
+                },
+                {
+                  label: "Lease duration",
+                  value: formatDuration(policy.leaseDurationMillis)
+                },
+                {
+                  label: "Retry delay",
+                  value: formatDuration(policy.retrySchedule.delayMillis)
+                },
+                {
+                  label: "Completed retention",
+                  value:
+                    policy.completedRetention._tag === "Forever"
+                      ? "Forever"
+                      : formatDuration(policy.completedRetention.millis)
+                },
+                {
+                  label: "Dead retention",
+                  value:
+                    policy.deadRetention._tag === "Forever"
+                      ? "Forever"
+                      : formatDuration(policy.deadRetention.millis)
+                }
+              ]}
+            />
+            <DetailHelp summary="About retention">
+              Isolated jobs are not automatically purged.
+            </DetailHelp>
+          </section>
+          <section {...stylex.props(styles.section)}>
+            <h2 {...stylex.props(styles.heading)}>Application relations</h2>
+            <PropertyGrid
+              items={[
+                {
+                  label: "Synthetic order",
+                  value: detail.relations.syntheticOrderId ?? <Absent />,
+                  mono: true
+                },
+                {
+                  label: "Synthetic actor",
+                  value: detail.relations.syntheticActor ?? <Absent />,
+                  mono: true
+                }
+              ]}
+            />
+          </section>
+        </div>
+      </details>
+    </Panel>
+  )
+}

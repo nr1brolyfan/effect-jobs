@@ -2,6 +2,9 @@ import { Dialog } from "@base-ui/react/dialog"
 import * as stylex from "@stylexjs/stylex"
 import { useState } from "react"
 import { Button } from "../../../ui/Primitives.js"
+import { JobTimeline } from "./JobTimeline.js"
+import { JobRelatedJobs } from "./JobRelatedJobs.js"
+import { JobMetadata, JobScheduling } from "./JobMetadata.js"
 import { JobOverview } from "./JobOverview.js"
 import { detailIdentityKey, type JobDetailsProps } from "./JobDetailsPage.js"
 import { styles } from "./JobDetailsDrawer.stylex.js"
@@ -48,29 +51,29 @@ function SelectedDrawer({
           }
         >
           <header {...stylex.props(styles.header)}>
-            <Dialog.Title>Quick job details</Dialog.Title>
+            <Dialog.Title {...stylex.props(styles.title)}>Quick job details</Dialog.Title>
             <Button aria-label="Close job details" onClick={() => leave(onClose)}>
               Close
             </Button>
           </header>
-          <Dialog.Description>
-            Current retained facts for job {detail.job.jobId}.
+          <Dialog.Description {...stylex.props(styles.identity)}>
+            {detail.job.jobId}
           </Dialog.Description>
           {open && (
             <div {...stylex.props(styles.content)}>
               <JobOverview detail={detail} />
+              <JobScheduling detail={detail} />
               {payloadSlot}
               {repairSlot}
+              <JobTimeline detail={detail} />
+              <JobRelatedJobs
+                detail={detail}
+                onRelated={(jobId) => leave(() => onRelated(jobId))}
+              />
+              <JobMetadata detail={detail} />
               <Button variant="primary" onClick={() => leave(onOpenFull)}>
                 Open full details
               </Button>
-              {detail.lineage?.sourceJobId && (
-                <Button
-                  onClick={() => leave(() => onRelated(detail.lineage!.sourceJobId!))}
-                >
-                  Open source job
-                </Button>
-              )}
             </div>
           )}
         </Dialog.Popup>

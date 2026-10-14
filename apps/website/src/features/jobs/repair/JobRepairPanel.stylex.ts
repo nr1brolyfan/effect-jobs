@@ -1,10 +1,15 @@
 import * as stylex from "@stylexjs/stylex"
-import { colors, spacing, radii } from "../../../ui/Theme.stylex.js"
+import { colors, spacing, radii, typography } from "../../../ui/Theme.stylex.js"
 export const styles = stylex.create({
   panel: {
-    borderTop: `1px solid ${colors.border}`,
-    paddingTop: spacing.lg,
-    marginTop: spacing.lg
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    padding: { default: spacing.lg, "@media (max-width: 600px)": spacing.md },
+    minWidth: 0,
+    overflowWrap: "anywhere"
   },
   actions: { display: "flex", flexWrap: "wrap", gap: spacing.sm },
   backdrop: {
@@ -25,8 +30,13 @@ export const styles = stylex.create({
     padding: spacing.lg,
     backgroundColor: colors.surface,
     color: colors.text,
-    border: `1px solid ${colors.border}`,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: colors.border,
     borderRadius: radii.md,
+    boxSizing: "border-box",
+    fontFamily: typography.fontFamily,
+    fontSize: typography.body,
     zIndex: 61
   },
   form: { display: "grid", gap: spacing.md },
@@ -43,6 +53,6 @@ export const styles = stylex.create({
     fontFamily: "monospace",
     fontSize: "12px"
   },
-  heading: { fontSize: "18px", marginTop: 0 },
+  heading: { fontSize: "16px", marginTop: 0, marginBottom: spacing.md },
   error: { color: colors.dead, fontSize: "13px" }
 })

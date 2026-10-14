@@ -6,33 +6,58 @@ export const styles = stylex.create({
     color: colors.text,
     fontFamily: typography.fontFamily,
     fontSize: typography.body,
-    lineHeight: 1.6,
+    lineHeight: 1.5,
     padding: { default: spacing.xl, "@media (max-width: 600px)": spacing.md },
-    minWidth: 0
+    minWidth: 0,
+    maxWidth: "1280px",
+    marginInline: "auto",
+    boxSizing: "border-box"
   },
   header: {
     display: "flex",
     flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: spacing.md
+    gap: spacing.md,
+    marginBottom: spacing.lg
   },
-  identity: { fontFamily: typography.monoFamily, overflowWrap: "anywhere" },
-  layout: {
+  title: { margin: 0, fontSize: typography.title, lineHeight: 1.2 },
+  identity: {
+    fontFamily: typography.monoFamily,
+    fontSize: typography.secondary,
+    color: colors.muted,
+    overflowWrap: "anywhere",
+    marginTop: spacing.sm,
+    marginBottom: 0
+  },
+  layout: { display: "grid", gap: spacing.lg, alignItems: "start", minWidth: 0 },
+  sections: {
     display: "grid",
     gridTemplateColumns: {
-      default: "minmax(0, 2fr) minmax(240px, 1fr)",
-      "@media (max-width: 900px)": "minmax(0, 1fr)"
+      default: "repeat(2, minmax(0, 1fr))",
+      "@media (max-width: 800px)": "minmax(0, 1fr)"
+    },
+    alignItems: "start",
+    gap: spacing.lg,
+    minWidth: 0
+  },
+  slots: {
+    display: "grid",
+    gridTemplateColumns: {
+      default: "repeat(2, minmax(0, 1fr))",
+      "@media (max-width: 1000px)": "minmax(0, 1fr)"
     },
     gap: spacing.lg,
-    alignItems: "start"
+    minWidth: 0,
+    alignItems: "start",
+    gridColumn: "1 / -1"
   },
-  sections: { display: "grid", gap: spacing.lg, minWidth: 0 },
-  metadata: { padding: spacing.lg, minWidth: 0, overflowWrap: "anywhere" },
-  facts: {
+  slotStack: {
     display: "grid",
     gridTemplateColumns: "minmax(0, 1fr)",
-    gap: spacing.xs,
-    margin: 0
-  }
+    gap: spacing.lg,
+    minWidth: 0,
+    alignContent: "start"
+  },
+  metadata: { minWidth: 0 }
 })
