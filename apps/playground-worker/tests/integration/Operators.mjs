@@ -455,8 +455,8 @@ try {
       400
     )
     await page.getByRole("button", { name: "Close details" }).click()
-    const text = await page.locator(".results-status p").textContent()
-    const label = page.locator(".results-status p")
+    const text = await page.locator(".results-count").textContent()
+    const label = page.locator(".results-count")
     await expect(label).toHaveText(text)
     await page.waitForTimeout(10500)
     await expect(label).toHaveText(text)

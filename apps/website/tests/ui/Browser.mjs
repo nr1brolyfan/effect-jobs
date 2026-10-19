@@ -221,7 +221,7 @@ try {
   await page.getByRole("button", { name: "First page", exact: true }).click()
   await text(status(), "connected")
   await page.getByLabel("Search job ID on this page").fill("")
-  await page.getByLabel("State", { exact: true }).selectOption("Dead")
+  await page.getByRole("tab", { name: /^Dead/ }).click()
   await page.getByLabel("Kind (exact)").fill("playground.scenario")
   await page.getByRole("button", { name: "Apply filters", exact: true }).click()
   await text(status(), "connected")
@@ -246,7 +246,10 @@ try {
   await page.evaluate(() => window.jobsBrowserTest.mode("normal"))
   await page.evaluate(() => window.dispatchEvent(new Event("online")))
   await text(status(), "connected")
-  assert.equal(await page.getByLabel("State", { exact: true }).inputValue(), "Dead")
+  await expect(page.getByRole("tab", { name: /^Dead/ })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  )
   await page.getByRole("button", { name: "Refresh reads", exact: true }).focus()
   await page.keyboard.press("Enter")
   await text(status(), "connected")
@@ -268,7 +271,7 @@ try {
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     true
   )
-  await page.getByLabel("State", { exact: true }).selectOption("")
+  await page.getByRole("tab", { name: /^All jobs/ }).click()
   await page.getByRole("button", { name: "Apply filters", exact: true }).click()
   await text(status(), "connected")
   await page.getByLabel("Due Pending on this page (browser clock)").check()

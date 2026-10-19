@@ -381,7 +381,7 @@ try {
     )
     await scenario("actual stored state-filter full/Back preservation", async () => {
       await page.goto(`${origin}/demo`)
-      await page.getByLabel("State", { exact: true }).selectOption("Completed")
+      await page.getByRole("tab", { name: /^Completed/ }).click()
       await page.getByRole("button", { name: "Apply filters", exact: true }).click()
       await expect(page.getByRole("tab", { name: /^Completed/ })).toHaveAttribute(
         "aria-selected",
@@ -394,7 +394,10 @@ try {
         page.getByRole("heading", { name: "Job details", exact: true })
       ).toBeVisible()
       await page.getByRole("button", { name: "Back to jobs", exact: true }).click()
-      await expect(page.getByLabel("State", { exact: true })).toHaveValue("Completed")
+      await expect(page.getByRole("tab", { name: /^Completed/ })).toHaveAttribute(
+        "aria-selected",
+        "true"
+      )
       await expect(page.getByRole("button", { name: id, exact: true })).toBeFocused()
     })
     await scenario(

@@ -43,19 +43,12 @@ export const layout = stylex.create({
     fontFamily: typography.fontFamily
   },
   paragraph: { margin: 0, maxWidth: "72ch" },
-  resultsStatus: {
-    padding: "8px 20px",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px 16px",
-    flexWrap: "wrap",
-    minHeight: "38px",
+  resultsLabel: {
     color: colors.muted,
-    fontSize: typography.secondary
+    fontSize: typography.secondary,
+    fontVariantNumeric: "tabular-nums",
+    whiteSpace: "nowrap"
   },
-  resultsLabel: { margin: 0, fontVariantNumeric: "tabular-nums" },
-  queryProgress: { fontSize: typography.small, whiteSpace: "nowrap" },
-  progressHidden: { visibility: "hidden" },
   heading: { margin: 0, fontSize: typography.body, fontWeight: 550 },
   title: {
     margin: 0,
@@ -293,6 +286,7 @@ export const layout = stylex.create({
   },
   tabs: {
     display: "flex",
+    flexWrap: "nowrap",
     overflowX: "auto",
     gap: "3px",
     borderBottom: `1px solid ${colors.border}`,
@@ -312,9 +306,9 @@ export const layout = stylex.create({
   tabActive: { color: colors.accent, borderBottomColor: colors.accent },
   filters: {
     display: "flex",
-    gap: "10px",
+    gap: "8px",
     alignItems: "end",
-    padding: "16px 20px 10px",
+    padding: "10px 16px",
     flexWrap: "wrap"
   },
   scroll: { width: "100%", overflowX: "auto" },

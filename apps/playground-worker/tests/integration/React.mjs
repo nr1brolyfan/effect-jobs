@@ -132,7 +132,7 @@ try {
   checks.push(
     "demo write denial, real server cursor/filter, global statistics independent of filtered page"
   )
-  await page.getByLabel("State", { exact: true }).selectOption("RetryScheduled")
+  await page.getByRole("tab", { name: /^Retry scheduled/ }).click()
   await page.getByRole("button", { name: "Apply filters", exact: true }).click()
   await expect(page.locator(".job-list .status-cell").first()).toHaveText(
     "Retry scheduled"
@@ -234,7 +234,7 @@ try {
   checks.push(
     "real retry availableAt/timezone/countdown, natural Eligible now and DB due state; worker completion; selected-row Escape/Close focus and evicted-row fallback"
   )
-  await page.getByLabel("State", { exact: true }).selectOption("")
+  await page.getByRole("tab", { name: /^All jobs/ }).click()
   await page.getByRole("button", { name: "Apply filters", exact: true }).click()
   await connected()
   const chart = page.getByRole("region", { name: "Job distribution" })

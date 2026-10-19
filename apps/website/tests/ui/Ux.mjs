@@ -60,6 +60,7 @@ const server = createServer(async (req, res) => {
     const limit = Number(url.searchParams.get("limit"))
     const page = {
       sandbox: sandbox.ref,
+      attentionStats: Fixtures.page.attentionStats,
       filteredTotal: sandbox.ref.generation > 1 ? 0 : filtered.length,
       stats:
         sandbox.ref.generation > 1
@@ -144,7 +145,7 @@ try {
     delay = 1300
     await page.getByRole("tab", { name: "Dead 40", exact: true }).focus()
     await page.keyboard.press("Enter")
-    await expect(page.locator(".results-status")).toContainText("Previous query")
+    await expect(page.locator(".results-count")).toHaveText("Loading…")
     await expect(page.locator(".job-list tr").first()).toContainText("Completed")
     const scroll = await page.evaluate(() => scrollY)
     await expect(page.locator(".job-list tr").first()).toContainText("Dead")
@@ -165,7 +166,7 @@ try {
     await pageTwo.focus()
     await expect(pageTwo).toBeFocused()
     await page.keyboard.press("Enter")
-    await expect(page.locator(".results-status")).toContainText("Previous query")
+    await expect(page.locator(".results-count")).toHaveText("Loading…")
     const pageScroll = await page.evaluate(() => scrollY)
     await expect(page.locator(".job-list .job-id").first()).toHaveText(
       "synthetic-job-045"
@@ -264,7 +265,7 @@ try {
     fail = true
     await page.getByRole("tab", { name: "Dead 40", exact: true }).click()
     await expect(page.locator(".connection-status")).toContainText("unavailable")
-    await expect(page.locator(".results-status")).toContainText("Previous query")
+    await expect(page.locator(".results-count")).toHaveText("Results unavailable")
     await expect(page.locator(".job-list tr")).toHaveCount(50)
     fail = false
     delay = 0
@@ -282,17 +283,22 @@ try {
     await expect(page.locator(".job-list tr")).toHaveCount(20)
     await page.locator(".job-list .job-id").first().click()
     await expect(
-      page.getByRole("region", { name: "Job details", exact: true })
-    ).toContainText("Producer identity")
+      page.getByRole("dialog", { name: "Quick job details", exact: true })
+    ).toContainText("Overview")
+    await page.getByRole("button", { name: "Close job details", exact: true }).click()
     delay = 1500
     await page.getByRole("tab", { name: "Dead 40", exact: true }).click()
-    await expect(page.locator(".results-status")).toContainText("Previous query")
+    await expect(page.locator(".results-count")).toHaveText("Loading…")
+    await page.locator(".job-list .job-id").first().click()
+    await expect(
+      page.getByRole("dialog", { name: "Quick job details", exact: true })
+    ).toBeVisible()
     sandbox.ref = { ...sandbox.ref, generation: 2 }
     // Reconciliation races the older server response; no fabricated atom state.
     await page.evaluate(() => window.dispatchEvent(new Event("online")))
     await expect(page.locator(".job-list tr")).toHaveCount(0)
     await expect(
-      page.getByRole("region", { name: "Job details", exact: true })
+      page.getByRole("dialog", { name: "Quick job details", exact: true })
     ).toBeHidden()
     await expect(page.locator(".stat-value").first()).toHaveText("—")
     await expect(page.locator(".stat-value").first()).toHaveText("00")

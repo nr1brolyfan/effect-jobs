@@ -12,7 +12,7 @@ import {
   type ColumnDef
 } from "@tanstack/react-table"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import type { JobFilters, JobSummary } from "@effect-jobs/playground-contracts/Jobs"
+import type { JobSummary } from "@effect-jobs/playground-contracts/Jobs"
 import { ScenarioId } from "@effect-jobs/playground-contracts/Scenarios"
 import { DateTime } from "../../ui/DateTime.js"
 import { Pagination } from "../../ui/Pagination.js"
@@ -82,7 +82,6 @@ const classStyles = {
   selected: styles.selected,
   pagination: layout.pagination,
   "empty-state": layout.empty,
-  "results-status": layout.resultsStatus,
   "detail-panel": layout.detail,
   "detail-heading": layout.detailHeading,
   "scenario-panel": layout.scenario,
@@ -90,7 +89,6 @@ const classStyles = {
   "scenario-body": layout.scenarioBody,
   "session-bar": layout.session,
   "sandbox-scope": layout.scope,
-  "dashboard-footer": layout.footer,
   muted: styles.muted
 } satisfies Record<string, stylex.StyleXStyles>
 const classes = (names: string) => {
@@ -247,9 +245,6 @@ const JobsTable = ({
         <div {...classes("empty-state")}>
           <Icon name="jobs" />
           <strong>{"No jobs match on this page"}</strong>
-          <p {...stylex.props(layout.paragraph)}>
-            Try different filters. Other pages may contain matches.
-          </p>
         </div>
       )}
     </>
@@ -284,18 +279,8 @@ export const Dashboard = ({
     }
     focusedSelection.current = state.selected
   }, [state.selected])
-  const [progressVisible, setProgressVisible] = useState(false)
-  useEffect(() => {
-    if (!state.loading) {
-      setProgressVisible(false)
-      return
-    }
-    const timer = window.setTimeout(() => setProgressVisible(true), 200)
-    return () => window.clearTimeout(timer)
-  }, [state.loading])
   const [search, setSearch] = useState("")
   const [due, setDue] = useState(false)
-  const [filterState, setFilterState] = useState<JobFilters["state"]>(undefined)
   const [kind, setKind] = useState("")
   const [scenario, setScenario] = useState<typeof ScenarioId.Type>("success")
   const [count, setCount] = useState(1)
@@ -318,7 +303,6 @@ export const Dashboard = ({
   useLayoutEffect(() => {
     runtime.restoreViewport()
   }, [runtime, state.resultsCurrent, state.page])
-  useEffect(() => setFilterState(state.filters.state), [state.filters.state])
   useEffect(() => setKind(state.filters.kind ?? ""), [state.filters.kind])
   const fullDetailFocus = useRef<{ identity: string; focused: boolean } | undefined>(
     undefined
@@ -504,7 +488,6 @@ export const Dashboard = ({
         </nav>
         <div {...classes("sidebar-note")}>
           <Icon name="code" />
-          <strong>Real jobs. Safe playground.</strong>
           <p {...stylex.props(layout.paragraph)}>All data is synthetic.</p>
         </div>
         <div {...classes("sidebar-profile")}>
@@ -532,9 +515,6 @@ export const Dashboard = ({
           <header {...classes("page-header")}>
             <div>
               <h1 {...stylex.props(layout.title)}>Background Jobs</h1>
-              <p {...stylex.props(layout.subtitle)}>
-                Every job, every state. Your background work, in one place.
-              </p>
             </div>
             <div {...classes("header-actions")}>
               {!demo && (
@@ -559,17 +539,6 @@ export const Dashboard = ({
               )}
             </div>
           </header>
-          {!demo && (
-            <p role="status" {...stylex.props(layout.paragraph)}>
-              Start with the ready-made jobs below: cancel Pending, retry a scheduled
-              attempt, or inspect and redrive Dead / Isolated. Use Create jobs for
-              repeatable scenarios.
-              {state.sandbox.capacity &&
-                (state.sandbox.capacity.mode === "local"
-                  ? ` Local testing: ${state.sandbox.capacity.retainedJobs} retained jobs; ${state.sandbox.capacity.admittedCommands} admitted commands across all generations. No lifetime quota. Reset keeps old jobs and receipts and adds 6 starter jobs.`
-                  : ` Retained capacity: ${state.sandbox.capacity.retainedJobs}/100 across all generations; commands: ${state.sandbox.capacity.admittedCommands}/200. Reset needs 6 free job slots and 2 command slots.`)}
-            </p>
-          )}
           <div {...classes("jobs-overview")}>
             <div {...classes("stats-grid")} aria-label="All jobs statistics">
               {(
@@ -621,7 +590,20 @@ export const Dashboard = ({
               aria-label="Jobs list"
             >
               <div {...classes("panel-heading")}>
-                <h2 {...stylex.props(layout.heading)}>All background jobs</h2>
+                <h2 {...stylex.props(layout.heading)}>Jobs</h2>
+                <span
+                  role="status"
+                  className={[
+                    "results-count",
+                    stylex.props(layout.resultsLabel).className
+                  ].join(" ")}
+                >
+                  {state.page && state.resultsCurrent
+                    ? `${state.page.filteredTotal} ${state.page.filteredTotal === 1 ? "result" : "results"}${state.error ? " · stale" : ""}`
+                    : state.loading
+                      ? "Loading…"
+                      : "Results unavailable"}
+                </span>
               </div>
               <TabsRoot
                 value={state.filters.state ?? "all"}
@@ -634,14 +616,19 @@ export const Dashboard = ({
                   )
                 }}
               >
-                <TabsList aria-label="Job states" className="state-tabs">
-                  <TabsTab value="all" {...(stats ? { count: stats.total } : {})}>
+                <TabsList aria-label="Job states" {...classes("state-tabs")}>
+                  <TabsTab
+                    value="all"
+                    {...classes("state-tab")}
+                    {...(stats ? { count: stats.total } : {})}
+                  >
                     All jobs
                   </TabsTab>
                   {stateOrder.map((tab) => (
                     <TabsTab
                       key={tab}
                       value={tab}
+                      {...classes("state-tab")}
                       {...(stats ? { count: stats[tab] } : {})}
                     >
                       {stateLabels[tab]}
@@ -658,36 +645,16 @@ export const Dashboard = ({
                         runtime.filter({
                           resolution: state.filters.resolution,
                           needsAttention: state.filters.needsAttention,
-                          ...(filterState === undefined ? {} : { state: filterState }),
+                          state: state.filters.state,
                           ...(kind === "" ? {} : { kind })
                         })
                       )
                     }}
                   >
-                    <Field label="State">
-                      <select
-                        value={filterState ?? ""}
-                        onChange={(event) =>
-                          setFilterState(
-                            event.target.value === ""
-                              ? undefined
-                              : (event.target.value as JobFilters["state"])
-                          )
-                        }
-                      >
-                        <option value="">All states</option>
-                        {stateOrder.map((value) => (
-                          <option key={value} value={value}>
-                            {stateLabels[value]}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
                     <Field label="Kind (exact)">
                       <input
                         value={kind}
                         onChange={(event) => setKind(event.target.value)}
-                        placeholder="Exact kind"
                         maxLength={128}
                       />
                     </Field>
@@ -696,7 +663,6 @@ export const Dashboard = ({
                         type="search"
                         value={search}
                         onChange={(event) => setSearch(event.target.value)}
-                        placeholder="Search this page"
                         aria-label="Search job ID on this page"
                         maxLength={128}
                       />
@@ -711,40 +677,11 @@ export const Dashboard = ({
                     </Field>
                     <Button type="submit">Apply filters</Button>
                   </form>
-                  <div {...classes("results-status")}>
-                    <p role="status" {...stylex.props(layout.resultsLabel)}>
-                      {state.page && state.displayedQuery
-                        ? `Page ${state.displayedQuery.pageNumber} · ${state.page.items.length} results · ${state.displayedQuery.filters.state ?? "all states"}${state.displayedQuery.filters.kind ? ` · ${state.displayedQuery.filters.kind}` : ""} · ${state.displayedQuery.pageSize} per page${state.pagination.total === undefined ? "" : ` · ${state.pagination.total} matching · ${state.pagination.pageCount} ${state.pagination.pageCount === 1 ? "page" : "pages"}`}${!state.resultsCurrent ? " · Previous query" : ""}`
-                        : state.loading
-                          ? "Waiting for results"
-                          : "No current results. Refresh reads to retry."}
-                    </p>
-                    <span
-                      className={[
-                        "query-progress",
-                        stylex.props(
-                          layout.queryProgress,
-                          !(state.loading && progressVisible) && layout.progressHidden
-                        ).className
-                      ].join(" ")}
-                      aria-hidden={!(state.loading && progressVisible)}
-                    >
-                      Updating…
-                    </span>
-                    {!state.loading && !state.resultsCurrent && state.page && (
-                      <span {...stylex.props(styles.notice)}>
-                        Requested results unavailable
-                      </span>
-                    )}
-                  </div>
                   <div aria-busy={state.loading}>
                     {state.page === undefined ? (
                       <div {...classes("empty-state")}>
                         <Icon name="jobs" />
                         <strong>Connecting to your workspace</strong>
-                        <p {...stylex.props(layout.paragraph)}>
-                          Your live job snapshot will appear here.
-                        </p>
                       </div>
                     ) : (
                       <JobsTable
@@ -896,8 +833,7 @@ export const Dashboard = ({
               <summary {...stylex.props(layout.summary)}>
                 <div {...classes("scenario-summary-title")}>
                   <Icon name="terminal" />
-                  <strong>Create jobs · Scenario lab</strong>
-                  <span>Create jobs. Simulate failures. See what happens.</span>
+                  <strong>Scenario lab</strong>
                 </div>
                 <Icon name="plus" />
               </summary>
@@ -982,10 +918,6 @@ export const Dashboard = ({
               </div>
             </details>
           )}
-          <footer {...classes("dashboard-footer")}>
-            <p {...classes("source muted")}>Source: {runtime.source}.</p>
-            <span>effect-jobs · initial alpha</span>
-          </footer>
         </div>
       </div>
     </div>

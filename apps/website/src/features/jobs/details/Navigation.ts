@@ -280,13 +280,26 @@ export const make = (
         publish()
       }
     }
+    // Filtering replaces the current list anchor; it must not leave an older
+    // status in the URL or in the in-memory target used by a later Back.
+    const syncList = () => {
+      if (disposed || registry.get(route)._tag !== "List" || scopeRevoked) {
+        return
+      }
+      const context = captureReturnContext(bindings.capture())
+      if (!sameScope(context.sandbox, bindings.sandbox())) {
+        return
+      }
+      registry.set(returnContext, context)
+      browser.history.replaceState(null, "", returnPath(bindings.mode, context))
+    }
     // Call after sandbox replacement/expiry. A stale URL is never retargeted.
     const scopeChanged = () => {
       scopeRevoked = true
       clear()
       publish()
     }
-    return { route, returnContext, openFull, related, close, scopeChanged }
+    return { route, returnContext, openFull, related, close, syncList, scopeChanged }
   })
 
 // Host calls this after restored rows commit (useLayoutEffect), once. If cursor

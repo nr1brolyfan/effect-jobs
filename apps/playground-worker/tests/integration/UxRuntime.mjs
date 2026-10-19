@@ -141,15 +141,21 @@ try {
     })
   })
   await page.getByRole("button", { name: "Page 2", exact: true }).click()
-  await expect(page.locator(".results-status")).toContainText("Previous query")
+  await expect(page.locator(".results-count")).toHaveText("Loading…")
   assert.equal(await page.locator(".stats-grid").textContent(), beforeStats)
-  await expect(page.locator(".results-status")).toContainText("Page 2 ·")
+  await expect(page.getByRole("button", { name: "Page 2", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page"
+  )
   assert(await page.evaluate(() => window.uxRuntimeNodes.every((n) => n.isConnected)))
   assert(
     (await page.evaluate(() => window.uxRuntimeStats)).every((s) => !s.includes("—"))
   )
   await page.getByRole("button", { name: "Previous page", exact: true }).click()
-  await expect(page.locator(".results-status")).toContainText("Page 1 ·")
+  await expect(page.getByRole("button", { name: "Page 1", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page"
+  )
   delayReads = false
   await page.unroute("**/api/demo/jobs?*")
   checks.push(
@@ -165,7 +171,7 @@ try {
   checks.push(
     "demo write denial, real server cursor/filter, global statistics independent of filtered page"
   )
-  await page.getByLabel("State", { exact: true }).selectOption("RetryScheduled")
+  await page.getByRole("tab", { name: /^Retry scheduled/ }).click()
   await page.getByRole("button", { name: "Apply filters", exact: true }).click()
   await expect(page.locator(".job-list .status-cell").first()).toHaveText(
     "Retry scheduled"
@@ -258,7 +264,7 @@ try {
   checks.push(
     "real retry availableAt/timezone/countdown, natural Eligible now and DB due state; worker completion; selected-row Escape/Close focus and evicted-row fallback"
   )
-  await page.getByLabel("State", { exact: true }).selectOption("")
+  await page.getByRole("tab", { name: /^All jobs/ }).click()
   await page.getByRole("button", { name: "Apply filters", exact: true }).click()
   await connected()
   const chart = page.getByRole("region", { name: "Job distribution" })

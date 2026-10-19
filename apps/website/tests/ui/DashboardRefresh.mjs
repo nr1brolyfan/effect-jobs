@@ -63,6 +63,7 @@ const server = createServer(async (req, res) => {
     const limit = Number(url.searchParams.get("limit"))
     const page = {
       sandbox: sandbox.ref,
+      attentionStats: Fixtures.page.attentionStats,
       filteredTotal: sandbox.ref.generation > 1 ? 0 : filtered.length,
       stats:
         sandbox.ref.generation > 1
@@ -126,7 +127,7 @@ try {
     window.churn = []
     const record = () =>
       window.churn.push({
-        text: document.querySelector(".results-status").textContent,
+        text: document.querySelector(".results-count").textContent,
         connection: document.querySelector(".connection-status").textContent,
         size: document.querySelector(".pagination select").value,
         busy: document
@@ -173,7 +174,7 @@ try {
     window.observer.disconnect()
     return window.churn
   })
-  const beforeNavigation = await page.locator(".results-status").innerText()
+  const beforeNavigation = await page.locator(".results-count").innerText()
   if (!baseline) {
     assert(churn.length > 0)
     assert.equal(
@@ -206,14 +207,11 @@ try {
     assert.equal(await next.evaluate((n) => n.disabled), false)
     assert.equal(await next.getAttribute("aria-disabled"), "true")
     assert.equal(await next.evaluate((n) => n === document.activeElement), true)
-    assert.equal(await page.locator(".query-progress").isVisible(), false)
-    assert.equal(
-      await page.locator(".results-status p").innerText(),
-      `${beforeNavigation} · Previous query`
-    )
-    await expect(page.locator(".query-progress")).toBeVisible()
-    assert.match(await page.locator(".results-status").innerText(), /Page 1/)
-    await expect(page.locator(".results-status")).toContainText("Page 2")
+    await expect(page.locator(".results-count")).toHaveText("Loading…")
+    await expect(page.locator(".results-count")).toHaveText(beforeNavigation)
+    await expect(
+      page.getByRole("button", { name: "Page 2", exact: true })
+    ).toHaveAttribute("aria-current", "page")
     assert.equal(await next.evaluate((n) => n === document.activeElement), true)
     assert.equal(await page.locator(".pagination select").isEnabled(), true)
     const axes = await page
@@ -233,19 +231,19 @@ try {
       0
     )
     delay = 0
-    await page.getByLabel("State", { exact: true }).selectOption("Completed")
+    await page.getByRole("tab", { name: /^Completed/ }).click()
     await page.getByRole("button", { name: "Apply filters", exact: true }).click()
-    await expect(page.locator(".results-status")).toContainText("50 matching · 3 pages")
+    await expect(page.locator(".results-count")).toContainText("50 results")
     assert.equal(
       await page.getByRole("button", { name: "Page 3", exact: true }).count(),
       0
     )
     await page.getByRole("button", { name: "Page 2", exact: true }).click()
-    await expect(page.locator(".results-status")).toContainText("Page 2 ·")
+    await expect(page.locator(".results-count")).toContainText("50 results")
     await page.getByRole("button", { name: "Page 3", exact: true }).click()
-    await expect(page.locator(".results-status")).toContainText("Page 3 · 10 results")
+    await expect(page.locator(".results-count")).toContainText("50 results")
     await page.getByRole("button", { name: "First page", exact: true }).click()
-    await expect(page.locator(".results-status")).toContainText("Page 1 ·")
+    await expect(page.locator(".results-count")).toContainText("50 results")
     delay = 650
     const manual = page.getByRole("button", { name: "Refresh reads", exact: true })
     await manual.focus()
@@ -262,16 +260,14 @@ try {
     delay = 1100
     fail = true
     const oldCount = requests.length
-    await page.getByLabel("State", { exact: true }).selectOption("Dead")
+    await page.getByRole("tab", { name: /^Dead/ }).click()
     await page.getByRole("button", { name: "Apply filters", exact: true }).click()
     await expect.poll(() => requests.length).toBeGreaterThan(oldCount)
     delay = 0
     fail = false
     await page.getByLabel("Rows per page", { exact: true }).selectOption("50")
     await expect(page.locator(".job-list tr")).toHaveCount(15)
-    await expect(page.locator(".results-status")).toContainText(
-      "50 per page · 15 matching · 1 page"
-    )
+    await expect(page.locator(".results-count")).toContainText("15 results")
     await page.waitForTimeout(1200)
     assert(!/unavailable/.test(await page.locator(".connection-status").innerText()))
     await expect(page.locator(".job-list tr")).toHaveCount(15)
@@ -291,7 +287,7 @@ try {
       []
     )
     checks.push(
-      "200ms delayed foreground progress, shown-query label, preserved keyboard focus, enabled page size and aligned desktop controls; axe zero"
+      "foreground loading label, preserved keyboard focus, enabled page size and aligned desktop controls; axe zero"
     )
   }
   await page.setViewportSize({ width: 390, height: 844 })

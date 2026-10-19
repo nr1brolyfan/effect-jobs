@@ -133,6 +133,47 @@ describe("detail navigation in the existing Atom registry", () => {
     expect(port.listeners.get("pagehide")?.size).toBe(0)
   })
 
+  it("replaces the restored status anchor when All jobs clears it and ignores detail sync", () => {
+    const port = browser()
+    const registry = AtomRegistry.make()
+    const scope = Scope.makeUnsafe()
+    let current = context
+    const restored: Array<Navigation.JobReturnContext | null> = []
+    const nav = Effect.runSync(
+      Navigation.make(registry, port, {
+        mode: "private",
+        sandbox: () => sandbox,
+        capture: () => current,
+        relock: () => undefined,
+        restore: (saved) => restored.push(saved)
+      }).pipe(Scope.provide(scope))
+    )
+    try {
+      nav.openFull(jobId)
+      nav.close()
+      current = {
+        ...context,
+        filters: { kind: "synthetic.kind" },
+        pageNumber: 1,
+        cursors: [undefined]
+      }
+      nav.syncList()
+      expect(new URL(port.location.href).searchParams.get("state")).toBeNull()
+      expect(new URL(port.location.href).searchParams.get("kind")).toBe("synthetic.kind")
+      expect(registry.get(nav.returnContext)?.filters).toEqual(current.filters)
+      nav.openFull(jobId)
+      const detailUrl = port.location.href
+      nav.syncList()
+      expect(port.location.href).toBe(detailUrl)
+      nav.close()
+      expect(restored.at(-1)).toEqual(current)
+      expect(new URL(port.location.href).searchParams.get("state")).toBeNull()
+    } finally {
+      Effect.runSync(Scope.close(scope, Exit.void))
+      registry.dispose()
+    }
+  })
+
   it("direct demo links return to demo and stale scopes clear anchors without retargeting jobs", () => {
     const port = browser("https://example.test/demo/jobs/source?generation=2")
     const registry = AtomRegistry.make()

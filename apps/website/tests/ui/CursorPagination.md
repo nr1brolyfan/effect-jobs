@@ -26,8 +26,14 @@ from changing the latest query. Runtime Scope owns cancellation and disposal.
 `page` and `stats` remain the successful displayed snapshot until replaced.
 `displayedQuery` identifies its sandbox/generation, filters, page number and size;
 `resultsCurrent` compares it with the requested query. During failed or pending
-query replacement, label retained rows with the displayed query, never the requested
-query. Global stats remain global and independent of filters. Real read errors stay
+query replacement, the heading says `Loading…` or `Results unavailable` instead of
+attributing the retained count to the requested query. Current results show only
+`filteredTotal` and `result` / `results` in the existing heading; failed refreshes
+mark retained current totals stale. Global stats remain global and independent of filters.
+Search and due controls explicitly refine only the current page and do not change
+the authoritative scoped total. Status tabs are the only state selector. Applying
+kind preserves the active tab; completed filter requests replace the list URL and
+in-memory return anchor, so All jobs cannot revive a status restored from details. Real read errors stay
 visible (`error`, stale/error connection). Real authority revocation clears old data.
 Connection status reflects admitted live signals, reconnect attempts, socket loss
 and browser connectivity; starting a read never infers a reconnect. A successful

@@ -119,9 +119,12 @@ try {
     ) {
       await page.getByRole("button", { name: "Close job details", exact: true }).click()
     }
+    const state = (await queryJobs([id]))[0].state
     await page
-      .getByLabel("State", { exact: true })
-      .selectOption((await queryJobs([id]))[0].state)
+      .getByRole("tab", {
+        name: new RegExp(`^${state === "RetryScheduled" ? "Retry scheduled" : state}\\b`)
+      })
+      .click()
     await page.getByRole("combobox", { name: "Rows per page" }).selectOption("50")
     await page.getByRole("button", { name: id, exact: true }).click()
     await expect(

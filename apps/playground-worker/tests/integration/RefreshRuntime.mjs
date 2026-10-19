@@ -25,8 +25,7 @@ let local,
   frames = 0,
   reads = 0
 const table = (name) => `"${cfg.schema}"."${name}"`
-const status = () => page.locator(".results-status")
-const label = () => page.locator(".results-status p")
+const status = () => page.locator(".results-count")
 const connected = () =>
   expect(page.locator(".connection-status")).toHaveAttribute(
     "data-connection",
@@ -169,10 +168,10 @@ try {
   assert.equal(unfiltered.body.filteredTotal, 55)
   const foreignRead = await query({ ...params, sandboxId: foreign.sandboxId })
   assert.equal(foreignRead.status, 404)
-  await page.getByLabel("State", { exact: true }).selectOption("Pending")
+  await page.getByRole("tab", { name: /^Pending/ }).click()
   await page.getByLabel("Kind (exact)", { exact: true }).fill("playground.welcome-email")
   await page.getByRole("button", { name: "Apply filters", exact: true }).click()
-  await expect(status()).toContainText("50 matching · 3 pages")
+  await expect(status()).toContainText("50 results")
   await expect(page.locator(".job-list tr")).toHaveCount(20)
   assert.equal(await page.getByRole("button", { name: "Page 3", exact: true }).count(), 0)
   await page.screenshot({ path: `${evidence}/real-desktop.png`, fullPage: true })
@@ -201,8 +200,7 @@ try {
     window.refreshObserved = []
     const record = () =>
       window.refreshObserved.push({
-        label: document.querySelector(".results-status p").textContent,
-        progress: getComputedStyle(document.querySelector(".query-progress")).visibility,
+        label: document.querySelector(".results-count").textContent,
         connection: document.querySelector(".connection-status").textContent,
         controls: [
           ...document.querySelectorAll(".pagination button,.pagination select")
@@ -266,40 +264,48 @@ try {
   const page2 = page.getByRole("button", { name: "Page 2", exact: true })
   await page2.focus()
   await page.keyboard.press("Enter")
-  await expect(status()).toContainText("Previous query")
-  await expect(label()).toContainText("Page 1")
+  await expect(status()).toHaveText("Loading…")
   assert.equal(await page2.evaluate((n) => n.disabled), false)
   await expect(page2).toBeFocused()
-  await expect(status()).toContainText("Page 2 ·")
+  await expect(page.getByRole("button", { name: "Page 2", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page"
+  )
   await expect(page2).toBeFocused()
   await expect(page2).toHaveAttribute("aria-current", "page")
   const last = page.getByRole("button", { name: "Page 3", exact: true })
   await last.click()
-  await expect(status()).toContainText("Page 3 · 10 results")
+  await expect(page.locator(".job-list tr")).toHaveCount(10)
   await page.getByRole("button", { name: "Previous page", exact: true }).click()
-  await expect(status()).toContainText("Page 2 ·")
+  await expect(page.getByRole("button", { name: "Page 2", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page"
+  )
   delayReads = false
   await pool.query(`INSERT INTO ${table("associations")} VALUES($1,1,$2,'{}'::jsonb)`, [
     ref.sandboxId,
     arrival
   ])
-  await expect(status()).toContainText("51 matching · 3 pages", { timeout: 12000 })
+  await expect(status()).toContainText("51 results", { timeout: 12000 })
   assert(!(await page.locator(".job-list .job-id").filter({ hasText: arrival }).count()))
   await page.getByRole("button", { name: "First page", exact: true }).click()
   await expect(page.locator(".job-list .job-id").first()).toHaveText(arrival)
   await size.selectOption("50")
-  await expect(status()).toContainText("51 matching · 2 pages")
+  await expect(status()).toContainText("51 results")
   await expect(page.locator(".job-list tr")).toHaveCount(50)
   await page.getByRole("button", { name: "Page 2", exact: true }).click()
-  await expect(status()).toContainText("Page 2 · 1 results")
+  await expect(page.locator(".job-list tr")).toHaveCount(1)
   const beforeShrink = requestedQueries.length
   // Membership removal is app-owned SQL; never manufacture lifecycle outcomes.
   await pool.query(
     `DELETE FROM ${table("associations")} WHERE sandbox_id=$1 AND job_id=ANY($2::text[])`,
     [ref.sandboxId, ids.slice(5)]
   )
-  await expect(status()).toContainText("Page 1 · 5 results")
-  await expect(status()).toContainText("5 matching · 1 page")
+  await expect(page.getByRole("button", { name: "Page 1", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page"
+  )
+  await expect(status()).toContainText("5 results")
   const shrinkQueries = requestedQueries.slice(beforeShrink)
   assert.equal(
     shrinkQueries.filter((q) => !q.cursor).length,
@@ -311,7 +317,7 @@ try {
     `DELETE FROM ${table("associations")} WHERE sandbox_id=$1 AND job_id=ANY($2::text[])`,
     [ref.sandboxId, ids.slice(0, 5)]
   )
-  await expect(status()).toContainText("0 matching · 0 pages")
+  await expect(status()).toContainText("0 results")
   await expect(page.locator(".job-list tr")).toHaveCount(0)
   assert.equal((await query(params)).body.stats.total, 5)
   checks.push(

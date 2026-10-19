@@ -222,6 +222,8 @@ export const make = (client: Client, sandbox: SandboxView, options: Options = {}
   }
   return {
     ...state,
+    filter: (filters: import("@effect-jobs/playground-contracts/Jobs").JobFilters) =>
+      state.filter(filters).pipe(Effect.tap(() => Effect.sync(navigation.syncList))),
     run,
     dispose,
     now,
