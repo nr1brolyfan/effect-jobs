@@ -30,7 +30,17 @@ export const OperatorControls = ({
   const dialog = useRef<HTMLDialogElement>(null)
   const trigger = useRef<HTMLButtonElement | null>(null)
   const available = Eligibility.eligibility(detail, sandbox, now)
+  const actionApplicable =
+    action === "cancel"
+      ? available.cancel.enabled
+      : action === "retry-now"
+        ? available.retryNow.enabled
+        : action === "redrive" && available.redrive.enabled
   useEffect(() => {
+    if (action !== undefined && !actionApplicable) {
+      setAction(undefined)
+      return
+    }
     const element = dialog.current
     if (action !== undefined && element && !element.open) {
       element.showModal()
@@ -40,7 +50,7 @@ export const OperatorControls = ({
         element.close()
       }
     }
-  }, [action])
+  }, [action, actionApplicable])
   const dismiss = () => {
     dialog.current?.close()
     setAction(undefined)
