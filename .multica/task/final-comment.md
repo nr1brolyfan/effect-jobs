@@ -1,0 +1,7 @@
+Wdrożone lokalnie: widoczne są tylko akcje właściwe dla joba i resolution; busy/pending oraz zablokowana, dostępna korekta pozostają widoczne i wyłączone. Puste grupy znikają w drawerze i pełnym widoku. Usunięta widoczna stopka Locked/Unlocked oraz Result; błędy, potwierdzenia, receipt lookup, odblokowanie/kopiowanie/korekta i aktualizacje live zachowane.
+
+Commit: `5adae2d9cc110d2300bc97838db3b7ee51f02567`, tree `4a9baad10133da48d01deb3e7ce379788e437c5a`, base `78b0cd802ac76ef2b63fdceaac57cd98778b606b`, gałąź `feat/applicable-job-controls`. Dokładny worktree, ownership, przeczytane dokumenty, polecenia i hashe w załączonym handoffie; macierz akcji zawiera odwołania do źródeł.
+
+PASS: build, typy, lint/format zmienionych plików, 120 testów, 225 przypadków przeglądarkowych i 28 sprawdzeń na rzeczywistym PostgreSQL 16.15/workerd. Potwierdzone desktop/mobile, drawer/full page, sześć wymaganych stanów, Pending→Cancelled, RetryScheduled→Completed, wrong-code/unlock/copy/edit/corrected-redrive i wykonanie następcy. Załączone screenshoty i receipt sprzątania własnych zasobów.
+
+Ograniczenie: pełny `playground:lint` nadal zgłasza istniejące ostrzeżenia Effect w testach workera poza zmienionymi plikami; log w archiwum. Bez osłabiania bramek, pełnej historycznej macierzy ani 24h soak. Checkout i preview właściciela nietknięte. Bez push/PR/merge i bez zlecania review; zamrożony diff przekazuję koordynatorowi.

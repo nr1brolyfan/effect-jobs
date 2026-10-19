@@ -1,0 +1,10 @@
+$ vitest run packages/playground-contracts/tests apps/playground-worker/tests/repairs apps/website/tests/ui/repair apps/website/tests/ui/details/Navigation.test.ts apps/playground-worker/tests/details-integration apps/website/tests/ui/RepairAtoms.test.ts
+
+ RUN  v4.1.11 /home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-2382-259db7872eac/worktree
+
+
+ Test Files  18 passed (18)
+      Tests  120 passed (120)
+   Start at  17:31:38
+   Duration  929ms (transform 2.26s, setup 0ms, import 7.93s, tests 439ms, environment 2ms)
+

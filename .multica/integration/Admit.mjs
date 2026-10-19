@@ -3175,21 +3175,21 @@ var random32 = () => {
   return String.fromCharCode(hexCharCodes[a >>> 28], hexCharCodes[a >>> 24 & 15], hexCharCodes[a >>> 20 & 15], hexCharCodes[a >>> 16 & 15], hexCharCodes[a >>> 12 & 15], hexCharCodes[a >>> 8 & 15], hexCharCodes[a >>> 4 & 15], hexCharCodes[a & 15], hexCharCodes[b >>> 28], hexCharCodes[b >>> 24 & 15], hexCharCodes[b >>> 20 & 15], hexCharCodes[b >>> 16 & 15], hexCharCodes[b >>> 12 & 15], hexCharCodes[b >>> 8 & 15], hexCharCodes[b >>> 4 & 15], hexCharCodes[b & 15], hexCharCodes[c >>> 28], hexCharCodes[c >>> 24 & 15], hexCharCodes[c >>> 20 & 15], hexCharCodes[c >>> 16 & 15], hexCharCodes[c >>> 12 & 15], hexCharCodes[c >>> 8 & 15], hexCharCodes[c >>> 4 & 15], hexCharCodes[c & 15], hexCharCodes[d >>> 28], hexCharCodes[d >>> 24 & 15], hexCharCodes[d >>> 20 & 15], hexCharCodes[d >>> 16 & 15], hexCharCodes[d >>> 12 & 15], hexCharCodes[d >>> 8 & 15], hexCharCodes[d >>> 4 & 15], hexCharCodes[d & 15]);
 };
 var decode = (str) => {
-  const bytes3 = new TextEncoder().encode(str);
-  if (bytes3.length % 2 !== 0) {
+  const bytes4 = new TextEncoder().encode(str);
+  if (bytes4.length % 2 !== 0) {
     return fail2(new EncodingError({
       module: "Hex",
       kind: "Decode",
       input: str,
-      message: `Length must be a multiple of 2, but is ${bytes3.length}`
+      message: `Length must be a multiple of 2, but is ${bytes4.length}`
     }));
   }
   try {
-    const length = bytes3.length / 2;
+    const length = bytes4.length / 2;
     const result7 = new Uint8Array(length);
     for (let i = 0; i < length; i++) {
-      const a = fromHexChar(bytes3[i * 2]);
-      const b = fromHexChar(bytes3[i * 2 + 1]);
+      const a = fromHexChar(bytes4[i * 2]);
+      const b = fromHexChar(bytes4[i * 2 + 1]);
       result7[i] = a << 4 | b;
     }
     return succeed2(result7);
@@ -3208,10 +3208,10 @@ var decoder = /* @__PURE__ */ new TextDecoder();
 var byteToHex = /* @__PURE__ */ Array.from({
   length: 256
 }, (_, i) => i.toString(16).padStart(2, "0"));
-var hexEncodeUint8Array = (bytes3) => {
+var hexEncodeUint8Array = (bytes4) => {
   let result7 = "";
-  for (let i = 0; i < bytes3.length; i++) {
-    result7 += byteToHex[bytes3[i]];
+  for (let i = 0; i < bytes4.length; i++) {
+    result7 += byteToHex[bytes4[i]];
   }
   return result7;
 };
@@ -3927,7 +3927,7 @@ var fiberAwait = (self) => {
 var fiberAwaitAll = (self) => callback((resume) => {
   const iter = self[Symbol.iterator]();
   const exits = [];
-  let cancel = void 0;
+  let cancel2 = void 0;
   function loop() {
     let result7 = iter.next();
     while (!result7.done) {
@@ -3936,7 +3936,7 @@ var fiberAwaitAll = (self) => callback((resume) => {
         result7 = iter.next();
         continue;
       }
-      cancel = result7.value.addObserver((exit3) => {
+      cancel2 = result7.value.addObserver((exit3) => {
         exits.push(exit3);
         loop();
       });
@@ -3945,7 +3945,7 @@ var fiberAwaitAll = (self) => callback((resume) => {
     resume(succeed3(exits));
   }
   loop();
-  return sync(() => cancel?.());
+  return sync(() => cancel2?.());
 });
 var fiberInterrupt = (self) => withFiber((fiber3) => fiberInterruptAs(self, fiber3.id));
 var fiberInterruptAs = /* @__PURE__ */ dual((args2) => hasProperty(args2[0], FiberTypeId), (self, fiberId3, annotations2) => withFiber((parent) => {
@@ -4250,10 +4250,10 @@ var OnSuccessProto = /* @__PURE__ */ makePrimitiveProto({
   op: "OnSuccess",
   [evaluate]: evaluateCont
 });
-var ContImpl = function(self, cont, payload) {
+var ContImpl = function(self, cont, payload2) {
   this[args] = self;
   this[contA] = cont;
-  this.payload = payload;
+  this.payload = payload2;
 };
 ContImpl.prototype = OnSuccessProto;
 var returnPayload = function() {
@@ -4686,10 +4686,10 @@ var makeMatch = (op, onFailure) => {
   return MatchImpl2;
 };
 var MatchImpl = /* @__PURE__ */ makeMatch("Match", function(cause, fiber3) {
-  const fail14 = cause.reasons.find(isFailReason);
-  if (fail14 === void 0) return failCause(cause);
+  const fail18 = cause.reasons.find(isFailReason);
+  if (fail18 === void 0) return failCause(cause);
   const handlers = this.payload;
-  return fiber3.succeedWith(continuationMarksStack ? handlers.onFailure(fail14.error) : internalCall(() => handlers.onFailure(fail14.error)));
+  return fiber3.succeedWith(continuationMarksStack ? handlers.onFailure(fail18.error) : internalCall(() => handlers.onFailure(fail18.error)));
 });
 var MatchCauseImpl = /* @__PURE__ */ makeMatch("MatchCause", function(cause, fiber3) {
   const handlers = this.payload;
@@ -4698,8 +4698,8 @@ var MatchCauseImpl = /* @__PURE__ */ makeMatch("MatchCause", function(cause, fib
 var matchCause = /* @__PURE__ */ dual(2, (self, options) => new MatchCauseImpl(self, options));
 var matchEffect = /* @__PURE__ */ dual(2, (self, options) => matchCauseEffect(self, {
   onFailure: (cause) => {
-    const fail14 = cause.reasons.find(isFailReason);
-    return fail14 ? options.onFailure(fail14.error) : failCause(cause);
+    const fail18 = cause.reasons.find(isFailReason);
+    return fail18 ? options.onFailure(fail18.error) : failCause(cause);
   },
   onSuccess: options.onSuccess
 }));
@@ -4753,9 +4753,9 @@ var timeout = /* @__PURE__ */ dual(2, (self, duration2) => {
   });
 });
 var timeoutOption = /* @__PURE__ */ dual(2, (self, duration2) => raceFirst(asSome(self), as2(sleep(duration2), none2())));
-var timed = (self) => clockWith((clock) => {
-  const start = clock.monotonicTimeNanosUnsafe();
-  return map5(self, (a) => [nanos(clock.monotonicTimeNanosUnsafe() - start), a]);
+var timed = (self) => clockWith((clock2) => {
+  const start = clock2.monotonicTimeNanosUnsafe();
+  return map5(self, (a) => [nanos(clock2.monotonicTimeNanosUnsafe() - start), a]);
 });
 var ScopeTypeId = "~effect/Scope";
 var ScopeCloseableTypeId = "~effect/Scope/Closeable";
@@ -4978,8 +4978,8 @@ var cachedInvalidateWithTTL = /* @__PURE__ */ dual(2, (self, ttl) => sync(() => 
   let exit3;
   const wait = flatMap3(latch.await, () => exit3);
   return [withFiber((fiber3) => {
-    const clock = fiber3.getRef(ClockRef);
-    const now2 = expiresAt === Infinity ? 0 : clock.currentTimeMillisUnsafe();
+    const clock2 = fiber3.getRef(ClockRef);
+    const now2 = expiresAt === Infinity ? 0 : clock2.currentTimeMillisUnsafe();
     if (running || now2 < expiresAt) return exit3 ?? wait;
     running = true;
     latch.closeUnsafe();
@@ -4987,7 +4987,7 @@ var cachedInvalidateWithTTL = /* @__PURE__ */ dual(2, (self, ttl) => sync(() => 
     onExitUnsafe(fiber3, (exit_) => sync(() => {
       try {
         const duration2 = ttlMillis(exit_);
-        expiresAt = clock.currentTimeMillisUnsafe() + duration2;
+        expiresAt = clock2.currentTimeMillisUnsafe() + duration2;
         exit3 = exit_;
       } catch (error) {
         const cause = causeDie(error);
@@ -5652,7 +5652,7 @@ var makeSpanUnsafe = (fiber3, name3, options) => {
     });
   } else {
     const tracer3 = fiber3.cache.tracer ?? nativeTracer;
-    const clock = fiber3.getRef(ClockRef);
+    const clock2 = fiber3.getRef(ClockRef);
     const timingEnabled = fiber3.getRef(TracerTimingEnabled);
     const annotationsFromEnv = fiber3.getRef(TracerSpanAnnotations);
     const linksFromEnv = fiber3.getRef(TracerSpanLinks);
@@ -5663,7 +5663,7 @@ var makeSpanUnsafe = (fiber3, name3, options) => {
       parent,
       annotations: options?.annotations ?? empty(),
       links: links2,
-      startTime: timingEnabled ? clock.currentTimeNanosUnsafe() : bigint02,
+      startTime: timingEnabled ? clock2.currentTimeNanosUnsafe() : bigint02,
       kind: options?.kind ?? "internal",
       root: options?.root ?? isNone2(parent),
       sampled: options?.sampled ?? (isSome2(parent) && parent.value.sampled === false ? false : !isLogLevelGreaterThan(fiber3.getRef(MinimumTraceLevel), level))
@@ -5683,9 +5683,9 @@ var makeSpan = (name3, options) => withFiber((fiber3) => succeed3(makeSpanUnsafe
 var makeSpanScoped = (name3, options) => uninterruptible(withFiber((fiber3) => {
   const scope3 = getUnsafe(fiber3.context, scopeTag);
   const span2 = makeSpanUnsafe(fiber3, name3, options ?? {});
-  const clock = fiber3.getRef(ClockRef);
+  const clock2 = fiber3.getRef(ClockRef);
   const timingEnabled = fiber3.getRef(TracerTimingEnabled);
-  return as2(scopeAddFinalizerExit(scope3, (exit3) => endSpan(span2, exit3, clock, timingEnabled)), span2);
+  return as2(scopeAddFinalizerExit(scope3, (exit3) => endSpan(span2, exit3, clock2, timingEnabled)), span2);
 }));
 var withSpanScoped = function() {
   const dataFirst = typeof arguments[0] !== "string";
@@ -5715,18 +5715,18 @@ var linkSpans = /* @__PURE__ */ dual((args2) => isEffect(args2[0]), (self, span2
   }));
   return updateService(self, TracerSpanLinks, (current) => [...current, ...links2]);
 });
-var endSpan = (span2, exit3, clock, timingEnabled) => sync(() => {
+var endSpan = (span2, exit3, clock2, timingEnabled) => sync(() => {
   if (span2.status._tag === "Ended") return;
-  span2.end(timingEnabled ? clock.currentTimeNanosUnsafe() : bigint02, exit3);
+  span2.end(timingEnabled ? clock2.currentTimeNanosUnsafe() : bigint02, exit3);
 });
 var useSpan = (name3, ...args2) => {
   const options = args2.length === 1 ? void 0 : args2[0];
   const evaluate2 = args2[args2.length - 1];
   return withFiber((fiber3) => {
     const span2 = makeSpanUnsafe(fiber3, name3, options);
-    const clock = fiber3.getRef(ClockRef);
+    const clock2 = fiber3.getRef(ClockRef);
     const timingEnabled = fiber3.getRef(TracerTimingEnabled);
-    onExitUnsafe(fiber3, (exit3) => endSpan(span2, exit3, clock, timingEnabled));
+    onExitUnsafe(fiber3, (exit3) => endSpan(span2, exit3, clock2, timingEnabled));
     return evaluate2(span2);
   });
 };
@@ -5856,10 +5856,10 @@ var wallTimeNanos = /* @__PURE__ */ (function() {
   };
 })();
 var clockWith = (f) => withFiber((fiber3) => f(fiber3.getRef(ClockRef)));
-var sleep = (duration2) => clockWith((clock) => clock.sleep(fromInputUnsafe(duration2)));
-var currentTimeMillis = /* @__PURE__ */ clockWith((clock) => clock.currentTimeMillis);
-var currentTimeNanos = /* @__PURE__ */ clockWith((clock) => clock.currentTimeNanos);
-var monotonicTimeNanos = /* @__PURE__ */ clockWith((clock) => clock.monotonicTimeNanos);
+var sleep = (duration2) => clockWith((clock2) => clock2.sleep(fromInputUnsafe(duration2)));
+var currentTimeMillis = /* @__PURE__ */ clockWith((clock2) => clock2.currentTimeMillis);
+var currentTimeNanos = /* @__PURE__ */ clockWith((clock2) => clock2.currentTimeNanos);
+var monotonicTimeNanos = /* @__PURE__ */ clockWith((clock2) => clock2.monotonicTimeNanos);
 var TimeoutErrorTypeId = "~effect/Cause/TimeoutError";
 var isTimeoutError = (u) => hasProperty(u, TimeoutErrorTypeId);
 var TimeoutError = class extends (/* @__PURE__ */ TaggedError("TimeoutError")) {
@@ -6017,10 +6017,10 @@ var logWithLevel = (level) => (...message) => {
     if (isLogLevelGreaterThan(fiber3.cache.minimumLogLevel, logLevel)) {
       return void_3;
     }
-    const clock = fiber3.getRef(ClockRef);
+    const clock2 = fiber3.getRef(ClockRef);
     const loggers = fiber3.getRef(CurrentLoggers);
     if (loggers.size > 0) {
-      const date3 = new Date(clock.currentTimeMillisUnsafe());
+      const date3 = new Date(clock2.currentTimeMillisUnsafe());
       for (const logger of loggers) {
         logger.log({
           cause,
@@ -6088,7 +6088,7 @@ var tracerLogger = /* @__PURE__ */ loggerMake(({
   logLevel,
   message
 }) => {
-  const clock = fiber3.getRef(ClockRef);
+  const clock2 = fiber3.getRef(ClockRef);
   const annotations2 = fiber3.getRef(CurrentLogAnnotations);
   const span2 = fiber3.cache.span;
   if (span2 === void 0 || span2._tag === "ExternalSpan") return;
@@ -6101,7 +6101,7 @@ var tracerLogger = /* @__PURE__ */ loggerMake(({
   if (cause.reasons.length > 0) {
     attributes["effect.cause"] = causePretty(cause);
   }
-  span2.event(toStringUnknown(Array.isArray(message) && message.length === 1 ? message[0] : message), clock.currentTimeNanosUnsafe(), attributes);
+  span2.event(toStringUnknown(Array.isArray(message) && message.length === 1 ? message[0] : message), clock2.currentTimeNanosUnsafe(), attributes);
 });
 function interruptChildrenPatch() {
   fiberMiddleware.interruptChildren ??= fiberInterruptChildren;
@@ -7388,10 +7388,10 @@ var fromStepWithMetadata = (step) => fromStep(map5(step, (f) => {
   return (now2, input) => f(meta(now2, input));
 }));
 var toStep = (schedule3) => catchCause(schedule3.step, (cause) => succeed3(() => failCause(cause)));
-var toStepWithMetadata = (schedule3) => clockWith((clock) => map5(toStep(schedule3), (step) => {
+var toStepWithMetadata = (schedule3) => clockWith((clock2) => map5(toStep(schedule3), (step) => {
   const metaFn = metadataFn();
   return (input) => suspend(() => {
-    const now2 = clock.currentTimeMillisUnsafe();
+    const now2 = clock2.currentTimeMillisUnsafe();
     return flatMap3(step(now2, input), ([output, duration2]) => {
       const meta = metaFn(now2, input);
       meta.output = output;
@@ -7507,7 +7507,7 @@ var makeEventEmitter = (onEvent, currentMetadata) => {
   let stepAttempt = 0;
   const emit = (event) => ignoreCause(onEvent(event));
   return {
-    begin: clockWith((clock) => suspend(() => {
+    begin: clockWith((clock2) => suspend(() => {
       const meta = currentMetadata();
       if (meta.stepIndex !== lastStepIndex) {
         lastStepIndex = meta.stepIndex;
@@ -7518,7 +7518,7 @@ var makeEventEmitter = (onEvent, currentMetadata) => {
         attempt: meta.attempt,
         stepAttempt,
         stepIndex: meta.stepIndex,
-        startNanos: clock.monotonicTimeNanosUnsafe()
+        startNanos: clock2.monotonicTimeNanosUnsafe()
       };
       return as2(emit({
         _tag: "AttemptStart",
@@ -7527,8 +7527,8 @@ var makeEventEmitter = (onEvent, currentMetadata) => {
         stepIndex: state.stepIndex
       }), state);
     })),
-    end: (state, exit3) => clockWith((clock) => {
-      const duration2 = nanos(clock.monotonicTimeNanosUnsafe() - state.startNanos);
+    end: (state, exit3) => clockWith((clock2) => {
+      const duration2 = nanos(clock2.monotonicTimeNanosUnsafe() - state.startNanos);
       return emit(exit3._tag === "Success" ? {
         _tag: "AttemptSuccess",
         attempt: state.attempt,
@@ -8026,8 +8026,8 @@ var SummaryMetric = class extends Metric$ {
       }
     };
     const get5 = (context3) => {
-      const clock = get(context3, ClockRef);
-      const quantiles = snapshot4(clock.currentTimeMillisUnsafe());
+      const clock2 = get(context3, ClockRef);
+      const quantiles = snapshot4(clock2.currentTimeMillisUnsafe());
       return {
         quantiles,
         count,
@@ -8501,10 +8501,10 @@ var trackDefects = /* @__PURE__ */ dual((args2) => isEffect2(args2[0]), (self, m
   const input = f === void 0 ? defect : f(defect);
   return update(metric, input);
 }));
-var trackDuration = /* @__PURE__ */ dual((args2) => isEffect2(args2[0]), (self, metric, f) => clockWith3((clock) => {
-  const startTime = clock.monotonicTimeNanosUnsafe();
+var trackDuration = /* @__PURE__ */ dual((args2) => isEffect2(args2[0]), (self, metric, f) => clockWith3((clock2) => {
+  const startTime = clock2.monotonicTimeNanosUnsafe();
   return onExit2(self, () => {
-    const endTime = clock.monotonicTimeNanosUnsafe();
+    const endTime = clock2.monotonicTimeNanosUnsafe();
     const duration2 = subtract(fromInputUnsafe(endTime), fromInputUnsafe(startTime));
     const input = f === void 0 ? duration2 : f(duration2);
     return update(metric, input);
@@ -9486,25 +9486,25 @@ var decode2 = (str) => {
   }
 };
 var decodeString2 = (str) => map2(decode2(str), (_) => decoder2.decode(_));
-var encodeBytes = (bytes3) => {
-  const length = bytes3.length;
+var encodeBytes = (bytes4) => {
+  const length = bytes4.length;
   let result7 = "";
   let i;
   for (i = 2; i < length; i += 3) {
-    result7 += alphabet[bytes3[i - 2] >> 2];
-    result7 += alphabet[(bytes3[i - 2] & 3) << 4 | bytes3[i - 1] >> 4];
-    result7 += alphabet[(bytes3[i - 1] & 15) << 2 | bytes3[i] >> 6];
-    result7 += alphabet[bytes3[i] & 63];
+    result7 += alphabet[bytes4[i - 2] >> 2];
+    result7 += alphabet[(bytes4[i - 2] & 3) << 4 | bytes4[i - 1] >> 4];
+    result7 += alphabet[(bytes4[i - 1] & 15) << 2 | bytes4[i] >> 6];
+    result7 += alphabet[bytes4[i] & 63];
   }
   if (i === length + 1) {
-    result7 += alphabet[bytes3[i - 2] >> 2];
-    result7 += alphabet[(bytes3[i - 2] & 3) << 4];
+    result7 += alphabet[bytes4[i - 2] >> 2];
+    result7 += alphabet[(bytes4[i - 2] & 3) << 4];
     result7 += "==";
   }
   if (i === length) {
-    result7 += alphabet[bytes3[i - 2] >> 2];
-    result7 += alphabet[(bytes3[i - 2] & 3) << 4 | bytes3[i - 1] >> 4];
-    result7 += alphabet[(bytes3[i - 1] & 15) << 2];
+    result7 += alphabet[bytes4[i - 2] >> 2];
+    result7 += alphabet[(bytes4[i - 2] & 3) << 4 | bytes4[i - 1] >> 4];
+    result7 += alphabet[(bytes4[i - 1] & 15) << 2];
     result7 += "=";
   }
   return result7;
@@ -11953,9 +11953,9 @@ var Middleware = class extends Class {
   _tag = "Middleware";
   decode;
   encode;
-  constructor(decode8, encode5) {
+  constructor(decode12, encode5) {
     super();
-    this.decode = decode8;
+    this.decode = decode12;
     this.encode = encode5;
   }
   flip() {
@@ -11968,9 +11968,9 @@ var Transformation = class extends Class {
   _tag = "Transformation";
   decode;
   encode;
-  constructor(decode8, encode5) {
+  constructor(decode12, encode5) {
     super();
-    this.decode = decode8;
+    this.decode = decode12;
     this.encode = encode5;
   }
   flip() {
@@ -12218,24 +12218,24 @@ var Declaration = class extends ASTNodeImpl {
    * differently when encoding. `undefined` reuses `run`.
    */
   encodingRun;
-  constructor(typeParameters, run4, annotations2, checks, encoding, context3, encodingChecks, encodingRun) {
+  constructor(typeParameters, run5, annotations2, checks, encoding, context3, encodingChecks, encodingRun) {
     super(annotations2, checks, encoding, context3);
     this.typeParameters = typeParameters;
-    this.run = run4;
+    this.run = run5;
     this.encodingChecks = encodingChecks;
     this.encodingRun = encodingRun;
   }
   /** @internal */
   getParser() {
-    let run4;
+    let run5;
     return (input, options) => {
       if (input === missing) return missingExit;
-      return (run4 ??= this.run(this.typeParameters))(input, this, options);
+      return (run5 ??= this.run(this.typeParameters))(input, this, options);
     };
   }
-  _rebuild(recur2, checks, encodingChecks, run4, encodingRun) {
+  _rebuild(recur2, checks, encodingChecks, run5, encodingRun) {
     const tps = mapOrSame(this.typeParameters, recur2);
-    return tps === this.typeParameters && checks === this.checks && encodingChecks === this.encodingChecks && run4 === this.run && encodingRun === this.encodingRun ? this : new Declaration(tps, run4, this.annotations, checks, void 0, this.context, encodingChecks, encodingRun);
+    return tps === this.typeParameters && checks === this.checks && encodingChecks === this.encodingChecks && run5 === this.run && encodingRun === this.encodingRun ? this : new Declaration(tps, run5, this.annotations, checks, void 0, this.context, encodingChecks, encodingRun);
   }
   /** @internal */
   recur(recur2) {
@@ -13640,9 +13640,9 @@ var Filter2 = class extends Class {
    * Whether the parsing process should be aborted after this check has failed.
    */
   aborted;
-  constructor(run4, annotations2 = void 0, aborted = false) {
+  constructor(run5, annotations2 = void 0, aborted = false) {
     super();
-    this.run = run4;
+    this.run = run5;
     this.annotations = annotations2;
     this.aborted = aborted;
   }
@@ -13712,7 +13712,7 @@ var finite = /* @__PURE__ */ appendChecks(number2, [/* @__PURE__ */ isFinite2()]
 var numberToJson = /* @__PURE__ */ new Link(/* @__PURE__ */ new Union([finite, nonFiniteLiterals]), /* @__PURE__ */ new Transformation(/* @__PURE__ */ Number4(), /* @__PURE__ */ transform((n) => globalThis.Number.isFinite(n) ? n : globalThis.String(n))));
 function isPattern(regExp, annotations2) {
   const copy3 = new globalThis.RegExp(regExp);
-  const payload = {
+  const payload2 = {
     source: copy3.source,
     flags: copy3.flags
   };
@@ -13720,16 +13720,16 @@ function isPattern(regExp, annotations2) {
     copy3.lastIndex = 0;
     return copy3.test(s);
   }, {
-    expected: `a string matching the RegExp ${payload.source}`,
+    expected: `a string matching the RegExp ${payload2.source}`,
     representation: {
       id: "effect/schema/isPattern",
-      payload
+      payload: payload2
     },
     // Keep the filter exportable so its JSON Schema annotations are preserved
     // when the RegExp constraint itself is omitted.
     toJsonSchema: () => [{}, true],
     arbitraryConstraint: {
-      patterns: [payload]
+      patterns: [payload2]
     },
     ...annotations2
   });
@@ -14497,8 +14497,8 @@ var CompilerEntry = class extends InterpretedEntry {
     return this.save("decodeEffect", this.operation("decodeEffect") ?? compile(this.ast, (ast) => lazyParser(this.resolve, ast, "parser")));
   }
   get parser() {
-    const decode8 = this.decode;
-    return decode8 === void 0 ? this.decodeEffect : this.save("parser", withDecode(decode8, () => this.decodeEffect));
+    const decode12 = this.decode;
+    return decode12 === void 0 ? this.decodeEffect : this.save("parser", withDecode(decode12, () => this.decodeEffect));
   }
   get makeEffect() {
     const makeEffect2 = this.operation("makeEffect");
@@ -14521,13 +14521,13 @@ function withDecode(fastDecode, decodeEffect3) {
     return (detailed ??= decodeEffect3())(input, options);
   };
 }
-function lazyParser(resolve5, ast, operation) {
+function lazyParser(resolve5, ast, operation2) {
   const entry = resolve5(ast);
-  if (entry.compiled === void 0 || Object.hasOwn(entry, operation)) {
-    return entry[operation];
+  if (entry.compiled === void 0 || Object.hasOwn(entry, operation2)) {
+    return entry[operation2];
   }
   let parser;
-  return (input, options) => (parser ??= entry[operation])(input, options);
+  return (input, options) => (parser ??= entry[operation2])(input, options);
 }
 function resolve3(ast) {
   const cached3 = cache.get(ast);
@@ -14578,11 +14578,11 @@ function makeIs(ast) {
     };
   }
   const entry = resolve3(ast);
-  const guard2 = entry.is;
-  if (guard2 !== void 0) {
+  const guard4 = entry.is;
+  if (guard4 !== void 0) {
     return (input) => {
       try {
-        return guard2(input, defaultParseOptions);
+        return guard4(input, defaultParseOptions);
       } catch (error) {
         getSchemaIssueOrThrow(die2(error), "Type guard adapter can only return false for schema issues");
         return false;
@@ -14599,12 +14599,12 @@ function makeIs(ast) {
 }
 function _is(ast) {
   const typeAST = toType(ast);
-  let guard2 = (input) => {
-    guard2 = makeIs(typeAST);
-    return guard2(input);
+  let guard4 = (input) => {
+    guard4 = makeIs(typeAST);
+    return guard4(input);
   };
   return (input) => {
-    return guard2(input);
+    return guard4(input);
   };
 }
 function _issue(ast) {
@@ -14726,19 +14726,19 @@ function asResult(parser) {
   };
 }
 function makeSync(ast, options) {
-  let run4;
-  return (input, overrideOptions) => (run4 ??= makeSyncEntry(resolve3(ast), options))(input, overrideOptions);
+  let run5;
+  return (input, overrideOptions) => (run5 ??= makeSyncEntry(resolve3(ast), options))(input, overrideOptions);
 }
 function makeSyncEntry(entry, options) {
-  const decode8 = entry.decode;
+  const decode12 = entry.decode;
   let detailed;
-  const run4 = decode8 === void 0 ? (input, parseOptions = defaultParseOptions) => (detailed ??= makeDetailedSync(entry))(input, parseOptions) : (input, parseOptions = defaultParseOptions) => {
+  const run5 = decode12 === void 0 ? (input, parseOptions = defaultParseOptions) => (detailed ??= makeDetailedSync(entry))(input, parseOptions) : (input, parseOptions = defaultParseOptions) => {
     if (input === missing) {
       return (detailed ??= makeDetailedSync(entry))(input, parseOptions);
     }
     let output;
     try {
-      output = decode8(input, parseOptions);
+      output = decode12(input, parseOptions);
     } catch (error) {
       getSchemaIssueOrThrow(die2(error), "Sync adapter can only throw schema issues");
       throw error;
@@ -14746,7 +14746,7 @@ function makeSyncEntry(entry, options) {
     if (output !== invalid3) return output;
     return (detailed ??= makeDetailedSync(entry))(input, parseOptions);
   };
-  return options === void 0 ? run4 : (input, overrideOptions) => run4(input, mergeParseOptions(options, overrideOptions));
+  return options === void 0 ? run5 : (input, overrideOptions) => run5(input, mergeParseOptions(options, overrideOptions));
 }
 function makeDetailedSync(entry) {
   return asSync(runWithCompiler(() => entry.decodeEffect, entry.ast));
@@ -14785,11 +14785,11 @@ function makeConstructorSync(ast) {
     } : {
       disableChecks: true
     } : options?.parseOptions ?? defaultParseOptions;
-    const make48 = entry.make;
-    if (make48 !== void 0 && input !== missing) {
+    const make53 = entry.make;
+    if (make53 !== void 0 && input !== missing) {
       let output;
       try {
-        output = make48(input, parseOptions);
+        output = make53(input, parseOptions);
       } catch (error) {
         getSchemaIssueOrThrow(die2(error), "Constructor adapter can only throw schema issues");
         throw error;
@@ -15084,7 +15084,7 @@ function convertDocument(document, adapter, options) {
     trackIds: true
   }, (convert) => ({
     schema: convert(document.schema),
-    definitions: mapObject(document.definitions, (definition, key2) => convert(definition, ["$defs", key2], ["definitions", key2]))
+    definitions: mapObject(document.definitions, (definition2, key2) => convert(definition2, ["$defs", key2], ["definitions", key2]))
   }));
 }
 var SCHEMA_MAP_KEYWORDS = /* @__PURE__ */ new Set(["properties", "patternProperties"]);
@@ -15693,9 +15693,9 @@ function compileJsonSchema(representations, rootPaths, references, options) {
       }
       if (!pointer.startsWith("/$defs/")) return $ref;
       const separator = pointer.indexOf("/", 7);
-      const canonical2 = definitionAliases.get(unescapeToken(pointer.slice(7, separator < 0 ? void 0 : separator)));
-      if (canonical2 === void 0) return $ref;
-      return $ref.replace(/^#(?:\/|%2f).*?(?:\/|%2f).*?(?=\/|%2f|$)/i, formatDefinitionReference(canonical2));
+      const canonical3 = definitionAliases.get(unescapeToken(pointer.slice(7, separator < 0 ? void 0 : separator)));
+      if (canonical3 === void 0) return $ref;
+      return $ref.replace(/^#(?:\/|%2f).*?(?:\/|%2f).*?(?=\/|%2f|$)/i, formatDefinitionReference(canonical3));
     });
   }
   function getIdentifierFallback(representation) {
@@ -16433,7 +16433,7 @@ function toStandardSchemaV1(self, options) {
     ...options?.parseOptions
   };
   const formatter = makeFormatterStandardSchemaV1(options);
-  const validate3 = (value6) => {
+  const validate4 = (value6) => {
     const scheduler = new MixedScheduler("sync");
     const fiber3 = runFork2(match6(decodeUnknownEffect3(value6, parseOptions), {
       onFailure: formatter,
@@ -16458,7 +16458,7 @@ function toStandardSchemaV1(self, options) {
     const out = self;
     if ("validate" in out["~standard"]) return out;
     Object.assign(out["~standard"], {
-      validate: validate3
+      validate: validate4
     });
     return out;
   }
@@ -16466,7 +16466,7 @@ function toStandardSchemaV1(self, options) {
     "~standard": {
       version: 1,
       vendor: "effect",
-      validate: validate3
+      validate: validate4
     }
   });
 }
@@ -17717,16 +17717,16 @@ var makeIpv6 = (w0, w1, w2, w3) => {
   return Object.freeze(self);
 };
 var packOctets = (a, b, c, d) => (a << 24 | b << 16 | c << 8 | d) >>> 0;
-var packBytes = (bytes3, offset) => packOctets(bytes3[offset], bytes3[offset + 1], bytes3[offset + 2], bytes3[offset + 3]);
+var packBytes = (bytes4, offset) => packOctets(bytes4[offset], bytes4[offset + 1], bytes4[offset + 2], bytes4[offset + 3]);
 var wordToOctets = (word) => [word >>> 24, word >>> 16 & 255, word >>> 8 & 255, word & 255];
-var makeMac = (bytes3) => {
+var makeMac = (bytes4) => {
   const self = Object.assign(Object.create(MacProto), {
-    bytes: new Uint8Array(bytes3)
+    bytes: new Uint8Array(bytes4)
   });
   return Object.freeze(self);
 };
-var ipv4FromBytesUnsafe = (bytes3) => makeIpv4(packBytes(bytes3, 0));
-var ipv6FromBytesUnsafe = (bytes3) => makeIpv6(packBytes(bytes3, 0), packBytes(bytes3, 4), packBytes(bytes3, 8), packBytes(bytes3, 12));
+var ipv4FromBytesUnsafe = (bytes4) => makeIpv4(packBytes(bytes4, 0));
+var ipv6FromBytesUnsafe = (bytes4) => makeIpv6(packBytes(bytes4, 0), packBytes(bytes4, 4), packBytes(bytes4, 8), packBytes(bytes4, 12));
 var addressError = (input, message) => fail2(new NetAddressError({
   input,
   message
@@ -18141,10 +18141,10 @@ var fromInterfaceValue = (value6) => {
   return Object.freeze(self);
 };
 var toBytes = (address) => isIpv4Address(address) ? ipv4ToOctets(address) : ipv6ToOctets(address);
-var maskBytes = (bytes3, prefixLength) => {
+var maskBytes = (bytes4, prefixLength) => {
   const wholeBytes = Math.floor(prefixLength / 8);
   const partialBits = prefixLength % 8;
-  return bytes3.map((byte, index2) => {
+  return bytes4.map((byte, index2) => {
     if (index2 < wholeBytes) return byte;
     if (index2 === wholeBytes && partialBits !== 0) return byte & (255 << 8 - partialBits & 255);
     return 0;
@@ -18152,9 +18152,9 @@ var maskBytes = (bytes3, prefixLength) => {
 };
 var make22 = (address, prefixLength) => {
   return flatMap2(make21(address, prefixLength), (value6) => {
-    const bytes3 = toBytes(address);
-    const masked = maskBytes(bytes3, prefixLength);
-    if (bytes3.some((byte, index2) => byte !== masked[index2])) {
+    const bytes4 = toBytes(address);
+    const masked = maskBytes(bytes4, prefixLength);
+    if (bytes4.some((byte, index2) => byte !== masked[index2])) {
       return fail2(new NetAddressError({
         input: address,
         message: "address has non-zero host bits"
@@ -18183,8 +18183,8 @@ var format6 = (self) => `${formatIp(self.address)}/${self.prefixLength}`;
 // node_modules/.bun/effect@4.0.0/node_modules/effect/dist/Schema.js
 var TypeId28 = TypeId24;
 function declareConstructor() {
-  return (typeParameters, run4, annotations2) => {
-    return make23(new Declaration(typeParameters.map(getAST), (typeParameters2) => run4(typeParameters2.map((ast) => make23(ast))), annotations2));
+  return (typeParameters, run5, annotations2) => {
+    return make23(new Declaration(typeParameters.map(getAST), (typeParameters2) => run5(typeParameters2.map((ast) => make23(ast))), annotations2));
   };
 }
 function declare(is5, annotations2) {
@@ -18463,11 +18463,11 @@ function encodeKeys(mapping2) {
       const encoded = toEncoded2(self.fields[k]);
       const hasMapping = Object.hasOwn(mapping2, k);
       const encodedKey = hasMapping ? mapping2[k] : k;
-      const canonical2 = canonicalPropertyKey(encodedKey);
-      if (seenEncodedKeys.has(canonical2)) {
+      const canonical3 = canonicalPropertyKey(encodedKey);
+      if (seenEncodedKeys.has(canonical3)) {
         throw new globalThis.Error(`Duplicate encoded keys: ${formatPropertyKey(encodedKey)}`);
       }
-      seenEncodedKeys.add(canonical2);
+      seenEncodedKeys.add(canonical3);
       assignProperty(fields, encodedKey, encoded);
       if (hasMapping) {
         appliedMapping[k] = encodedKey;
@@ -18629,8 +18629,8 @@ function fromBrand(identifier5, ctor) {
     (ctor.checks ? self.check(...ctor.checks) : self).pipe(brand(identifier5))
   );
 }
-function middlewareDecoding2(decode8) {
-  return (schema) => make23(middlewareDecoding(schema.ast, new Middleware(decode8, identity)), {
+function middlewareDecoding2(decode12) {
+  return (schema) => make23(middlewareDecoding(schema.ast, new Middleware(decode12, identity)), {
     schema
   });
 }
@@ -18660,8 +18660,8 @@ function decodeTo2(to, transformation) {
   };
 }
 function linkDecoding() {
-  return (to, decode8) => link()(to, {
-    decode: decode8,
+  return (to, decode12) => link()(to, {
+    decode: decode12,
     encode: forbiddenEncoding
   });
 }
@@ -19360,7 +19360,7 @@ var isBetween2 = /* @__PURE__ */ makeIsBetween({
   annotate: (options) => {
     const exclusiveMinimum = options.exclusiveMinimum ? true : void 0;
     const exclusiveMaximum = options.exclusiveMaximum ? true : void 0;
-    const payload = {
+    const payload2 = {
       minimum: encodeNumberPayload(options.minimum),
       maximum: encodeNumberPayload(options.maximum),
       ...exclusiveMinimum && {
@@ -19373,7 +19373,7 @@ var isBetween2 = /* @__PURE__ */ makeIsBetween({
     return {
       representation: {
         id: "effect/schema/isBetween",
-        payload
+        payload: payload2
       },
       toJsonSchema: () => ({
         [exclusiveMinimum ? "exclusiveMinimum" : "minimum"]: options.minimum,
@@ -19532,7 +19532,7 @@ var isBetweenDate = /* @__PURE__ */ makeIsBetween({
   annotate: (options) => {
     const exclusiveMinimum = options.exclusiveMinimum ? true : void 0;
     const exclusiveMaximum = options.exclusiveMaximum ? true : void 0;
-    const payload = {
+    const payload2 = {
       minimum: encodeDatePayload(options.minimum),
       maximum: encodeDatePayload(options.maximum),
       ...exclusiveMinimum && {
@@ -19545,7 +19545,7 @@ var isBetweenDate = /* @__PURE__ */ makeIsBetween({
     return {
       representation: {
         id: "effect/schema/isBetweenDate",
-        payload
+        payload: payload2
       },
       toJsonSchema: () => [{}, true],
       toCode: () => ({
@@ -19631,7 +19631,7 @@ var isBetweenBigInt = /* @__PURE__ */ makeIsBetween({
   annotate: (options) => {
     const exclusiveMinimum = options.exclusiveMinimum ? true : void 0;
     const exclusiveMaximum = options.exclusiveMaximum ? true : void 0;
-    const payload = {
+    const payload2 = {
       minimum: options.minimum.toString(10),
       maximum: options.maximum.toString(10),
       ...exclusiveMinimum && {
@@ -19644,7 +19644,7 @@ var isBetweenBigInt = /* @__PURE__ */ makeIsBetween({
     return {
       representation: {
         id: "effect/schema/isBetweenBigInt",
-        payload
+        payload: payload2
       },
       toJsonSchema: () => [{}, true],
       toCode: () => ({
@@ -20291,8 +20291,8 @@ var File = /* @__PURE__ */ instanceOf(globalThis.File, {
       onFailure: () => fail6(new InvalidValue({
         expected: "a valid Base64 string"
       }, e.data, options)),
-      onSuccess: (bytes3) => {
-        const buffer2 = new globalThis.Uint8Array(bytes3);
+      onSuccess: (bytes4) => {
+        const buffer2 = new globalThis.Uint8Array(bytes4);
         return succeed6(new globalThis.File([buffer2], e.name, {
           type: e.type,
           lastModified: e.lastModified
@@ -20301,9 +20301,9 @@ var File = /* @__PURE__ */ instanceOf(globalThis.File, {
     }),
     encode: (file, options) => tryPromise2({
       try: async () => {
-        const bytes3 = new globalThis.Uint8Array(await file.arrayBuffer());
+        const bytes4 = new globalThis.Uint8Array(await file.arrayBuffer());
         return {
-          data: encode2(bytes3),
+          data: encode2(bytes4),
           type: file.type,
           name: file.name,
           lastModified: file.lastModified
@@ -20893,7 +20893,7 @@ var IpAddress = /* @__PURE__ */ declare(isIpAddress, {
   identifier: "IpAddress"
 });
 var IpAddressFromString = /* @__PURE__ */ netAddressFromString(IpAddress, ipFromString, formatIp, "IpAddressFromString");
-var netAddressRefinement = (schema, guard2, expected, identifier5) => refine(guard2, {
+var netAddressRefinement = (schema, guard4, expected, identifier5) => refine(guard4, {
   expected
 })(schema).annotate({
   identifier: identifier5
@@ -21605,8 +21605,8 @@ function makeClass(Inherited, identifier5, struct2, annotations2, proto) {
   const out = class extends Inherited {
     constructor(...[input, options]) {
       const internalOptions = options;
-      const payload = internalOptions?.["~payload"];
-      const value6 = payload?.token === payloadToken ? payload.value : struct2.make(input ?? {}, options);
+      const payload2 = internalOptions?.["~payload"];
+      const value6 = payload2?.token === payloadToken ? payload2.value : struct2.make(input ?? {}, options);
       super(value6, {
         ...options,
         disableChecks: true,
@@ -21985,15 +21985,15 @@ var failCauseUnsafe = (self, cause) => {
     return false;
   }
   const exit3 = exitFailCause(cause);
-  const fail14 = exitZipRight(exit3, exitFailDone);
+  const fail18 = exitZipRight(exit3, exitFailDone);
   if (self.state.offers.size === 0 && self.messages.length === 0) {
-    finalize(self, fail14);
+    finalize(self, fail18);
     return true;
   }
   self.state = {
     ...self.state,
     _tag: "Closing",
-    exit: fail14
+    exit: fail18
   };
   scheduleReleaseTaker(self);
   return true;
@@ -22453,14 +22453,14 @@ function makeValueMatcher(provided, value6) {
   matcher.value = value6;
   return matcher;
 }
-var makeWhen = (guard2, evaluate2) => ({
+var makeWhen = (guard4, evaluate2) => ({
   _tag: "When",
-  guard: guard2,
+  guard: guard4,
   evaluate: evaluate2
 });
-var makeNot = (guard2, evaluate2) => ({
+var makeNot = (guard4, evaluate2) => ({
   _tag: "Not",
-  guard: guard2,
+  guard: guard4,
   evaluate: evaluate2
 });
 var makePredicate = (pattern) => {
@@ -23084,7 +23084,7 @@ var strategyNoop = {
   reclaim: (_) => undefined_2
 };
 var strategyCreationTTL = /* @__PURE__ */ fnUntraced2(function* (ttl) {
-  const clock = yield* Clock;
+  const clock2 = yield* Clock;
   const queue = yield* unbounded();
   const ttlMillis = toMillis(fromInputUnsafe(ttl));
   const creationTimes = /* @__PURE__ */ new WeakMap();
@@ -23094,7 +23094,7 @@ var strategyCreationTTL = /* @__PURE__ */ fnUntraced2(function* (ttl) {
         if (!pool.state.items.has(item) || pool.state.invalidated.has(item)) {
           return void_5;
         }
-        const now2 = clock.currentTimeMillisUnsafe();
+        const now2 = clock2.currentTimeMillisUnsafe();
         const created = creationTimes.get(item);
         const remaining = ttlMillis - (now2 - created);
         return remaining > 0 ? delay2(process2(item), remaining) : invalidatePoolItem(pool, item);
@@ -23104,7 +23104,7 @@ var strategyCreationTTL = /* @__PURE__ */ fnUntraced2(function* (ttl) {
       }));
     },
     onAcquire: (item) => suspend3(() => {
-      creationTimes.set(item, clock.currentTimeMillisUnsafe());
+      creationTimes.set(item, clock2.currentTimeMillisUnsafe());
       return offer(queue, item);
     }),
     reclaim: (_) => undefined_2
@@ -23161,7 +23161,7 @@ var make27 = /* @__PURE__ */ sync3(() => {
     keysToHashes(keys4, (hash2) => {
       const set3 = handlers.get(hash2);
       if (set3 === void 0) return;
-      set3.forEach((run4) => run4());
+      set3.forEach((run5) => run5());
     });
   };
   const invalidate2 = (keys4) => contextWith2((services) => {
@@ -23218,7 +23218,7 @@ var make27 = /* @__PURE__ */ sync3(() => {
         running = false;
       }
     };
-    function run4() {
+    function run5() {
       if (running) {
         pending = true;
         return;
@@ -23226,9 +23226,9 @@ var make27 = /* @__PURE__ */ sync3(() => {
       running = true;
       runFork3(effect2).addObserver(handleExit);
     }
-    const cancel = registerUnsafe(keys4, run4);
-    yield* addFinalizer2(scope3, sync3(cancel));
-    run4();
+    const cancel2 = registerUnsafe(keys4, run5);
+    yield* addFinalizer2(scope3, sync3(cancel2));
+    run5();
     return results2;
   });
   const stream = (tables2, effect2) => query(tables2, effect2).pipe(map8(fromQueue), unwrap3);
@@ -23238,7 +23238,7 @@ var make27 = /* @__PURE__ */ sync3(() => {
       pending.forEach((hash2) => {
         const set3 = handlers.get(hash2);
         if (set3 === void 0) return;
-        set3.forEach((run4) => run4());
+        set3.forEach((run5) => run5());
       });
     })));
   });
@@ -23955,18 +23955,18 @@ var makeUnsafe8 = (segments, acquirer, compiler2, spanAttributes, transformRows,
 };
 var StatementProto = {
   [FragmentTypeId]: FragmentTypeId,
-  withConnection(operation, f, withoutTransform = false) {
+  withConnection(operation2, f, withoutTransform = false) {
     return useSpan2("sql.execute", {
       kind: "client"
-    }, (span2) => this.withConnectionSpan(operation, f, withoutTransform, span2));
+    }, (span2) => this.withConnectionSpan(operation2, f, withoutTransform, span2));
   },
-  withConnectionSpan(operation, f, withoutTransform, span2) {
+  withConnectionSpan(operation2, f, withoutTransform, span2) {
     return withStatement(this, span2, (statement2, fiber3) => {
       const [sql, params] = statement2.compile(withoutTransform);
       for (const [key2, value6] of this.spanAttributes) {
         span2.attribute(key2, value6);
       }
-      span2.attribute(ATTR_DB_OPERATION_NAME, operation);
+      span2.attribute(ATTR_DB_OPERATION_NAME, operation2);
       span2.attribute(ATTR_DB_QUERY_TEXT, sql);
       const execute2 = this.borrower === void 0 ? scoped2(flatMap5(this.acquirer, (_) => f(_, sql, params))) : this.borrower((connection) => f(connection, sql, params));
       return fiber3.cache.tracerEnabled && fiber3.getRef(SpanPropagationEnabled) ? provideService2(execute2, ParentSpan, span2) : execute2;
@@ -24009,9 +24009,9 @@ var StatementProto = {
       const span2 = makeSpanUnsafe(fiber3, "sql.execute", {
         kind: "client"
       });
-      const clock = fiber3.getRef(Clock);
+      const clock2 = fiber3.getRef(Clock);
       const timingEnabled = fiber3.getRef(TracerTimingEnabled2);
-      return onExit2(this.withConnectionSpan("execute", (connection, sql, params) => connection.execute(sql, params, this.transformRows), false, span2), (exit3) => endSpan(span2, exit3, clock, timingEnabled));
+      return onExit2(this.withConnectionSpan("execute", (connection, sql, params) => connection.execute(sql, params, this.transformRows), false, span2), (exit3) => endSpan(span2, exit3, clock2, timingEnabled));
     }
   }),
   compile(withoutTransform) {
@@ -24173,7 +24173,7 @@ var makeWithTransaction = (options) => {
       span2.attribute(key2, value6);
     }
     const services = fiber3.context;
-    const clock = fiber3.getRef(Clock);
+    const clock2 = fiber3.getRef(Clock);
     const connOption = getOption(services, options.transactionService);
     const conn = connOption._tag === "Some" ? succeed6([void 0, connOption.value[0]]) : options.acquireConnection;
     const id2 = connOption._tag === "Some" ? connOption.value[1] + 1 : 0;
@@ -24181,18 +24181,18 @@ var makeWithTransaction = (options) => {
       let effect3;
       if (isSuccess4(exit3)) {
         if (id2 === 0) {
-          span2.event("db.transaction.commit", clock.currentTimeNanosUnsafe());
+          span2.event("db.transaction.commit", clock2.currentTimeNanosUnsafe());
           const onCommitFailure = options.onCommitFailure;
           effect3 = orDie3(options.commit(conn2));
           if (onCommitFailure) {
             effect3 = onError2(effect3, () => orDie3(onCommitFailure(conn2)));
           }
         } else {
-          span2.event("db.transaction.savepoint", clock.currentTimeNanosUnsafe());
+          span2.event("db.transaction.savepoint", clock2.currentTimeNanosUnsafe());
           effect3 = void_5;
         }
       } else {
-        span2.event("db.transaction.rollback", clock.currentTimeNanosUnsafe());
+        span2.event("db.transaction.rollback", clock2.currentTimeNanosUnsafe());
         effect3 = orDie3(id2 > 0 ? options.rollbackSavepoint(conn2, id2) : options.rollback(conn2));
       }
       if (id2 > 0 && options.releaseSavepoint) {
@@ -24205,33 +24205,137 @@ var makeWithTransaction = (options) => {
 };
 var TransactionConnection = (clientId) => Service(`effect/sql/SqlClient/TransactionConnection/${clientId}`);
 
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobContract.js
-var EnqueueResults = Data_exports.taggedEnum();
-var jobPayloadFormatVersion = 1;
-var maximumJobPayloadBytes = 65536;
-var maximumJobSemanticProjectionBytes = 65536;
-var maximumProtectedJobPayloadSubtrees = 16;
-var maximumJobPayloadSchemaPathBytes = 256;
-var maximumJobPayloadDepth = 32;
-var InvalidJobInput = class extends Data_exports.TaggedError("InvalidJobInput") {
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobId.js
+var JobId = Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMinLength(1)), Schema_exports.brand("effect-jobs/JobId"));
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobIdentity.js
+var nameFormat = "^[a-z][a-z0-9.-]*$";
+var namePattern = /^[a-z][a-z0-9.-]*$/u;
+var name = (maximum) => Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(maximum), Schema_exports.isPattern(namePattern)));
+var QueueName = name(64);
+var JobKind = name(128);
+var OperationName = name(128);
+var SlotName = name(128);
+var JobVersion = Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 1, maximum: 32767 })));
+var CatalogIdentity = Schema_exports.Struct({
+  queue: QueueName,
+  kind: JobKind,
+  version: JobVersion
+});
+var utf8 = new TextEncoder();
+var validScalars = (value6) => {
+  for (const scalar of value6) {
+    const code = scalar.codePointAt(0);
+    if (code >= 55296 && code <= 57343) {
+      return false;
+    }
+  }
+  return true;
 };
-var JobIntegrityConflict = class extends Data_exports.TaggedError("JobIntegrityConflict") {
+var InvalidOperationId = class extends Data_exports.TaggedError("InvalidOperationId") {
 };
-var JobPayloadCodecError = class extends Data_exports.TaggedError("JobPayloadCodecError") {
+var validateOperationId = (value6) => {
+  if (!validScalars(value6)) {
+    throw new InvalidOperationId({ rule: "unicode-scalars" });
+  }
+  if (value6.includes("\0")) {
+    throw new InvalidOperationId({ rule: "no-nul" });
+  }
+  const byteLength = utf8.encode(value6).byteLength;
+  if (byteLength < 1 || byteLength > 256) {
+    throw new InvalidOperationId({ rule: "utf8-length", byteLength });
+  }
+};
+var OperationId = Schema_exports.String.pipe(Schema_exports.check(Schema_exports.makeFilter((value6) => {
+  const length = utf8.encode(value6).byteLength;
+  return validScalars(value6) && !value6.includes("\0") && length >= 1 && length <= 256;
+})));
+var ProducerIdentity = Schema_exports.Struct({
+  operation: OperationName,
+  operationId: OperationId,
+  slot: SlotName
+});
+var JobDeclarationError = class extends Data_exports.TaggedError("JobDeclarationError") {
+};
+var validateProducerDeclaration = (input) => {
+  const expected = `1\u2013128 ASCII characters matching ${nameFormat}`;
+  if (!Schema_exports.is(OperationName)(input.operation)) {
+    throw new JobDeclarationError({
+      field: "operation",
+      value: input.operation,
+      expected
+    });
+  }
+  if (input.slots.length === 0) {
+    throw new JobDeclarationError({
+      field: "slots",
+      expected: "at least one unique slot"
+    });
+  }
+  const seen = /* @__PURE__ */ new Set();
+  input.slots.forEach((slot, index2) => {
+    if (!Schema_exports.is(SlotName)(slot)) {
+      throw new JobDeclarationError({ field: `slots[${index2}]`, value: slot, expected });
+    }
+    if (seen.has(slot)) {
+      throw new JobDeclarationError({
+        field: `slots[${index2}]`,
+        value: slot,
+        expected: "unique declared slot"
+      });
+    }
+    seen.add(slot);
+  });
 };
 
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/PostgreSqlTransaction.js
-var PostgreSqlFailure = class extends Data_exports.TaggedError("PostgreSqlFailure") {
-};
-var PostgreSqlInvalidHandle = class extends Data_exports.TaggedError("PostgreSqlInvalidHandle") {
-};
-var PostgreSqlApplication = class extends Context_exports.Service()("effect-jobs/PostgreSqlApplication") {
-};
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobLifecycle.js
+var JobLifecycle_exports = {};
+__export(JobLifecycle_exports, {
+  BatchLimit: () => BatchLimit,
+  Counter: () => Counter,
+  JobFinalization: () => JobFinalization,
+  JobFinalizations: () => JobFinalizations,
+  JobLifecycleError: () => JobLifecycleError,
+  JobOwnership: () => JobOwnership,
+  JobSnapshot: () => JobSnapshot,
+  JobState: () => JobState,
+  LeaseToken: () => LeaseToken,
+  addTimestamp: () => addTimestamp,
+  attemptNumber: () => attemptNumber,
+  cancel: () => cancel,
+  claim: () => claim,
+  cleanupEligible: () => cleanupEligible,
+  finalizationFromFailure: () => finalizationFromFailure,
+  finalize: () => finalize2,
+  isOwned: () => isOwned,
+  ownershipOf: () => ownershipOf,
+  recoverExpired: () => recoverExpired,
+  release: () => release2,
+  retryNow: () => retryNow,
+  usableLease: () => usableLease,
+  validateSnapshot: () => validateSnapshot
+});
 
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobEnqueue.js
-var JobBackendError = class extends Data_exports.TaggedError("JobBackendError") {
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/FailureCode.js
+var FailureCode = Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(128), Schema_exports.isPattern(/^[a-z0-9][a-z0-9_-]*$(?![\s\S])/u)), Schema_exports.brand("effect-jobs/FailureCode"));
+var InvalidFailureCode = class extends Data_exports.TaggedError("InvalidFailureCode") {
+  get message() {
+    return `Invalid failure code entry ${this.entry}: expected ${this.expected}`;
+  }
 };
-var JobEnqueue = class extends Context_exports.Service()("effect-jobs/JobEnqueue") {
+var parse = (value6) => Schema_exports.decodeResult(FailureCode)(value6).pipe(Result_exports.mapError(() => new InvalidFailureCode({
+  entry: "dynamic",
+  expected: "1\u2013128 characters matching ^[a-z0-9][a-z0-9_-]*$"
+})));
+var define = (codes3) => {
+  const validated = Object.fromEntries(Object.entries(codes3).map(([entry, value6]) => {
+    const result7 = parse(value6);
+    if (Result_exports.isFailure(result7)) {
+      throw new InvalidFailureCode({ entry, expected: result7.failure.expected });
+    }
+    return [entry, result7.success];
+  }));
+  return Object.freeze(validated);
 };
 
 // node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobPolicy.js
@@ -24311,80 +24415,6 @@ var make30 = (options = {}) => {
 };
 var defaultPolicy = make30();
 
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/PostgreSqlSchema.js
-import { createHash } from "node:crypto";
-var PostgreSqlConfigurationError = class extends Data_exports.TaggedError("PostgreSqlConfigurationError") {
-};
-var identifier3 = (value6, field) => {
-  if (!/^[a-z_][a-z0-9_]{0,62}$/.test(value6)) {
-    throw new PostgreSqlConfigurationError({ field });
-  }
-  return value6;
-};
-var tables = (options = {}) => {
-  const schema = identifier3(options.schema ?? "public", "schema");
-  const jobsTable = identifier3(options.jobsTable ?? "jobs", "jobsTable");
-  const payloadsTable = identifier3(options.payloadsTable ?? "job_payloads", "payloadsTable");
-  if (jobsTable === payloadsTable) {
-    throw new PostgreSqlConfigurationError({ field: "payloadsTable" });
-  }
-  return Object.freeze({ schema, jobsTable, payloadsTable });
-};
-var relations = (mapping2) => {
-  const checked2 = tables(mapping2);
-  return {
-    jobs: `"${checked2.schema}"."${checked2.jobsTable}"`,
-    payloads: `"${checked2.schema}"."${checked2.payloadsTable}"`
-  };
-};
-
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobTransaction.js
-var JobsTransactionClosed = class extends Data_exports.TaggedError("JobsTransactionClosed") {
-  get message() {
-    return "JobsTransaction is closed; enqueue inside the backend joinTransaction callback";
-  }
-};
-
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/internal/JobTransaction.js
-var JobsTransactionTypeId = Symbol("effect-jobs/JobsTransaction");
-var withJoinedTransaction = (insertOrCompare2, body) => Effect_exports.acquireUseRelease(Effect_exports.sync(() => {
-  const lifetime = { active: true };
-  const transaction = Object.freeze({
-    [JobsTransactionTypeId]: Object.freeze({
-      insertOrCompare: (prepared) => Effect_exports.suspend(() => lifetime.active ? insertOrCompare2(prepared) : Effect_exports.fail(new JobsTransactionClosed({ reason: "callback-exited" })))
-    })
-  });
-  return { lifetime, transaction };
-}), ({ transaction }) => Effect_exports.suspend(() => body(transaction)).pipe(Effect_exports.scoped), ({ lifetime }) => Effect_exports.sync(() => {
-  lifetime.active = false;
-}));
-var insertPrepared = (transaction, prepared) => transaction[JobsTransactionTypeId].insertOrCompare(prepared);
-
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobId.js
-var JobId = Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMinLength(1)), Schema_exports.brand("effect-jobs/JobId"));
-
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/FailureCode.js
-var FailureCode = Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(128), Schema_exports.isPattern(/^[a-z0-9][a-z0-9_-]*$(?![\s\S])/u)), Schema_exports.brand("effect-jobs/FailureCode"));
-var InvalidFailureCode = class extends Data_exports.TaggedError("InvalidFailureCode") {
-  get message() {
-    return `Invalid failure code entry ${this.entry}: expected ${this.expected}`;
-  }
-};
-var parse = (value6) => Schema_exports.decodeResult(FailureCode)(value6).pipe(Result_exports.mapError(() => new InvalidFailureCode({
-  entry: "dynamic",
-  expected: "1\u2013128 characters matching ^[a-z0-9][a-z0-9_-]*$"
-})));
-var define = (codes3) => {
-  const validated = Object.fromEntries(Object.entries(codes3).map(([entry, value6]) => {
-    const result7 = parse(value6);
-    if (Result_exports.isFailure(result7)) {
-      throw new InvalidFailureCode({ entry, expected: result7.failure.expected });
-    }
-    return [entry, result7.success];
-  }));
-  return Object.freeze(validated);
-};
-
 // node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobFailure.js
 var JobFailure = Schema_exports.Union([
   Schema_exports.TaggedStruct("Retry", {
@@ -24425,7 +24455,8 @@ var JobState = Schema_exports.Literals([
   "RetryScheduled",
   "Completed",
   "Dead",
-  "Isolated"
+  "Isolated",
+  "Cancelled"
 ]);
 var JobOwnership = Schema_exports.Struct({
   jobId: JobId,
@@ -24447,7 +24478,7 @@ var SnapshotStruct = Schema_exports.Struct({
   completedAt: Schema_exports.NullOr(EpochMillis),
   lastFailureCode: Schema_exports.NullOr(FailureCode)
 });
-var JobSnapshot = SnapshotStruct.pipe(Schema_exports.check(Schema_exports.makeFilter((row) => row.attemptsMade <= row.policy.maxAttempts && row.stalledCount <= row.policy.maxStalledCount + 1 && (row.state === "Active" ? row.leaseToken !== null && row.leaseExpiresAt !== null && row.completedAt === null : row.leaseToken === null && row.leaseExpiresAt === null) && (row.state === "Completed" || row.state === "Dead" ? row.completedAt !== null : row.completedAt === null) && (!(row.state === "Pending" || row.state === "RetryScheduled" || row.state === "Active") || row.attemptsMade < row.policy.maxAttempts && row.stalledCount <= row.policy.maxStalledCount))));
+var JobSnapshot = SnapshotStruct.pipe(Schema_exports.check(Schema_exports.makeFilter((row) => row.attemptsMade <= row.policy.maxAttempts && row.stalledCount <= row.policy.maxStalledCount + 1 && (row.state === "Active" ? row.leaseToken !== null && row.leaseExpiresAt !== null && row.completedAt === null : row.leaseToken === null && row.leaseExpiresAt === null) && (row.state === "Completed" || row.state === "Dead" || row.state === "Cancelled" ? row.completedAt !== null : row.completedAt === null) && (!(row.state === "Pending" || row.state === "RetryScheduled" || row.state === "Active") || row.attemptsMade < row.policy.maxAttempts && row.stalledCount <= row.policy.maxStalledCount))));
 var JobFinalization = Schema_exports.Union([
   Schema_exports.TaggedStruct("Complete", {}),
   Schema_exports.TaggedStruct("Retry", {
@@ -24585,23 +24616,87 @@ var cleanupEligible = (row, dbNow) => Result_exports.gen(function* () {
   return expiresAt <= dbNow;
 });
 var internalCodes = define({ stall_limit_exceeded: "stall_limit_exceeded" });
-
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobIdentity.js
-var nameFormat = "^[a-z][a-z0-9.-]*$";
-var namePattern = /^[a-z][a-z0-9.-]*$/u;
-var name = (maximum) => Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(maximum), Schema_exports.isPattern(namePattern)));
-var QueueName = name(64);
-var JobKind = name(128);
-var OperationName = name(128);
-var SlotName = name(128);
-var JobVersion = Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 1, maximum: 32767 })));
-var CatalogIdentity = Schema_exports.Struct({
-  queue: QueueName,
-  kind: JobKind,
-  version: JobVersion
+var operatorExpected = Schema_exports.Struct({
+  jobId: JobId,
+  state: JobState,
+  lifecycleVersion: Counter
 });
-var utf8 = new TextEncoder();
-var validScalars = (value6) => {
+var operatorPlan = (input, expected, dbNow, action) => Result_exports.gen(function* () {
+  const row = yield* validateSnapshot(input);
+  const guard4 = yield* Result_exports.mapError(Schema_exports.decodeResult(operatorExpected, { onExcessProperty: "error" })(expected), () => invalid4("invalid-command"));
+  yield* validateTime(dbNow);
+  if (row.jobId !== guard4.jobId || row.state !== guard4.state || row.lifecycleVersion !== guard4.lifecycleVersion) {
+    return yield* Result_exports.fail(invalid4("state-version-conflict"));
+  }
+  if (action === "retryNow" ? row.state !== "RetryScheduled" : row.state !== "Pending" && row.state !== "RetryScheduled") {
+    return yield* Result_exports.fail(invalid4("not-eligible"));
+  }
+  if (action === "retryNow" && row.availableAt <= dbNow) {
+    return yield* Result_exports.fail(invalid4("already-due"));
+  }
+  const lifecycleVersion = yield* increment(row.lifecycleVersion);
+  return {
+    ...row,
+    lifecycleVersion,
+    updatedAt: dbNow,
+    ...action === "retryNow" ? { availableAt: dbNow } : { state: "Cancelled", completedAt: dbNow }
+  };
+});
+var retryNow = (input, expected, dbNow) => operatorPlan(input, expected, dbNow, "retryNow");
+var cancel = (input, expected, dbNow) => operatorPlan(input, expected, dbNow, "cancel");
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobOperators.js
+var JobOperatorExpected = Schema_exports.Struct({
+  jobId: JobId,
+  state: JobState,
+  lifecycleVersion: Counter
+});
+var JobOperatorTransition = Schema_exports.Struct({
+  jobId: JobId,
+  beforeState: JobState,
+  beforeVersion: Counter,
+  after: JobSnapshot
+});
+var JobRedriveRequest = Schema_exports.Struct({
+  expected: JobOperatorExpected,
+  producer: ProducerIdentity
+});
+var JobRedriveKind = Schema_exports.Literals(["Redrive", "CorrectedRedrive"]);
+var JobLineage = Schema_exports.Struct({
+  originalSourceJobId: JobId,
+  sourceJobId: Schema_exports.NullOr(JobId),
+  kind: JobRedriveKind
+}).pipe(Schema_exports.check(Schema_exports.makeFilter((lineage2) => lineage2.sourceJobId === null || lineage2.sourceJobId === lineage2.originalSourceJobId)));
+var JobRedriveResult = Schema_exports.Struct({
+  source: JobOperatorExpected,
+  jobId: JobId,
+  inserted: Schema_exports.Boolean,
+  dbNow: EpochMillis,
+  lineage: JobLineage
+});
+var JobOperatorRejected = class extends Data_exports.TaggedError("JobOperatorRejected") {
+};
+var JobOperators = class extends Context_exports.Service()("effect-jobs/JobOperators") {
+};
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobContract.js
+var EnqueueResults = Data_exports.taggedEnum();
+var jobPayloadFormatVersion = 1;
+var maximumJobPayloadBytes = 65536;
+var maximumJobSemanticProjectionBytes = 65536;
+var maximumProtectedJobPayloadSubtrees = 16;
+var maximumJobPayloadSchemaPathBytes = 256;
+var maximumJobPayloadDepth = 32;
+var InvalidJobInput = class extends Data_exports.TaggedError("InvalidJobInput") {
+};
+var JobIntegrityConflict = class extends Data_exports.TaggedError("JobIntegrityConflict") {
+};
+var JobPayloadCodecError = class extends Data_exports.TaggedError("JobPayloadCodecError") {
+};
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/internal/codec/CanonicalJson.js
+var encoder3 = new TextEncoder();
+var validScalars2 = (value6) => {
   for (const scalar of value6) {
     const code = scalar.codePointAt(0);
     if (code >= 55296 && code <= 57343) {
@@ -24610,61 +24705,329 @@ var validScalars = (value6) => {
   }
   return true;
 };
-var InvalidOperationId = class extends Data_exports.TaggedError("InvalidOperationId") {
-};
-var validateOperationId = (value6) => {
-  if (!validScalars(value6)) {
-    throw new InvalidOperationId({ rule: "unicode-scalars" });
-  }
-  if (value6.includes("\0")) {
-    throw new InvalidOperationId({ rule: "no-nul" });
-  }
-  const byteLength = utf8.encode(value6).byteLength;
-  if (byteLength < 1 || byteLength > 256) {
-    throw new InvalidOperationId({ rule: "utf8-length", byteLength });
-  }
-};
-var OperationId = Schema_exports.String.pipe(Schema_exports.check(Schema_exports.makeFilter((value6) => {
-  const length = utf8.encode(value6).byteLength;
-  return validScalars(value6) && !value6.includes("\0") && length >= 1 && length <= 256;
-})));
-var ProducerIdentity = Schema_exports.Struct({
-  operation: OperationName,
-  operationId: OperationId,
-  slot: SlotName
-});
-var JobDeclarationError = class extends Data_exports.TaggedError("JobDeclarationError") {
-};
-var validateProducerDeclaration = (input) => {
-  const expected = `1\u2013128 ASCII characters matching ${nameFormat}`;
-  if (!Schema_exports.is(OperationName)(input.operation)) {
-    throw new JobDeclarationError({
-      field: "operation",
-      value: input.operation,
-      expected
-    });
-  }
-  if (input.slots.length === 0) {
-    throw new JobDeclarationError({
-      field: "slots",
-      expected: "at least one unique slot"
-    });
-  }
+var canonicalText = (value6, maximum, reason, rootDepth = 0) => {
   const seen = /* @__PURE__ */ new Set();
-  input.slots.forEach((slot, index2) => {
-    if (!Schema_exports.is(SlotName)(slot)) {
-      throw new JobDeclarationError({ field: `slots[${index2}]`, value: slot, expected });
+  let length = 0;
+  const emit = (text3) => {
+    length += encoder3.encode(text3).byteLength;
+    if (length > maximum) {
+      throw new JobPayloadCodecError({ reason });
     }
-    if (seen.has(slot)) {
-      throw new JobDeclarationError({
-        field: `slots[${index2}]`,
-        value: slot,
-        expected: "unique declared slot"
-      });
+    return text3;
+  };
+  const quote = (text3) => {
+    if (text3.length > maximum) {
+      throw new JobPayloadCodecError({ reason });
     }
-    seen.add(slot);
-  });
+    if (!validScalars2(text3)) {
+      throw new JobPayloadCodecError({ reason: "invalid-json-value" });
+    }
+    return emit(JSON.stringify(text3));
+  };
+  const visit = (item, depth) => {
+    if (depth > maximumJobPayloadDepth) {
+      throw new JobPayloadCodecError({ reason: "payload-too-deep" });
+    }
+    if (item === null) {
+      return emit("null");
+    }
+    switch (typeof item) {
+      case "boolean":
+        return emit(JSON.stringify(item));
+      case "string":
+        return quote(item);
+      case "number":
+        if (Number.isFinite(item)) {
+          return emit(JSON.stringify(item));
+        }
+        break;
+      case "object": {
+        if (seen.has(item)) {
+          break;
+        }
+        const array2 = Array.isArray(item);
+        if (!array2 && Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null) {
+          break;
+        }
+        seen.add(item);
+        const descriptors = Object.getOwnPropertyDescriptors(item);
+        const keys4 = Reflect.ownKeys(descriptors);
+        for (const key2 of keys4) {
+          if (array2 && key2 === "length") {
+            continue;
+          }
+          const descriptor = descriptors[key2];
+          if (typeof key2 !== "string" || !validScalars2(key2) || !descriptor.enumerable || !("value" in descriptor)) {
+            throw new JobPayloadCodecError({ reason: "invalid-json-value" });
+          }
+        }
+        let text3;
+        if (array2) {
+          emit("[]");
+          if (keys4.length !== item.length + 1) {
+            throw new JobPayloadCodecError({ reason: "invalid-json-value" });
+          }
+          const entries3 = [];
+          for (let index2 = 0; index2 < item.length; index2++) {
+            if (index2 > 0) {
+              emit(",");
+            }
+            const descriptor = descriptors[String(index2)];
+            if (descriptor === void 0) {
+              throw new JobPayloadCodecError({ reason: "invalid-json-value" });
+            }
+            entries3.push(visit(descriptor.value, depth + 1));
+          }
+          text3 = `[${entries3.join(",")}]`;
+        } else {
+          emit("{}");
+          text3 = `{${keys4.sort().map((key2, index2) => {
+            if (index2 > 0) {
+              emit(",");
+            }
+            return `${quote(key2)}${emit(":")}${visit(descriptors[key2].value, depth + 1)}`;
+          }).join(",")}}`;
+        }
+        seen.delete(item);
+        return text3;
+      }
+    }
+    throw new JobPayloadCodecError({ reason: "invalid-json-value" });
+  };
+  return visit(value6, rootDepth);
 };
+var canonicalBytes = (value6, maximum, reason, rootDepth = 0) => Effect_exports.try({
+  try: () => {
+    const bytes4 = encoder3.encode(canonicalText(value6, maximum, reason, rootDepth));
+    if (bytes4.byteLength > maximum) {
+      throw new JobPayloadCodecError({ reason });
+    }
+    return bytes4;
+  },
+  catch: (error) => error instanceof JobPayloadCodecError ? error : new JobPayloadCodecError({ reason: "invalid-json-value" })
+});
+var bytesEqual2 = (left, right) => left.length === right.length && left.every((byte, index2) => byte === right[index2]);
+var checkDecodedContainers = (value6) => Effect_exports.try({
+  try: () => {
+    const seen = /* @__PURE__ */ new Set();
+    const visit = (item, depth) => {
+      if (depth > maximumJobPayloadDepth) {
+        throw new JobPayloadCodecError({ reason: "payload-too-deep" });
+      }
+      if (typeof item === "number" && !Number.isFinite(item)) {
+        throw new JobPayloadCodecError({ reason: "invalid-json-value" });
+      }
+      if (item === null || typeof item !== "object") {
+        return;
+      }
+      if (!Array.isArray(item) && Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null) {
+        return;
+      }
+      if (seen.has(item)) {
+        throw new JobPayloadCodecError({ reason: "invalid-json-value" });
+      }
+      seen.add(item);
+      const descriptors = Object.getOwnPropertyDescriptors(item);
+      if (Array.isArray(item)) {
+        if (Reflect.ownKeys(descriptors).length !== item.length + 1) {
+          throw new JobPayloadCodecError({ reason: "invalid-json-value" });
+        }
+        for (let index2 = 0; index2 < item.length; index2++) {
+          if (!Object.hasOwn(descriptors, String(index2))) {
+            throw new JobPayloadCodecError({ reason: "invalid-json-value" });
+          }
+        }
+      }
+      for (const key2 of Reflect.ownKeys(descriptors)) {
+        if (Array.isArray(item) && key2 === "length") {
+          continue;
+        }
+        const descriptor = descriptors[key2];
+        if (typeof key2 !== "string" || !validScalars2(key2) || !descriptor.enumerable || !("value" in descriptor)) {
+          throw new JobPayloadCodecError({ reason: "invalid-json-value" });
+        }
+        visit(descriptor.value, depth + 1);
+      }
+      seen.delete(item);
+    };
+    visit(value6, 0);
+  },
+  catch: (error) => error instanceof JobPayloadCodecError ? error : new JobPayloadCodecError({ reason: "invalid-json-value" })
+});
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/internal/codec/EncryptedBoundary.js
+var links = /* @__PURE__ */ new WeakSet();
+var registerEncryption = (link2) => {
+  links.add(link2.transformation);
+};
+var hasEncryption = (ast) => ast.encoding?.some((link2) => links.has(link2.transformation)) ?? false;
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/internal/codec/ProtectedProjection.js
+var marked = (ast) => ast.annotations?.effectJobsProtectedPayload === true;
+var encoder4 = new TextEncoder();
+var prepareProjection = (schema) => Effect_exports.try({
+  try: () => {
+    const visit = (ast, transformed, protectedParent, ancestors) => {
+      if (ancestors.has(ast) || SchemaAST_exports.isSuspend(ast)) {
+        throw new JobPayloadCodecError({ reason: "invalid-schema" });
+      }
+      if (hasEncryption(ast)) {
+        if (transformed || protectedParent) {
+          throw new JobPayloadCodecError({ reason: "invalid-schema" });
+        }
+        visit(SchemaAST_exports.toEncoded(ast), false, false, ancestors);
+        return;
+      }
+      const boundary = transformed || ast.encoding !== void 0;
+      const protectedHere = marked(ast);
+      if (protectedHere && (boundary || protectedParent)) {
+        throw new JobPayloadCodecError({ reason: "invalid-schema" });
+      }
+      ancestors.add(ast);
+      const child = (node) => visit(node, boundary, protectedParent || protectedHere, ancestors);
+      if (SchemaAST_exports.isObjects(ast)) {
+        if (ast.indexSignatures.length > 0 || ast.propertySignatures.some((property) => typeof property.name !== "string")) {
+          throw new JobPayloadCodecError({ reason: "invalid-schema" });
+        }
+        ast.propertySignatures.forEach((property) => child(property.type));
+      } else if (SchemaAST_exports.isArrays(ast)) {
+        if (ast.elements.length !== 0 || ast.rest.length !== 1) {
+          throw new JobPayloadCodecError({ reason: "invalid-schema" });
+        }
+        ast.rest.forEach(child);
+      } else if (SchemaAST_exports.isUnion(ast)) {
+        ast.types.forEach(child);
+      } else if (SchemaAST_exports.isDeclaration(ast)) {
+        if (ast.encoding === void 0) {
+          throw new JobPayloadCodecError({ reason: "invalid-schema" });
+        }
+        ast.typeParameters.forEach(child);
+      }
+      ast.encoding?.forEach((link2) => child(link2.to));
+      ancestors.delete(ast);
+    };
+    visit(schema.ast, false, false, /* @__PURE__ */ new Set());
+    const encoded = SchemaAST_exports.toEncoded(schema.ast);
+    visit(encoded, false, false, /* @__PURE__ */ new Set());
+    return encoded;
+  },
+  catch: () => new JobPayloadCodecError({ reason: "invalid-schema" })
+});
+var project = (ast, value6) => Effect_exports.try({
+  try: () => {
+    let count = 0;
+    const protectedFields = [];
+    const visit = (node, item, path) => {
+      if (encoder4.encode(path).byteLength > maximumJobPayloadSchemaPathBytes) {
+        throw new JobPayloadCodecError({ reason: "schema-path-too-long" });
+      }
+      if (marked(node)) {
+        if (++count > maximumProtectedJobPayloadSubtrees) {
+          throw new JobPayloadCodecError({ reason: "too-many-protected-subtrees" });
+        }
+        if (item === null || typeof item !== "object" || Array.isArray(item) || !Object.hasOwn(item, "fingerprint")) {
+          throw new JobPayloadCodecError({ reason: "invalid-protected-value" });
+        }
+        const fingerprint = Object.getOwnPropertyDescriptor(item, "fingerprint");
+        if (Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null || !fingerprint.enumerable || !("value" in fingerprint)) {
+          throw new JobPayloadCodecError({ reason: "invalid-json-value" });
+        }
+        protectedFields.push([path, fingerprint.value]);
+        return null;
+      }
+      if (SchemaAST_exports.isUnion(node)) {
+        const branch = node.types.find((member) => Schema_exports.decodeUnknownExit(Schema_exports.make(member), {
+          onExcessProperty: "error"
+        })(item)._tag === "Success");
+        if (branch === void 0) {
+          throw new JobPayloadCodecError({ reason: "invalid-schema" });
+        }
+        return visit(branch, item, path);
+      }
+      if (SchemaAST_exports.isArrays(node) && Array.isArray(item)) {
+        return item.map((entry, index2) => visit(node.rest[0], entry, `${path}/${index2}`));
+      }
+      if (SchemaAST_exports.isObjects(node) && item !== null && typeof item === "object") {
+        if (Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null) {
+          throw new JobPayloadCodecError({ reason: "invalid-json-value" });
+        }
+        return Object.fromEntries(Object.entries(item).map(([key2, entry]) => {
+          const property = node.propertySignatures.find((field) => field.name === key2);
+          return [
+            key2,
+            property === void 0 ? entry : visit(property.type, entry, `${path}/${key2.replaceAll("~", "~0").replaceAll("/", "~1")}`)
+          ];
+        }));
+      }
+      return item;
+    };
+    const data = visit(ast, value6, "");
+    return { data, protected: Object.fromEntries(protectedFields) };
+  },
+  catch: (error) => error instanceof JobPayloadCodecError ? error : new JobPayloadCodecError({ reason: "invalid-schema" })
+});
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobPayloadCodec.js
+var strict = { onExcessProperty: "error" };
+var encodeJobPayload = Effect_exports.fnUntraced(function* (schema, payload2) {
+  const ast = yield* prepareProjection(schema);
+  yield* checkDecodedContainers(payload2);
+  yield* project(SchemaAST_exports.toType(schema.ast), payload2);
+  const value6 = yield* Schema_exports.encodeEffect(schema, strict)(payload2).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, () => new JobPayloadCodecError({ reason: "invalid-schema" })))));
+  const payloadBytes = yield* canonicalBytes(value6, maximumJobPayloadBytes, "payload-too-large");
+  yield* Schema_exports.decodeUnknownEffect(Schema_exports.make(ast), strict)(value6).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, () => new JobPayloadCodecError({ reason: "invalid-schema" })))));
+  const projection = yield* project(ast, value6);
+  const semanticProjectionBytes = yield* canonicalBytes(
+    projection,
+    maximumJobSemanticProjectionBytes,
+    "projection-too-large",
+    // The representation envelope is not an application-data depth level.
+    -1
+  );
+  return { formatVersion: jobPayloadFormatVersion, payloadBytes, semanticProjectionBytes };
+});
+var readArtifact = (encoded) => Effect_exports.try({
+  try: () => {
+    if (encoded.formatVersion !== jobPayloadFormatVersion || !(encoded.payloadBytes instanceof Uint8Array) || !(encoded.semanticProjectionBytes instanceof Uint8Array)) {
+      throw new JobPayloadCodecError({ reason: "invalid-encoding" });
+    }
+    if (encoded.payloadBytes.byteLength > maximumJobPayloadBytes) {
+      throw new JobPayloadCodecError({ reason: "payload-too-large" });
+    }
+    if (encoded.semanticProjectionBytes.byteLength > maximumJobSemanticProjectionBytes) {
+      throw new JobPayloadCodecError({ reason: "projection-too-large" });
+    }
+    return {
+      payloadBytes: new Uint8Array(encoded.payloadBytes),
+      semanticProjectionBytes: new Uint8Array(encoded.semanticProjectionBytes)
+    };
+  },
+  catch: (error) => error instanceof JobPayloadCodecError ? error : new JobPayloadCodecError({ reason: "invalid-encoding" })
+});
+var parse2 = (bytes4) => Effect_exports.try({
+  try: () => JSON.parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes4)),
+  catch: () => new JobPayloadCodecError({ reason: "invalid-encoding" })
+});
+var decodeJobPayload = Effect_exports.fnUntraced(function* (schema, encoded) {
+  const snapshot4 = yield* readArtifact(encoded);
+  const ast = yield* prepareProjection(schema);
+  const value6 = yield* parse2(snapshot4.payloadBytes);
+  const payloadBytes = yield* canonicalBytes(value6, maximumJobPayloadBytes, "payload-too-large");
+  const suppliedProjection = yield* parse2(snapshot4.semanticProjectionBytes);
+  const suppliedBytes = yield* canonicalBytes(suppliedProjection, maximumJobSemanticProjectionBytes, "projection-too-large", -1);
+  if (!bytesEqual2(payloadBytes, snapshot4.payloadBytes) || !bytesEqual2(suppliedBytes, snapshot4.semanticProjectionBytes)) {
+    return yield* new JobPayloadCodecError({ reason: "invalid-encoding" });
+  }
+  yield* Schema_exports.decodeUnknownEffect(Schema_exports.make(ast), strict)(value6).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, () => new JobPayloadCodecError({ reason: "invalid-schema" })))));
+  const projection = yield* project(ast, value6);
+  const projectionBytes = yield* canonicalBytes(projection, maximumJobSemanticProjectionBytes, "projection-too-large", -1);
+  if (!bytesEqual2(projectionBytes, snapshot4.semanticProjectionBytes)) {
+    return yield* new JobPayloadCodecError({ reason: "projection-mismatch" });
+  }
+  const decoded = yield* Schema_exports.decodeUnknownEffect(schema, strict)(value6).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, () => new JobPayloadCodecError({ reason: "invalid-schema" })))));
+  yield* checkDecodedContainers(decoded);
+  return decoded;
+});
 
 // node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobStore.js
 var ClaimResults = Data_exports.taggedEnum();
@@ -24681,6 +25044,28 @@ var ClaimRequestSchema = Schema_exports.Struct({
   leaseToken: LeaseToken
 }).pipe(Schema_exports.check(Schema_exports.makeFilter((request3) => request3.supportedCatalog.every((catalog) => catalog.queue === request3.queue))));
 var validateClaimRequest = (input) => Result_exports.mapError(Schema_exports.decodeUnknownResult(ClaimRequestSchema, { onExcessProperty: "error" })(input), () => new JobStoreProtocolError({ reason: "invalid-input" }));
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/internal/lifecycle/Artifacts.js
+var bytes2 = (maximum) => Schema_exports.instanceOf(Uint8Array).pipe(Schema_exports.check(Schema_exports.makeFilter((value6) => value6.byteLength > 0 && value6.byteLength <= maximum)));
+var PreparedArtifact = Schema_exports.Struct({
+  catalog: CatalogIdentity,
+  producer: ProducerIdentity,
+  policy: PersistedJobPolicy,
+  availableAt: Schema_exports.optional(EpochMillis),
+  encoded: Schema_exports.Struct({
+    formatVersion: Schema_exports.Literal(jobPayloadFormatVersion),
+    payloadBytes: bytes2(maximumJobPayloadBytes),
+    semanticProjectionBytes: bytes2(maximumJobSemanticProjectionBytes)
+  })
+});
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/PostgreSqlTransaction.js
+var PostgreSqlFailure = class extends Data_exports.TaggedError("PostgreSqlFailure") {
+};
+var PostgreSqlInvalidHandle = class extends Data_exports.TaggedError("PostgreSqlInvalidHandle") {
+};
+var PostgreSqlApplication = class extends Context_exports.Service()("effect-jobs/PostgreSqlApplication") {
+};
 
 // node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/internal/postgresql/Rows.js
 var integer = (value6) => typeof value6 === "string" && /^(0|[1-9][0-9]*)$/.test(value6) ? Number(value6) : value6;
@@ -24726,7 +25111,7 @@ var fromResult3 = (result7) => Result_exports.match(result7, {
 var dbTime = (query) => query.query("SELECT floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint AS now").pipe(Effect_exports.flatMap((rows) => Schema_exports.decodeUnknownEffect(EpochMillis)(integer(rows[0]?.now)).pipe(Effect_exports.mapError(() => new JobStoreProtocolError({ reason: "invalid-artifact" })))));
 var writeSnapshot = (query, jobs, row) => {
   const retention2 = row.state === "Completed" ? row.policy.completedRetention : row.policy.deadRetention;
-  const expiry = row.completedAt !== null && retention2._tag === "Duration" ? addTimestamp(row.completedAt, retention2.millis) : null;
+  const expiry = (row.state === "Completed" || row.state === "Dead") && row.completedAt !== null && retention2._tag === "Duration" ? addTimestamp(row.completedAt, retention2.millis) : null;
   const cleanupAt = expiry !== null && Result_exports.isSuccess(expiry) ? expiry.success : null;
   return query.query(`UPDATE ${jobs} SET state=$2,available_at=$3,updated_at=$4,attempts_made=$5,stalled_count=$6,
   lifecycle_version=$7,lease_token=$8,lease_expires_at=$9,completed_at=$10,last_failure_code=$11,cleanup_at=$12 WHERE id=$1`, [
@@ -24744,34 +25129,87 @@ var writeSnapshot = (query, jobs, row) => {
     cleanupAt
   ]);
 };
+var lineage = (row) => Effect_exports.gen(function* () {
+  if (row.original_source_job_id === null && row.source_job_id === null && row.redrive_kind === null) {
+    return null;
+  }
+  const edge = yield* Schema_exports.decodeUnknownEffect(JobLineage)({
+    originalSourceJobId: row.original_source_job_id,
+    sourceJobId: row.source_job_id,
+    kind: row.redrive_kind
+  }).pipe(Effect_exports.mapError(() => new JobStoreProtocolError({ reason: "invalid-artifact" })));
+  if (edge.originalSourceJobId === row.id) {
+    return yield* new JobStoreProtocolError({ reason: "invalid-artifact" });
+  }
+  return edge;
+});
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/PostgreSqlSchema.js
+import { createHash } from "node:crypto";
+var PostgreSqlConfigurationError = class extends Data_exports.TaggedError("PostgreSqlConfigurationError") {
+};
+var identifier3 = (value6, field) => {
+  if (!/^[a-z_][a-z0-9_]{0,62}$/.test(value6)) {
+    throw new PostgreSqlConfigurationError({ field });
+  }
+  return value6;
+};
+var tables = (options = {}) => {
+  const schema = identifier3(options.schema ?? "public", "schema");
+  const jobsTable = identifier3(options.jobsTable ?? "jobs", "jobsTable");
+  const payloadsTable = identifier3(options.payloadsTable ?? "job_payloads", "payloadsTable");
+  if (jobsTable === payloadsTable) {
+    throw new PostgreSqlConfigurationError({ field: "payloadsTable" });
+  }
+  return Object.freeze({ schema, jobsTable, payloadsTable });
+};
+var relations = (mapping2) => {
+  const checked2 = tables(mapping2);
+  return {
+    jobs: `"${checked2.schema}"."${checked2.jobsTable}"`,
+    payloads: `"${checked2.schema}"."${checked2.payloadsTable}"`
+  };
+};
 
 // node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/internal/postgresql/Producer.js
 var insertOrCompare = (query, jobs, payloads, prepared) => Effect_exports.gen(function* () {
-  const { catalog, producer, encoded } = prepared;
   const id2 = yield* Effect_exports.sync(() => globalThis.crypto.randomUUID());
   const now2 = yield* dbTime(query).pipe(Effect_exports.mapError(() => new PostgreSqlFailure({ commitKnowledge: "NotCommitted" })));
-  const rows = yield* query.query(`INSERT INTO ${jobs} (id,operation,operation_id,slot,queue,kind,version,policy,initial_available_at,state,available_at,updated_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Pending',$10,$11)
+  return yield* insertOrCompareAt(query, jobs, payloads, prepared, now2, id2).pipe(Effect_exports.mapError((error) => error instanceof JobOperatorRejected ? new JobIntegrityConflict() : error));
+});
+var insertOrCompareAt = (query, jobs, payloads, prepared, now2, generatedId, lineage2) => Effect_exports.gen(function* () {
+  const { catalog, producer: producer3, encoded } = prepared;
+  const id2 = generatedId ?? (yield* Effect_exports.sync(() => globalThis.crypto.randomUUID()));
+  const rows = yield* query.query(`INSERT INTO ${jobs} (id,operation,operation_id,slot,queue,kind,version,policy,initial_available_at,state,available_at,updated_at,original_source_job_id,source_job_id,redrive_kind)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Pending',$10,$11,$12,$13,$14)
       ON CONFLICT (operation,operation_id,slot) DO NOTHING RETURNING id`, [
     id2,
-    producer.operation,
-    producer.operationId,
-    producer.slot,
+    producer3.operation,
+    producer3.operationId,
+    producer3.slot,
     catalog.queue,
     catalog.kind,
     catalog.version,
     JSON.stringify(prepared.policy),
     prepared.availableAt ?? null,
     prepared.availableAt ?? now2,
-    now2
+    now2,
+    lineage2?.originalSourceJobId ?? null,
+    lineage2?.sourceJobId ?? null,
+    lineage2?.kind ?? null
   ]);
   if (rows.length === 0) {
-    const prior = (yield* query.query(`SELECT j.id,j.queue,j.kind,j.version,p.format_version,p.projection FROM ${jobs} j JOIN ${payloads} p ON p.job_id=j.id
-        WHERE j.operation=$1 AND j.operation_id=$2 AND j.slot=$3 FOR KEY SHARE OF j`, [producer.operation, producer.operationId, producer.slot]))[0];
+    const prior = (yield* query.query(`SELECT j.id,j.queue,j.kind,j.version,j.original_source_job_id,j.source_job_id,j.redrive_kind,p.format_version,p.projection FROM ${jobs} j JOIN ${payloads} p ON p.job_id=j.id
+        WHERE j.operation=$1 AND j.operation_id=$2 AND j.slot=$3 FOR KEY SHARE OF j`, [producer3.operation, producer3.operationId, producer3.slot]))[0];
     const projection = prior?.projection;
     if (prior === void 0 || !Schema_exports.is(JobId)(prior.id) || prior.queue !== catalog.queue || prior.kind !== catalog.kind || prior.version !== catalog.version || prior.format_version !== encoded.formatVersion || !(projection instanceof Uint8Array) || projection.length !== encoded.semanticProjectionBytes.length || !encoded.semanticProjectionBytes.every((byte, i) => byte === projection[i])) {
       yield* query.query("SELECT 1/0").pipe(Effect_exports.ignore);
       return yield* new JobIntegrityConflict();
+    }
+    const edge = yield* lineage(prior).pipe(Effect_exports.orElseSucceed(() => void 0));
+    if (edge === void 0 || (lineage2 === void 0 ? edge !== null : edge === null || edge.originalSourceJobId !== lineage2.originalSourceJobId || edge.kind !== lineage2.kind)) {
+      yield* query.query("SELECT 1/0").pipe(Effect_exports.ignore);
+      return yield* lineage2 === void 0 ? new JobIntegrityConflict() : new JobOperatorRejected({ reason: "lineage-conflict" });
     }
     return EnqueueResults.AlreadyPresent({ jobId: prior.id });
   }
@@ -24783,6 +25221,146 @@ var insertOrCompare = (query, jobs, payloads, prepared) => Effect_exports.gen(fu
   ]);
   return EnqueueResults.Inserted({ jobId: id2 });
 });
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/internal/postgresql/Operators.js
+var reject = (reason) => new JobOperatorRejected({ reason });
+var strict2 = { onExcessProperty: "error" };
+var planResult = (result7) => Result_exports.match(result7, {
+  onSuccess: Effect_exports.succeed,
+  onFailure: (error) => Effect_exports.fail(reject(error.reason === "invalid-snapshot" ? "invalid-artifact" : error.reason === "invalid-command" ? "invalid-input" : error.reason === "state-version-conflict" || error.reason === "already-due" || error.reason === "arithmetic-bound" ? error.reason : "not-eligible"))
+});
+var makeOperators = (adapter, jobs, payloads, operationResponseBudgetMillis) => {
+  if (!Schema_exports.is(EpochMillis)(operationResponseBudgetMillis)) {
+    throw new PostgreSqlConfigurationError({ field: "operationResponseBudgetMillis" });
+  }
+  const ambient = adapter.ambient ?? Effect_exports.fail(new PostgreSqlInvalidHandle({ reason: "unqualified-handle" }));
+  const lock = (query, expected, artifact3) => Effect_exports.gen(function* () {
+    const row = (yield* query.query(artifact3 ? `SELECT j.*,p.format_version,p.payload,p.projection FROM ${jobs} j LEFT JOIN ${payloads} p ON p.job_id=j.id WHERE j.id=$1 FOR UPDATE OF j` : `SELECT * FROM ${jobs} WHERE id=$1 FOR UPDATE`, [expected.jobId]))[0];
+    if (row === void 0) {
+      return yield* reject("not-found");
+    }
+    const before = yield* planResult(snapshot3(row));
+    if (before.jobId !== expected.jobId || before.state !== expected.state || before.lifecycleVersion !== expected.lifecycleVersion) {
+      return yield* reject("state-version-conflict");
+    }
+    return { row, before };
+  });
+  const transition = (action) => Effect_exports.fn(`JobOperators.${action}`)(function* (input) {
+    const query = yield* ambient;
+    const expected = yield* Schema_exports.decodeEffect(JobOperatorExpected, strict2)(input).pipe(Effect_exports.mapError(() => reject("invalid-input")));
+    const { before } = yield* lock(query, expected, false);
+    const now2 = yield* dbTime(query).pipe(Effect_exports.mapError((error) => error._tag === "JobStoreProtocolError" ? reject("invalid-artifact") : error));
+    const after = yield* planResult(JobLifecycle_exports[action](before, expected, now2));
+    const changed = yield* query.query(`UPDATE ${jobs} SET state=$4,available_at=$5,updated_at=$6,lifecycle_version=$7,completed_at=$8,cleanup_at=NULL
+       WHERE id=$1 AND state=$2 AND lifecycle_version=$3 AND lease_token IS NULL AND lease_expires_at IS NULL RETURNING id`, [
+      expected.jobId,
+      expected.state,
+      expected.lifecycleVersion,
+      after.state,
+      after.availableAt,
+      after.updatedAt,
+      after.lifecycleVersion,
+      after.completedAt
+    ]);
+    if (changed.length !== 1) {
+      return yield* reject("state-version-conflict");
+    }
+    return {
+      jobId: before.jobId,
+      beforeState: before.state,
+      beforeVersion: before.lifecycleVersion,
+      after
+    };
+  });
+  const sourceMetadata = Schema_exports.Struct({
+    catalog: PreparedArtifact.fields.catalog,
+    producer: PreparedArtifact.fields.producer,
+    policy: PreparedArtifact.fields.policy,
+    availableAt: PreparedArtifact.fields.availableAt
+  });
+  const repair = (definition2, input, corrected) => Effect_exports.gen(function* () {
+    const query = yield* ambient;
+    const request3 = yield* Schema_exports.decodeUnknownEffect(corrected ? Schema_exports.Struct({ ...JobRedriveRequest.fields, payload: Schema_exports.Unknown }) : JobRedriveRequest, strict2)(input).pipe(Effect_exports.mapError(() => reject("invalid-input")));
+    const { row, before } = yield* lock(query, request3.expected, !corrected);
+    if (before.state !== "Dead" && before.state !== "Isolated") {
+      return yield* reject("not-eligible");
+    }
+    if (before.policy.leaseDurationMillis - before.policy.attemptTimeoutMillis < operationResponseBudgetMillis) {
+      return yield* reject("invalid-artifact");
+    }
+    yield* lineage(row).pipe(Effect_exports.mapError(() => reject("invalid-artifact")));
+    const metadata = yield* Schema_exports.decodeUnknownEffect(sourceMetadata, strict2)({
+      catalog: { queue: row.queue, kind: row.kind, version: row.version },
+      producer: {
+        operation: row.operation,
+        operationId: row.operation_id,
+        slot: row.slot
+      },
+      policy: before.policy,
+      ...row.initial_available_at === null ? {} : { availableAt: integer(row.initial_available_at) }
+    }).pipe(Effect_exports.mapError(() => reject("invalid-artifact")));
+    if (!Schema_exports.is(CatalogIdentity)(definition2.catalog) || !Schema_exports.toEquivalence(CatalogIdentity)(metadata.catalog, definition2.catalog)) {
+      return yield* reject("unsupported-catalog");
+    }
+    if (Schema_exports.toEquivalence(ProducerIdentity)(metadata.producer, request3.producer)) {
+      return yield* reject("invalid-input");
+    }
+    const encoded = corrected ? yield* encodeJobPayload(definition2.payload, request3.payload) : yield* Schema_exports.decodeUnknownEffect(PreparedArtifact.fields.encoded, strict2)({
+      formatVersion: row.format_version,
+      payloadBytes: row.payload instanceof Uint8Array ? new Uint8Array(row.payload) : row.payload,
+      semanticProjectionBytes: row.projection instanceof Uint8Array ? new Uint8Array(row.projection) : row.projection
+    }).pipe(Effect_exports.mapError(() => reject("invalid-artifact")));
+    yield* decodeJobPayload(definition2.payload, encoded);
+    const now2 = yield* dbTime(query).pipe(Effect_exports.mapError((error) => error._tag === "JobStoreProtocolError" ? reject("invalid-artifact") : error));
+    const edge = {
+      originalSourceJobId: request3.expected.jobId,
+      sourceJobId: request3.expected.jobId,
+      kind: corrected ? "CorrectedRedrive" : "Redrive"
+    };
+    const result7 = yield* insertOrCompareAt(query, jobs, payloads, { ...metadata, encoded, producer: request3.producer, availableAt: now2 }, now2, void 0, edge);
+    return {
+      source: request3.expected,
+      jobId: result7.jobId,
+      inserted: result7._tag === "Inserted",
+      dbNow: now2,
+      lineage: edge
+    };
+  });
+  return {
+    retryNow: transition("retryNow"),
+    cancel: transition("cancel"),
+    redrive: Effect_exports.fn("JobOperators.redrive")((definition2, request3) => repair(definition2, request3, false)),
+    correctedRedrive: Effect_exports.fn("JobOperators.correctedRedrive")((definition2, request3) => repair(definition2, request3, true))
+  };
+};
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobEnqueue.js
+var JobBackendError = class extends Data_exports.TaggedError("JobBackendError") {
+};
+var JobEnqueue = class extends Context_exports.Service()("effect-jobs/JobEnqueue") {
+};
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobTransaction.js
+var JobsTransactionClosed = class extends Data_exports.TaggedError("JobsTransactionClosed") {
+  get message() {
+    return "JobsTransaction is closed; enqueue inside the backend joinTransaction callback";
+  }
+};
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/internal/JobTransaction.js
+var JobsTransactionTypeId = Symbol("effect-jobs/JobsTransaction");
+var withJoinedTransaction = (insertOrCompare2, body) => Effect_exports.acquireUseRelease(Effect_exports.sync(() => {
+  const lifetime = { active: true };
+  const transaction = Object.freeze({
+    [JobsTransactionTypeId]: Object.freeze({
+      insertOrCompare: (prepared) => Effect_exports.suspend(() => lifetime.active ? insertOrCompare2(prepared) : Effect_exports.fail(new JobsTransactionClosed({ reason: "callback-exited" })))
+    })
+  });
+  return { lifetime, transaction };
+}), ({ transaction }) => Effect_exports.suspend(() => body(transaction)).pipe(Effect_exports.scoped), ({ lifetime }) => Effect_exports.sync(() => {
+  lifetime.active = false;
+}));
+var insertPrepared = (transaction, prepared) => transaction[JobsTransactionTypeId].insertOrCompare(prepared);
 
 // node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/internal/lifecycle/Reconciliation.js
 var inspectFinalization = (request3, observed, dbNow) => Result_exports.gen(function* () {
@@ -24841,7 +25419,7 @@ var finalizationInput = (input) => decode5(finalizationSchema, input).pipe(Effec
     }
   }
 })));
-var unknownResult = (effect2, unknown2) => effect2.pipe(Effect_exports.catchIf((error) => error instanceof PostgreSqlFailure && error.commitKnowledge === "Unknown", () => Effect_exports.succeed(unknown2())));
+var unknownResult = (effect2, unknown4) => effect2.pipe(Effect_exports.catchIf((error) => error instanceof PostgreSqlFailure && error.commitKnowledge === "Unknown", () => Effect_exports.succeed(unknown4())));
 var isolate = (query, jobs, id2, now2) => query.query(`UPDATE ${jobs} SET state='Isolated',lease_token=NULL,lease_expires_at=NULL,completed_at=NULL,
   updated_at=$2,last_failure_code='invalid_artifact',
   lifecycle_version=CASE WHEN lifecycle_version BETWEEN 0 AND 9007199254740990 THEN lifecycle_version+1 ELSE lifecycle_version END WHERE id=$1`, [id2, now2]);
@@ -25009,12 +25587,26 @@ var makeCleanup = (adapter, jobs) => ({
 });
 
 // node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/internal/postgresql/Readiness.js
+var operatorChecks = {
+  state: "state=ANYARRAY['Pending','Active','RetryScheduled','Completed','Dead','Isolated','Cancelled']",
+  terminal: "state=ANYARRAY['Completed','Dead','Cancelled']=completed_atISNOTNULL",
+  lineage: "original_source_job_idISNULLANDsource_job_idISNULLANDredrive_kindISNULLORoriginal_source_job_idISNOTNULLANDredrive_kindISNOTNULL",
+  kind: "redrive_kind=ANYARRAY['Redrive','CorrectedRedrive']",
+  identity: "original_source_job_id<>id",
+  live: "source_job_id=original_source_job_id"
+};
 var ready = (adapter, jobs, payloads) => adapter.ownedTransaction((query) => Effect_exports.gen(function* () {
   yield* query.query(`SELECT id,operation,operation_id,slot,queue,kind,version,policy,initial_available_at,
     state,available_at,updated_at,attempts_made,stalled_count,lifecycle_version,lease_token,lease_expires_at,
-    completed_at,last_failure_code,cleanup_at FROM ${jobs} LIMIT 0`);
+    completed_at,last_failure_code,cleanup_at,original_source_job_id,source_job_id,redrive_kind FROM ${jobs} LIMIT 0`);
   yield* query.query(`SELECT job_id,format_version,payload,projection FROM ${payloads} LIMIT 0`);
-  const constraints = yield* query.query(`SELECT c.conrelid=$1::regclass AS jobs,c.conrelid=$2::regclass AS payloads,c.contype AS kind,
+  const lineageColumns = yield* query.query(`SELECT attname AS name,attnotnull AS required,atttypid='text'::regtype AS text
+         FROM pg_catalog.pg_attribute WHERE attrelid=$1::regclass AND NOT attisdropped
+         AND attname IN ('original_source_job_id','source_job_id','redrive_kind')`, [jobs]);
+  if (lineageColumns.length !== 3 || !["original_source_job_id", "source_job_id", "redrive_kind"].every((name3) => lineageColumns.some((column) => column.name === name3 && column.required === false && column.text === true))) {
+    return yield* new PostgreSqlFailure({ commitKnowledge: "NotCommitted" });
+  }
+  const constraints = yield* query.query(`SELECT c.conrelid=$1::regclass AS jobs,c.conrelid=$2::regclass AS payloads,c.contype AS kind, pg_catalog.pg_get_expr(c.conbin,c.conrelid) AS expression,
     ARRAY(SELECT a.attname::text FROM unnest(c.conkey) WITH ORDINALITY k(n,i)
       JOIN pg_catalog.pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=k.n ORDER BY k.i) AS columns,
     c.confrelid=$1::regclass AS target_jobs,c.confdeltype AS deletion,
@@ -25024,7 +25616,7 @@ var ready = (adapter, jobs, payloads) => adapter.ownedTransaction((query) => Eff
   const names = (values2, expected) => Array.isArray(values2) && values2.length === expected.length && values2.every((value6, i) => value6 === expected[i]);
   const has4 = (table2, kind, columns) => constraints.some((c) => c[table2] === true && c.kind === kind && names(c.columns, columns));
   const fk = constraints.some((c) => c.payloads === true && c.kind === "f" && names(c.columns, ["job_id"]) && c.target_jobs === true && names(c.target_columns, ["id"]) && c.deletion === "c");
-  if (!has4("jobs", "p", ["id"]) || !has4("jobs", "u", ["operation", "operation_id", "slot"]) || !has4("jobs", "u", ["lease_token"]) || !has4("payloads", "p", ["job_id"]) || !fk) {
+  if (!Object.values(operatorChecks).every((expected) => constraints.some((c) => c.jobs === true && c.kind === "c" && typeof c.expression === "string" && c.expression.replace(/\s|\(|\)|::text/g, "") === expected)) || !has4("jobs", "p", ["id"]) || !has4("jobs", "u", ["operation", "operation_id", "slot"]) || !has4("jobs", "u", ["lease_token"]) || !has4("payloads", "p", ["job_id"]) || !fk || !constraints.some((c) => c.jobs === true && c.kind === "f" && names(c.columns, ["source_job_id"]) && c.target_jobs === true && names(c.target_columns, ["id"]) && c.deletion === "n")) {
     return yield* new PostgreSqlFailure({ commitKnowledge: "NotCommitted" });
   }
   const indexes = yield* query.query(`SELECT ARRAY(SELECT a.attname::text FROM unnest(i.indkey::smallint[]) WITH ORDINALITY k(n,o)
@@ -25032,6 +25624,7 @@ var ready = (adapter, jobs, payloads) => adapter.ownedTransaction((query) => Eff
     pg_catalog.pg_get_expr(i.indpred,i.indrelid) AS predicate FROM pg_catalog.pg_index i
     WHERE i.indrelid=$1::regclass AND i.indisvalid AND i.indisready`, [jobs]);
   const required3 = [
+    { columns: ["source_job_id"], predicate: "source_job_idISNOTNULL" },
     {
       columns: ["queue", "kind", "version", "available_at", "id"],
       predicate: "state=ANYARRAY['Pending','RetryScheduled']"
@@ -25047,6 +25640,16 @@ var ready = (adapter, jobs, payloads) => adapter.ownedTransaction((query) => Eff
 }));
 
 // node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/PostgreSqlJobs.js
+var backendError = (error) => new JobBackendError({
+  reason: error._tag === "PostgreSqlFailure" ? "storage-failure" : error.reason === "active-transaction" ? "active-transaction" : error.reason === "inactive-handle" ? "transaction-required" : "unqualified-backend",
+  commitKnowledge: error._tag === "PostgreSqlFailure" ? error.commitKnowledge : "NotCommitted"
+});
+var neutralOperators = (operators) => ({
+  retryNow: (expected) => operators.retryNow(expected).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, (error) => error instanceof PostgreSqlFailure || error instanceof PostgreSqlInvalidHandle ? backendError(error) : error)))),
+  cancel: (expected) => operators.cancel(expected).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, (error) => error instanceof PostgreSqlFailure || error instanceof PostgreSqlInvalidHandle ? backendError(error) : error)))),
+  redrive: (definition2, request3) => operators.redrive(definition2, request3).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, (error) => error instanceof PostgreSqlFailure || error instanceof PostgreSqlInvalidHandle ? backendError(error) : error)))),
+  correctedRedrive: (definition2, request3) => operators.correctedRedrive(definition2, request3).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, (error) => error instanceof PostgreSqlFailure || error instanceof PostgreSqlInvalidHandle ? backendError(error) : error))))
+});
 var PostgreSqlJobs = class extends Context_exports.Service()("effect-jobs/PostgreSqlJobs") {
 };
 var make31 = (options) => Effect_exports.gen(function* () {
@@ -25063,11 +25666,7 @@ var make31 = (options) => Effect_exports.gen(function* () {
   }
   const { jobs, payloads } = relations(mapping2);
   const joinTransaction = (handle, body) => adapter.validate(handle).pipe(Effect_exports.flatMap((query) => withJoinedTransaction((prepared) => insertOrCompare(query, jobs, payloads, prepared), body)));
-  const backendError = (error) => new JobBackendError({
-    reason: error._tag === "PostgreSqlFailure" ? "storage-failure" : error.reason === "active-transaction" ? "active-transaction" : error.reason === "inactive-handle" ? "transaction-required" : "unqualified-backend",
-    commitKnowledge: error._tag === "PostgreSqlFailure" ? error.commitKnowledge : "NotCommitted"
-  });
-  const producer = {
+  const producer3 = {
     enqueue: (prepared) => Effect_exports.gen(function* () {
       if (adapter.ambient === void 0) {
         return yield* new JobBackendError({
@@ -25084,16 +25683,450 @@ var make31 = (options) => Effect_exports.gen(function* () {
       return yield* insertOrCompare(query, jobs, payloads, value6);
     })).pipe(Effect_exports.mapError((error) => error instanceof JobIntegrityConflict || !(error instanceof PostgreSqlFailure || error instanceof PostgreSqlInvalidHandle) ? error : backendError(error)))
   };
+  const operators = makeOperators(adapter, jobs, payloads, budget);
+  const neutral = neutralOperators(operators);
   return PostgreSqlJobs.of({
-    producer,
+    operators,
+    producer: producer3,
     ready: ready(adapter, jobs, payloads),
     tables: mapping2,
     store: makeStore(adapter, jobs, payloads, budget),
     cleanup: makeCleanup(adapter, jobs),
     joinTransaction,
-    withTransaction: (body) => adapter.withTransaction((handle) => adapter.ambient === void 0 ? joinTransaction(handle, (tx2) => body(tx2).pipe(Effect_exports.provideService(JobEnqueue, producer))) : adapter.ambient.pipe(Effect_exports.flatMap((query) => withJoinedTransaction((prepared) => insertOrCompare(query, jobs, payloads, prepared), (tx2) => body(tx2).pipe(Effect_exports.provideService(JobEnqueue, producer))))))
+    withTransaction: (body) => adapter.withTransaction((handle) => adapter.ambient === void 0 ? joinTransaction(handle, (tx2) => body(tx2).pipe(Effect_exports.provide(Context_exports.make(JobEnqueue, producer3).pipe(Context_exports.add(JobOperators, neutral))))) : adapter.ambient.pipe(Effect_exports.flatMap((query) => withJoinedTransaction((prepared) => insertOrCompare(query, jobs, payloads, prepared), (tx2) => body(tx2).pipe(Effect_exports.provide(Context_exports.make(JobEnqueue, producer3).pipe(Context_exports.add(JobOperators, neutral))))))))
   });
 });
+
+// packages/playground-contracts/dist/Sandbox.js
+var opaque = Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(128)));
+var SandboxId = opaque.pipe(Schema_exports.brand("playground/SandboxId"));
+var Generation = Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER })));
+var SandboxRef = Schema_exports.Struct({ sandboxId: SandboxId, generation: Generation });
+var Capabilities = Schema_exports.Struct({
+  runScenario: Schema_exports.Boolean,
+  resetSandbox: Schema_exports.Boolean,
+  retryJob: Schema_exports.Boolean,
+  cancelJob: Schema_exports.Boolean,
+  redriveJob: Schema_exports.Boolean
+});
+var SandboxView = Schema_exports.Struct({
+  ref: SandboxRef,
+  expiresAt: EpochMillis,
+  capacity: Schema_exports.optional(Schema_exports.Struct({
+    mode: Schema_exports.Literals(["local", "bounded"]),
+    retainedJobs: Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }))),
+    admittedCommands: Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER })))
+  })),
+  capabilities: Capabilities
+});
+var limits = Object.freeze({
+  pageSize: 50,
+  jobsPerSandbox: 100,
+  scenarioBatch: 10,
+  sandboxLifetimeMillis: 36e5,
+  reconciliationMillis: 5e3
+});
+
+// packages/playground-contracts/dist/Scenarios.js
+var ScenarioId = Schema_exports.Literals([
+  "success",
+  "delayed-success",
+  "isolated",
+  "retry-then-success",
+  "terminal-failure",
+  "unknown-outcome",
+  "deduplication"
+]);
+var RequestId = Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(128)));
+var ScenarioCommand = Schema_exports.Struct({
+  sandbox: SandboxRef,
+  requestId: RequestId,
+  scenario: ScenarioId,
+  count: Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 1, maximum: 10 })))
+});
+var ScenarioResult = Schema_exports.Union([
+  Schema_exports.TaggedStruct("Committed", {
+    sandbox: SandboxRef,
+    requestId: RequestId,
+    jobIds: Schema_exports.Array(JobId).pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(10)))
+  }),
+  Schema_exports.TaggedStruct("OutcomeUnknown", { sandbox: SandboxRef, requestId: RequestId })
+]);
+var ResetCommand = Schema_exports.Struct({ sandbox: SandboxRef, requestId: RequestId });
+var ResetResult = Schema_exports.Union([
+  Schema_exports.TaggedStruct("Committed", {
+    previous: SandboxRef,
+    current: SandboxRef,
+    requestId: RequestId
+  }),
+  Schema_exports.TaggedStruct("OutcomeUnknown", { previous: SandboxRef, requestId: RequestId })
+]).pipe(Schema_exports.check(Schema_exports.makeFilter((result7) => result7._tag === "OutcomeUnknown" || result7.previous.sandboxId === result7.current.sandboxId && result7.current.generation === result7.previous.generation + 1)));
+var ReceiptRequest = Schema_exports.Struct({ sandbox: SandboxRef, requestId: RequestId });
+
+// packages/playground-contracts/dist/Services.js
+var PublicErrorCode = Schema_exports.Literals([
+  "invalid-request",
+  "not-found",
+  "sandbox-expired",
+  "stale-generation",
+  "limit-reached",
+  "capability-unavailable",
+  "unavailable"
+]);
+var PublicError = Schema_exports.Struct({ code: PublicErrorCode });
+var PlaygroundError = class extends Schema_exports.TaggedError()("PlaygroundError", { code: PublicErrorCode }) {
+};
+var SandboxAuthority = class extends Context_exports.Service()("playground/SandboxAuthority") {
+};
+var JobsRead = class extends Context_exports.Service()("playground/JobsRead") {
+};
+var Scenarios = class extends Context_exports.Service()("playground/Scenarios") {
+};
+var Changes = class extends Context_exports.Service()("playground/Changes") {
+};
+
+// packages/playground-contracts/dist/Operators.js
+var JobOperatorAction = Schema_exports.Literals(["retry-now", "cancel", "redrive"]);
+var guard = {
+  sandbox: SandboxRef,
+  requestId: RequestId,
+  jobId: JobId,
+  expectedState: JobState,
+  expectedLifecycleVersion: Counter
+};
+var JobOperatorCommand = Schema_exports.Union([
+  Schema_exports.Struct({ ...guard, action: Schema_exports.Literals(["retry-now", "cancel"]) }),
+  Schema_exports.Struct({
+    ...guard,
+    action: Schema_exports.Literal("redrive"),
+    confirmDuplicateEffects: Schema_exports.Literal(true)
+  })
+]);
+var JobOperatorReason = Schema_exports.Literals([
+  "invalid-input",
+  "not-found",
+  "state-version-conflict",
+  "not-eligible",
+  "already-due",
+  "invalid-artifact",
+  "unsupported-catalog",
+  "arithmetic-bound",
+  "public-read-only",
+  "active-execution",
+  "terminal-state",
+  "investigation-required",
+  "exhausted-budget",
+  "unavailable",
+  "limit-reached"
+]);
+var JobOperatorResult = Schema_exports.Union([
+  Schema_exports.TaggedStruct("Committed", {
+    sandbox: SandboxRef,
+    requestId: RequestId,
+    action: JobOperatorAction,
+    sourceJobId: JobId,
+    sourceState: JobState,
+    sourceLifecycleVersion: Counter,
+    resultJobId: JobId,
+    resultState: JobState,
+    resultLifecycleVersion: Counter,
+    observedAt: EpochMillis
+  }),
+  Schema_exports.TaggedStruct("Rejected", {
+    sandbox: SandboxRef,
+    requestId: RequestId,
+    action: JobOperatorAction,
+    jobId: JobId,
+    reason: JobOperatorReason
+  }),
+  Schema_exports.TaggedStruct("OutcomeUnknown", { sandbox: SandboxRef, requestId: RequestId })
+]);
+var matchesCommandResult = (command, result7) => result7.sandbox.sandboxId === command.sandbox.sandboxId && result7.sandbox.generation === command.sandbox.generation && result7.requestId === command.requestId && (result7._tag === "OutcomeUnknown" || result7.action === command.action && (result7._tag === "Rejected" ? result7.jobId === command.jobId : result7.sourceJobId === command.jobId && result7.sourceState === command.expectedState && result7.sourceLifecycleVersion === command.expectedLifecycleVersion));
+var JobOperatorReceiptRequest = Schema_exports.Struct({
+  sandbox: SandboxRef,
+  requestId: RequestId
+});
+var eligibility = Schema_exports.Struct({
+  enabled: Schema_exports.Boolean,
+  reason: Schema_exports.NullOr(JobOperatorReason)
+});
+var JobOperatorEligibility = Schema_exports.Struct({
+  retryNow: eligibility,
+  cancel: eligibility,
+  redrive: eligibility
+});
+var commandIdentity = (command) => JSON.stringify([
+  command.sandbox.sandboxId,
+  command.sandbox.generation,
+  command.requestId,
+  command.jobId,
+  command.expectedState,
+  command.expectedLifecycleVersion,
+  command.action,
+  command.action === "redrive" ? command.confirmDuplicateEffects : null
+]);
+var Operators = class extends Context_exports.Service()("playground/Operators") {
+};
+
+// packages/playground-contracts/dist/Repairs.js
+var scalars = (value6) => Array.from(value6).every((scalar) => scalar.codePointAt(0) < 55296 || scalar.codePointAt(0) > 57343);
+var canonicalJson = (input, maximum = 65536) => {
+  const seen = /* @__PURE__ */ new Set();
+  let length = 0;
+  const emit = (text3) => {
+    length += new TextEncoder().encode(text3).length;
+    if (length > maximum) {
+      throw new Error("JSON size exceeded");
+    }
+    return text3;
+  };
+  const quote = (text3) => {
+    if (text3.length > maximum || !scalars(text3)) {
+      throw new Error("Invalid JSON string");
+    }
+    return emit(JSON.stringify(text3));
+  };
+  const visit = (value6, depth) => {
+    if (depth > 32) {
+      throw new Error("JSON depth exceeded");
+    }
+    if (value6 === null) {
+      return emit("null");
+    }
+    if (typeof value6 === "boolean") {
+      return emit(String(value6));
+    }
+    if (typeof value6 === "number" && Number.isFinite(value6)) {
+      return emit(JSON.stringify(value6));
+    }
+    if (typeof value6 === "string") {
+      return quote(value6);
+    }
+    if (typeof value6 !== "object" || value6 === null || seen.has(value6)) {
+      throw new Error("Invalid JSON");
+    }
+    const array2 = Array.isArray(value6);
+    if (!array2 && Object.getPrototypeOf(value6) !== Object.prototype && Object.getPrototypeOf(value6) !== null) {
+      throw new Error("Invalid JSON container");
+    }
+    seen.add(value6);
+    const descriptors = Object.getOwnPropertyDescriptors(value6);
+    const keys4 = Reflect.ownKeys(descriptors);
+    for (const key2 of keys4) {
+      if (array2 && key2 === "length") {
+        continue;
+      }
+      const descriptor = descriptors[key2];
+      if (typeof key2 !== "string" || !scalars(key2) || !descriptor.enumerable || !("value" in descriptor)) {
+        throw new Error("Invalid JSON descriptor");
+      }
+    }
+    let result7;
+    if (array2) {
+      if (keys4.length !== value6.length + 1) {
+        throw new Error("Invalid JSON array");
+      }
+      emit("[]");
+      const entries3 = [];
+      for (let index2 = 0; index2 < value6.length; index2++) {
+        if (index2 > 0) {
+          emit(",");
+        }
+        const descriptor = descriptors[String(index2)];
+        if (!descriptor) {
+          throw new Error("Sparse JSON array");
+        }
+        entries3.push(visit(descriptor.value, depth + 1));
+      }
+      result7 = `[${entries3.join(",")}]`;
+    } else {
+      emit("{}");
+      result7 = `{${keys4.sort().map((key2, index2) => {
+        if (index2 > 0) {
+          emit(",");
+        }
+        return `${quote(key2)}${emit(":")}${visit(descriptors[key2].value, depth + 1)}`;
+      }).join(",")}}`;
+    }
+    seen.delete(value6);
+    return result7;
+  };
+  return visit(input, 0);
+};
+var JsonValue = Schema_exports.declare((input) => {
+  try {
+    canonicalJson(input);
+    return true;
+  } catch {
+    return false;
+  }
+});
+var Reason = Schema_exports.String.pipe(Schema_exports.check(Schema_exports.makeFilter((value6) => value6.length >= 1 && value6.length <= 512 && value6.trim().length > 0 && !value6.includes("\0") && new TextEncoder().encode(value6).length <= 1024)));
+var JobResolutionState = Schema_exports.Literals(["Open", "InProgress", "Resolved"]);
+var JobProblem = Schema_exports.Struct({
+  rootJobId: JobId,
+  state: JobResolutionState,
+  version: Counter,
+  updatedAt: EpochMillis,
+  activeSuccessorJobId: Schema_exports.NullOr(JobId),
+  outcomeKnowledge: Schema_exports.Literals(["KnownFailure", "Unknown"]),
+  resolution: Schema_exports.NullOr(Schema_exports.Struct({
+    kind: Schema_exports.Literals(["SuccessorCompleted", "OperatorReconciled", "ManualClose"]),
+    reason: Schema_exports.NullOr(Reason),
+    observedAt: EpochMillis,
+    successorJobId: Schema_exports.NullOr(JobId)
+  }))
+});
+var JobRepairReason = Schema_exports.Literals([
+  ...JobOperatorReason.literals,
+  "invalid-payload",
+  "resolution-conflict",
+  "repair-in-progress",
+  "already-resolved",
+  "request-conflict",
+  "encrypted-correction-unavailable",
+  "lineage-conflict"
+]);
+var Investigation = Schema_exports.Union([
+  Schema_exports.TaggedStruct("KnownFailure", {}),
+  Schema_exports.TaggedStruct("ConfirmedNotApplied", { reason: Reason }),
+  Schema_exports.TaggedStruct("AcceptDuplicateRisk", { reason: Reason }),
+  Schema_exports.TaggedStruct("Unconfirmed", {})
+]);
+var guard2 = {
+  sandbox: SandboxRef,
+  requestId: RequestId,
+  jobId: JobId,
+  expectedState: Schema_exports.Literals(["Dead", "Isolated"]),
+  expectedLifecycleVersion: Counter,
+  expectedResolutionVersion: Counter,
+  reason: Reason,
+  confirmDuplicateEffects: Schema_exports.Literal(true),
+  investigation: Investigation
+};
+var JobRepairCommand = Schema_exports.Union([
+  Schema_exports.Struct({ ...guard2, action: Schema_exports.Literal("redrive") }),
+  Schema_exports.Struct({
+    ...guard2,
+    action: Schema_exports.Literal("corrected-redrive"),
+    payload: JsonValue
+  })
+]);
+var JobRepairReceiptRequest = Schema_exports.Struct({
+  sandbox: SandboxRef,
+  requestId: RequestId
+});
+var JobRepairResult = Schema_exports.Union([
+  Schema_exports.TaggedStruct("Committed", {
+    sandbox: SandboxRef,
+    requestId: RequestId,
+    action: Schema_exports.Literals(["redrive", "corrected-redrive"]),
+    sourceJobId: JobId,
+    sourceState: Schema_exports.Literals(["Dead", "Isolated"]),
+    sourceLifecycleVersion: Counter,
+    resultJobId: JobId,
+    observedAt: EpochMillis,
+    problem: JobProblem
+  }),
+  Schema_exports.TaggedStruct("Rejected", {
+    sandbox: SandboxRef,
+    requestId: RequestId,
+    jobId: JobId,
+    reason: JobRepairReason
+  }),
+  Schema_exports.TaggedStruct("OutcomeUnknown", { sandbox: SandboxRef, requestId: RequestId })
+]);
+var JobResolutionCommand = Schema_exports.Struct({
+  sandbox: SandboxRef,
+  requestId: RequestId,
+  rootJobId: JobId,
+  expectedResolutionVersion: Counter,
+  reason: Reason,
+  action: Schema_exports.Literals(["reconcile-applied", "manual-close"]),
+  confirmUnknownOutcome: Schema_exports.optional(Schema_exports.Literal(true))
+});
+var JobResolutionResult = Schema_exports.Union([
+  Schema_exports.TaggedStruct("Committed", {
+    sandbox: SandboxRef,
+    requestId: RequestId,
+    problem: JobProblem,
+    observedAt: EpochMillis
+  }),
+  Schema_exports.TaggedStruct("Rejected", {
+    sandbox: SandboxRef,
+    requestId: RequestId,
+    rootJobId: JobId,
+    reason: JobRepairReason
+  }),
+  Schema_exports.TaggedStruct("OutcomeUnknown", { sandbox: SandboxRef, requestId: RequestId })
+]);
+var Repairs = class extends Context_exports.Service()("playground/Repairs") {
+};
+
+// apps/playground-worker/src/persistence/commands/RepairTransactions.ts
+var StoredRepairReceipt = Schema_exports.Struct({
+  commandDigest: Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isPattern(/^[a-f0-9]{64}$/u))),
+  result: Schema_exports.Union([
+    JobRepairResult.members[0],
+    JobRepairResult.members[1],
+    JobResolutionResult.members[0],
+    JobResolutionResult.members[1]
+  ])
+});
+var RepairTransactions = class extends Context_exports.Service()("playground/RepairTransactions") {
+};
+var SyntheticRepairTransactions = class extends Context_exports.Service()("playground/SyntheticRepairTransactions") {
+};
+
+// apps/playground-worker/src/persistence/commands/Transactions.ts
+var StoredReceipt = Schema_exports.Union([
+  Schema_exports.TaggedStruct("Scenario", {
+    command: ScenarioCommand,
+    result: ScenarioResult.members[0]
+  }),
+  Schema_exports.TaggedStruct("Reset", { command: ResetCommand, result: ResetResult })
+]);
+var CommandTransactionFailure = class extends Schema_exports.TaggedError()(
+  "CommandTransactionFailure",
+  { commitKnowledge: Schema_exports.Literals(["NotCommitted", "Unknown"]) }
+) {
+};
+var CommandTransactions = class extends Context_exports.Service()("playground/CommandTransactions") {
+};
+var CommandPersistence = class extends Context_exports.Service()("playground/CommandPersistence") {
+};
+var unavailable = () => Effect_exports.fail(new PlaygroundError({ code: "capability-unavailable" }));
+var unavailableLayer = Layer_exports.succeed(
+  CommandPersistence,
+  CommandPersistence.of({
+    run: unavailable,
+    reset: unavailable,
+    scenarioReceipt: unavailable,
+    resetReceipt: unavailable
+  })
+);
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobProducer.js
+var make32 = (options) => {
+  validateProducerDeclaration(options);
+  const operation2 = options.operation;
+  const slots = Object.freeze([...options.slots]);
+  return Object.freeze({
+    operation: operation2,
+    slots,
+    identity: (input) => {
+      validateOperationId(input.operationId);
+      if (!slots.includes(input.slot)) {
+        throw new JobDeclarationError({ field: "slots", expected: "a declared slot" });
+      }
+      return Object.freeze({
+        operation: operation2,
+        operationId: input.operationId,
+        slot: input.slot
+      });
+    }
+  });
+};
 
 // node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobRegistry.js
 var DuplicateJobHandler = class extends Data_exports.TaggedError("DuplicateJobHandler") {
@@ -25129,6 +26162,1991 @@ var layer2 = Layer_exports.sync(JobRegistry, () => {
   });
 });
 
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/Job.js
+var InvalidJobDefinition = class extends Data_exports.TaggedError("InvalidJobDefinition") {
+};
+function make33(options) {
+  const { kind, queue, payload: payload2 } = options;
+  const version = options.version === void 0 ? 1 : options.version;
+  const encodePayload = options.encodePayload ?? encodeJobPayload;
+  const catalog = Object.freeze({ queue: queue.name, kind, version });
+  if (!Schema_exports.is(CatalogIdentity)(catalog) || !Schema_exports.isSchema(payload2)) {
+    throw new InvalidJobDefinition({
+      expected: "valid queue/kind/version and payload Schema"
+    });
+  }
+  const prepare = Effect_exports.fnUntraced(function* (input) {
+    if (!Schema_exports.is(ProducerIdentity)(input.producer)) {
+      return yield* new InvalidJobInput({ field: "producer" });
+    }
+    if (!Schema_exports.is(PersistedJobPolicy)(input.policy)) {
+      return yield* new InvalidJobInput({ field: "policy" });
+    }
+    if (input.availableAt !== void 0 && !Schema_exports.is(EpochMillis)(input.availableAt)) {
+      return yield* new InvalidJobInput({ field: "availableAt" });
+    }
+    const producer3 = Object.freeze({
+      operation: input.producer.operation,
+      operationId: input.producer.operationId,
+      slot: input.producer.slot
+    });
+    const policy = Object.freeze({
+      ...input.policy,
+      retrySchedule: Object.freeze({ ...input.policy.retrySchedule }),
+      completedRetention: Object.freeze({ ...input.policy.completedRetention }),
+      deadRetention: Object.freeze({ ...input.policy.deadRetention })
+    });
+    const availableAt = input.availableAt;
+    const encoded = yield* encodePayload(payload2, input.payload);
+    return Object.freeze({
+      catalog,
+      producer: producer3,
+      policy,
+      encoded,
+      ...availableAt === void 0 ? {} : { availableAt }
+    });
+  });
+  return Object.freeze({
+    kind,
+    version,
+    queue,
+    payload: payload2,
+    catalog,
+    enqueue: Effect_exports.fnUntraced(function* (input) {
+      const backend = yield* JobEnqueue;
+      return yield* backend.enqueue(prepare(input));
+    }),
+    enqueueStandalone: Effect_exports.fnUntraced(function* (input) {
+      const backend = yield* JobEnqueue;
+      return yield* backend.enqueueStandalone(prepare(input));
+    }),
+    enqueueInTransaction: Effect_exports.fnUntraced(function* (tx2, input) {
+      return yield* insertPrepared(tx2, yield* prepare(input));
+    }),
+    handlerLayer: (execute2, decodePayload) => Layer_exports.effectDiscard(Effect_exports.gen(function* () {
+      const registry = yield* JobRegistry;
+      const services = yield* Effect_exports.context();
+      yield* registry.install({
+        catalog,
+        execute: (encoded, context3) => Effect_exports.flatMap(decodePayload(payload2, encoded), (decoded) => Effect_exports.suspend(() => execute2({ payload: decoded, context: context3 }))).pipe(Effect_exports.provide(services))
+      });
+    }))
+  });
+}
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobQueue.js
+var JobQueueTypeId = Symbol("effect-jobs/JobQueue");
+var InvalidJobQueue = class extends Data_exports.TaggedError("InvalidJobQueue") {
+};
+var make34 = (name3) => {
+  if (!Schema_exports.is(QueueName)(name3)) {
+    throw new InvalidJobQueue({
+      expected: "1\u201364 ASCII characters matching ^[a-z][a-z0-9.-]*$"
+    });
+  }
+  const queue = { [JobQueueTypeId]: JobQueueTypeId, name: name3 };
+  return Object.freeze(queue);
+};
+
+// packages/playground-contracts/dist/SyntheticCryptoFixture.js
+var Document = Schema_exports.Struct({
+  subject: Schema_exports.Literal("demo-customer"),
+  tenant: Schema_exports.Literals(["demo-tenant-a", "demo-tenant-b"]),
+  note: Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMaxLength(256)))
+});
+var Byte = Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 0, maximum: 255 })));
+var Envelope = Schema_exports.Struct({
+  nonce: Schema_exports.Array(Byte).pipe(Schema_exports.check(Schema_exports.isMinLength(12), Schema_exports.isMaxLength(12))),
+  ciphertext: Schema_exports.Array(Byte).pipe(Schema_exports.check(Schema_exports.isMinLength(16), Schema_exports.isMaxLength(2048))),
+  fingerprint: Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isPattern(/^[0-9a-f]{64}$/)))
+});
+var PayloadUnlockError = class extends Schema_exports.TaggedError()("PayloadUnlockError", {
+  reason: Schema_exports.Literals([
+    "invalid-key",
+    "authentication-failed",
+    "unsupported-envelope",
+    "unavailable"
+  ])
+}) {
+};
+var aad = new TextEncoder().encode("playground-private-document-v1");
+var canonical = (value6) => new TextEncoder().encode(JSON.stringify({ subject: value6.subject, tenant: value6.tenant, note: value6.note }));
+var hex = (value6) => Array.from(new Uint8Array(value6), (byte) => byte.toString(16).padStart(2, "0")).join("");
+var operation = (run5, reason) => Effect_exports.tryPromise({ try: run5, catch: () => new PayloadUnlockError({ reason }) });
+var importDocumentKeys = (encryption, fingerprint) => Effect_exports.suspend(() => {
+  if (encryption.length !== 32 || fingerprint.length !== 32 || encryption.every((byte, index2) => byte === fingerprint[index2])) {
+    return Effect_exports.fail(new PayloadUnlockError({ reason: "invalid-key" }));
+  }
+  return Effect_exports.acquireUseRelease(Effect_exports.sync(() => ({
+    encryption: new Uint8Array(encryption),
+    fingerprint: new Uint8Array(fingerprint)
+  })), (raw) => operation(async () => ({
+    encryption: await crypto.subtle.importKey("raw", raw.encryption, "AES-GCM", false, ["encrypt", "decrypt"]),
+    fingerprint: await crypto.subtle.importKey("raw", raw.fingerprint, { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"])
+  }), "invalid-key"), (raw) => Effect_exports.sync(() => {
+    raw.encryption.fill(0);
+    raw.fingerprint.fill(0);
+  }));
+});
+var syntheticDocumentKeys = () => Effect_exports.acquireUseRelease(Effect_exports.sync(() => ({
+  encryption: Uint8Array.from({ length: 32 }, (_, index2) => index2 + 1),
+  fingerprint: Uint8Array.from({ length: 32 }, (_, index2) => index2 + 101)
+})), (raw) => importDocumentKeys(raw.encryption, raw.fingerprint), (raw) => Effect_exports.sync(() => {
+  raw.encryption.fill(0);
+  raw.fingerprint.fill(0);
+}));
+var openDocument = (input, keys4) => Effect_exports.gen(function* () {
+  const envelope = yield* Schema_exports.decodeUnknownEffect(Envelope)(input, {
+    onExcessProperty: "error"
+  }).pipe(Effect_exports.mapError(() => new PayloadUnlockError({ reason: "unsupported-envelope" })));
+  const nonce = new Uint8Array(envelope.nonce);
+  const ciphertext = new Uint8Array(envelope.ciphertext);
+  const signature = Uint8Array.from({ length: 32 }, (_, index2) => Number.parseInt(envelope.fingerprint.slice(index2 * 2, index2 * 2 + 2), 16));
+  return yield* Effect_exports.acquireUseRelease(operation(async () => new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce, additionalData: aad, tagLength: 128 }, keys4.encryption, ciphertext)), "authentication-failed"), (bytes4) => Effect_exports.gen(function* () {
+    const parsed = yield* Effect_exports.try({
+      try: () => JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes4)),
+      catch: () => new PayloadUnlockError({ reason: "authentication-failed" })
+    });
+    const document = yield* Schema_exports.decodeUnknownEffect(Document)(parsed, {
+      onExcessProperty: "error"
+    }).pipe(Effect_exports.mapError(() => new PayloadUnlockError({ reason: "authentication-failed" })));
+    return yield* Effect_exports.acquireUseRelease(Effect_exports.sync(() => canonical(document)), (message) => operation(() => crypto.subtle.verify("HMAC", keys4.fingerprint, signature, message), "authentication-failed").pipe(Effect_exports.flatMap((valid) => valid ? Effect_exports.succeed(document) : Effect_exports.fail(new PayloadUnlockError({ reason: "authentication-failed" })))), (message) => Effect_exports.sync(() => message.fill(0)));
+  }), (bytes4) => Effect_exports.sync(() => bytes4.fill(0)));
+});
+var sealSyntheticDocument = (input) => Effect_exports.gen(function* () {
+  const document = yield* Schema_exports.decodeUnknownEffect(Document)(input, {
+    onExcessProperty: "error"
+  }).pipe(Effect_exports.mapError(() => new PayloadUnlockError({ reason: "authentication-failed" })));
+  const keys4 = yield* syntheticDocumentKeys();
+  return yield* Effect_exports.acquireUseRelease(Effect_exports.sync(() => canonical(document)), (bytes4) => operation(async () => {
+    const nonce = crypto.getRandomValues(new Uint8Array(12));
+    const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce, additionalData: aad, tagLength: 128 }, keys4.encryption, bytes4);
+    const fingerprint = hex(await crypto.subtle.sign("HMAC", keys4.fingerprint, bytes4));
+    return {
+      nonce: Array.from(nonce),
+      ciphertext: Array.from(new Uint8Array(ciphertext)),
+      fingerprint
+    };
+  }, "unavailable"), (bytes4) => Effect_exports.sync(() => bytes4.fill(0)));
+});
+var openSyntheticDocument = (envelope) => syntheticDocumentKeys().pipe(Effect_exports.flatMap((keys4) => openDocument(envelope, keys4)));
+
+// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobPayload.js
+var protectedPayload = (schema) => schema.annotate({ effectJobsProtectedPayload: true });
+var JobEncryptionError = class extends Data_exports.TaggedError("JobEncryptionError") {
+};
+var InvalidEncryptedSchema = class extends Data_exports.TaggedError("InvalidEncryptedSchema") {
+};
+var inspectDomain = (ast, ancestors = /* @__PURE__ */ new Set()) => {
+  if (hasEncryption(ast) || ast.annotations?.effectJobsProtectedPayload) {
+    throw new InvalidEncryptedSchema({ reason: "nested-encryption" });
+  }
+  if (ancestors.has(ast) || SchemaAST_exports.isSuspend(ast)) {
+    throw new InvalidEncryptedSchema({ reason: "recursive-schema" });
+  }
+  ancestors.add(ast);
+  if (SchemaAST_exports.isObjects(ast)) {
+    ast.propertySignatures.forEach((p) => inspectDomain(p.type, ancestors));
+    ast.indexSignatures.forEach((p) => {
+      inspectDomain(p.parameter, ancestors);
+      inspectDomain(p.type, ancestors);
+    });
+  }
+  if (SchemaAST_exports.isArrays(ast)) {
+    ast.elements.forEach((p) => inspectDomain(p, ancestors));
+    ast.rest.forEach((p) => inspectDomain(p, ancestors));
+  }
+  if (SchemaAST_exports.isUnion(ast)) {
+    ast.types.forEach((p) => inspectDomain(p, ancestors));
+  }
+  if (SchemaAST_exports.isDeclaration(ast)) {
+    ast.typeParameters.forEach((p) => inspectDomain(p, ancestors));
+  }
+  ast.encoding?.forEach((link2) => inspectDomain(link2.to, ancestors));
+  ancestors.delete(ast);
+};
+var encrypted = (options) => {
+  const { schema, codec: codec2 } = options;
+  inspectDomain(schema.ast);
+  inspectDomain(codec2.envelope.ast);
+  const inspectEnvelope = (ast) => {
+    if (ast.encoding !== void 0 || SchemaAST_exports.isDeclaration(ast)) {
+      throw new InvalidEncryptedSchema({ reason: "invalid-envelope" });
+    }
+    if (SchemaAST_exports.isObjects(ast)) {
+      if (ast.indexSignatures.length > 0) {
+        throw new InvalidEncryptedSchema({ reason: "invalid-envelope" });
+      }
+      ast.propertySignatures.forEach((p) => inspectEnvelope(p.type));
+    }
+    if (SchemaAST_exports.isArrays(ast)) {
+      if (ast.elements.length !== 0 || ast.rest.length !== 1) {
+        throw new InvalidEncryptedSchema({ reason: "invalid-envelope" });
+      }
+      ast.rest.forEach(inspectEnvelope);
+    }
+    if (SchemaAST_exports.isUnion(ast)) {
+      ast.types.forEach(inspectEnvelope);
+    }
+  };
+  inspectEnvelope(codec2.envelope.ast);
+  const envelopeAst = codec2.envelope.ast;
+  if (!SchemaAST_exports.isObjects(envelopeAst) || envelopeAst.encoding !== void 0 || !envelopeAst.propertySignatures.some((p) => p.name === "fingerprint" && p.type.context?.isOptional !== true)) {
+    throw new InvalidEncryptedSchema({ reason: "invalid-envelope" });
+  }
+  const issue = () => new SchemaIssue_exports.Forbidden({ message: "payload encryption failed" });
+  const result7 = protectedPayload(codec2.envelope).pipe(Schema_exports.decodeTo(schema, {
+    decode: SchemaGetter_exports.transformEffect((value6) => codec2.open(value6).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, issue))))),
+    encode: SchemaGetter_exports.transformEffect((value6) => codec2.seal(value6).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, issue)))))
+  }));
+  const link2 = result7.ast.encoding?.at(-1);
+  if (link2 === void 0) {
+    throw new InvalidEncryptedSchema({ reason: "invalid-envelope" });
+  }
+  registerEncryption(link2);
+  return result7;
+};
+
+// apps/playground-worker/src/scenarios/PrivateDocument.ts
+var DocumentKeys = class extends Context_exports.Service()("playground/DocumentKeys") {
+};
+var Document2 = Schema_exports.Struct({
+  subject: Schema_exports.Literal("demo-customer"),
+  tenant: Schema_exports.Literals(["demo-tenant-a", "demo-tenant-b"]),
+  note: Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMaxLength(256)))
+});
+var Envelope2 = Schema_exports.Struct({
+  nonce: Schema_exports.Array(
+    Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 0, maximum: 255 })))
+  ).pipe(Schema_exports.check(Schema_exports.isMinLength(12), Schema_exports.isMaxLength(12))),
+  ciphertext: Schema_exports.Array(
+    Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 0, maximum: 255 })))
+  ).pipe(Schema_exports.check(Schema_exports.isMaxLength(2048))),
+  fingerprint: Schema_exports.String.pipe(
+    Schema_exports.check(Schema_exports.isMinLength(64), Schema_exports.isMaxLength(64))
+  )
+});
+var aad2 = new TextEncoder().encode("playground-private-document-v1");
+var canonical2 = (value6) => new TextEncoder().encode(
+  JSON.stringify({ subject: value6.subject, tenant: value6.tenant, note: value6.note })
+);
+var hex2 = (value6) => Array.from(new Uint8Array(value6), (byte) => byte.toString(16).padStart(2, "0")).join("");
+var cryptoOperation = (run5) => Effect_exports.tryPromise({ try: run5, catch: () => new JobEncryptionError() });
+var keysLayer = Layer_exports.effect(
+  DocumentKeys,
+  cryptoOperation(async () => ({
+    encryption: await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
+      "encrypt",
+      "decrypt"
+    ]),
+    fingerprint: await crypto.subtle.generateKey(
+      { name: "HMAC", hash: "SHA-256", length: 256 },
+      false,
+      ["sign", "verify"]
+    )
+  }))
+);
+var codec = {
+  envelope: Envelope2,
+  seal: (value6) => Effect_exports.gen(function* () {
+    const keys4 = yield* DocumentKeys;
+    return yield* cryptoOperation(async () => {
+      const bytes4 = canonical2(value6);
+      const nonce = crypto.getRandomValues(new Uint8Array(12));
+      const ciphertext = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: nonce, additionalData: aad2 },
+        keys4.encryption,
+        bytes4
+      );
+      const fingerprint = hex2(await crypto.subtle.sign("HMAC", keys4.fingerprint, bytes4));
+      return {
+        nonce: Array.from(nonce),
+        ciphertext: Array.from(new Uint8Array(ciphertext)),
+        fingerprint
+      };
+    });
+  }),
+  open: (envelope) => Effect_exports.gen(function* () {
+    const keys4 = yield* DocumentKeys;
+    return yield* cryptoOperation(async () => {
+      const plaintext = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: new Uint8Array(envelope.nonce), additionalData: aad2 },
+        keys4.encryption,
+        new Uint8Array(envelope.ciphertext)
+      );
+      const value6 = Schema_exports.decodeUnknownSync(Document2)(
+        JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(plaintext)),
+        { onExcessProperty: "error" }
+      );
+      const expected = hex2(
+        await crypto.subtle.sign("HMAC", keys4.fingerprint, canonical2(value6))
+      );
+      if (expected !== envelope.fingerprint) {
+        throw new JobEncryptionError();
+      }
+      return value6;
+    });
+  })
+};
+var EncryptedDocument = encrypted({ schema: Document2, codec });
+
+// apps/playground-worker/src/scenarios/Definitions.ts
+var Workload = Schema_exports.Literals([
+  "welcome-email",
+  "image-processing",
+  "webhook-delivery",
+  "private-data-export",
+  "catalog-sync",
+  "simulated-payment"
+]);
+var ProviderWorkload = Schema_exports.Literals([
+  ...Workload.literals,
+  "synthetic-document-export"
+]);
+var Behavior = Schema_exports.Literals([
+  "success",
+  "retry-then-success",
+  "dead",
+  "isolated",
+  "accepted-response-lost"
+]);
+var Payload = Schema_exports.Struct({
+  sandbox: SandboxRef,
+  version: Schema_exports.Literal(1),
+  seed: Schema_exports.Int.pipe(
+    Schema_exports.check(Schema_exports.isBetween({ minimum: 0, maximum: 4294967295 }))
+  ),
+  sequence: Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 1, maximum: 10 }))),
+  behavior: Behavior,
+  actor: Schema_exports.Literal("demo-customer"),
+  tenant: Schema_exports.Literals(["demo-tenant-a", "demo-tenant-b"]),
+  order: Schema_exports.Literals(["demo-order-a", "demo-order-b"])
+});
+var ExportPayload = Schema_exports.Struct({
+  ...Payload.fields,
+  document: EncryptedDocument
+});
+var SyntheticReadablePayload = Schema_exports.Struct({
+  ...Payload.fields,
+  document: Document
+});
+var SyntheticExportPayload = Schema_exports.Struct({
+  ...Payload.fields,
+  document: encrypted({
+    schema: Document,
+    codec: {
+      envelope: Envelope,
+      seal: (value6) => sealSyntheticDocument(value6).pipe(
+        Effect_exports.mapError(() => new JobEncryptionError())
+      ),
+      open: (value6) => openSyntheticDocument(value6).pipe(
+        Effect_exports.mapError(() => new JobEncryptionError())
+      )
+    }
+  })
+});
+var communications = make34("playground-communications");
+var media = make34("playground-media");
+var commerce = make34("playground-commerce");
+var privateData = make34("playground-private");
+var WelcomeEmail = make33({
+  queue: communications,
+  kind: "playground.welcome-email",
+  payload: Payload
+});
+var ImageProcessing = make33({
+  queue: media,
+  kind: "playground.image-processing",
+  payload: Payload
+});
+var WebhookDelivery = make33({
+  queue: communications,
+  kind: "playground.webhook-delivery",
+  payload: Payload
+});
+var PrivateDataExport = make33({
+  queue: privateData,
+  kind: "playground.private-data-export",
+  payload: ExportPayload
+});
+var CatalogSync = make33({
+  queue: commerce,
+  kind: "playground.catalog-sync",
+  payload: Payload
+});
+var SimulatedPayment = make33({
+  queue: commerce,
+  kind: "playground.simulated-payment",
+  payload: Payload
+});
+var SyntheticDocumentExport = make33({
+  queue: privateData,
+  kind: "playground.synthetic-document-export",
+  payload: SyntheticExportPayload
+});
+var Producer = make32({
+  operation: "playground.synthetic",
+  slots: [
+    "welcome-email",
+    "image-processing",
+    "webhook-delivery",
+    "private-data-export",
+    "catalog-sync",
+    "simulated-payment"
+  ]
+});
+var definitions = [
+  WelcomeEmail,
+  ImageProcessing,
+  WebhookDelivery,
+  PrivateDataExport,
+  CatalogSync,
+  SimulatedPayment,
+  SyntheticDocumentExport
+];
+
+// apps/playground-worker/src/persistence/commands/RepairSource.ts
+var RepairSourceRejected = class extends Schema_exports.TaggedError()(
+  "RepairSourceRejected",
+  { reason: JobRepairReason }
+) {
+};
+var rejected = (reason) => new RepairSourceRejected({ reason });
+var producer = make32({
+  operation: "playground.repair",
+  slots: ["replacement"]
+});
+var scalars2 = (value6) => Array.from(value6).every(
+  (scalar) => scalar.codePointAt(0) < 55296 || scalar.codePointAt(0) > 57343
+);
+var canonicalJson2 = (input, maximum = 65536) => {
+  const seen = /* @__PURE__ */ new Set();
+  let length = 0;
+  const emit = (text3) => {
+    length += new TextEncoder().encode(text3).length;
+    if (length > maximum) {
+      throw new Error("JSON size exceeded");
+    }
+    return text3;
+  };
+  const quote = (text3) => {
+    if (text3.length > maximum || !scalars2(text3)) {
+      throw new Error("Invalid JSON string");
+    }
+    return emit(JSON.stringify(text3));
+  };
+  const visit = (value6, depth) => {
+    if (depth > 32) {
+      throw new Error("JSON depth exceeded");
+    }
+    if (value6 === null) {
+      return emit("null");
+    }
+    if (typeof value6 === "boolean") {
+      return emit(String(value6));
+    }
+    if (typeof value6 === "number" && Number.isFinite(value6)) {
+      return emit(JSON.stringify(value6));
+    }
+    if (typeof value6 === "string") {
+      return quote(value6);
+    }
+    if (typeof value6 !== "object" || value6 === null || seen.has(value6)) {
+      throw new Error("Invalid JSON");
+    }
+    const array2 = Array.isArray(value6);
+    if (!array2 && Object.getPrototypeOf(value6) !== Object.prototype && Object.getPrototypeOf(value6) !== null) {
+      throw new Error("Invalid JSON container");
+    }
+    seen.add(value6);
+    const descriptors = Object.getOwnPropertyDescriptors(value6);
+    const keys4 = Reflect.ownKeys(descriptors);
+    for (const key2 of keys4) {
+      if (array2 && key2 === "length") {
+        continue;
+      }
+      const descriptor = descriptors[key2];
+      if (typeof key2 !== "string" || !scalars2(key2) || !descriptor.enumerable || !("value" in descriptor)) {
+        throw new Error("Invalid JSON descriptor");
+      }
+    }
+    let result7;
+    if (array2) {
+      if (keys4.length !== value6.length + 1) {
+        throw new Error("Invalid JSON array");
+      }
+      emit("[]");
+      const entries3 = [];
+      for (let index2 = 0; index2 < value6.length; index2++) {
+        if (index2 > 0) {
+          emit(",");
+        }
+        const descriptor = descriptors[String(index2)];
+        if (!descriptor) {
+          throw new Error("Sparse JSON array");
+        }
+        entries3.push(visit(descriptor.value, depth + 1));
+      }
+      result7 = `[${entries3.join(",")}]`;
+    } else {
+      emit("{}");
+      result7 = `{${keys4.sort().map((key2, index2) => {
+        if (index2 > 0) {
+          emit(",");
+        }
+        return `${quote(key2)}${emit(":")}${visit(descriptors[key2].value, depth + 1)}`;
+      }).join(",")}}`;
+    }
+    seen.delete(value6);
+    return result7;
+  };
+  return visit(input, 0);
+};
+var sha256 = (value6) => Effect_exports.tryPromise({
+  // WebCrypto FFI, no keys or retained mutable input.
+  try: async () => Array.from(
+    new Uint8Array(
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value6))
+    ),
+    (byte) => byte.toString(16).padStart(2, "0")
+  ).join(""),
+  catch: () => rejected("unavailable")
+});
+var digestJson = (value6) => Effect_exports.try({
+  try: () => canonicalJson2(value6, 131072),
+  catch: () => rejected("invalid-input")
+}).pipe(Effect_exports.flatMap(sha256));
+var commandDigest = (command) => Effect_exports.try({
+  try: () => {
+    if ("payload" in command) {
+      canonicalJson2(command.payload);
+    }
+    return canonicalJson2(command, 131072);
+  },
+  catch: () => rejected("invalid-input")
+}).pipe(Effect_exports.flatMap(sha256));
+var producerIdentity = (command) => sha256(
+  JSON.stringify([
+    command.sandbox.sandboxId,
+    command.sandbox.generation,
+    command.requestId,
+    command.jobId,
+    command.action
+  ])
+).pipe(
+  Effect_exports.map((operationId) => producer.identity({ operationId, slot: "replacement" }))
+);
+var definition = (row) => {
+  const found = definitions.find(
+    (candidate) => candidate.catalog.queue === row.queue && candidate.catalog.kind === row.kind && candidate.catalog.version === Number(row.version)
+  );
+  return found ? Effect_exports.succeed(found) : Effect_exports.fail(rejected("unsupported-catalog"));
+};
+var artifact = (row) => Effect_exports.try({
+  try: () => {
+    if (Number(row.format_version) !== 1 || !(row.payload instanceof Uint8Array) || !(row.projection instanceof Uint8Array)) {
+      throw new Error("Absent artifact");
+    }
+    return {
+      formatVersion: 1,
+      payloadBytes: new Uint8Array(row.payload),
+      semanticProjectionBytes: new Uint8Array(row.projection)
+    };
+  },
+  catch: () => rejected("invalid-artifact")
+});
+var knownFailure = (row) => row.state === "Dead" && row.accepted === false && Number.isSafeInteger(Number(row.invocations)) && Number(row.invocations) > 0 && ["fake_provider_terminal_rejected", "fake_provider_retry_rejected"].includes(
+  String(row.last_failure_code)
+);
+var investigate = (row, command) => {
+  switch (command.investigation._tag) {
+    case "KnownFailure":
+      return knownFailure(row) ? Effect_exports.succeed("KnownFailure") : Effect_exports.fail(rejected("investigation-required"));
+    case "ConfirmedNotApplied":
+      return row.state === "Isolated" ? Effect_exports.succeed("KnownFailure") : Effect_exports.fail(rejected("investigation-required"));
+    case "AcceptDuplicateRisk":
+      return Effect_exports.succeed("Unknown");
+    case "Unconfirmed":
+      return Effect_exports.fail(rejected("investigation-required"));
+  }
+};
+var changedPaths = (before, after) => Object.keys(Payload.fields).filter(
+  (key2) => canonicalJson2(before[key2]) !== canonicalJson2(after[key2])
+).map((key2) => ({ kind: "Changed", path: `/${key2}` }));
+var replacement = (row, current, input) => Effect_exports.gen(function* () {
+  const selected = yield* definition(row);
+  const synthetic = selected === SyntheticDocumentExport;
+  if ("document" in selected.payload.fields && !synthetic) {
+    return yield* rejected("encrypted-correction-unavailable");
+  }
+  const nextSynthetic = synthetic ? yield* Schema_exports.decodeUnknownEffect(SyntheticExportPayload)(input, {
+    onExcessProperty: "error"
+  }).pipe(Effect_exports.mapError(() => rejected("invalid-payload"))) : null;
+  const next = nextSynthetic ?? (yield* Schema_exports.decodeUnknownEffect(Payload)(input, {
+    onExcessProperty: "error"
+  }).pipe(Effect_exports.mapError(() => rejected("invalid-payload"))));
+  if (nextSynthetic && (nextSynthetic.document.subject !== next.actor || nextSynthetic.document.tenant !== next.tenant)) {
+    return yield* rejected("invalid-payload");
+  }
+  if (next.sandbox.sandboxId !== current.sandboxId || next.sandbox.generation !== current.generation) {
+    return yield* rejected("invalid-payload");
+  }
+  const relations4 = row.relations;
+  if (!relations4 || relations4.syntheticActor !== next.actor || relations4.syntheticOrderId !== next.order) {
+    return yield* rejected("invalid-payload");
+  }
+  const oldSynthetic = synthetic ? yield* artifact(row).pipe(
+    Effect_exports.flatMap(
+      (bytes4) => decodeJobPayload(SyntheticExportPayload, bytes4)
+    ),
+    Effect_exports.catchTag("RepairSourceRejected", () => Effect_exports.succeed(null)),
+    Effect_exports.catchTag("JobPayloadCodecError", () => Effect_exports.succeed(null))
+  ) : null;
+  const old = synthetic ? oldSynthetic : yield* artifact(row).pipe(
+    Effect_exports.flatMap((bytes4) => decodeJobPayload(Payload, bytes4)),
+    Effect_exports.catchTag("RepairSourceRejected", () => Effect_exports.succeed(null)),
+    Effect_exports.catchTag("JobPayloadCodecError", () => Effect_exports.succeed(null))
+  );
+  if (old && (old.actor !== next.actor || old.tenant !== next.tenant || old.order !== next.order || old.sandbox.sandboxId !== current.sandboxId || old.sandbox.generation !== current.generation)) {
+    return yield* rejected("invalid-payload");
+  }
+  if (!old && relations4.syntheticTenant !== next.tenant) {
+    return yield* rejected("invalid-payload");
+  }
+  if (nextSynthetic) {
+    return {
+      _tag: "Synthetic",
+      payload: nextSynthetic,
+      changes: old ? [
+        ...changedPaths(old, next),
+        ...oldSynthetic ? Object.keys(nextSynthetic.document).filter(
+          (key2) => canonicalJson2(
+            oldSynthetic.document[key2]
+          ) !== canonicalJson2(
+            nextSynthetic.document[key2]
+          )
+        ).map((key2) => ({
+          kind: "Changed",
+          path: `/document/${key2}`
+        })) : []
+      ] : null
+    };
+  }
+  const encoded = yield* encodeJobPayload(Payload, next).pipe(
+    Effect_exports.mapError(() => rejected("invalid-payload"))
+  );
+  yield* decodeJobPayload(Payload, encoded).pipe(
+    Effect_exports.mapError(() => rejected("invalid-payload"))
+  );
+  return {
+    _tag: "Plain",
+    definition: selected,
+    payload: next,
+    changes: old ? changedPaths(old, next) : null
+  };
+});
+
+// apps/playground-worker/src/persistence/commands/OperatorSource.ts
+var OperatorSourceRejected = class extends Schema_exports.TaggedError()(
+  "OperatorSourceRejected",
+  {
+    reason: Schema_exports.Literals(["invalid-artifact", "unsupported-catalog"])
+  }
+) {
+};
+var invalid5 = () => new OperatorSourceRejected({ reason: "invalid-artifact" });
+var byteBuffer = Schema_exports.instanceOf(Uint8Array).pipe(
+  Schema_exports.check(
+    Schema_exports.makeFilter((bytes4) => bytes4.byteLength > 0 && bytes4.byteLength <= 65536)
+  )
+);
+var artifact2 = Schema_exports.Struct({
+  formatVersion: Schema_exports.Literal(1),
+  payloadBytes: byteBuffer,
+  semanticProjectionBytes: byteBuffer
+});
+var producer2 = make32({
+  operation: "playground.operator-redrive",
+  slots: ["replacement"]
+});
+var validate3 = (row, current) => Effect_exports.gen(function* () {
+  const catalog = yield* Schema_exports.decodeUnknownEffect(CatalogIdentity)({
+    queue: row.queue,
+    kind: row.kind,
+    version: Number(row.version)
+  }).pipe(
+    Effect_exports.mapError(() => new OperatorSourceRejected({ reason: "unsupported-catalog" }))
+  );
+  const definition2 = definitions.find(
+    (candidate) => candidate.catalog.queue === catalog.queue && candidate.catalog.kind === catalog.kind && candidate.catalog.version === catalog.version
+  );
+  if (!definition2) {
+    return yield* new OperatorSourceRejected({ reason: "unsupported-catalog" });
+  }
+  const checked2 = yield* Schema_exports.decodeUnknownEffect(artifact2)({
+    formatVersion: Number(row.format_version),
+    payloadBytes: row.payload,
+    semanticProjectionBytes: row.projection
+  }).pipe(Effect_exports.mapError(invalid5));
+  const encoded = {
+    ...checked2,
+    payloadBytes: new Uint8Array(checked2.payloadBytes),
+    semanticProjectionBytes: new Uint8Array(checked2.semanticProjectionBytes)
+  };
+  const scoped4 = (payload2) => payload2.sandbox.sandboxId === current.sandboxId && payload2.sandbox.generation === current.generation;
+  if (definition2 === PrivateDataExport || definition2 === SyntheticDocumentExport) {
+    const payload2 = yield* decodeJobPayload(
+      definition2 === SyntheticDocumentExport ? SyntheticExportPayload : ExportPayload,
+      encoded
+    ).pipe(Effect_exports.mapError(invalid5));
+    if (!scoped4(payload2) || payload2.document.subject !== payload2.actor || payload2.document.tenant !== payload2.tenant) {
+      return yield* invalid5();
+    }
+  } else {
+    const payload2 = yield* decodeJobPayload(Payload, encoded).pipe(
+      Effect_exports.mapError(invalid5)
+    );
+    if (!scoped4(payload2)) {
+      return yield* invalid5();
+    }
+  }
+  return definition2;
+});
+
+// apps/playground-worker/src/persistence/commands/RepairPersistence.ts
+var fail9 = (code) => new PlaygroundError({ code });
+var decode6 = (schema, input) => Effect_exports.try({
+  try: () => JSON.parse(canonicalJson2(input, 131072)),
+  catch: () => fail9("invalid-request")
+}).pipe(
+  Effect_exports.flatMap(
+    (snapshot4) => Schema_exports.decodeUnknownEffect(schema)(snapshot4, { onExcessProperty: "error" })
+  ),
+  Effect_exports.mapError(() => fail9("invalid-request"))
+);
+var unknown2 = (request3) => ({
+  _tag: "OutcomeUnknown",
+  sandbox: request3.sandbox,
+  requestId: request3.requestId
+});
+var recover = (request3) => (cause) => {
+  const reason = cause.reasons.length === 1 ? cause.reasons[0] : void 0;
+  if (reason && Cause_exports.isFailReason(reason) && (reason.error instanceof CommandTransactionFailure || reason.error instanceof PostgreSqlFailure) && reason.error.commitKnowledge === "Unknown") {
+    return Effect_exports.succeed(unknown2(request3));
+  }
+  return Effect_exports.failCause(
+    Cause_exports.fromReasons(
+      cause.reasons.map((reason2) => {
+        if (Cause_exports.isInterruptReason(reason2)) {
+          return reason2;
+        }
+        if (Cause_exports.isDieReason(reason2)) {
+          return Cause_exports.makeDieReason(new Error("Repair persistence defect"));
+        }
+        return Cause_exports.makeFailReason(
+          reason2.error instanceof PlaygroundError ? fail9(reason2.error.code) : fail9("unavailable")
+        );
+      })
+    )
+  );
+};
+var implicitProblem = (rootJobId, updatedAt, outcomeKnowledge = "Unknown") => ({
+  rootJobId,
+  state: "Open",
+  version: 0,
+  updatedAt,
+  activeSuccessorJobId: null,
+  outcomeKnowledge,
+  resolution: null
+});
+var refuseProblem = (problem, command) => {
+  if (problem.version !== command.expectedResolutionVersion) {
+    return "resolution-conflict";
+  }
+  if (problem.state === "Resolved") {
+    return "already-resolved";
+  }
+  if (problem.state === "InProgress") {
+    return "repair-in-progress";
+  }
+  if ((problem.activeSuccessorJobId ?? problem.rootJobId) !== command.jobId) {
+    return "resolution-conflict";
+  }
+  return null;
+};
+var makeService = (transactions) => Effect_exports.gen(function* () {
+  const backend = yield* PostgreSqlJobs;
+  const keys4 = yield* DocumentKeys;
+  const run5 = (access, command) => Effect_exports.gen(function* () {
+    const digest2 = yield* commandDigest(command).pipe(
+      Effect_exports.mapError(() => fail9("invalid-request"))
+    );
+    const repair = "jobId" in command;
+    const reject2 = (reason) => repair ? {
+      _tag: "Rejected",
+      sandbox: command.sandbox,
+      requestId: command.requestId,
+      jobId: command.jobId,
+      reason
+    } : {
+      _tag: "Rejected",
+      sandbox: command.sandbox,
+      requestId: command.requestId,
+      rootJobId: command.rootJobId,
+      reason
+    };
+    return yield* transactions.owned(
+      access,
+      command,
+      digest2,
+      (tx2) => Effect_exports.gen(function* () {
+        if (tx2.admission === "Conflict") {
+          return reject2("request-conflict");
+        }
+        if (tx2.stored) {
+          return tx2.stored.result;
+        }
+        if (tx2.admission !== "Fresh") {
+          return unknown2(command);
+        }
+        yield* tx2.assertCurrent;
+        const stored = yield* tx2.problem();
+        const source = yield* tx2.source();
+        const operate = Effect_exports.gen(function* () {
+          if (!stored && (!source || !["Dead", "Isolated"].includes(String(source.state)))) {
+            return reject2("not-found");
+          }
+          const problem = stored ?? implicitProblem(
+            repair ? command.jobId : command.rootJobId,
+            Number(source.updated_at),
+            knownFailure(source) ? "KnownFailure" : "Unknown"
+          );
+          if (problem.version !== command.expectedResolutionVersion) {
+            return reject2("resolution-conflict");
+          }
+          if (problem.version === Number.MAX_SAFE_INTEGER) {
+            return reject2("arithmetic-bound");
+          }
+          if (problem.state === "Resolved") {
+            return reject2("already-resolved");
+          }
+          if (!repair) {
+            if (command.action === "manual-close" && problem.outcomeKnowledge === "Unknown" && command.confirmUnknownOutcome !== true) {
+              return reject2("investigation-required");
+            }
+            const observedAt = yield* tx2.now;
+            return {
+              _tag: "Committed",
+              sandbox: command.sandbox,
+              requestId: command.requestId,
+              observedAt,
+              problem: {
+                ...problem,
+                state: "Resolved",
+                version: problem.version + 1,
+                updatedAt: observedAt,
+                resolution: {
+                  kind: command.action === "manual-close" ? "ManualClose" : "OperatorReconciled",
+                  reason: command.reason,
+                  observedAt,
+                  successorJobId: problem.activeSuccessorJobId
+                }
+              }
+            };
+          }
+          const refusal = refuseProblem(problem, command);
+          if (refusal) {
+            return reject2(refusal);
+          }
+          if (!source) {
+            return reject2("not-found");
+          }
+          if (source.state !== command.expectedState || Number(source.lifecycle_version) !== command.expectedLifecycleVersion) {
+            return reject2("state-version-conflict");
+          }
+          const knowledge = yield* investigate(source, command);
+          const expected = {
+            jobId: command.jobId,
+            state: command.expectedState,
+            lifecycleVersion: command.expectedLifecycleVersion
+          };
+          const producer3 = yield* producerIdentity(command);
+          let changes = null;
+          const produced = yield* Effect_exports.gen(function* () {
+            if (command.action === "corrected-redrive") {
+              const prepared = yield* replacement(
+                source,
+                command.sandbox,
+                command.payload
+              );
+              changes = prepared.changes;
+              yield* tx2.assertCurrent;
+              if (prepared._tag === "Synthetic") {
+                return yield* backend.operators.correctedRedrive(
+                  SyntheticDocumentExport,
+                  { expected, producer: producer3, payload: prepared.payload }
+                );
+              }
+              return yield* backend.operators.correctedRedrive(
+                {
+                  catalog: prepared.definition.catalog,
+                  payload: Payload
+                },
+                { expected, producer: producer3, payload: prepared.payload }
+              );
+            }
+            const definition2 = yield* validate3(
+              source,
+              command.sandbox
+            ).pipe(Effect_exports.provideService(DocumentKeys, keys4));
+            yield* tx2.assertCurrent;
+            return yield* backend.operators.redrive(definition2, { expected, producer: producer3 }).pipe(Effect_exports.provideService(DocumentKeys, keys4));
+          });
+          if (!produced.inserted) {
+            return yield* fail9("unavailable");
+          }
+          const next = {
+            ...problem,
+            state: "InProgress",
+            version: problem.version + 1,
+            updatedAt: produced.dbNow,
+            activeSuccessorJobId: produced.jobId,
+            outcomeKnowledge: problem.outcomeKnowledge === "Unknown" && problem.version > 0 ? "Unknown" : knowledge,
+            resolution: null
+          };
+          yield* tx2.associate(produced.jobId, next);
+          const result8 = yield* decode6(JobRepairResult.members[0], {
+            _tag: "Committed",
+            sandbox: command.sandbox,
+            requestId: command.requestId,
+            action: command.action,
+            sourceJobId: command.jobId,
+            sourceState: command.expectedState,
+            sourceLifecycleVersion: command.expectedLifecycleVersion,
+            resultJobId: produced.jobId,
+            observedAt: produced.dbNow,
+            problem: next
+          });
+          yield* tx2.save(result8, changes);
+          return result8;
+        }).pipe(
+          Effect_exports.catchTag(
+            "RepairSourceRejected",
+            (error) => Effect_exports.succeed(reject2(error.reason))
+          ),
+          Effect_exports.catchTag(
+            "OperatorSourceRejected",
+            (error) => Effect_exports.succeed(reject2(error.reason))
+          ),
+          Effect_exports.catchTag(
+            "JobPayloadCodecError",
+            () => Effect_exports.succeed(reject2("invalid-payload"))
+          ),
+          // lineage-conflict poisons the transaction and MUST NOT be saved as a
+          // safe refusal after a partial core insert.
+          Effect_exports.catchTag(
+            "JobOperatorRejected",
+            (error) => String(error.reason) === "lineage-conflict" ? Effect_exports.fail(error) : Effect_exports.succeed(reject2(error.reason))
+          )
+        );
+        const result7 = yield* operate;
+        if (result7._tag !== "OutcomeUnknown" && (!repair || result7._tag === "Rejected")) {
+          yield* tx2.save(result7);
+        }
+        return result7;
+      })
+    ).pipe(Effect_exports.catchCause(recover(command)));
+  });
+  return Repairs.of({
+    execute: (access, input) => decode6(JobRepairCommand, input).pipe(
+      Effect_exports.flatMap((command) => run5(access, command)),
+      Effect_exports.flatMap((result7) => decode6(JobRepairResult, result7))
+    ),
+    resolve: (access, input) => decode6(JobResolutionCommand, input).pipe(
+      Effect_exports.flatMap((command) => run5(access, command)),
+      Effect_exports.flatMap((result7) => decode6(JobResolutionResult, result7))
+    ),
+    receipt: (access, input) => decode6(JobRepairReceiptRequest, input).pipe(
+      Effect_exports.flatMap(
+        (request3) => transactions.lookup(access, request3, "Repair").pipe(
+          Effect_exports.map((stored) => stored?.result ?? unknown2(request3)),
+          Effect_exports.catchCause(recover(request3))
+        )
+      ),
+      Effect_exports.flatMap((result7) => decode6(JobRepairResult, result7))
+    ),
+    resolutionReceipt: (access, input) => decode6(JobRepairReceiptRequest, input).pipe(
+      Effect_exports.flatMap(
+        (request3) => transactions.lookup(access, request3, "Resolution").pipe(
+          Effect_exports.map((stored) => stored?.result ?? unknown2(request3)),
+          Effect_exports.catchCause(recover(request3))
+        )
+      ),
+      Effect_exports.flatMap((result7) => decode6(JobResolutionResult, result7))
+    )
+  });
+});
+var make35 = Effect_exports.gen(function* () {
+  return yield* makeService(yield* RepairTransactions);
+});
+var layerNoDeps = Layer_exports.effect(Repairs, make35);
+var SyntheticRepairs = class extends Context_exports.Service()("playground/SyntheticRepairs") {
+};
+var syntheticLayerNoDeps = Layer_exports.effect(
+  SyntheticRepairs,
+  Effect_exports.gen(function* () {
+    return yield* makeService(yield* SyntheticRepairTransactions);
+  })
+);
+
+// apps/playground-worker/src/persistence/authority/Schema.ts
+var relations2 = (schema) => {
+  if (!/^[a-z][a-z0-9_]{0,62}$/.test(schema)) {
+    throw new Error("Invalid playground schema");
+  }
+  const table2 = (name3) => `"${schema}"."${name3}"`;
+  return {
+    sandboxes: table2("sandboxes"),
+    associations: table2("associations"),
+    receipts: table2("command_receipts"),
+    admission: table2("command_admission"),
+    audit: table2("command_audit"),
+    ledger: table2("provider_ledger"),
+    jobs: table2("jobs")
+  };
+};
+
+// apps/playground-worker/src/persistence/commands/RepairSchema.ts
+var relations3 = (schema) => ({
+  ...relations2(schema),
+  admission: `"${schema}"."repair_admission"`,
+  receipts: `"${schema}"."repair_receipts"`,
+  problems: `"${schema}"."job_problems"`,
+  members: `"${schema}"."job_repair_members"`,
+  edges: `"${schema}"."job_repairs"`,
+  audit: `"${schema}"."repair_audit"`,
+  payloads: `"${schema}"."job_payloads"`
+});
+var decodeProblem = (input) => Schema_exports.decodeUnknownEffect(JobProblem)(input, { onExcessProperty: "error" }).pipe(
+  Effect_exports.mapError(() => new PlaygroundError({ code: "unavailable" })),
+  Effect_exports.flatMap(
+    (problem) => problem.state === "InProgress" && problem.activeSuccessorJobId === null || problem.state === "Resolved" !== (problem.resolution !== null) || problem.resolution !== null && problem.resolution.successorJobId !== problem.activeSuccessorJobId ? Effect_exports.fail(new PlaygroundError({ code: "unavailable" })) : Effect_exports.succeed(problem)
+  )
+);
+
+// apps/playground-worker/src/execution/RepairReconciliation.ts
+var effectiveProblem = (problem, successor, observedAt) => {
+  if (problem.state !== "InProgress" || problem.activeSuccessorJobId === null) {
+    return problem;
+  }
+  if (successor && successor.jobId !== problem.activeSuccessorJobId) {
+    return problem;
+  }
+  if (successor && ["Pending", "RetryScheduled", "Active"].includes(successor.state)) {
+    return problem;
+  }
+  if (problem.version === Number.MAX_SAFE_INTEGER) {
+    throw new Error("Resolution version exhausted");
+  }
+  const resolved = successor?.state === "Completed" && problem.outcomeKnowledge === "KnownFailure";
+  return {
+    ...problem,
+    version: problem.version + 1,
+    updatedAt: observedAt,
+    state: resolved ? "Resolved" : "Open",
+    resolution: resolved ? {
+      kind: "SuccessorCompleted",
+      reason: null,
+      observedAt,
+      successorJobId: problem.activeSuccessorJobId
+    } : null
+  };
+};
+var reconcileLocked = (schema, sandboxId, generation, rootJobId) => Effect_exports.gen(function* () {
+  const sql = yield* SqlClient;
+  const t = relations3(schema);
+  const [row] = yield* sql.unsafe(
+    `SELECT problem FROM ${t.problems} WHERE sandbox_id=$1 AND generation=$2 AND root_job_id=$3 FOR UPDATE`,
+    [sandboxId, generation, rootJobId]
+  );
+  if (!row) {
+    return null;
+  }
+  const problem = yield* decodeProblem(row.problem);
+  if (problem.rootJobId !== rootJobId) {
+    return yield* new PlaygroundError({ code: "unavailable" });
+  }
+  if (problem.state !== "InProgress") {
+    return problem;
+  }
+  const [successor] = yield* sql.unsafe(
+    `SELECT j.* FROM ${t.associations} a JOIN ${t.jobs} j ON j.id=a.job_id WHERE a.sandbox_id=$1 AND a.generation=$2 AND j.id=$3 FOR UPDATE OF j`,
+    [sandboxId, generation, problem.activeSuccessorJobId]
+  );
+  if (successor) {
+    yield* Schema_exports.decodeUnknownEffect(JobSnapshot)(
+      {
+        jobId: successor.id,
+        policy: successor.policy,
+        state: successor.state,
+        availableAt: Number(successor.available_at),
+        updatedAt: Number(successor.updated_at),
+        attemptsMade: Number(successor.attempts_made),
+        stalledCount: Number(successor.stalled_count),
+        lifecycleVersion: Number(successor.lifecycle_version),
+        leaseToken: successor.lease_token,
+        leaseExpiresAt: successor.lease_expires_at === null ? null : Number(successor.lease_expires_at),
+        completedAt: successor.completed_at === null ? null : Number(successor.completed_at),
+        lastFailureCode: successor.last_failure_code
+      },
+      { onExcessProperty: "error" }
+    ).pipe(Effect_exports.mapError(() => new PlaygroundError({ code: "unavailable" })));
+  }
+  const [clock2] = yield* sql.unsafe(
+    `SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now`
+  );
+  const next = effectiveProblem(
+    problem,
+    successor ? {
+      jobId: String(successor.id),
+      state: successor.state,
+      lifecycleVersion: Number(successor.lifecycle_version)
+    } : null,
+    Number(clock2.now)
+  );
+  if (next === problem) {
+    return problem;
+  }
+  yield* sql.unsafe(
+    `UPDATE ${t.problems} SET problem=$4::jsonb WHERE sandbox_id=$1 AND generation=$2 AND root_job_id=$3`,
+    [sandboxId, generation, rootJobId, JSON.stringify(next)]
+  );
+  const identity2 = yield* digestJson([
+    rootJobId,
+    problem.activeSuccessorJobId,
+    successor ? Number(successor.lifecycle_version) : null
+  ]).pipe(Effect_exports.mapError(() => new PlaygroundError({ code: "unavailable" })));
+  yield* sql.unsafe(
+    `INSERT INTO ${t.audit}(sandbox_id,generation,identity,root_job_id,successor_job_id,observed_lifecycle_version,action,fact,observed_at)
+     VALUES ($1,$2,$3,$4,$5,$6,'reconciliation',$7::jsonb,$8) ON CONFLICT DO NOTHING`,
+    [
+      sandboxId,
+      generation,
+      identity2,
+      rootJobId,
+      problem.activeSuccessorJobId,
+      successor ? Number(successor.lifecycle_version) : null,
+      JSON.stringify({
+        _tag: "Resolution",
+        rootJobId,
+        state: next.state,
+        kind: next.resolution?.kind ?? "Reopened",
+        reason: null,
+        observedAt: next.updatedAt
+      }),
+      next.updatedAt
+    ]
+  );
+  return next;
+});
+
+// apps/playground-worker/src/persistence/authority/PrivateMode.ts
+var LocalPrivate = Context_exports.Reference("playground/LocalPrivate", {
+  defaultValue: () => false
+});
+var retainedMaximum = (local) => local ? Number.MAX_SAFE_INTEGER : 100;
+var admissionMaximum = (local) => local ? Number.MAX_SAFE_INTEGER : 200;
+
+// apps/playground-worker/src/persistence/authority/PostgreSqlRepairTransactions.ts
+var fail10 = (code) => new PlaygroundError({ code });
+var sameRef = (a, b) => a.sandboxId === b.sandboxId && a.generation === b.generation;
+var clock = "floor(extract(epoch FROM clock_timestamp())*1000)::bigint";
+var controls = (effect2) => effect2.pipe(
+  Effect_exports.catchCause(
+    (cause) => Effect_exports.failCause(
+      Cause_exports.fromReasons(
+        cause.reasons.map((reason) => {
+          if (Cause_exports.isFailReason(reason) && isSqlError(reason.error) || Cause_exports.isDieReason(reason) && isSqlError(reason.defect)) {
+            return Cause_exports.makeFailReason(
+              new CommandTransactionFailure({ commitKnowledge: "Unknown" })
+            );
+          }
+          return reason;
+        })
+      )
+    )
+  )
+);
+var decode7 = (schema, input) => Schema_exports.decodeUnknownEffect(schema)(input, { onExcessProperty: "error" }).pipe(
+  Effect_exports.mapError(() => fail10("unavailable"))
+);
+var makeAdapter = (schema, category) => Effect_exports.gen(function* () {
+  const sql = yield* SqlClient;
+  const local = yield* LocalPrivate;
+  const t = relations3(schema);
+  const query = (text3, values2 = []) => sql.unsafe(text3, values2).pipe(
+    Effect_exports.mapError(
+      () => new CommandTransactionFailure({ commitKnowledge: "Unknown" })
+    )
+  );
+  const lock = (access, ref) => Effect_exports.gen(function* () {
+    if (access.sandbox.ref.sandboxId !== ref.sandboxId) {
+      return yield* fail10("not-found");
+    }
+    const [row] = yield* query(
+      `SELECT * FROM ${t.sandboxes} WHERE sandbox_id=$1 FOR UPDATE`,
+      [ref.sandboxId]
+    );
+    if (!row) {
+      return yield* fail10("not-found");
+    }
+    if (category === "LocalOperator" && (!local || row.demo_owned === true)) {
+      return yield* fail10("not-found");
+    }
+    if (category === "SyntheticSeed" && row.demo_owned !== true) {
+      return yield* fail10("not-found");
+    }
+    const [time2] = yield* query(`SELECT ${clock} AS now`);
+    if (Number(row.expires_at) <= Number(time2.now)) {
+      return yield* fail10("sandbox-expired");
+    }
+    const current = yield* decode7(SandboxRef, {
+      sandboxId: row.sandbox_id,
+      generation: Number(row.generation)
+    });
+    if (ref.generation > current.generation) {
+      return yield* fail10("stale-generation");
+    }
+    return { row, current };
+  });
+  const lookup3 = (request3, operation2) => Effect_exports.gen(function* () {
+    const [row] = yield* query(
+      `SELECT receipt,command_digest FROM ${t.receipts} WHERE sandbox_id=$1 AND generation=$2 AND operation=$3 AND request_id=$4`,
+      [
+        request3.sandbox.sandboxId,
+        request3.sandbox.generation,
+        operation2,
+        request3.requestId
+      ]
+    );
+    if (!row) {
+      return null;
+    }
+    const stored = yield* decode7(StoredRepairReceipt, row.receipt);
+    yield* decode7(
+      operation2 === "Repair" ? JobRepairResult : JobResolutionResult,
+      stored.result
+    );
+    if (stored.commandDigest !== row.command_digest || !sameRef(stored.result.sandbox, request3.sandbox) || stored.result.requestId !== request3.requestId) {
+      return yield* fail10("unavailable");
+    }
+    return stored;
+  });
+  return RepairTransactions.of({
+    owned: (access, input, digest2, body) => Effect_exports.gen(function* () {
+      const command = yield* decode7(
+        Schema_exports.Union([JobRepairCommand, JobResolutionCommand]),
+        input
+      );
+      if (!/^[a-f0-9]{64}$/u.test(digest2)) {
+        return yield* fail10("invalid-request");
+      }
+      if (Option_exports.isSome(yield* Effect_exports.serviceOption(sql.transactionService))) {
+        return yield* new CommandTransactionFailure({
+          commitKnowledge: "NotCommitted"
+        });
+      }
+      const repair = "jobId" in command;
+      const operation2 = repair ? "Repair" : "Resolution";
+      const ref = command.sandbox;
+      const args2 = [ref.sandboxId, ref.generation, operation2, command.requestId];
+      const admission = yield* controls(
+        sql.withTransaction(
+          Effect_exports.gen(function* () {
+            const { current, row } = yield* lock(access, ref);
+            const [prior] = yield* query(
+              `SELECT command_digest,actor_category FROM ${t.admission} WHERE sandbox_id=$1 AND generation=$2 AND operation=$3 AND request_id=$4`,
+              args2
+            );
+            if (prior) {
+              return prior.command_digest === digest2 && prior.actor_category === category ? "Unresolved" : "Conflict";
+            }
+            if (!sameRef(current, ref)) {
+              return yield* fail10("stale-generation");
+            }
+            const [budget] = yield* query(
+              `SELECT (SELECT count(*) FROM ${t.admission} WHERE sandbox_id=$1)+(SELECT count(*) FROM "${schema}"."command_admission" WHERE sandbox_id=$1) AS n`,
+              [ref.sandboxId]
+            );
+            const maximum = category === "SyntheticSeed" ? 4e4 : admissionMaximum(local);
+            if (Number(budget.n) >= maximum) {
+              return yield* fail10("limit-reached");
+            }
+            yield* query(
+              `INSERT INTO ${t.admission}(sandbox_id,generation,operation,request_id,command_digest,actor_category) VALUES ($1,$2,$3,$4,$5,$6)`,
+              [...args2, digest2, category]
+            );
+            const [final] = yield* query(`SELECT ${clock} AS now`);
+            if (Number(row.expires_at) <= Number(final.now)) {
+              return yield* fail10("sandbox-expired");
+            }
+            return "Fresh";
+          })
+        )
+      );
+      return yield* controls(
+        sql.withTransaction(
+          Effect_exports.gen(function* () {
+            const { current, row } = yield* lock(access, ref);
+            const stored = admission === "Conflict" ? null : yield* lookup3(command, operation2);
+            if (stored && stored.commandDigest !== digest2) {
+              return yield* fail10("unavailable");
+            }
+            const assertCurrent = Effect_exports.gen(function* () {
+              if (!sameRef(current, ref)) {
+                return yield* fail10("stale-generation");
+              }
+              const [time2] = yield* query(`SELECT ${clock} AS now`);
+              if (Number(row.expires_at) <= Number(time2.now)) {
+                return yield* fail10("sandbox-expired");
+              }
+            });
+            let root;
+            let source;
+            let problemLoaded = false;
+            let problem = null;
+            const loadProblem = Effect_exports.gen(function* () {
+              yield* assertCurrent;
+              if (problemLoaded) {
+                return problem;
+              }
+              if (admission !== "Fresh" || stored) {
+                return yield* fail10("unavailable");
+              }
+              if (repair) {
+                const [member] = yield* query(
+                  `SELECT root_job_id FROM ${t.members} WHERE sandbox_id=$1 AND generation=$2 AND job_id=$3`,
+                  [ref.sandboxId, ref.generation, command.jobId]
+                );
+                root = member ? String(member.root_job_id) : command.jobId;
+              } else {
+                root = command.rootJobId;
+              }
+              problem = yield* reconcileLocked(
+                schema,
+                ref.sandboxId,
+                ref.generation,
+                root
+              ).pipe(
+                Effect_exports.provideService(SqlClient, sql),
+                Effect_exports.catchCause(
+                  (cause) => Effect_exports.failCause(
+                    Cause_exports.map(
+                      cause,
+                      (error) => error instanceof PlaygroundError ? error : new CommandTransactionFailure({
+                        commitKnowledge: "Unknown"
+                      })
+                    )
+                  )
+                )
+              );
+              problemLoaded = true;
+              return problem;
+            });
+            const loadSource = Effect_exports.gen(function* () {
+              yield* loadProblem;
+              if (source !== void 0) {
+                return source;
+              }
+              const [found] = yield* query(
+                `SELECT j.*,p.format_version,p.payload,p.projection,a.relations,l.accepted,l.invocations
+            FROM ${t.associations} a JOIN ${t.jobs} j ON j.id=a.job_id
+            LEFT JOIN ${t.payloads} p ON p.job_id=j.id
+            LEFT JOIN ${t.ledger} l ON l.sandbox_id=a.sandbox_id AND l.generation=a.generation AND l.job_id=j.id
+            WHERE a.sandbox_id=$1 AND a.generation=$2 AND j.id=$3 FOR UPDATE OF j`,
+                [
+                  ref.sandboxId,
+                  ref.generation,
+                  repair ? command.jobId : command.rootJobId
+                ]
+              );
+              source = found ?? null;
+              return source;
+            });
+            const materialize = (value6) => Effect_exports.gen(function* () {
+              if (value6.rootJobId !== root) {
+                return yield* fail10("unavailable");
+              }
+              const checked2 = yield* decodeProblem(value6);
+              yield* query(
+                `INSERT INTO ${t.problems}(sandbox_id,generation,root_job_id,problem) VALUES ($1,$2,$3,$4::jsonb)
+             ON CONFLICT(sandbox_id,generation,root_job_id) DO UPDATE SET problem=excluded.problem`,
+                [ref.sandboxId, ref.generation, root, JSON.stringify(checked2)]
+              );
+              problem = checked2;
+            });
+            const result7 = yield* body({
+              admission,
+              stored,
+              assertCurrent,
+              now: query(`SELECT ${clock} AS now`).pipe(
+                Effect_exports.map((rows) => Number(rows[0].now))
+              ),
+              source: () => loadSource,
+              problem: () => loadProblem,
+              associate: (resultJobId, next) => Effect_exports.gen(function* () {
+                yield* assertCurrent;
+                const original = yield* loadSource;
+                if (!repair || !original || resultJobId === command.jobId || next.activeSuccessorJobId !== resultJobId || next.state !== "InProgress") {
+                  return yield* fail10("unavailable");
+                }
+                const [child] = yield* query(
+                  `SELECT original_source_job_id,source_job_id,redrive_kind FROM ${t.jobs} WHERE id=$1 FOR UPDATE`,
+                  [resultJobId]
+                );
+                if (!child || child.original_source_job_id !== command.jobId || child.source_job_id !== command.jobId || child.redrive_kind !== (command.action === "redrive" ? "Redrive" : "CorrectedRedrive")) {
+                  return yield* fail10("unavailable");
+                }
+                const maximum = category === "SyntheticSeed" ? 2e4 : retainedMaximum(local);
+                const reserved = yield* query(
+                  `UPDATE ${t.sandboxes} SET retained_jobs=retained_jobs+1 WHERE sandbox_id=$1 AND retained_jobs<$2 RETURNING sandbox_id`,
+                  [ref.sandboxId, maximum]
+                );
+                if (reserved.length !== 1) {
+                  return yield* fail10("limit-reached");
+                }
+                yield* query(
+                  `INSERT INTO ${t.associations}(sandbox_id,generation,job_id,relations) VALUES($1,$2,$3,$4::jsonb)`,
+                  [
+                    ref.sandboxId,
+                    ref.generation,
+                    resultJobId,
+                    JSON.stringify(original.relations)
+                  ]
+                );
+                yield* materialize(next);
+                for (const jobId of [command.jobId, resultJobId]) {
+                  yield* query(
+                    `INSERT INTO ${t.members}(sandbox_id,generation,job_id,live_job_id,root_job_id) VALUES ($1,$2,$3,$3,$4) ON CONFLICT(sandbox_id,generation,job_id) DO NOTHING`,
+                    [ref.sandboxId, ref.generation, jobId, root]
+                  );
+                }
+              }),
+              save: (accepted, changes = null) => Effect_exports.gen(function* () {
+                yield* assertCurrent;
+                if (admission !== "Fresh" || stored || !sameRef(accepted.sandbox, ref) || accepted.requestId !== command.requestId) {
+                  return yield* fail10("unavailable");
+                }
+                yield* decode7(
+                  repair ? JobRepairResult : JobResolutionResult,
+                  accepted
+                );
+                if (accepted._tag === "Rejected" && (repair ? !("jobId" in accepted) || accepted.jobId !== command.jobId : !("rootJobId" in accepted) || accepted.rootJobId !== command.rootJobId)) {
+                  return yield* fail10("unavailable");
+                }
+                const value6 = yield* decode7(StoredRepairReceipt, {
+                  commandDigest: digest2,
+                  result: accepted
+                });
+                if (accepted._tag === "Committed") {
+                  if (!repair) {
+                    if (!("problem" in accepted)) {
+                      return yield* fail10("unavailable");
+                    }
+                    if (accepted.problem.rootJobId !== command.rootJobId || accepted.problem.state !== "Resolved") {
+                      return yield* fail10("unavailable");
+                    }
+                    yield* loadProblem;
+                    yield* materialize(accepted.problem);
+                    if (source) {
+                      yield* query(
+                        `INSERT INTO ${t.members}(sandbox_id,generation,job_id,live_job_id,root_job_id) VALUES ($1,$2,$3,$3,$3) ON CONFLICT DO NOTHING`,
+                        [ref.sandboxId, ref.generation, root]
+                      );
+                    }
+                  }
+                  if (repair) {
+                    if (!("resultJobId" in accepted) || accepted.sourceJobId !== command.jobId || accepted.action !== command.action) {
+                      return yield* fail10("unavailable");
+                    }
+                    yield* query(
+                      `INSERT INTO ${t.edges}(sandbox_id,generation,request_id,root_job_id,original_source_job_id,source_job_id,result_job_id,live_result_job_id,action,observed_at,reason,changes)
+                  VALUES ($1,$2,$3,$4,$5,$5,$6,$6,$7,$8,$9,$10::jsonb)`,
+                      [
+                        ref.sandboxId,
+                        ref.generation,
+                        command.requestId,
+                        root,
+                        command.jobId,
+                        accepted.resultJobId,
+                        command.action,
+                        accepted.observedAt,
+                        command.reason,
+                        JSON.stringify(changes)
+                      ]
+                    );
+                  }
+                  const fact = repair && "resultJobId" in accepted ? {
+                    _tag: "Operator",
+                    requestId: command.requestId,
+                    action: command.action,
+                    sourceJobId: command.jobId,
+                    resultJobId: accepted.resultJobId,
+                    observedAt: accepted.observedAt
+                  } : {
+                    _tag: "Resolution",
+                    rootJobId: root,
+                    state: "Resolved",
+                    kind: "problem" in accepted ? accepted.problem.resolution?.kind : null,
+                    reason: command.reason,
+                    observedAt: accepted.observedAt
+                  };
+                  yield* query(
+                    `INSERT INTO ${t.audit}(sandbox_id,generation,identity,root_job_id,action,fact,observed_at) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)`,
+                    [
+                      ref.sandboxId,
+                      ref.generation,
+                      command.requestId,
+                      root,
+                      command.action,
+                      JSON.stringify({
+                        ...fact,
+                        repairReason: repair ? command.reason : null,
+                        operatorCategory: category,
+                        investigation: repair ? command.investigation : null,
+                        changes,
+                        validation: repair ? "Valid" : null
+                      }),
+                      accepted.observedAt
+                    ]
+                  );
+                }
+                yield* query(
+                  `INSERT INTO ${t.receipts}(sandbox_id,generation,operation,request_id,command_digest,receipt) VALUES ($1,$2,$3,$4,$5,$6::jsonb)`,
+                  [...args2, digest2, JSON.stringify(value6)]
+                );
+              })
+            });
+            if (admission === "Fresh") {
+              yield* assertCurrent;
+            }
+            return result7;
+          })
+        )
+      );
+    }),
+    lookup: (access, input, operation2) => controls(
+      sql.withTransaction(
+        Effect_exports.gen(function* () {
+          const request3 = yield* decode7(JobRepairReceiptRequest, input);
+          yield* lock(access, request3.sandbox);
+          return yield* lookup3(request3, operation2);
+        })
+      )
+    )
+  });
+});
+var make36 = (schema) => makeAdapter(schema, "LocalOperator");
+var layerNoDeps2 = (schema) => Layer_exports.effect(RepairTransactions, make36(schema));
+var syntheticLayerNoDeps2 = (schema) => Layer_exports.effect(SyntheticRepairTransactions, makeAdapter(schema, "SyntheticSeed"));
+
+// apps/playground-worker/src/persistence/commands/OperatorTransactions.ts
+var StoredOperatorReceipt = Schema_exports.Struct({
+  command: JobOperatorCommand,
+  result: Schema_exports.Union([JobOperatorResult.members[0], JobOperatorResult.members[1]])
+});
+var OperatorTransactions = class extends Context_exports.Service()("playground/OperatorTransactions") {
+};
+
+// apps/playground-worker/src/persistence/commands/OperatorPersistence.ts
+var fail11 = (code) => new PlaygroundError({ code });
+var decode8 = (schema, input) => Schema_exports.decodeUnknownEffect(schema)(input, { onExcessProperty: "error" }).pipe(
+  Effect_exports.mapError(() => fail11("invalid-request"))
+);
+var unknown3 = (request3) => ({
+  _tag: "OutcomeUnknown",
+  sandbox: request3.sandbox,
+  requestId: request3.requestId
+});
+var recover2 = (request3) => (cause) => {
+  const reason = cause.reasons.length === 1 ? cause.reasons[0] : void 0;
+  if (reason && Cause_exports.isFailReason(reason) && (reason.error instanceof CommandTransactionFailure || reason.error instanceof PostgreSqlFailure) && reason.error.commitKnowledge === "Unknown") {
+    return Effect_exports.succeed(unknown3(request3));
+  }
+  return Effect_exports.failCause(
+    Cause_exports.fromReasons(
+      cause.reasons.map((reason2) => {
+        if (Cause_exports.isInterruptReason(reason2)) {
+          return reason2;
+        }
+        if (Cause_exports.isDieReason(reason2)) {
+          return Cause_exports.makeDieReason(new Error("Operator persistence defect"));
+        }
+        return Cause_exports.makeFailReason(
+          reason2.error instanceof PlaygroundError ? fail11(reason2.error.code) : fail11("unavailable")
+        );
+      })
+    )
+  );
+};
+var make37 = Effect_exports.gen(function* () {
+  const transactions = yield* OperatorTransactions;
+  const backend = yield* PostgreSqlJobs;
+  return Operators.of({
+    execute: Effect_exports.fn("Operators.execute")(function* (access, input) {
+      const command = yield* decode8(JobOperatorCommand, input);
+      const reject2 = (reason) => ({
+        _tag: "Rejected",
+        sandbox: command.sandbox,
+        requestId: command.requestId,
+        action: command.action,
+        jobId: command.jobId,
+        reason
+      });
+      const result7 = yield* transactions.owned(
+        access,
+        command,
+        (tx2) => Effect_exports.gen(function* () {
+          if (tx2.stored) {
+            if (commandIdentity(tx2.stored.command) !== commandIdentity(command) || !matchesCommandResult(command, tx2.stored.result)) {
+              return yield* fail11("unavailable");
+            }
+            return tx2.stored.result;
+          }
+          if (tx2.admission === "Unresolved") {
+            return unknown3(command);
+          }
+          yield* tx2.assertCurrent;
+          const source = yield* tx2.source();
+          if (source === null) {
+            const result9 = reject2("not-found");
+            yield* tx2.save(result9);
+            return result9;
+          }
+          const expected = {
+            jobId: command.jobId,
+            state: command.expectedState,
+            lifecycleVersion: command.expectedLifecycleVersion
+          };
+          const operate = Effect_exports.gen(function* () {
+            if (command.action === "redrive") {
+              return reject2("investigation-required");
+            }
+            const transition = yield* command.action === "cancel" ? backend.operators.cancel(expected) : backend.operators.retryNow(expected);
+            return yield* decode8(JobOperatorResult.members[0], {
+              _tag: "Committed",
+              sandbox: command.sandbox,
+              requestId: command.requestId,
+              action: command.action,
+              sourceJobId: command.jobId,
+              sourceState: transition.beforeState,
+              sourceLifecycleVersion: transition.beforeVersion,
+              resultJobId: transition.jobId,
+              resultState: transition.after.state,
+              resultLifecycleVersion: transition.after.lifecycleVersion,
+              observedAt: transition.after.updatedAt
+            });
+          }).pipe(
+            Effect_exports.catchTag(
+              "JobOperatorRejected",
+              (error) => error.reason === "lineage-conflict" ? Effect_exports.fail(error) : Effect_exports.succeed(reject2(error.reason))
+            )
+          );
+          const result8 = yield* operate;
+          yield* tx2.save(result8);
+          return result8;
+        })
+      ).pipe(Effect_exports.catchCause(recover2(command)));
+      if (!matchesCommandResult(command, result7)) {
+        return yield* fail11("unavailable");
+      }
+      return result7;
+    }),
+    receipt: Effect_exports.fn("Operators.receipt")(function* (access, input) {
+      const request3 = yield* decode8(JobOperatorReceiptRequest, input);
+      const stored = yield* transactions.lookup(access, request3).pipe(Effect_exports.catchCause(recover2(request3)));
+      if (stored === null) {
+        return unknown3(request3);
+      }
+      if ("_tag" in stored) {
+        return stored;
+      }
+      if (!matchesCommandResult(stored.command, stored.result) || stored.result.requestId !== request3.requestId || stored.result.sandbox.sandboxId !== request3.sandbox.sandboxId || stored.result.sandbox.generation !== request3.sandbox.generation) {
+        return yield* fail11("unavailable");
+      }
+      return stored.result;
+    })
+  });
+});
+var layerNoDeps3 = Layer_exports.effect(Operators, make37);
+
+// apps/playground-worker/src/persistence/authority/PostgreSqlOperatorTransactions.ts
+var fail12 = (code) => new PlaygroundError({ code });
+var sameRef2 = (a, b) => a.sandboxId === b.sandboxId && a.generation === b.generation;
+var dbTime2 = "floor(extract(epoch FROM clock_timestamp())*1000)::bigint";
+var controls2 = (effect2) => effect2.pipe(
+  Effect_exports.catchCause(
+    (cause) => Effect_exports.failCause(
+      Cause_exports.fromReasons(
+        cause.reasons.map((reason) => {
+          if (Cause_exports.isFailReason(reason) && isSqlError(reason.error) || Cause_exports.isDieReason(reason) && isSqlError(reason.defect)) {
+            return Cause_exports.makeFailReason(
+              new CommandTransactionFailure({ commitKnowledge: "Unknown" })
+            );
+          }
+          return reason;
+        })
+      )
+    )
+  )
+);
+var decode9 = (schema, input) => Schema_exports.decodeUnknownEffect(schema)(input, { onExcessProperty: "error" }).pipe(
+  Effect_exports.mapError(() => fail12("unavailable"))
+);
+var make38 = (schema) => Effect_exports.gen(function* () {
+  const sql = yield* SqlClient;
+  const local = yield* LocalPrivate;
+  const retainedMaximum2 = retainedMaximum(local);
+  const admissionMaximum2 = admissionMaximum(local);
+  const t = relations2(schema);
+  const lineage2 = `"${schema}"."operator_redrives"`;
+  const payloads = `"${schema}"."job_payloads"`;
+  const query = (text3, values2 = []) => sql.unsafe(text3, values2).pipe(
+    Effect_exports.mapError(
+      () => new CommandTransactionFailure({ commitKnowledge: "Unknown" })
+    )
+  );
+  const lock = (access, ref) => Effect_exports.gen(function* () {
+    if (access.sandbox.ref.sandboxId !== ref.sandboxId) {
+      return yield* fail12("not-found");
+    }
+    const [row] = yield* query(
+      `SELECT * FROM ${t.sandboxes} WHERE sandbox_id=$1 FOR UPDATE`,
+      [ref.sandboxId]
+    );
+    if (!row) {
+      return yield* fail12("not-found");
+    }
+    if (row.demo_owned === true) {
+      return yield* fail12("capability-unavailable");
+    }
+    const [clock2] = yield* query(`SELECT ${dbTime2} AS now`);
+    if (Number(row.expires_at) <= Number(clock2.now)) {
+      return yield* fail12("sandbox-expired");
+    }
+    const current = yield* decode9(SandboxRef, {
+      sandboxId: row.sandbox_id,
+      generation: Number(row.generation)
+    });
+    if (ref.generation > current.generation) {
+      return yield* fail12("stale-generation");
+    }
+    return { row, current };
+  });
+  const receipt = (request3) => Effect_exports.gen(function* () {
+    const [row] = yield* query(
+      `SELECT receipt FROM ${t.receipts} WHERE sandbox_id=$1 AND generation=$2 AND operation='Operator' AND request_id=$3`,
+      [request3.sandbox.sandboxId, request3.sandbox.generation, request3.requestId]
+    );
+    if (!row) {
+      return null;
+    }
+    const stored = yield* decode9(StoredOperatorReceipt, row.receipt);
+    if (!sameRef2(stored.command.sandbox, request3.sandbox) || !sameRef2(stored.result.sandbox, request3.sandbox) || stored.command.requestId !== request3.requestId || stored.result.requestId !== request3.requestId || stored.command.action !== stored.result.action || stored.result._tag === "Rejected" && stored.result.jobId !== stored.command.jobId || stored.result._tag === "Committed" && (stored.result.sourceJobId !== stored.command.jobId || stored.result.sourceState !== stored.command.expectedState || stored.result.sourceLifecycleVersion !== stored.command.expectedLifecycleVersion)) {
+      return yield* fail12("unavailable");
+    }
+    return stored;
+  });
+  return OperatorTransactions.of({
+    owned: (access, input, body) => Effect_exports.gen(function* () {
+      const command = yield* Schema_exports.decodeUnknownEffect(JobOperatorCommand)(input, {
+        onExcessProperty: "error"
+      }).pipe(Effect_exports.mapError(() => fail12("invalid-request")));
+      if (Option_exports.isSome(yield* Effect_exports.serviceOption(sql.transactionService))) {
+        return yield* new CommandTransactionFailure({
+          commitKnowledge: "NotCommitted"
+        });
+      }
+      const identity2 = commandIdentity(command);
+      const fresh2 = yield* controls2(
+        sql.withTransaction(
+          Effect_exports.gen(function* () {
+            const { current } = yield* lock(access, command.sandbox);
+            const [prior] = yield* query(
+              `SELECT operator_command FROM ${t.admission} WHERE sandbox_id=$1 AND generation=$2 AND operation='Operator' AND request_id=$3`,
+              [
+                command.sandbox.sandboxId,
+                command.sandbox.generation,
+                command.requestId
+              ]
+            );
+            if (prior) {
+              if (prior.operator_command !== identity2) {
+                return yield* fail12("invalid-request");
+              }
+              return false;
+            }
+            if (!sameRef2(current, command.sandbox)) {
+              return yield* fail12("stale-generation");
+            }
+            const [budget] = yield* query(
+              `SELECT count(*) AS n FROM ${t.admission} WHERE sandbox_id=$1`,
+              [current.sandboxId]
+            );
+            if (Number(budget.n) >= admissionMaximum2) {
+              return yield* fail12("limit-reached");
+            }
+            yield* query(
+              `INSERT INTO ${t.admission}(sandbox_id,generation,operation,request_id,operator_command) VALUES ($1,$2,'Operator',$3,$4)`,
+              [current.sandboxId, current.generation, command.requestId, identity2]
+            );
+            return true;
+          })
+        )
+      );
+      return yield* controls2(
+        sql.withTransaction(
+          Effect_exports.gen(function* () {
+            const { row, current } = yield* lock(access, command.sandbox);
+            const stored = yield* receipt(command);
+            if (stored && commandIdentity(stored.command) !== identity2) {
+              return yield* fail12("invalid-request");
+            }
+            const assertCurrent = Effect_exports.gen(function* () {
+              if (!sameRef2(current, command.sandbox)) {
+                return yield* fail12("stale-generation");
+              }
+              const [clock2] = yield* query(`SELECT ${dbTime2} AS now`);
+              if (Number(row.expires_at) <= Number(clock2.now)) {
+                return yield* fail12("sandbox-expired");
+              }
+            });
+            let source;
+            const scopedSource = Effect_exports.gen(function* () {
+              yield* assertCurrent;
+              if (!fresh2 || stored !== null) {
+                return yield* fail12("unavailable");
+              }
+              if (source !== void 0) {
+                return source;
+              }
+              const [found] = yield* query(
+                `SELECT j.*,p.format_version,p.payload,p.projection,a.relations
+            FROM ${t.associations} a JOIN ${t.jobs} j ON j.id=a.job_id
+            LEFT JOIN ${payloads} p ON p.job_id=j.id
+            WHERE a.sandbox_id=$1 AND a.generation=$2 AND j.id=$3 FOR UPDATE OF j`,
+                [current.sandboxId, current.generation, command.jobId]
+              );
+              source = found ?? null;
+              return source;
+            });
+            const result7 = yield* body({
+              admission: fresh2 ? "Fresh" : "Unresolved",
+              stored,
+              assertCurrent,
+              source: () => scopedSource,
+              associateRedrive: (accepted) => Effect_exports.gen(function* () {
+                yield* assertCurrent;
+                if (accepted.action !== "redrive" || command.action !== "redrive" || accepted.sourceJobId !== command.jobId || accepted.resultJobId === command.jobId || !sameRef2(accepted.sandbox, command.sandbox) || accepted.requestId !== command.requestId || accepted.sourceState !== command.expectedState || accepted.sourceLifecycleVersion !== command.expectedLifecycleVersion) {
+                  return yield* fail12("unavailable");
+                }
+                const original = yield* scopedSource;
+                if (!original) {
+                  return yield* fail12("not-found");
+                }
+                const reserved = yield* query(
+                  `UPDATE ${t.sandboxes} SET retained_jobs=retained_jobs+1 WHERE sandbox_id=$1 AND retained_jobs<${retainedMaximum2} RETURNING sandbox_id`,
+                  [current.sandboxId]
+                );
+                if (reserved.length !== 1) {
+                  return yield* fail12("limit-reached");
+                }
+                yield* query(
+                  `INSERT INTO ${t.associations}(sandbox_id,generation,job_id,relations) VALUES ($1,$2,$3,$4::jsonb)`,
+                  [
+                    current.sandboxId,
+                    current.generation,
+                    accepted.resultJobId,
+                    JSON.stringify(original.relations)
+                  ]
+                );
+              }),
+              save: (accepted) => Effect_exports.gen(function* () {
+                yield* assertCurrent;
+                if (!matchesCommandResult(command, accepted)) {
+                  return yield* fail12("unavailable");
+                }
+                const value6 = yield* decode9(StoredOperatorReceipt, {
+                  command,
+                  result: accepted
+                });
+                if (stored || !fresh2) {
+                  return yield* fail12("unavailable");
+                }
+                yield* query(
+                  `INSERT INTO ${t.receipts}(sandbox_id,generation,operation,request_id,receipt) VALUES ($1,$2,'Operator',$3,$4::jsonb)`,
+                  [
+                    current.sandboxId,
+                    current.generation,
+                    command.requestId,
+                    JSON.stringify(value6)
+                  ]
+                );
+                if (accepted._tag === "Committed") {
+                  yield* query(
+                    `INSERT INTO ${t.audit}(sandbox_id,generation,operation,reason,count,observed_at) VALUES ($1,$2,'Operator',$3,$4,$5)`,
+                    [
+                      current.sandboxId,
+                      current.generation,
+                      accepted.action,
+                      accepted.action === "redrive" ? 1 : 0,
+                      accepted.observedAt
+                    ]
+                  );
+                  if (accepted.action === "redrive") {
+                    yield* query(
+                      `INSERT INTO ${lineage2}(sandbox_id,generation,request_id,source_job_id,source_state,source_lifecycle_version,successor_job_id,observed_at)
+                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+                      [
+                        current.sandboxId,
+                        current.generation,
+                        command.requestId,
+                        accepted.sourceJobId,
+                        accepted.sourceState,
+                        accepted.sourceLifecycleVersion,
+                        accepted.resultJobId,
+                        accepted.observedAt
+                      ]
+                    );
+                  }
+                }
+              })
+            });
+            if (fresh2) {
+              yield* assertCurrent;
+            }
+            return result7;
+          })
+        )
+      );
+    }),
+    lookup: (access, input) => controls2(
+      sql.withTransaction(
+        Effect_exports.gen(function* () {
+          const request3 = yield* Schema_exports.decodeUnknownEffect(
+            JobOperatorReceiptRequest
+          )(input, { onExcessProperty: "error" }).pipe(
+            Effect_exports.mapError(() => fail12("invalid-request"))
+          );
+          yield* lock(access, request3.sandbox);
+          return yield* receipt(request3);
+        })
+      )
+    )
+  });
+});
+var layerNoDeps4 = (schema) => Layer_exports.effect(OperatorTransactions, make38(schema));
+
 // node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobTelemetry.js
 var successOutcome = (value6) => {
   if (typeof value6 === "object" && value6 !== null && "_tag" in value6) {
@@ -25145,7 +28163,7 @@ var total = Metric_exports.counter("effect_jobs_operation_total", { incremental:
 var duration = Metric_exports.histogram("effect_jobs_operation_duration_millis", {
   boundaries: [1, 10, 100, 1e3, 1e4, 6e4]
 });
-var observe = (operation, phase) => (effect2) => Effect_exports.uninterruptibleMask((restore) => Effect_exports.gen(function* () {
+var observe = (operation2, phase) => (effect2) => Effect_exports.uninterruptibleMask((restore) => Effect_exports.gen(function* () {
   let exit3;
   yield* Effect_exports.gen(function* () {
     const started = yield* Clock_exports.currentTimeMillis;
@@ -25156,7 +28174,7 @@ var observe = (operation, phase) => (effect2) => Effect_exports.uninterruptibleM
     const [reason] = reasons;
     const outcome = Exit_exports.isSuccess(exit3) ? successOutcome(exit3.value) : reasons.length === 1 && reason !== void 0 && Cause_exports.isFailReason(reason) && reason.error instanceof Cause_exports.TimeoutError ? "timeout" : kinds.size === 1 && kinds.has("interrupted") ? "interrupted" : "failure";
     const fields = {
-      "jobs.operation": operation,
+      "jobs.operation": operation2,
       "jobs.phase": phase,
       "jobs.outcome": outcome,
       ...reasons.length === 0 ? {} : {
@@ -25168,7 +28186,7 @@ var observe = (operation, phase) => (effect2) => Effect_exports.uninterruptibleM
     yield* Metric_exports.update(Metric_exports.withAttributes(total, fields), 1);
     yield* Metric_exports.update(Metric_exports.withAttributes(duration, fields), Math.max(0, ended - started));
     yield* Effect_exports.logInfo("effect-jobs operation completed", fields);
-  }).pipe(Effect_exports.withSpan(`effect-jobs.${operation}`));
+  }).pipe(Effect_exports.withSpan(`effect-jobs.${operation2}`));
   return exit3;
 })).pipe(Effect_exports.flatMap((exit3) => exit3));
 
@@ -25255,7 +28273,7 @@ var executionFor = (store, claim2, find, supported, responseBudgetMillis) => Eff
     if (Result_exports.isFailure(prepared) || !policyEquals(prepared.success.policy, before.policy)) {
       return yield* finalize3(JobFinalizations.Isolate({ code: internalCodes2.invalid_claimed_artifact }));
     }
-    const { catalog, producer, encoded } = prepared.success;
+    const { catalog, producer: producer3, encoded } = prepared.success;
     if (!supported.some((entry) => entry.queue === catalog.queue && entry.kind === catalog.kind && entry.version === catalog.version)) {
       return;
     }
@@ -25269,7 +28287,7 @@ var executionFor = (store, claim2, find, supported, responseBudgetMillis) => Eff
     const context3 = Object.freeze({
       jobId: before.jobId,
       catalog: Object.freeze(catalog),
-      producer: Object.freeze(producer),
+      producer: Object.freeze(producer3),
       attemptNumber: attemptNumber(before)
     });
     const copied = {
@@ -25291,8 +28309,8 @@ var internalCodes2 = define({
 // node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobWorker.js
 var JobWorker = class extends Context_exports.Service()("effect-jobs/JobWorker") {
 };
-var unavailable = (effect2) => effect2.pipe(Effect_exports.catchCause((cause) => Cause_exports.hasInterrupts(cause) ? Effect_exports.interrupt : Effect_exports.fail(new JobWorkerUnavailable())));
-var make32 = (store, options) => Effect_exports.gen(function* () {
+var unavailable2 = (effect2) => effect2.pipe(Effect_exports.catchCause((cause) => Cause_exports.hasInterrupts(cause) ? Effect_exports.interrupt : Effect_exports.fail(new JobWorkerUnavailable())));
+var make39 = (store, options) => Effect_exports.gen(function* () {
   const registry = yield* JobRegistry;
   const services = yield* Effect_exports.context();
   const budget = options.operationResponseBudgetMillis;
@@ -25390,7 +28408,7 @@ var make32 = (store, options) => Effect_exports.gen(function* () {
         return DispatchResults.Unresolved();
       }
       return DispatchResults.Unresolved();
-    }).pipe(unavailable),
+    }).pipe(unavailable2),
     recover: (limit) => Effect_exports.gen(function* () {
       let recovered = 0;
       for (let remaining = limit; remaining > 0; ) {
@@ -25406,131 +28424,22 @@ var make32 = (store, options) => Effect_exports.gen(function* () {
         }
       }
       return recovered;
-    }).pipe(unavailable)
+    }).pipe(unavailable2)
   };
   return JobWorker.of(Object.freeze({ [WorkerCapability]: capability }));
 });
-var layer3 = (store, options) => Layer_exports.effect(JobWorker, make32(store, options));
-
-// packages/playground-contracts/dist/Sandbox.js
-var opaque = Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(128)));
-var SandboxId = opaque.pipe(Schema_exports.brand("playground/SandboxId"));
-var Generation = Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER })));
-var SandboxRef = Schema_exports.Struct({ sandboxId: SandboxId, generation: Generation });
-var Capabilities = Schema_exports.Struct({
-  runScenario: Schema_exports.Boolean,
-  resetSandbox: Schema_exports.Boolean,
-  retryJob: Schema_exports.Boolean,
-  cancelJob: Schema_exports.Boolean,
-  redriveJob: Schema_exports.Boolean
-});
-var SandboxView = Schema_exports.Struct({
-  ref: SandboxRef,
-  expiresAt: EpochMillis,
-  capabilities: Capabilities
-});
-var limits = Object.freeze({
-  pageSize: 50,
-  jobsPerSandbox: 100,
-  scenarioBatch: 10,
-  sandboxLifetimeMillis: 36e5,
-  reconciliationMillis: 5e3
-});
-
-// packages/playground-contracts/dist/Scenarios.js
-var ScenarioId = Schema_exports.Literals([
-  "success",
-  "retry-then-success",
-  "terminal-failure",
-  "unknown-outcome",
-  "deduplication"
-]);
-var RequestId = Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(128)));
-var ScenarioCommand = Schema_exports.Struct({
-  sandbox: SandboxRef,
-  requestId: RequestId,
-  scenario: ScenarioId,
-  count: Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 1, maximum: 10 })))
-});
-var ScenarioResult = Schema_exports.Union([
-  Schema_exports.TaggedStruct("Committed", {
-    sandbox: SandboxRef,
-    requestId: RequestId,
-    jobIds: Schema_exports.Array(JobId).pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(10)))
-  }),
-  Schema_exports.TaggedStruct("OutcomeUnknown", { sandbox: SandboxRef, requestId: RequestId })
-]);
-var ResetCommand = Schema_exports.Struct({ sandbox: SandboxRef, requestId: RequestId });
-var ResetResult = Schema_exports.Union([
-  Schema_exports.TaggedStruct("Committed", {
-    previous: SandboxRef,
-    current: SandboxRef,
-    requestId: RequestId
-  }),
-  Schema_exports.TaggedStruct("OutcomeUnknown", { previous: SandboxRef, requestId: RequestId })
-]).pipe(Schema_exports.check(Schema_exports.makeFilter((result7) => result7._tag === "OutcomeUnknown" || result7.previous.sandboxId === result7.current.sandboxId && result7.current.generation === result7.previous.generation + 1)));
-var ReceiptRequest = Schema_exports.Struct({ sandbox: SandboxRef, requestId: RequestId });
-
-// packages/playground-contracts/dist/Services.js
-var PublicErrorCode = Schema_exports.Literals([
-  "invalid-request",
-  "not-found",
-  "sandbox-expired",
-  "stale-generation",
-  "limit-reached",
-  "capability-unavailable",
-  "unavailable"
-]);
-var PublicError = Schema_exports.Struct({ code: PublicErrorCode });
-var PlaygroundError = class extends Schema_exports.TaggedError()("PlaygroundError", { code: PublicErrorCode }) {
-};
-var SandboxAuthority = class extends Context_exports.Service()("playground/SandboxAuthority") {
-};
-var JobsRead = class extends Context_exports.Service()("playground/JobsRead") {
-};
-var Scenarios = class extends Context_exports.Service()("playground/Scenarios") {
-};
-var Changes = class extends Context_exports.Service()("playground/Changes") {
-};
-
-// apps/playground-worker/src/persistence/commands/Transactions.ts
-var StoredReceipt = Schema_exports.Union([
-  Schema_exports.TaggedStruct("Scenario", {
-    command: ScenarioCommand,
-    result: ScenarioResult.members[0]
-  }),
-  Schema_exports.TaggedStruct("Reset", { command: ResetCommand, result: ResetResult })
-]);
-var CommandTransactionFailure = class extends Schema_exports.TaggedError()(
-  "CommandTransactionFailure",
-  { commitKnowledge: Schema_exports.Literals(["NotCommitted", "Unknown"]) }
-) {
-};
-var CommandTransactions = class extends Context_exports.Service()("playground/CommandTransactions") {
-};
-var CommandPersistence = class extends Context_exports.Service()("playground/CommandPersistence") {
-};
-var unavailable2 = () => Effect_exports.fail(new PlaygroundError({ code: "capability-unavailable" }));
-var unavailableLayer = Layer_exports.succeed(
-  CommandPersistence,
-  CommandPersistence.of({
-    run: unavailable2,
-    reset: unavailable2,
-    scenarioReceipt: unavailable2,
-    resetReceipt: unavailable2
-  })
-);
+var layer3 = (store, options) => Layer_exports.effect(JobWorker, make39(store, options));
 
 // node_modules/.bun/@effect+sql-pg@4.0.0+a594d97e083afb95/node_modules/@effect/sql-pg/dist/internal/sqlError.js
 var channelNameEncoder = /* @__PURE__ */ new TextEncoder();
-var validateChannelName = (channel, operation) => {
+var validateChannelName = (channel, operation2) => {
   if (channelNameEncoder.encode(channel).byteLength <= 63) return void 0;
   const message = "PostgreSQL channel names must not exceed 63 UTF-8 bytes";
   return new SqlError({
     reason: new UnknownError3({
       cause: new Error(message),
       message,
-      operation
+      operation: operation2
     })
   });
 };
@@ -25595,7 +28504,7 @@ var resolve4 = (password) => password === void 0 ? succeed6(void 0) : isEffect2(
 import { createHash as createHash2, createHmac, pbkdf2Sync } from "node:crypto";
 var AuthError = class extends (/* @__PURE__ */ TaggedError2("PgAuthError")) {
 };
-var fail9 = (message) => {
+var fail13 = (message) => {
   throw new AuthError({
     message
   });
@@ -25614,7 +28523,7 @@ var textDecoder = /* @__PURE__ */ new TextDecoder("utf-8", {
 });
 var maxScramIterations = 1e6;
 var bytesOf = (value6) => Uint8Array.from(value6);
-var sha256 = (data) => bytesOf(createHash2("sha256").update(data).digest());
+var sha2562 = (data) => bytesOf(createHash2("sha256").update(data).digest());
 var hmacSha256 = (key2, data) => bytesOf(createHmac("sha256", key2).update(data).digest());
 var xor = (left, right) => {
   const result7 = new Uint8Array(left.length);
@@ -25623,24 +28532,24 @@ var xor = (left, right) => {
   }
   return result7;
 };
-var toBase64 = (bytes3) => encode2(bytes3);
+var toBase64 = (bytes4) => encode2(bytes4);
 var fromBase64 = (text3, field) => {
   const decoded = decode2(text3);
   if (isFailure2(decoded)) {
-    return fail9(`Invalid base64 in SCRAM attribute "${field}"`);
+    return fail13(`Invalid base64 in SCRAM attribute "${field}"`);
   }
   return decoded.success;
 };
-var decodeUtf8 = (bytes3, what) => {
+var decodeUtf8 = (bytes4, what) => {
   try {
-    return textDecoder.decode(bytes3);
+    return textDecoder.decode(bytes4);
   } catch {
-    return fail9(`Invalid UTF-8 in ${what}`);
+    return fail13(`Invalid UTF-8 in ${what}`);
   }
 };
 var md5PasswordUnsafe = (options) => {
   if (options.salt.length !== 4) {
-    return fail9(`PostgreSQL MD5 salt must be exactly 4 bytes, received ${options.salt.length}`);
+    return fail13(`PostgreSQL MD5 salt must be exactly 4 bytes, received ${options.salt.length}`);
   }
   const inner = createHash2("md5").update(textEncoder.encode(options.password + options.user)).digest("hex");
   const outer = createHash2("md5").update(textEncoder.encode(inner)).update(options.salt).digest("hex");
@@ -25655,20 +28564,20 @@ var parseAttributes = (message) => {
   for (const part of message.split(",")) {
     const separator = part.indexOf("=");
     if (separator < 1) {
-      return fail9(`Malformed SCRAM attribute: "${part}"`);
+      return fail13(`Malformed SCRAM attribute: "${part}"`);
     }
     const key2 = part.slice(0, separator);
     if (attributes.has(key2)) {
-      return fail9(`Duplicate SCRAM attribute "${key2}"`);
+      return fail13(`Duplicate SCRAM attribute "${key2}"`);
     }
     attributes.set(key2, part.slice(separator + 1));
   }
   return attributes;
 };
-var attribute = (attributes, key2) => attributes.get(key2) ?? fail9(`Missing SCRAM attribute "${key2}"`);
+var attribute = (attributes, key2) => attributes.get(key2) ?? fail13(`Missing SCRAM attribute "${key2}"`);
 var scramInitUnsafe = (options) => {
   if (!/^[\x21-\x2b\x2d-\x7e]+$/.test(options.nonce)) {
-    return fail9("SCRAM nonce must contain only printable ASCII characters other than comma");
+    return fail13("SCRAM nonce must contain only printable ASCII characters other than comma");
   }
   const clientFirstMessageBare = `n=,r=${options.nonce}`;
   return {
@@ -25687,21 +28596,21 @@ var scramContinueUnsafe = (state, challenge) => {
   const attributes = parseAttributes(serverFirstMessage);
   const nonce = attribute(attributes, "r");
   if (!nonce.startsWith(state.clientNonce) || nonce.length === state.clientNonce.length) {
-    return fail9("SCRAM server nonce does not extend the client nonce");
+    return fail13("SCRAM server nonce does not extend the client nonce");
   }
   const saltText = attribute(attributes, "s");
   if (saltText.length === 0) {
-    return fail9("SCRAM salt must not be empty");
+    return fail13("SCRAM salt must not be empty");
   }
   const salt = fromBase64(saltText, "s");
   const iterationText = attribute(attributes, "i");
   const iterations = Number(iterationText);
   if (!/^[1-9]\d*$/.test(iterationText) || !Number.isSafeInteger(iterations) || iterations > maxScramIterations) {
-    return fail9(`Invalid SCRAM iteration count: ${iterationText}`);
+    return fail13(`Invalid SCRAM iteration count: ${iterationText}`);
   }
   const saltedPassword = bytesOf(pbkdf2Sync(textEncoder.encode(state.password), salt, iterations, 32, "sha256"));
   const clientKey = hmacSha256(saltedPassword, textEncoder.encode("Client Key"));
-  const storedKey = sha256(clientKey);
+  const storedKey = sha2562(clientKey);
   const clientFinalMessageWithoutProof = `c=${CHANNEL_BINDING},r=${nonce}`;
   const authMessage = textEncoder.encode(`${state.clientFirstMessageBare},${serverFirstMessage},${clientFinalMessageWithoutProof}`);
   const clientProof = xor(clientKey, hmacSha256(storedKey, authMessage));
@@ -25719,11 +28628,11 @@ var scramFinishUnsafe = (state, challenge) => {
   const attributes = parseAttributes(decodeUtf8(challenge, "the SCRAM server-final-message"));
   const error = attributes.get("e");
   if (error !== void 0) {
-    fail9(`SCRAM authentication failed: ${error}`);
+    fail13(`SCRAM authentication failed: ${error}`);
   }
   const signature = fromBase64(attribute(attributes, "v"), "v");
   if (toBase64(state.serverSignature) !== toBase64(signature)) {
-    fail9("SCRAM server signature mismatch");
+    fail13("SCRAM server signature mismatch");
   }
 };
 var scramFinish = (state, challenge) => result5(() => scramFinishUnsafe(state, challenge));
@@ -25858,10 +28767,10 @@ var Writer = class {
   }
   int16(value6) {
     this.reserve(2);
-    const bytes3 = this.bytes;
+    const bytes4 = this.bytes;
     const offset = this.offset;
-    bytes3[offset] = value6 >>> 8;
-    bytes3[offset + 1] = value6;
+    bytes4[offset] = value6 >>> 8;
+    bytes4[offset + 1] = value6;
     this.offset = offset + 2;
   }
   int32(value6) {
@@ -25870,11 +28779,11 @@ var Writer = class {
     this.offset += 4;
   }
   setInt32(offset, value6) {
-    const bytes3 = this.bytes;
-    bytes3[offset] = value6 >>> 24;
-    bytes3[offset + 1] = value6 >>> 16;
-    bytes3[offset + 2] = value6 >>> 8;
-    bytes3[offset + 3] = value6;
+    const bytes4 = this.bytes;
+    bytes4[offset] = value6 >>> 24;
+    bytes4[offset + 1] = value6 >>> 16;
+    bytes4[offset + 2] = value6 >>> 8;
+    bytes4[offset + 3] = value6;
   }
   float32(value6) {
     this.reserve(4);
@@ -25894,12 +28803,12 @@ var Writer = class {
   raw(value6) {
     const length = value6.length;
     this.reserve(length);
-    const bytes3 = this.bytes;
+    const bytes4 = this.bytes;
     const offset = this.offset;
     if (length <= smallCopyLimit) {
-      for (let index2 = 0; index2 < length; index2++) bytes3[offset + index2] = value6[index2];
+      for (let index2 = 0; index2 < length; index2++) bytes4[offset + index2] = value6[index2];
     } else {
-      bytes3.set(value6, offset);
+      bytes4.set(value6, offset);
     }
     this.offset = offset + length;
   }
@@ -25918,17 +28827,17 @@ var Writer = class {
     const length = value6.length;
     if (length <= asciiEncodeLimit) {
       this.reserve(length + (nul ? 1 : 0));
-      const bytes3 = this.bytes;
+      const bytes4 = this.bytes;
       const start = this.offset;
       let i = 0;
       for (; i < length; i++) {
         const code = value6.charCodeAt(i);
         if (code > 127) break;
-        bytes3[start + i] = code;
+        bytes4[start + i] = code;
       }
       if (i === length) {
         const offset = start + length;
-        if (nul) bytes3[offset] = 0;
+        if (nul) bytes4[offset] = 0;
         this.offset = offset + (nul ? 1 : 0);
         return;
       }
@@ -25961,10 +28870,10 @@ var Reader = class {
   base = 0;
   offset = 0;
   limit = 0;
-  reset(bytes3, offset, limit) {
-    this.bytes = bytes3;
-    this.store = bytes3.buffer;
-    this.base = bytes3.byteOffset;
+  reset(bytes4, offset, limit) {
+    this.bytes = bytes4;
+    this.store = bytes4.buffer;
+    this.base = bytes4.byteOffset;
     this.offset = offset;
     this.limit = limit;
   }
@@ -25986,17 +28895,17 @@ var Reader = class {
   }
   int16() {
     this.require(2);
-    const bytes3 = this.bytes;
+    const bytes4 = this.bytes;
     const offset = this.offset;
     this.offset = offset + 2;
-    return (bytes3[offset] << 8 | bytes3[offset + 1]) << 16 >> 16;
+    return (bytes4[offset] << 8 | bytes4[offset + 1]) << 16 >> 16;
   }
   int32() {
     this.require(4);
-    const bytes3 = this.bytes;
+    const bytes4 = this.bytes;
     const offset = this.offset;
     this.offset = offset + 4;
-    return bytes3[offset] << 24 | bytes3[offset + 1] << 16 | bytes3[offset + 2] << 8 | bytes3[offset + 3];
+    return bytes4[offset] << 24 | bytes4[offset + 1] << 16 | bytes4[offset + 2] << 8 | bytes4[offset + 3];
   }
   uint32() {
     return this.int32() >>> 0;
@@ -26024,23 +28933,23 @@ var Reader = class {
 };
 var asciiDecodeLimit = 10;
 var utf8Slice = globalThis.Buffer?.prototype?.utf8Slice;
-var decodeUtf82 = (bytes3, offset, size6) => {
+var decodeUtf82 = (bytes4, offset, size6) => {
   if (size6 <= asciiDecodeLimit) {
     let text3 = "";
     let index2 = 0;
     for (; index2 < size6; index2++) {
-      const code = bytes3[offset + index2];
+      const code = bytes4[offset + index2];
       if (code > 127) break;
       text3 += String.fromCharCode(code);
     }
     if (index2 === size6) return text3;
   }
   if (utf8Slice !== void 0) {
-    const text3 = utf8Slice.call(bytes3, offset, offset + size6);
+    const text3 = utf8Slice.call(bytes4, offset, offset + size6);
     if (text3.indexOf("\uFFFD") === -1) return text3;
   }
   try {
-    return textDecoder2.decode(view(bytes3.buffer, bytes3.byteOffset + offset, size6));
+    return textDecoder2.decode(view(bytes4.buffer, bytes4.byteOffset + offset, size6));
   } catch {
     throw new ParseError({
       message: "Invalid UTF-8 in message"
@@ -26052,9 +28961,9 @@ var begin = (type3) => {
   const writer = sharedWriter;
   writer.begin();
   writer.reserve(5);
-  const bytes3 = writer.bytes;
+  const bytes4 = writer.bytes;
   const offset = writer.offset;
-  bytes3[offset] = type3;
+  bytes4[offset] = type3;
   writer.offset = offset + 5;
   return writer;
 };
@@ -26089,17 +28998,17 @@ var encodeParseUnsafe = (options) => {
   const parameterTypes = options.parameterTypes;
   const count = requireInt16Count(parameterTypes.length, "Parse parameter type");
   writer.reserve(2 + count * 4);
-  const bytes3 = writer.bytes;
+  const bytes4 = writer.bytes;
   let offset = writer.offset;
-  bytes3[offset] = count >>> 8;
-  bytes3[offset + 1] = count;
+  bytes4[offset] = count >>> 8;
+  bytes4[offset + 1] = count;
   offset += 2;
   for (let index2 = 0; index2 < count; index2++) {
     const oid2 = parameterTypes[index2];
-    bytes3[offset] = oid2 >>> 24;
-    bytes3[offset + 1] = oid2 >>> 16;
-    bytes3[offset + 2] = oid2 >>> 8;
-    bytes3[offset + 3] = oid2;
+    bytes4[offset] = oid2 >>> 24;
+    bytes4[offset + 1] = oid2 >>> 16;
+    bytes4[offset + 2] = oid2 >>> 8;
+    bytes4[offset + 3] = oid2;
     offset += 4;
   }
   writer.offset = offset;
@@ -26395,13 +29304,13 @@ var decodeCopyResponse = (reader) => {
     columnFormats
   };
 };
-var decodeDataRow = (bytes3, store, base, offset, limit, readField) => {
+var decodeDataRow = (bytes4, store, base, offset, limit, readField) => {
   if (offset + 2 > limit) {
     throw new ParseError({
       message: "Truncated message: expected 2 more byte(s)"
     });
   }
-  const count = (bytes3[offset] << 8 | bytes3[offset + 1]) << 16 >> 16;
+  const count = (bytes4[offset] << 8 | bytes4[offset + 1]) << 16 >> 16;
   if (count < 0) {
     throw new ParseError({
       message: `Invalid DataRow field count: ${count}`
@@ -26415,7 +29324,7 @@ var decodeDataRow = (bytes3, store, base, offset, limit, readField) => {
         message: "Truncated message: expected 4 more byte(s)"
       });
     }
-    const size6 = bytes3[position] << 24 | bytes3[position + 1] << 16 | bytes3[position + 2] << 8 | bytes3[position + 3];
+    const size6 = bytes4[position] << 24 | bytes4[position + 1] << 16 | bytes4[position + 2] << 8 | bytes4[position + 3];
     position += 4;
     if (size6 < 0) {
       if (size6 < -1) {
@@ -26423,7 +29332,7 @@ var decodeDataRow = (bytes3, store, base, offset, limit, readField) => {
           message: `Invalid DataRow field length: ${size6}`
         });
       }
-      values2[i] = readField === void 0 ? null : readField(bytes3, position, -1, i);
+      values2[i] = readField === void 0 ? null : readField(bytes4, position, -1, i);
       continue;
     }
     const next = position + size6;
@@ -26432,7 +29341,7 @@ var decodeDataRow = (bytes3, store, base, offset, limit, readField) => {
         message: `Truncated message: expected ${size6} more byte(s)`
       });
     }
-    values2[i] = readField === void 0 ? view(store, base + position, size6) : readField(bytes3, position, size6, i);
+    values2[i] = readField === void 0 ? view(store, base + position, size6) : readField(bytes4, position, size6, i);
     position = next;
   }
   if (position !== limit) {
@@ -26600,7 +29509,7 @@ var decodeBackend = (type3, reader) => {
 // node_modules/.bun/@effect+sql-pg@4.0.0+a594d97e083afb95/node_modules/@effect/sql-pg/dist/PgTypes.js
 var CodecError = class extends (/* @__PURE__ */ TaggedError2("PgTypesCodecError")) {
 };
-var fail10 = (message) => {
+var fail14 = (message) => {
   throw new CodecError({
     message
   });
@@ -26617,34 +29526,34 @@ var textEncoder3 = /* @__PURE__ */ new TextEncoder();
 var textDecoder3 = /* @__PURE__ */ new TextDecoder("utf-8", {
   fatal: true
 });
-var writeInt16 = (bytes3, offset, value6) => {
-  bytes3[offset] = value6 >>> 8;
-  bytes3[offset + 1] = value6;
+var writeInt16 = (bytes4, offset, value6) => {
+  bytes4[offset] = value6 >>> 8;
+  bytes4[offset + 1] = value6;
 };
-var readInt16 = (bytes3, offset) => (bytes3[offset] << 8 | bytes3[offset + 1]) << 16 >> 16;
-var readUint16 = (bytes3, offset) => bytes3[offset] << 8 | bytes3[offset + 1];
-var writeInt32 = (bytes3, offset, value6) => {
-  bytes3[offset] = value6 >>> 24;
-  bytes3[offset + 1] = value6 >>> 16;
-  bytes3[offset + 2] = value6 >>> 8;
-  bytes3[offset + 3] = value6;
+var readInt16 = (bytes4, offset) => (bytes4[offset] << 8 | bytes4[offset + 1]) << 16 >> 16;
+var readUint16 = (bytes4, offset) => bytes4[offset] << 8 | bytes4[offset + 1];
+var writeInt32 = (bytes4, offset, value6) => {
+  bytes4[offset] = value6 >>> 24;
+  bytes4[offset + 1] = value6 >>> 16;
+  bytes4[offset + 2] = value6 >>> 8;
+  bytes4[offset + 3] = value6;
 };
-var readInt32 = (bytes3, offset) => bytes3[offset] << 24 | bytes3[offset + 1] << 16 | bytes3[offset + 2] << 8 | bytes3[offset + 3];
-var writeInt64 = (bytes3, offset, value6) => {
+var readInt32 = (bytes4, offset) => bytes4[offset] << 24 | bytes4[offset + 1] << 16 | bytes4[offset + 2] << 8 | bytes4[offset + 3];
+var writeInt64 = (bytes4, offset, value6) => {
   const high = Math.floor(value6 / 4294967296);
-  writeInt32(bytes3, offset, high);
-  writeInt32(bytes3, offset + 4, value6 - high * 4294967296);
+  writeInt32(bytes4, offset, high);
+  writeInt32(bytes4, offset + 4, value6 - high * 4294967296);
 };
-var readUint32 = (bytes3, offset) => (bytes3[offset] << 24 | bytes3[offset + 1] << 16 | bytes3[offset + 2] << 8 | bytes3[offset + 3]) >>> 0;
+var readUint32 = (bytes4, offset) => (bytes4[offset] << 24 | bytes4[offset + 1] << 16 | bytes4[offset + 2] << 8 | bytes4[offset + 3]) >>> 0;
 var scratch4 = /* @__PURE__ */ new ArrayBuffer(4);
 var scratchView4 = /* @__PURE__ */ new DataView(scratch4);
 var scratchBytes4 = /* @__PURE__ */ new Uint8Array(scratch4);
 var scratch8 = /* @__PURE__ */ new ArrayBuffer(8);
 var scratchView8 = /* @__PURE__ */ new DataView(scratch8);
 var scratchBytes8 = /* @__PURE__ */ new Uint8Array(scratch8);
-var stage8 = (bytes3, offset) => {
-  scratchView8.setInt32(0, readInt32(bytes3, offset));
-  scratchView8.setInt32(4, readInt32(bytes3, offset + 4));
+var stage8 = (bytes4, offset) => {
+  scratchView8.setInt32(0, readInt32(bytes4, offset));
+  scratchView8.setInt32(4, readInt32(bytes4, offset + 4));
 };
 var twoDigits = /* @__PURE__ */ Array.from({
   length: 100
@@ -26661,14 +29570,14 @@ var encodeUtf8Scratch = (text3) => {
 var encodeUtf8 = (text3) => {
   const length = text3.length;
   if (length <= asciiEncodeLimit2) {
-    const bytes3 = new Uint8Array(length);
+    const bytes4 = new Uint8Array(length);
     let i = 0;
     for (; i < length; i++) {
       const code = text3.charCodeAt(i);
       if (code > 127) break;
-      bytes3[i] = code;
+      bytes4[i] = code;
     }
-    if (i === length) return bytes3;
+    if (i === length) return bytes4;
   }
   const written = encodeUtf8Scratch(text3);
   return written === -1 ? textEncoder3.encode(text3) : scratchUtf8.slice(0, written);
@@ -26676,62 +29585,62 @@ var encodeUtf8 = (text3) => {
 var encodeUtf8Prefixed = (text3, prefix) => {
   const length = text3.length;
   if (length <= asciiEncodeLimit2) {
-    const bytes4 = new Uint8Array(prefix + length);
+    const bytes5 = new Uint8Array(prefix + length);
     let i = 0;
     for (; i < length; i++) {
       const code = text3.charCodeAt(i);
       if (code > 127) break;
-      bytes4[prefix + i] = code;
+      bytes5[prefix + i] = code;
     }
-    if (i === length) return bytes4;
+    if (i === length) return bytes5;
   }
   const written = encodeUtf8Scratch(text3);
   if (written === -1) {
     const body = textEncoder3.encode(text3);
-    const bytes4 = new Uint8Array(prefix + body.length);
-    bytes4.set(body, prefix);
-    return bytes4;
+    const bytes5 = new Uint8Array(prefix + body.length);
+    bytes5.set(body, prefix);
+    return bytes5;
   }
-  const bytes3 = new Uint8Array(prefix + written);
-  bytes3.set(scratchUtf8.subarray(0, written), prefix);
-  return bytes3;
+  const bytes4 = new Uint8Array(prefix + written);
+  bytes4.set(scratchUtf8.subarray(0, written), prefix);
+  return bytes4;
 };
-var region = (bytes3, offset, size6) => offset === 0 && size6 === bytes3.length ? bytes3 : new Uint8Array(bytes3.buffer, bytes3.byteOffset + offset, size6);
+var region = (bytes4, offset, size6) => offset === 0 && size6 === bytes4.length ? bytes4 : new Uint8Array(bytes4.buffer, bytes4.byteOffset + offset, size6);
 var asciiDecodeLimit2 = 10;
 var utf8Slice2 = globalThis.Buffer?.prototype?.utf8Slice;
-var decodeUtf83 = (bytes3, offset, size6) => {
+var decodeUtf83 = (bytes4, offset, size6) => {
   if (size6 <= asciiDecodeLimit2) {
     let text3 = "";
     let index2 = 0;
     for (; index2 < size6; index2++) {
-      const code = bytes3[offset + index2];
+      const code = bytes4[offset + index2];
       if (code > 127) break;
       text3 += String.fromCharCode(code);
     }
     if (index2 === size6) return text3;
   }
   if (utf8Slice2 !== void 0) {
-    const text3 = utf8Slice2.call(bytes3, offset, offset + size6);
+    const text3 = utf8Slice2.call(bytes4, offset, offset + size6);
     if (text3.indexOf("\uFFFD") === -1) return text3;
   }
   try {
-    return textDecoder3.decode(region(bytes3, offset, size6));
+    return textDecoder3.decode(region(bytes4, offset, size6));
   } catch {
-    return fail10("Invalid UTF-8 in text value");
+    return fail14("Invalid UTF-8 in text value");
   }
 };
 var requireSize = (size6, expected, name3) => {
   if (size6 !== expected) {
-    fail10(`Expected ${expected} byte(s) for ${name3}, received ${size6}`);
+    fail14(`Expected ${expected} byte(s) for ${name3}, received ${size6}`);
   }
 };
-var requireString = (value6, name3) => typeof value6 === "string" ? value6 : fail10(`Expected a string for ${name3}`);
-var requireBigInt = (value6, name3) => typeof value6 === "bigint" ? value6 : fail10(`Expected a bigint for ${name3}`);
-var requireNumber = (value6, name3) => typeof value6 === "number" ? value6 : fail10(`Expected a number for ${name3}`);
+var requireString = (value6, name3) => typeof value6 === "string" ? value6 : fail14(`Expected a string for ${name3}`);
+var requireBigInt = (value6, name3) => typeof value6 === "bigint" ? value6 : fail14(`Expected a bigint for ${name3}`);
+var requireNumber = (value6, name3) => typeof value6 === "number" ? value6 : fail14(`Expected a number for ${name3}`);
 var requireInteger = (value6, name3, min6, max6) => {
   const num = requireNumber(value6, name3);
   if (!Number.isInteger(num) || num < min6 || num > max6) {
-    fail10(`Expected an integer in [${min6}, ${max6}] for ${name3}, received ${num}`);
+    fail14(`Expected an integer in [${min6}, ${max6}] for ${name3}, received ${num}`);
   }
   return num;
 };
@@ -26838,28 +29747,28 @@ var parseDate = (text3) => {
   const yearStart = text3.charCodeAt(0) === 45 ? 1 : 0;
   const yearEnd = text3.length - 6;
   if (yearEnd - yearStart < 4 || text3.charCodeAt(yearEnd) !== 45 || text3.charCodeAt(yearEnd + 3) !== 45) {
-    return fail10(`Expected a YYYY-MM-DD date, received "${text3}"`);
+    return fail14(`Expected a YYYY-MM-DD date, received "${text3}"`);
   }
   let year = 0;
   for (let index2 = yearStart; index2 < yearEnd; index2++) {
     const digit = text3.charCodeAt(index2) - 48;
     if (digit < 0 || digit > 9) {
-      return fail10(`Expected a YYYY-MM-DD date, received "${text3}"`);
+      return fail14(`Expected a YYYY-MM-DD date, received "${text3}"`);
     }
     year = year * 10 + digit;
   }
   const month = twoDigitsAt(text3, yearEnd + 1);
   const day = twoDigitsAt(text3, yearEnd + 4);
   if (month === -1 || day === -1) {
-    return fail10(`Expected a YYYY-MM-DD date, received "${text3}"`);
+    return fail14(`Expected a YYYY-MM-DD date, received "${text3}"`);
   }
   if (yearStart === 1) year = -year;
   if (!Number.isFinite(year)) {
-    return fail10(`date out of range: "${text3}"`);
+    return fail14(`date out of range: "${text3}"`);
   }
   const monthLength = month === 2 && isLeapYear(year) ? 29 : monthLengths[month];
   if (month < 1 || month > 12 || day < 1 || day > monthLength) {
-    return fail10(`Invalid date "${text3}"`);
+    return fail14(`Invalid date "${text3}"`);
   }
   return daysFromCivil(year, month, day);
 };
@@ -26876,7 +29785,7 @@ var timeRegex = /^(\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,6}))?)?$/;
 var parseTimeOfDay = (text3) => {
   const match8 = timeRegex.exec(text3);
   if (match8 === null) {
-    return fail10(`Expected a HH:MM[:SS[.ffffff]] time, received "${text3}"`);
+    return fail14(`Expected a HH:MM[:SS[.ffffff]] time, received "${text3}"`);
   }
   const hours2 = Number(match8[1]);
   const minutes2 = Number(match8[2]);
@@ -26884,7 +29793,7 @@ var parseTimeOfDay = (text3) => {
   const fraction = match8[4] === void 0 ? 0 : Number(match8[4].padEnd(6, "0"));
   const micros2 = (hours2 * 3600 + minutes2 * 60 + seconds2) * 1e6 + fraction;
   if (hours2 > 24 || minutes2 > 59 || seconds2 > 60 || micros2 > MAX_TIME_MICROS_NUMBER) {
-    return fail10(`Invalid time "${text3}"`);
+    return fail14(`Invalid time "${text3}"`);
   }
   return micros2;
 };
@@ -26899,14 +29808,14 @@ var zoneRegex = /^(?:Z|([+-])(\d{2})(?::?(\d{2}))?(?::?(\d{2}))?)$/;
 var parseZone = (text3) => {
   const match8 = zoneRegex.exec(text3);
   if (match8 === null) {
-    return fail10(`Expected a time zone offset, received "${text3}"`);
+    return fail14(`Expected a time zone offset, received "${text3}"`);
   }
   if (match8[1] === void 0) return 0;
   const minutes2 = match8[3] === void 0 ? 0 : Number(match8[3]);
   const trailingSeconds = match8[4] === void 0 ? 0 : Number(match8[4]);
   const seconds2 = Number(match8[2]) * 3600 + minutes2 * 60 + trailingSeconds;
   if (minutes2 > 59 || trailingSeconds > 59 || seconds2 >= TZDISP_LIMIT_SECONDS) {
-    return fail10(`Time zone offset out of range, received "${text3}"`);
+    return fail14(`Time zone offset out of range, received "${text3}"`);
   }
   return match8[1] === "-" ? -seconds2 : seconds2;
 };
@@ -26928,7 +29837,7 @@ var encodeNumeric = (value6) => {
   if (text3 === "-Infinity") return numericSpecial(NUMERIC_NINF);
   const match8 = numericRegex.exec(text3);
   if (match8 === null || (match8[2] ?? "") + (match8[3] ?? "") === "") {
-    return fail10(`Expected a decimal numeric string, received "${text3}"`);
+    return fail14(`Expected a decimal numeric string, received "${text3}"`);
   }
   const exponent = match8[4] === void 0 ? 0 : Number(match8[4]);
   let digits = (match8[2] ?? "") + (match8[3] ?? "");
@@ -26938,7 +29847,7 @@ var encodeNumeric = (value6) => {
     scale = 0;
   }
   if (scale > 16383) {
-    return fail10(`numeric scale ${scale} exceeds the PostgreSQL maximum`);
+    return fail14(`numeric scale ${scale} exceeds the PostgreSQL maximum`);
   }
   const rightPad = (4 - scale % 4) % 4;
   digits += "0".repeat(rightPad);
@@ -26957,39 +29866,39 @@ var encodeNumeric = (value6) => {
   const count = last - first;
   const weight = count === 0 ? 0 : (digits.length - fractionLength) / 4 - 1 - first;
   const sign2 = count > 0 && match8[1] === "-" ? NUMERIC_NEG : NUMERIC_POS;
-  const bytes3 = new Uint8Array(8 + count * 2);
-  writeInt16(bytes3, 0, count);
-  writeInt16(bytes3, 2, weight);
-  writeInt16(bytes3, 4, sign2);
-  writeInt16(bytes3, 6, scale);
+  const bytes4 = new Uint8Array(8 + count * 2);
+  writeInt16(bytes4, 0, count);
+  writeInt16(bytes4, 2, weight);
+  writeInt16(bytes4, 4, sign2);
+  writeInt16(bytes4, 6, scale);
   for (let i = 0; i < count; i++) {
-    writeInt16(bytes3, 8 + i * 2, groupAt(first + i));
+    writeInt16(bytes4, 8 + i * 2, groupAt(first + i));
   }
-  return bytes3;
+  return bytes4;
 };
 var numericSpecial = (sign2) => {
-  const bytes3 = new Uint8Array(8);
-  writeInt16(bytes3, 4, sign2);
-  return bytes3;
+  const bytes4 = new Uint8Array(8);
+  writeInt16(bytes4, 4, sign2);
+  return bytes4;
 };
-var decodeNumeric = (bytes3, offset, size6) => {
-  if (size6 < 8) return fail10("Truncated numeric value");
-  const count = readInt16(bytes3, offset);
-  const weight = readInt16(bytes3, offset + 2);
-  const sign2 = readUint16(bytes3, offset + 4);
-  const scale = readInt16(bytes3, offset + 6);
+var decodeNumeric = (bytes4, offset, size6) => {
+  if (size6 < 8) return fail14("Truncated numeric value");
+  const count = readInt16(bytes4, offset);
+  const weight = readInt16(bytes4, offset + 2);
+  const sign2 = readUint16(bytes4, offset + 4);
+  const scale = readInt16(bytes4, offset + 6);
   if (sign2 === NUMERIC_NAN) return "NaN";
   if (sign2 === NUMERIC_PINF) return "Infinity";
   if (sign2 === NUMERIC_NINF) return "-Infinity";
   if (sign2 !== NUMERIC_POS && sign2 !== NUMERIC_NEG) {
-    return fail10(`Invalid numeric sign: ${sign2}`);
+    return fail14(`Invalid numeric sign: ${sign2}`);
   }
   requireSize(size6, 8 + count * 2, "numeric");
   const digits = offset + 8;
   const digitAt = (index2) => {
     if (index2 < 0 || index2 >= count) return 0;
-    const digit = readInt16(bytes3, digits + index2 * 2);
-    return digit >= 0 && digit <= 9999 ? digit : fail10(`Invalid numeric digit: ${digit}`);
+    const digit = readInt16(bytes4, digits + index2 * 2);
+    return digit >= 0 && digit <= 9999 ? digit : fail14(`Invalid numeric digit: ${digit}`);
   };
   let result7 = sign2 === NUMERIC_NEG ? "-" : "";
   if (weight < 0) {
@@ -27022,13 +29931,13 @@ var encodeInet = (value6, isCidr) => {
   const type3 = isCidr ? "cidr" : "inet";
   const text3 = requireString(value6, type3);
   const parsed = fromString3(text3);
-  if (isFailure2(parsed)) return fail10(`Invalid ${type3} value ${JSON.stringify(text3)}: ${parsed.failure.message}`);
+  if (isFailure2(parsed)) return fail14(`Invalid ${type3} value ${JSON.stringify(text3)}: ${parsed.failure.message}`);
   const address = parsed.success.address;
   const bits = parsed.success.prefixLength;
   if (isCidr) {
     const network = make22(address, bits);
     if (isFailure2(network)) {
-      return fail10(`Invalid ${type3} value ${JSON.stringify(text3)}: ${network.failure.message}`);
+      return fail14(`Invalid ${type3} value ${JSON.stringify(text3)}: ${network.failure.message}`);
     }
   }
   const octets = isIpv4Address(address) ? ipv4ToOctets(address) : ipv6ToOctets(address);
@@ -27040,25 +29949,25 @@ var encodeInet = (value6, isCidr) => {
   result7.set(octets, 4);
   return result7;
 };
-var decodeInet = (bytes3, offset, size6) => {
-  if (size6 < 4) return fail10("Truncated inet value");
-  const family = bytes3[offset];
-  const bits = bytes3[offset + 1];
-  const cidrFlag = bytes3[offset + 2];
-  if (cidrFlag > 1) return fail10(`Invalid inet CIDR flag: ${cidrFlag}`);
+var decodeInet = (bytes4, offset, size6) => {
+  if (size6 < 4) return fail14("Truncated inet value");
+  const family = bytes4[offset];
+  const bits = bytes4[offset + 1];
+  const cidrFlag = bytes4[offset + 2];
+  if (cidrFlag > 1) return fail14(`Invalid inet CIDR flag: ${cidrFlag}`);
   const isCidr = cidrFlag === 1;
-  const addressSize = bytes3[offset + 3];
+  const addressSize = bytes4[offset + 3];
   const expected = family === PGSQL_AF_INET ? 4 : family === PGSQL_AF_INET6 ? 16 : -1;
   if (expected === -1 || addressSize !== expected) {
-    return fail10(`Invalid inet address family ${family} with ${addressSize} byte(s)`);
+    return fail14(`Invalid inet address family ${family} with ${addressSize} byte(s)`);
   }
   requireSize(size6, 4 + addressSize, "inet");
-  if (bits > addressSize * 8) return fail10(`Invalid inet netmask length: ${bits}`);
-  const addressBytes = bytes3.slice(offset + 4, offset + 4 + addressSize);
+  if (bits > addressSize * 8) return fail14(`Invalid inet netmask length: ${bits}`);
+  const addressBytes = bytes4.slice(offset + 4, offset + 4 + addressSize);
   const address = family === PGSQL_AF_INET ? ipv4FromBytesUnsafe(addressBytes) : ipv6FromBytesUnsafe(addressBytes);
   if (isCidr) {
     const network = make22(address, bits);
-    if (isFailure2(network)) return fail10(network.failure.message);
+    if (isFailure2(network)) return fail14(network.failure.message);
     return format6(network.success);
   }
   return bits === addressSize * 8 ? formatIp(address) : format5(makeUnsafe6(address, bits));
@@ -27088,7 +29997,7 @@ var uuidWord = /* @__PURE__ */ new Int32Array(4);
 var uuidWords = (value6) => {
   const text3 = requireString(value6, "uuid");
   if (text3.length !== 36 || text3.charCodeAt(8) !== 45 || text3.charCodeAt(13) !== 45 || text3.charCodeAt(18) !== 45 || text3.charCodeAt(23) !== 45) {
-    return fail10(`Expected a UUID, received "${text3}"`);
+    return fail14(`Expected a UUID, received "${text3}"`);
   }
   for (let word = 0; word < 4; word++) {
     let bits = 0;
@@ -27101,19 +30010,19 @@ var uuidWords = (value6) => {
       bits = bits << 8 | high << 4 | low;
     }
     if (valid < 0) {
-      return fail10(`Expected a UUID, received "${text3}"`);
+      return fail14(`Expected a UUID, received "${text3}"`);
     }
     uuidWord[word] = bits;
   }
 };
 var encodeUuid = (value6) => {
   uuidWords(value6);
-  const bytes3 = new Uint8Array(16);
-  writeInt32(bytes3, 0, uuidWord[0]);
-  writeInt32(bytes3, 4, uuidWord[1]);
-  writeInt32(bytes3, 8, uuidWord[2]);
-  writeInt32(bytes3, 12, uuidWord[3]);
-  return bytes3;
+  const bytes4 = new Uint8Array(16);
+  writeInt32(bytes4, 0, uuidWord[0]);
+  writeInt32(bytes4, 4, uuidWord[1]);
+  writeInt32(bytes4, 8, uuidWord[2]);
+  writeInt32(bytes4, 12, uuidWord[3]);
+  return bytes4;
 };
 var writeUuid = (sink, value6) => {
   uuidWords(value6);
@@ -27122,76 +30031,76 @@ var writeUuid = (sink, value6) => {
   sink.int32(uuidWord[2]);
   sink.int32(uuidWord[3]);
 };
-var decodeUuid = (bytes3, offset, size6) => {
+var decodeUuid = (bytes4, offset, size6) => {
   requireSize(size6, 16, "uuid");
-  const b0 = bytes3[offset];
-  const b1 = bytes3[offset + 1];
-  const b2 = bytes3[offset + 2];
-  const b3 = bytes3[offset + 3];
-  const b4 = bytes3[offset + 4];
-  const b5 = bytes3[offset + 5];
-  const b6 = bytes3[offset + 6];
-  const b7 = bytes3[offset + 7];
-  const b8 = bytes3[offset + 8];
-  const b9 = bytes3[offset + 9];
-  const b10 = bytes3[offset + 10];
-  const b11 = bytes3[offset + 11];
-  const b12 = bytes3[offset + 12];
-  const b13 = bytes3[offset + 13];
-  const b14 = bytes3[offset + 14];
-  const b15 = bytes3[offset + 15];
+  const b0 = bytes4[offset];
+  const b1 = bytes4[offset + 1];
+  const b2 = bytes4[offset + 2];
+  const b3 = bytes4[offset + 3];
+  const b4 = bytes4[offset + 4];
+  const b5 = bytes4[offset + 5];
+  const b6 = bytes4[offset + 6];
+  const b7 = bytes4[offset + 7];
+  const b8 = bytes4[offset + 8];
+  const b9 = bytes4[offset + 9];
+  const b10 = bytes4[offset + 10];
+  const b11 = bytes4[offset + 11];
+  const b12 = bytes4[offset + 12];
+  const b13 = bytes4[offset + 13];
+  const b14 = bytes4[offset + 14];
+  const b15 = bytes4[offset + 15];
   return String.fromCharCode(hexHigh[b0], hexLow[b0], hexHigh[b1], hexLow[b1], hexHigh[b2], hexLow[b2], hexHigh[b3], hexLow[b3], 45, hexHigh[b4], hexLow[b4], hexHigh[b5], hexLow[b5], 45, hexHigh[b6], hexLow[b6], hexHigh[b7], hexLow[b7], 45, hexHigh[b8], hexLow[b8], hexHigh[b9], hexLow[b9], 45, hexHigh[b10], hexLow[b10], hexHigh[b11], hexLow[b11], hexHigh[b12], hexLow[b12], hexHigh[b13], hexLow[b13], hexHigh[b14], hexLow[b14], hexHigh[b15], hexLow[b15]);
 };
 var codecOf = (read, encode5, write) => {
-  const decode8 = (bytes3) => read(bytes3, 0, bytes3.length);
+  const decode12 = (bytes4) => read(bytes4, 0, bytes4.length);
   return write === void 0 ? {
     encode: encode5,
-    decode: decode8,
+    decode: decode12,
     read
   } : {
     encode: encode5,
-    decode: decode8,
+    decode: decode12,
     read,
     write
   };
 };
 var takeScratch4 = () => {
-  const bytes3 = new Uint8Array(4);
-  bytes3[0] = scratchBytes4[0];
-  bytes3[1] = scratchBytes4[1];
-  bytes3[2] = scratchBytes4[2];
-  bytes3[3] = scratchBytes4[3];
-  return bytes3;
+  const bytes4 = new Uint8Array(4);
+  bytes4[0] = scratchBytes4[0];
+  bytes4[1] = scratchBytes4[1];
+  bytes4[2] = scratchBytes4[2];
+  bytes4[3] = scratchBytes4[3];
+  return bytes4;
 };
 var takeScratch8 = () => {
-  const bytes3 = new Uint8Array(8);
-  bytes3[0] = scratchBytes8[0];
-  bytes3[1] = scratchBytes8[1];
-  bytes3[2] = scratchBytes8[2];
-  bytes3[3] = scratchBytes8[3];
-  bytes3[4] = scratchBytes8[4];
-  bytes3[5] = scratchBytes8[5];
-  bytes3[6] = scratchBytes8[6];
-  bytes3[7] = scratchBytes8[7];
-  return bytes3;
+  const bytes4 = new Uint8Array(8);
+  bytes4[0] = scratchBytes8[0];
+  bytes4[1] = scratchBytes8[1];
+  bytes4[2] = scratchBytes8[2];
+  bytes4[3] = scratchBytes8[3];
+  bytes4[4] = scratchBytes8[4];
+  bytes4[5] = scratchBytes8[5];
+  bytes4[6] = scratchBytes8[6];
+  bytes4[7] = scratchBytes8[7];
+  return bytes4;
 };
 var utf8Codec = /* @__PURE__ */ codecOf(decodeUtf83, (value6) => encodeUtf8(requireString(value6, "text")), (sink, value6) => sink.utf8(requireString(value6, "text")));
 var int8Value = (value6) => {
   const big = requireBigInt(value6, "int8");
-  if (big < INT64_MIN || big > INT64_MAX) fail10(`int8 out of range: ${big}`);
+  if (big < INT64_MIN || big > INT64_MAX) fail14(`int8 out of range: ${big}`);
   return big;
 };
 var MAX_TIME_MICROS = /* @__PURE__ */ BigInt(MAX_TIME_MICROS_NUMBER);
 var timeValue = (value6) => {
   const micros2 = requireBigInt(value6, "time");
-  if (micros2 < ZERO || micros2 > MAX_TIME_MICROS) fail10(`time out of range: ${micros2}`);
+  if (micros2 < ZERO || micros2 > MAX_TIME_MICROS) fail14(`time out of range: ${micros2}`);
   return micros2;
 };
-var readTimeMicros = (bytes3, offset) => {
-  const high = readInt32(bytes3, offset);
-  const micros2 = high * 4294967296 + readUint32(bytes3, offset + 4);
+var readTimeMicros = (bytes4, offset) => {
+  const high = readInt32(bytes4, offset);
+  const micros2 = high * 4294967296 + readUint32(bytes4, offset + 4);
   if (high < 0 || micros2 > MAX_TIME_MICROS_NUMBER) {
-    return fail10(`timetz out of range: ${micros2}`);
+    return fail14(`timetz out of range: ${micros2}`);
   }
   return micros2;
 };
@@ -27201,10 +30110,10 @@ var timestampInt64 = (value6) => {
   let ms;
   if (value6 instanceof Date) {
     ms = value6.getTime();
-    if (Number.isNaN(ms)) fail10("timestamp cannot be an invalid Date");
+    if (Number.isNaN(ms)) fail14("timestamp cannot be an invalid Date");
   } else {
-    ms = typeof value6 === "number" ? value6 : fail10("Expected a Date or number for timestamp");
-    if (Number.isNaN(ms)) fail10("timestamp cannot be NaN");
+    ms = typeof value6 === "number" ? value6 : fail14("Expected a Date or number for timestamp");
+    if (Number.isNaN(ms)) fail14("timestamp cannot be NaN");
   }
   if (ms === Number.POSITIVE_INFINITY) {
     timestampHigh = INT32_MAX;
@@ -27215,7 +30124,7 @@ var timestampInt64 = (value6) => {
   } else {
     const unixMicros = Math.trunc(ms * 1e3);
     if (!Number.isFinite(unixMicros)) {
-      fail10(`timestamp out of range: ${ms}`);
+      fail14(`timestamp out of range: ${ms}`);
     }
     const micros2 = unixMicros - PG_EPOCH_MICROS;
     if (micros2 > -MAX_EXACT && micros2 < MAX_EXACT) {
@@ -27224,7 +30133,7 @@ var timestampInt64 = (value6) => {
     } else {
       const exact = BigInt(unixMicros) - BigInt(PG_EPOCH_MICROS);
       if (exact < INT64_MIN || exact > INT64_MAX) {
-        fail10(`timestamp out of range: ${ms}`);
+        fail14(`timestamp out of range: ${ms}`);
       }
       scratchView8.setBigInt64(0, exact);
       timestampHigh = scratchView8.getInt32(0);
@@ -27232,23 +30141,23 @@ var timestampInt64 = (value6) => {
     }
   }
 };
-var timestampCodec = /* @__PURE__ */ codecOf((bytes3, offset, size6) => {
+var timestampCodec = /* @__PURE__ */ codecOf((bytes4, offset, size6) => {
   requireSize(size6, 8, "timestamp");
-  const high = readInt32(bytes3, offset);
+  const high = readInt32(bytes4, offset);
   if (high >= -MAX_EXACT_HIGH && high < MAX_EXACT_HIGH) {
-    const micros3 = high * 4294967296 + readUint32(bytes3, offset + 4);
+    const micros3 = high * 4294967296 + readUint32(bytes4, offset + 4);
     return new Date((micros3 - micros3 % 1e3) / 1e3 + PG_EPOCH_MS);
   }
-  stage8(bytes3, offset);
+  stage8(bytes4, offset);
   const micros2 = scratchView8.getBigInt64(0);
   if (micros2 === INT64_MAX || micros2 === INT64_MIN) return new Date(Number.NaN);
   return new Date(Number(micros2 / THOUSAND) + PG_EPOCH_MS);
 }, (value6) => {
   timestampInt64(value6);
-  const bytes3 = new Uint8Array(8);
-  writeInt32(bytes3, 0, timestampHigh);
-  writeInt32(bytes3, 4, timestampLow);
-  return bytes3;
+  const bytes4 = new Uint8Array(8);
+  writeInt32(bytes4, 0, timestampHigh);
+  writeInt32(bytes4, 4, timestampLow);
+  return bytes4;
 }, (sink, value6) => {
   timestampInt64(value6);
   sink.int32(timestampHigh);
@@ -27260,138 +30169,138 @@ var dateDays = (value6) => {
   if (text3 === "-infinity") return INT32_MIN;
   const days2 = parseDate(text3) - PG_EPOCH_DAYS;
   if (days2 <= INT32_MIN || days2 >= INT32_MAX) {
-    return fail10(`date out of range: "${text3}"`);
+    return fail14(`date out of range: "${text3}"`);
   }
   return days2;
 };
-var dateCodec = /* @__PURE__ */ codecOf((bytes3, offset, size6) => {
+var dateCodec = /* @__PURE__ */ codecOf((bytes4, offset, size6) => {
   requireSize(size6, 4, "date");
-  const days2 = readInt32(bytes3, offset);
+  const days2 = readInt32(bytes4, offset);
   if (days2 === INT32_MAX) return "infinity";
   if (days2 === INT32_MIN) return "-infinity";
   return formatDate2(days2 + PG_EPOCH_DAYS);
 }, (value6) => {
-  const bytes3 = new Uint8Array(4);
-  writeInt32(bytes3, 0, dateDays(value6));
-  return bytes3;
+  const bytes4 = new Uint8Array(4);
+  writeInt32(bytes4, 0, dateDays(value6));
+  return bytes4;
 }, (sink, value6) => sink.int32(dateDays(value6)));
-var timetzCodec = /* @__PURE__ */ codecOf((bytes3, offset, size6) => {
+var timetzCodec = /* @__PURE__ */ codecOf((bytes4, offset, size6) => {
   requireSize(size6, 12, "timetz");
-  const zone = readInt32(bytes3, offset + 8);
+  const zone = readInt32(bytes4, offset + 8);
   if (zone <= -TZDISP_LIMIT_SECONDS || zone >= TZDISP_LIMIT_SECONDS) {
-    return fail10(`timetz time zone displacement out of range: ${zone}`);
+    return fail14(`timetz time zone displacement out of range: ${zone}`);
   }
-  return formatTimeOfDay(readTimeMicros(bytes3, offset)) + formatZone(-zone);
+  return formatTimeOfDay(readTimeMicros(bytes4, offset)) + formatZone(-zone);
 }, (value6) => {
   const text3 = requireString(value6, "timetz");
   const split2 = Math.max(text3.lastIndexOf("+"), text3.lastIndexOf("-"), text3.lastIndexOf("Z"));
   if (split2 <= 0) {
-    return fail10(`Expected a timetz with a zone offset, received "${text3}"`);
+    return fail14(`Expected a timetz with a zone offset, received "${text3}"`);
   }
-  const bytes3 = new Uint8Array(12);
-  writeInt64(bytes3, 0, parseTimeOfDay(text3.slice(0, split2)));
-  writeInt32(bytes3, 8, -parseZone(text3.slice(split2)));
-  return bytes3;
+  const bytes4 = new Uint8Array(12);
+  writeInt64(bytes4, 0, parseTimeOfDay(text3.slice(0, split2)));
+  writeInt32(bytes4, 8, -parseZone(text3.slice(split2)));
+  return bytes4;
 });
-var jsonCodec = /* @__PURE__ */ codecOf((bytes3, offset, size6) => JSON.parse(decodeUtf83(bytes3, offset, size6)), (value6) => {
+var jsonCodec = /* @__PURE__ */ codecOf((bytes4, offset, size6) => JSON.parse(decodeUtf83(bytes4, offset, size6)), (value6) => {
   const text3 = JSON.stringify(value6);
-  if (text3 === void 0) return fail10("Value cannot be serialised as JSON");
+  if (text3 === void 0) return fail14("Value cannot be serialised as JSON");
   return encodeUtf8(text3);
 }, (sink, value6) => {
   const text3 = JSON.stringify(value6);
-  if (text3 === void 0) return fail10("Value cannot be serialised as JSON");
+  if (text3 === void 0) return fail14("Value cannot be serialised as JSON");
   sink.utf8(text3);
 });
-var jsonbCodec = /* @__PURE__ */ codecOf((bytes3, offset, size6) => {
-  if (size6 === 0 || bytes3[offset] !== 1) {
-    return fail10("Unsupported jsonb version byte");
+var jsonbCodec = /* @__PURE__ */ codecOf((bytes4, offset, size6) => {
+  if (size6 === 0 || bytes4[offset] !== 1) {
+    return fail14("Unsupported jsonb version byte");
   }
-  return JSON.parse(decodeUtf83(bytes3, offset + 1, size6 - 1));
+  return JSON.parse(decodeUtf83(bytes4, offset + 1, size6 - 1));
 }, (value6) => {
   const text3 = JSON.stringify(value6);
-  if (text3 === void 0) return fail10("Value cannot be serialised as JSON");
-  const bytes3 = encodeUtf8Prefixed(text3, 1);
-  bytes3[0] = 1;
-  return bytes3;
+  if (text3 === void 0) return fail14("Value cannot be serialised as JSON");
+  const bytes4 = encodeUtf8Prefixed(text3, 1);
+  bytes4[0] = 1;
+  return bytes4;
 }, (sink, value6) => {
   const text3 = JSON.stringify(value6);
-  if (text3 === void 0) return fail10("Value cannot be serialised as JSON");
+  if (text3 === void 0) return fail14("Value cannot be serialised as JSON");
   sink.uint8(1);
   sink.utf8(text3);
 });
-var oidCodec = /* @__PURE__ */ codecOf((bytes3, offset, size6) => {
+var oidCodec = /* @__PURE__ */ codecOf((bytes4, offset, size6) => {
   requireSize(size6, 4, "oid");
-  return readUint32(bytes3, offset);
+  return readUint32(bytes4, offset);
 }, (value6) => {
   const num = requireInteger(value6, "oid", 0, 4294967295);
-  const bytes3 = new Uint8Array(4);
-  bytes3[0] = num >>> 24;
-  bytes3[1] = num >>> 16;
-  bytes3[2] = num >>> 8;
-  bytes3[3] = num;
-  return bytes3;
+  const bytes4 = new Uint8Array(4);
+  bytes4[0] = num >>> 24;
+  bytes4[1] = num >>> 16;
+  bytes4[2] = num >>> 8;
+  bytes4[3] = num;
+  return bytes4;
 }, (sink, value6) => sink.int32(requireInteger(value6, "oid", 0, 4294967295)));
-var builtinScalars = /* @__PURE__ */ new Map([[OID.bool, /* @__PURE__ */ codecOf((bytes3, offset, size6) => {
+var builtinScalars = /* @__PURE__ */ new Map([[OID.bool, /* @__PURE__ */ codecOf((bytes4, offset, size6) => {
   requireSize(size6, 1, "bool");
-  return bytes3[offset] !== 0;
+  return bytes4[offset] !== 0;
 }, (value6) => {
-  if (typeof value6 !== "boolean") fail10("Expected a boolean for bool");
-  const bytes3 = new Uint8Array(1);
-  bytes3[0] = value6 ? 1 : 0;
-  return bytes3;
+  if (typeof value6 !== "boolean") fail14("Expected a boolean for bool");
+  const bytes4 = new Uint8Array(1);
+  bytes4[0] = value6 ? 1 : 0;
+  return bytes4;
 }, (sink, value6) => {
-  if (typeof value6 !== "boolean") fail10("Expected a boolean for bool");
+  if (typeof value6 !== "boolean") fail14("Expected a boolean for bool");
   sink.uint8(value6 ? 1 : 0);
-})], [OID.bytea, /* @__PURE__ */ codecOf(region, (value6) => value6 instanceof Uint8Array ? value6.slice() : fail10("Expected a Uint8Array for bytea"), (sink, value6) => value6 instanceof Uint8Array ? sink.raw(value6) : fail10("Expected a Uint8Array for bytea"))], [OID.int2, /* @__PURE__ */ codecOf((bytes3, offset, size6) => {
+})], [OID.bytea, /* @__PURE__ */ codecOf(region, (value6) => value6 instanceof Uint8Array ? value6.slice() : fail14("Expected a Uint8Array for bytea"), (sink, value6) => value6 instanceof Uint8Array ? sink.raw(value6) : fail14("Expected a Uint8Array for bytea"))], [OID.int2, /* @__PURE__ */ codecOf((bytes4, offset, size6) => {
   requireSize(size6, 2, "int2");
-  return (bytes3[offset] << 8 | bytes3[offset + 1]) << 16 >> 16;
+  return (bytes4[offset] << 8 | bytes4[offset + 1]) << 16 >> 16;
 }, (value6) => {
   const num = requireInteger(value6, "int2", -32768, 32767);
-  const bytes3 = new Uint8Array(2);
-  bytes3[0] = num >>> 8;
-  bytes3[1] = num;
-  return bytes3;
-}, (sink, value6) => sink.int16(requireInteger(value6, "int2", -32768, 32767)))], [OID.int4, /* @__PURE__ */ codecOf((bytes3, offset, size6) => {
+  const bytes4 = new Uint8Array(2);
+  bytes4[0] = num >>> 8;
+  bytes4[1] = num;
+  return bytes4;
+}, (sink, value6) => sink.int16(requireInteger(value6, "int2", -32768, 32767)))], [OID.int4, /* @__PURE__ */ codecOf((bytes4, offset, size6) => {
   requireSize(size6, 4, "int4");
-  return readInt32(bytes3, offset);
+  return readInt32(bytes4, offset);
 }, (value6) => {
   const num = requireInteger(value6, "int4", INT32_MIN, INT32_MAX);
-  const bytes3 = new Uint8Array(4);
-  bytes3[0] = num >>> 24;
-  bytes3[1] = num >>> 16;
-  bytes3[2] = num >>> 8;
-  bytes3[3] = num;
-  return bytes3;
-}, (sink, value6) => sink.int32(requireInteger(value6, "int4", INT32_MIN, INT32_MAX)))], [OID.oid, oidCodec], [OID.regclass, oidCodec], [OID.int8, /* @__PURE__ */ codecOf((bytes3, offset, size6) => {
+  const bytes4 = new Uint8Array(4);
+  bytes4[0] = num >>> 24;
+  bytes4[1] = num >>> 16;
+  bytes4[2] = num >>> 8;
+  bytes4[3] = num;
+  return bytes4;
+}, (sink, value6) => sink.int32(requireInteger(value6, "int4", INT32_MIN, INT32_MAX)))], [OID.oid, oidCodec], [OID.regclass, oidCodec], [OID.int8, /* @__PURE__ */ codecOf((bytes4, offset, size6) => {
   requireSize(size6, 8, "int8");
-  stage8(bytes3, offset);
+  stage8(bytes4, offset);
   return scratchView8.getBigInt64(0);
 }, (value6) => {
   scratchView8.setBigInt64(0, int8Value(value6));
   return takeScratch8();
-}, (sink, value6) => sink.bigInt64(int8Value(value6)))], [OID.float4, /* @__PURE__ */ codecOf((bytes3, offset, size6) => {
+}, (sink, value6) => sink.bigInt64(int8Value(value6)))], [OID.float4, /* @__PURE__ */ codecOf((bytes4, offset, size6) => {
   requireSize(size6, 4, "float4");
-  scratchView4.setInt32(0, readInt32(bytes3, offset));
+  scratchView4.setInt32(0, readInt32(bytes4, offset));
   return scratchView4.getFloat32(0);
 }, (value6) => {
   scratchView4.setFloat32(0, requireNumber(value6, "float4"));
   return takeScratch4();
-}, (sink, value6) => sink.float32(requireNumber(value6, "float4")))], [OID.float8, /* @__PURE__ */ codecOf((bytes3, offset, size6) => {
+}, (sink, value6) => sink.float32(requireNumber(value6, "float4")))], [OID.float8, /* @__PURE__ */ codecOf((bytes4, offset, size6) => {
   requireSize(size6, 8, "float8");
-  stage8(bytes3, offset);
+  stage8(bytes4, offset);
   return scratchView8.getFloat64(0);
 }, (value6) => {
   scratchView8.setFloat64(0, requireNumber(value6, "float8"));
   return takeScratch8();
-}, (sink, value6) => sink.float64(requireNumber(value6, "float8")))], [OID.time, /* @__PURE__ */ codecOf((bytes3, offset, size6) => {
+}, (sink, value6) => sink.float64(requireNumber(value6, "float8")))], [OID.time, /* @__PURE__ */ codecOf((bytes4, offset, size6) => {
   requireSize(size6, 8, "time");
-  stage8(bytes3, offset);
+  stage8(bytes4, offset);
   return scratchView8.getBigInt64(0);
 }, (value6) => {
   scratchView8.setBigInt64(0, timeValue(value6));
   return takeScratch8();
 }, (sink, value6) => sink.bigInt64(timeValue(value6)))], [OID.numeric, /* @__PURE__ */ codecOf(decodeNumeric, encodeNumeric)], [OID.text, utf8Codec], [OID.varchar, utf8Codec], [OID.bpchar, utf8Codec], [OID.name, utf8Codec], [OID.json, jsonCodec], [OID.jsonb, jsonbCodec], [OID.uuid, /* @__PURE__ */ codecOf(decodeUuid, encodeUuid, writeUuid)], [OID.inet, /* @__PURE__ */ codecOf(decodeInet, (value6) => encodeInet(value6, false))], [OID.cidr, /* @__PURE__ */ codecOf(decodeInet, (value6) => encodeInet(value6, true))], [OID.date, dateCodec], [OID.timetz, timetzCodec], [OID.timestamp, timestampCodec], [OID.timestamptz, timestampCodec]]);
-var makeArrayCodec = (elementOid, lookup3) => codecOf((bytes3, offset, size6) => decodeArray(bytes3, offset, size6, elementOid, lookup3), (value6) => encodeArray(value6, elementOid, lookup3), (sink, value6) => writeArray(sink, value6, elementOid, lookup3));
+var makeArrayCodec = (elementOid, lookup3) => codecOf((bytes4, offset, size6) => decodeArray(bytes4, offset, size6, elementOid, lookup3), (value6) => encodeArray(value6, elementOid, lookup3), (sink, value6) => writeArray(sink, value6, elementOid, lookup3));
 var builtins = /* @__PURE__ */ new Map(builtinScalars);
 var codecs = /* @__PURE__ */ new Map(builtins);
 var tableSize = 4096;
@@ -27406,16 +30315,16 @@ for (const [oid2, codec2] of codecs) table[oid2] = codec2;
 var registryStates = /* @__PURE__ */ new WeakMap();
 var getRegistryState = (registry) => {
   const state = registryStates.get(registry);
-  if (state === void 0) return fail10("Invalid PgTypes Registry");
+  if (state === void 0) return fail14("Invalid PgTypes Registry");
   return state;
 };
 var lookupFor = (registry) => registry === void 0 ? lookup2 : getRegistryState(registry).lookup;
 var encodeArray = (value6, elementOid, lookup3) => {
   if (!Array.isArray(value6)) {
-    return fail10("Expected an array");
+    return fail14("Expected an array");
   }
   const codec2 = lookup3(elementOid);
-  if (codec2 === void 0) return fail10(`No codec registered for OID ${elementOid}`);
+  if (codec2 === void 0) return fail14(`No codec registered for OID ${elementOid}`);
   const count = value6.length;
   const elements = new Array(count);
   let hasNull = false;
@@ -27433,32 +30342,32 @@ var encodeArray = (value6, elementOid, lookup3) => {
     }
   }
   const dimensions = count === 0 ? 0 : 1;
-  const bytes3 = new Uint8Array(12 + dimensions * 8 + payloadSize);
-  writeInt32(bytes3, 0, dimensions);
-  writeInt32(bytes3, 4, hasNull ? 1 : 0);
-  writeInt32(bytes3, 8, elementOid);
+  const bytes4 = new Uint8Array(12 + dimensions * 8 + payloadSize);
+  writeInt32(bytes4, 0, dimensions);
+  writeInt32(bytes4, 4, hasNull ? 1 : 0);
+  writeInt32(bytes4, 8, elementOid);
   let offset = 12;
   if (dimensions === 1) {
-    writeInt32(bytes3, offset, count);
-    writeInt32(bytes3, offset + 4, 1);
+    writeInt32(bytes4, offset, count);
+    writeInt32(bytes4, offset + 4, 1);
     offset += 8;
   }
   for (let i = 0; i < count; i++) {
     const element = elements[i];
     if (element === null) {
-      writeInt32(bytes3, offset, -1);
+      writeInt32(bytes4, offset, -1);
       offset += 4;
     } else {
-      writeInt32(bytes3, offset, element.length);
-      bytes3.set(element, offset + 4);
+      writeInt32(bytes4, offset, element.length);
+      bytes4.set(element, offset + 4);
       offset += 4 + element.length;
     }
   }
-  return bytes3;
+  return bytes4;
 };
 var writeArray = (sink, value6, elementOid, lookup3) => {
   if (!Array.isArray(value6)) {
-    return fail10("Expected an array");
+    return fail14("Expected an array");
   }
   const count = value6.length;
   let hasNull = false;
@@ -27489,67 +30398,67 @@ var writeArray = (sink, value6, elementOid, lookup3) => {
     }
   }
 };
-var decodeArray = (bytes3, start, size6, elementOid, lookup3) => {
-  if (size6 < 12) return fail10("Truncated array value");
-  const dimensions = readInt32(bytes3, start);
-  const wireElementOid = readUint32(bytes3, start + 8);
+var decodeArray = (bytes4, start, size6, elementOid, lookup3) => {
+  if (size6 < 12) return fail14("Truncated array value");
+  const dimensions = readInt32(bytes4, start);
+  const wireElementOid = readUint32(bytes4, start + 8);
   if (wireElementOid !== elementOid) {
-    return fail10(`Array element OID ${wireElementOid} does not match expected OID ${elementOid}`);
+    return fail14(`Array element OID ${wireElementOid} does not match expected OID ${elementOid}`);
   }
   if (dimensions === 0) {
-    if (size6 !== 12) return fail10("Zero-dimensional array has trailing bytes");
+    if (size6 !== 12) return fail14("Zero-dimensional array has trailing bytes");
     return [];
   }
   if (dimensions !== 1) {
-    return fail10(`Only 1-dimensional arrays are supported, received ${dimensions} dimensions`);
+    return fail14(`Only 1-dimensional arrays are supported, received ${dimensions} dimensions`);
   }
-  if (size6 < 20) return fail10("Truncated array value");
-  const length = readInt32(bytes3, start + 12);
-  if (length < 0) return fail10(`Invalid array length: ${length}`);
-  const lowerBound = readInt32(bytes3, start + 16);
-  if (lowerBound !== 1) return fail10(`Only arrays with a lower bound of 1 are supported, received ${lowerBound}`);
+  if (size6 < 20) return fail14("Truncated array value");
+  const length = readInt32(bytes4, start + 12);
+  if (length < 0) return fail14(`Invalid array length: ${length}`);
+  const lowerBound = readInt32(bytes4, start + 16);
+  if (lowerBound !== 1) return fail14(`Only arrays with a lower bound of 1 are supported, received ${lowerBound}`);
   const codec2 = lookup3(elementOid);
   const read = codec2?.read;
   const values2 = new Array(length);
   const limit = start + size6;
   let offset = start + 20;
   for (let i = 0; i < length; i++) {
-    if (offset + 4 > limit) return fail10("Truncated array element");
-    const elementSize = readInt32(bytes3, offset);
+    if (offset + 4 > limit) return fail14("Truncated array element");
+    const elementSize = readInt32(bytes4, offset);
     offset += 4;
-    if (elementSize < -1) return fail10(`Invalid array element length: ${elementSize}`);
+    if (elementSize < -1) return fail14(`Invalid array element length: ${elementSize}`);
     if (elementSize === -1) {
       values2[i] = null;
     } else {
-      if (offset + elementSize > limit) return fail10("Truncated array element");
-      values2[i] = read !== void 0 ? read(bytes3, offset, elementSize) : codec2 === void 0 ? region(bytes3, offset, elementSize) : codec2.decode(region(bytes3, offset, elementSize));
+      if (offset + elementSize > limit) return fail14("Truncated array element");
+      values2[i] = read !== void 0 ? read(bytes4, offset, elementSize) : codec2 === void 0 ? region(bytes4, offset, elementSize) : codec2.decode(region(bytes4, offset, elementSize));
       offset += elementSize;
     }
   }
-  if (offset !== limit) return fail10("Array value has trailing bytes");
+  if (offset !== limit) return fail14("Array value has trailing bytes");
   return values2;
 };
 var makeFieldReader = (columns, registry) => result6(() => {
   const lookup3 = lookupFor(registry);
   const codecs2 = columns.map((column, index2) => {
     if (column.format !== 1) {
-      return fail10(`Only the binary format is supported, column ${index2} has format ${column.format}`);
+      return fail14(`Only the binary format is supported, column ${index2} has format ${column.format}`);
     }
     return lookup3(column.dataTypeOid);
   });
-  return (bytes3, offset, size6, column) => {
+  return (bytes4, offset, size6, column) => {
     if (size6 < 0) return null;
     const codec2 = codecs2[column];
-    if (codec2 === void 0) return decodeUtf83(bytes3, offset, size6);
+    if (codec2 === void 0) return decodeUtf83(bytes4, offset, size6);
     const read = codec2.read;
-    return read === void 0 ? codec2.decode(bytes3.subarray(offset, offset + size6)) : read(bytes3, offset, size6);
+    return read === void 0 ? codec2.decode(bytes4.subarray(offset, offset + size6)) : read(bytes4, offset, size6);
   };
 });
 var ParameterTypeId = "~@effect/sql-pg/PgTypes/Parameter";
 var isParameter = (value6) => typeof value6 === "object" && value6 !== null && value6[ParameterTypeId] === ParameterTypeId;
 var writeValue = (sink, value6, oid2, lookup3) => {
   const codec2 = lookup3(oid2);
-  if (codec2 === void 0) return fail10(`No codec registered for OID ${oid2}`);
+  if (codec2 === void 0) return fail14(`No codec registered for OID ${oid2}`);
   if (codec2.write === void 0) sink.raw(codec2.encode(value6));
   else codec2.write(sink, value6);
 };
@@ -27605,7 +30514,7 @@ var preparedCacheFor = (config) => {
   const max6 = config.preparedStatementCacheSize ?? defaultPreparedStatements;
   return max6 > 0 ? new PreparedCache(max6) : void 0;
 };
-var make33 = (options) => flatMap5(resolveConfig(options), (config) => acquireRelease2(gen4(function* () {
+var make40 = (options) => flatMap5(resolveConfig(options), (config) => acquireRelease2(gen4(function* () {
   const password = yield* resolve4(config.password);
   const session = yield* connect3(config, password);
   return new PgConnectionImpl(options, config, session, options.types);
@@ -27920,9 +30829,9 @@ var PgConnectionImpl = class {
     } catch (cause) {
       return fail6(queryError(cause, "PgConnection: Failed to encode query"));
     }
-    const run4 = runQuery(this, plan2, wantRows);
-    if (cache2 === void 0 || plan2.parses) return run4;
-    return retryStale(plan2, cache2, run4, () => this.attempt(sql, params, wantRows, void 0));
+    const run5 = runQuery(this, plan2, wantRows);
+    if (cache2 === void 0 || plan2.parses) return run5;
+    return retryStale(plan2, cache2, run5, () => this.attempt(sql, params, wantRows, void 0));
   };
   /** Sends a `CancelRequest` for this session on a side connection. */
   cancel = /* @__PURE__ */ suspend3(() => {
@@ -28264,7 +31173,7 @@ var queryError = (cause, message) => new SqlError({
     operation: "query"
   })
 });
-var retryStale = (plan2, cache2, run4, rerun) => catchCause3(run4, (cause) => {
+var retryStale = (plan2, cache2, run5, rerun) => catchCause3(run5, (cause) => {
   if (!plan2.stale) return failCause3(cause);
   cache2.evict(plan2.prepared);
   return rerun();
@@ -28843,7 +31752,7 @@ var connect3 = (config, resolvedPassword) => callback2((resume) => {
   let scram;
   let processId = 0;
   let secretKey = 0;
-  const fail14 = (reason) => {
+  const fail18 = (reason) => {
     if (done3) return;
     done3 = true;
     socket?.destroy();
@@ -28851,12 +31760,12 @@ var connect3 = (config, resolvedPassword) => callback2((resume) => {
       reason
     })));
   };
-  const failConnect = (cause, message) => fail14(new ConnectionError({
+  const failConnect = (cause, message) => fail18(new ConnectionError({
     cause,
     message,
     operation: "connect"
   }));
-  const failAuth = (cause, message) => fail14(new AuthenticationError({
+  const failAuth = (cause, message) => fail18(new AuthenticationError({
     cause,
     message,
     operation: "connect"
@@ -28953,7 +31862,7 @@ var connect3 = (config, resolvedPassword) => callback2((resume) => {
         secretKey = message.secret;
         return;
       case "ErrorResponse":
-        return fail14(classifyFields(message.fields, "PgConnection: Failed to connect", "connect"));
+        return fail18(classifyFields(message.fields, "PgConnection: Failed to connect", "connect"));
       case "ReadyForQuery":
         if (scram !== void 0) {
           return failAuth(new Error("The server completed authentication without proving its identity"), "PgConnection: SCRAM exchange did not complete");
@@ -29012,7 +31921,7 @@ var connect3 = (config, resolvedPassword) => callback2((resume) => {
       if (messages.length !== 1 || message._tag !== "ErrorResponse") {
         return failConnect(new Error("Expected one ErrorResponse after SSLRequest"), "PgConnection: Invalid SSLRequest response");
       }
-      return fail14(classifyFields(message.fields, "PgConnection: Failed to negotiate TLS", "connect"));
+      return fail18(classifyFields(message.fields, "PgConnection: Failed to negotiate TLS", "connect"));
     }
     socket.off("data", onSslResponse);
     if (chunk.length !== 1) {
@@ -29247,20 +32156,20 @@ var parseUrl = (raw) => {
   }
   return succeed2(config);
 };
-var classifyFields = (fields, message, operation) => {
+var classifyFields = (fields, message, operation2) => {
   const cause = Object.assign(new Error(fields.message ?? "Unknown PostgreSQL error"), fields);
   return classifySqlState(fields.code, fields.constraint, {
     cause,
     message,
-    operation
+    operation: operation2
   });
 };
 
 // node_modules/.bun/@effect+sql-pg@4.0.0+a594d97e083afb95/node_modules/@effect/sql-pg/dist/PgPool.js
 var defaultMultiplexConcurrency = 32;
 var TypeId38 = "~@effect/sql-pg/PgPool";
-var make34 = /* @__PURE__ */ fnUntraced2(function* (options) {
-  const clock = yield* Clock;
+var make41 = /* @__PURE__ */ fnUntraced2(function* (options) {
+  const clock2 = yield* Clock;
   const runFork3 = runForkWith2(yield* context2());
   const multiplex = options.multiplex ?? false;
   const connectionTTL = options.connectionTTL !== void 0 ? toMillis(fromInputUnsafe(options.connectionTTL)) : void 0;
@@ -29268,8 +32177,8 @@ var make34 = /* @__PURE__ */ fnUntraced2(function* (options) {
   const createdAt = /* @__PURE__ */ new WeakMap();
   const checkedOut = /* @__PURE__ */ new WeakSet();
   let pool;
-  const acquire = tap5(make33(options), (connection) => sync3(() => {
-    createdAt.set(connection, clock.currentTimeMillisUnsafe());
+  const acquire = tap5(make40(options), (connection) => sync3(() => {
+    createdAt.set(connection, clock2.currentTimeMillisUnsafe());
     const internals = connectionInternals(connection);
     internals.retireHooks.add(() => {
       deadConnections.add(connection);
@@ -29294,7 +32203,7 @@ var make34 = /* @__PURE__ */ fnUntraced2(function* (options) {
       return false;
     }
     const openedAt = createdAt.get(connection);
-    return openedAt !== void 0 && clock.currentTimeMillisUnsafe() - openedAt >= connectionTTL;
+    return openedAt !== void 0 && clock2.currentTimeMillisUnsafe() - openedAt >= connectionTTL;
   };
   const retry4 = gen4(function* () {
     while (true) {
@@ -29329,7 +32238,7 @@ var make34 = /* @__PURE__ */ fnUntraced2(function* (options) {
 
 // node_modules/.bun/@effect+sql-pg@4.0.0+a594d97e083afb95/node_modules/@effect/sql-pg/dist/PgClient.js
 var TypeId39 = "~@effect/sql-pg/PgClient";
-var make35 = (options) => flatMap5(make34(options), (pool) => makeImpl3({
+var make42 = (options) => flatMap5(make41(options), (pool) => makeImpl3({
   acquirer: map8(pool.get, makeConnection),
   borrower: (f) => pool.use((connection) => f(makeConnection(connection))),
   transactionAcquirer: map8(pool.reserve, makeConnection),
@@ -29358,9 +32267,9 @@ var makeImpl3 = /* @__PURE__ */ fnUntraced2(function* (options) {
     config,
     json: (_) => fragment([PgJson(_)]),
     listen,
-    notify: (channel, payload) => {
+    notify: (channel, payload2) => {
       const channelError = validateChannelName(channel, "notify");
-      return channelError !== void 0 ? fail6(channelError) : asVoid4(scoped2(flatMap5(options.acquirer, (conn) => conn.executeRaw(`SELECT pg_notify($1, $2)`, [channel, payload]))));
+      return channelError !== void 0 ? fail6(channelError) : asVoid4(scoped2(flatMap5(options.acquirer, (conn) => conn.executeRaw(`SELECT pg_notify($1, $2)`, [channel, payload2]))));
     }
   });
 });
@@ -29390,8 +32299,8 @@ var ConnectionImpl = class {
     return this.connection.queryValues(sql, params, false);
   }
   executeUnprepared(sql, params, transformRows) {
-    const operation = this.run(sql, params, false);
-    return transformRows ? map8(operation, transformRows) : operation;
+    const operation2 = this.run(sql, params, false);
+    return transformRows ? map8(operation2, transformRows) : operation2;
   }
   executeStream(sql, params, transformRows) {
     const stream = this.streamAcquirer === void 0 ? this.connection.stream(sql, params) : unwrap3(map8(this.streamAcquirer, (connection) => connection.stream(sql, params)));
@@ -29437,13 +32346,13 @@ var ATTR_SERVER_ADDRESS = "server.address";
 var ATTR_SERVER_PORT = "server.port";
 
 // node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/PostgreSqlNative.js
-var controls = (effect2) => effect2.pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.fromReasons(cause.reasons.flatMap((reason) => {
+var controls3 = (effect2) => effect2.pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.fromReasons(cause.reasons.flatMap((reason) => {
   if (Cause_exports.isFailReason(reason) && isSqlError(reason.error) || Cause_exports.isDieReason(reason) && isSqlError(reason.defect)) {
     return Cause_exports.fail(new PostgreSqlFailure({ commitKnowledge: "Unknown" })).reasons;
   }
   return [reason];
 })))));
-var make36 = (options) => {
+var make43 = (options) => {
   if (!Schema_exports.is(EpochMillis)(options.operationTimeoutMillis)) {
     throw new PostgreSqlConfigurationError({ field: "operationTimeoutMillis" });
   }
@@ -29472,8 +32381,8 @@ var make36 = (options) => {
   });
   const withTransaction = (body) => Effect_exports.gen(function* () {
     const active = yield* Effect_exports.serviceOption(client.transactionService);
-    const run4 = Effect_exports.flatMap(ambient, (query) => Effect_exports.suspend(() => body(query)));
-    return yield* Option_exports.isSome(active) ? run4 : controls(client.withTransaction(run4));
+    const run5 = Effect_exports.flatMap(ambient, (query) => Effect_exports.suspend(() => body(query)));
+    return yield* Option_exports.isSome(active) ? run5 : controls3(client.withTransaction(run5));
   });
   return {
     ambient,
@@ -29485,7 +32394,7 @@ var make36 = (options) => {
       if (Option_exports.isSome(active)) {
         return yield* new PostgreSqlInvalidHandle({ reason: "active-transaction" });
       }
-      return yield* controls(client.withTransaction(Effect_exports.flatMap(ambient, (query) => Effect_exports.suspend(() => body(query)).pipe(Effect_exports.timeoutOrElse({
+      return yield* controls3(client.withTransaction(Effect_exports.flatMap(ambient, (query) => Effect_exports.suspend(() => body(query)).pipe(Effect_exports.timeoutOrElse({
         duration: operationTimeoutMillis,
         orElse: () => Effect_exports.fail(new PostgreSqlFailure({ commitKnowledge: "Unknown" }))
       })))));
@@ -29493,28 +32402,222 @@ var make36 = (options) => {
   };
 };
 
-// apps/playground-worker/src/persistence/authority/Schema.ts
-var relations2 = (schema) => {
-  if (!/^[a-z][a-z0-9_]{0,62}$/.test(schema)) {
-    throw new Error("Invalid playground schema");
-  }
-  const table2 = (name3) => `"${schema}"."${name3}"`;
-  return {
-    sandboxes: table2("sandboxes"),
-    associations: table2("associations"),
-    receipts: table2("command_receipts"),
-    admission: table2("command_admission"),
-    audit: table2("command_audit"),
-    ledger: table2("provider_ledger"),
-    jobs: table2("jobs")
-  };
+// apps/playground-worker/src/scenarios/Plan.ts
+var InvalidScenario = class extends Data_exports.TaggedError("InvalidScenario") {
 };
+var workloads = Workload.literals;
+var behavior = (scenario) => {
+  switch (scenario) {
+    case "delayed-success":
+    case "success":
+    case "deduplication":
+      return "success";
+    case "retry-then-success":
+      return "retry-then-success";
+    case "isolated":
+      return "isolated";
+    case "terminal-failure":
+      return "dead";
+    case "unknown-outcome":
+      return "accepted-response-lost";
+  }
+};
+var plan = Effect_exports.fn("Playground.plan")(function* (input, authorized, seed, availableAt, namespace) {
+  const command = yield* Schema_exports.decodeUnknownEffect(ScenarioCommand)(input, {
+    onExcessProperty: "error"
+  }).pipe(Effect_exports.mapError(() => new InvalidScenario()));
+  if (command.sandbox.sandboxId !== authorized.sandboxId || command.sandbox.generation !== authorized.generation || !Schema_exports.is(Payload.fields.seed)(seed) || availableAt !== void 0 && !Schema_exports.is(EpochMillis)(availableAt)) {
+    return yield* new InvalidScenario();
+  }
+  const bytes4 = new TextEncoder().encode(
+    JSON.stringify([
+      authorized.sandboxId,
+      authorized.generation,
+      command.requestId,
+      ...namespace === void 0 ? [] : [namespace]
+    ])
+  );
+  const digest2 = yield* Effect_exports.tryPromise({
+    try: () => crypto.subtle.digest("SHA-256", bytes4),
+    catch: () => new InvalidScenario()
+  });
+  const operationId = `sandbox-request-${Array.from(new Uint8Array(digest2), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+  const jobs = [];
+  for (let index2 = 0; index2 < command.count; index2++) {
+    const workload = workloads[(seed + index2) % workloads.length];
+    jobs.push({
+      workload,
+      payload: {
+        sandbox: { ...authorized },
+        version: 1,
+        seed,
+        sequence: index2 + 1,
+        behavior: behavior(command.scenario),
+        actor: "demo-customer",
+        tenant: (seed + index2) % 2 === 0 ? "demo-tenant-a" : "demo-tenant-b",
+        order: (seed + index2) % 2 === 0 ? "demo-order-a" : "demo-order-b"
+      },
+      producer: Producer.identity({ operationId, slot: workload }),
+      policy: make30(
+        command.scenario === "retry-then-success" ? { retryDelay: Duration_exports.seconds(120) } : {}
+      ),
+      ...availableAt === void 0 ? {} : { availableAt }
+    });
+  }
+  return jobs.map((job) => ({
+    ...job,
+    producer: Producer.identity({
+      operationId: `${operationId}-${job.payload.sequence}`,
+      slot: job.workload
+    })
+  }));
+});
+var exportPayload = (payload2) => ({
+  ...payload2,
+  document: {
+    subject: payload2.actor,
+    tenant: payload2.tenant,
+    note: "synthetic private export v1"
+  }
+});
+var enqueue = (job) => {
+  const input = {
+    producer: job.producer,
+    policy: job.policy,
+    payload: job.payload,
+    ...job.availableAt === void 0 ? {} : { availableAt: job.availableAt }
+  };
+  switch (job.workload) {
+    case "welcome-email":
+      return WelcomeEmail.enqueue(input);
+    case "image-processing":
+      return ImageProcessing.enqueue(input);
+    case "webhook-delivery":
+      return WebhookDelivery.enqueue(input);
+    case "private-data-export":
+      return SyntheticDocumentExport.enqueue({
+        ...input,
+        payload: exportPayload(job.payload)
+      });
+    case "catalog-sync":
+      return CatalogSync.enqueue(input);
+    case "simulated-payment":
+      return SimulatedPayment.enqueue(input);
+  }
+};
+
+// apps/playground-worker/src/scenarios/PrivateTraffic.ts
+var interactionMillis = 12e4;
+var starterScenarios = [
+  "success",
+  "delayed-success",
+  "retry-then-success",
+  "terminal-failure",
+  "isolated",
+  "deduplication"
+];
+var starterCount = starterScenarios.length;
+var make44 = (schema) => Effect_exports.gen(function* () {
+  const sql = yield* SqlClient;
+  const local = yield* LocalPrivate;
+  const retainedMaximum2 = retainedMaximum(local);
+  const admissionMaximum2 = admissionMaximum(local);
+  const producer3 = yield* JobEnqueue;
+  const keys4 = yield* DocumentKeys;
+  const t = relations2(schema);
+  const query = (text3, values2 = []) => sql.unsafe(text3, values2).pipe(Effect_exports.mapError(() => new PlaygroundError({ code: "unavailable" })));
+  const append3 = (ref, requestId, scenarios, now2, seed = 0) => Effect_exports.gen(function* () {
+    if (!Number.isInteger(scenarios.length) || scenarios.length < 1 || scenarios.length > 10) {
+      return yield* new PlaygroundError({ code: "limit-reached" });
+    }
+    const [budget] = yield* query(
+      `SELECT count(*) AS n FROM ${t.admission} WHERE sandbox_id=$1`,
+      [ref.sandboxId]
+    );
+    if (Number(budget.n) >= admissionMaximum2) {
+      return yield* new PlaygroundError({ code: "limit-reached" });
+    }
+    const reserved = yield* query(
+      `UPDATE ${t.sandboxes} SET retained_jobs=retained_jobs+$3::int
+        WHERE sandbox_id=$1 AND generation=$2 AND NOT demo_owned AND retained_jobs<=${retainedMaximum2}-$3::int RETURNING sandbox_id`,
+      [ref.sandboxId, ref.generation, scenarios.length]
+    );
+    if (!reserved.length) {
+      return yield* new PlaygroundError({ code: "limit-reached" });
+    }
+    yield* query(
+      `INSERT INTO ${t.admission}(sandbox_id,generation,operation,request_id) VALUES ($1,$2,'PrivateTraffic',$3)`,
+      [ref.sandboxId, ref.generation, requestId]
+    );
+    const jobIds = [];
+    for (let index2 = 0; index2 < scenarios.length; index2++) {
+      const scenario = scenarios[index2];
+      const [job] = yield* plan(
+        { sandbox: ref, requestId: `${requestId}-${index2}`, scenario, count: 1 },
+        ref,
+        seed + index2,
+        scenario === "delayed-success" ? now2 + interactionMillis : now2,
+        "private-traffic-v1"
+      ).pipe(Effect_exports.mapError(() => new PlaygroundError({ code: "unavailable" })));
+      const planned = {
+        ...job,
+        policy: make30({ retryDelay: Duration_exports.millis(interactionMillis) })
+      };
+      const enqueue2 = enqueue(planned).pipe(
+        Effect_exports.provideService(JobEnqueue, producer3),
+        Effect_exports.provideService(DocumentKeys, keys4),
+        Effect_exports.mapError(() => new PlaygroundError({ code: "unavailable" }))
+      );
+      const produced = yield* enqueue2;
+      if (scenario === "deduplication") {
+        const duplicate = yield* enqueue2;
+        if (duplicate._tag !== "AlreadyPresent" || duplicate.jobId !== produced.jobId) {
+          return yield* new PlaygroundError({ code: "unavailable" });
+        }
+      }
+      yield* query(`INSERT INTO ${t.associations} VALUES ($1,$2,$3,$4::jsonb)`, [
+        ref.sandboxId,
+        ref.generation,
+        produced.jobId,
+        JSON.stringify({
+          syntheticActor: job.payload.actor,
+          syntheticTenant: job.payload.tenant,
+          syntheticOrderId: job.payload.order
+        })
+      ]);
+      jobIds.push(produced.jobId);
+    }
+    yield* query(
+      `INSERT INTO ${t.receipts} VALUES ($1,$2,'PrivateTraffic',$3,$4::jsonb)`,
+      [
+        ref.sandboxId,
+        ref.generation,
+        requestId,
+        JSON.stringify({ sandbox: ref, requestId, scenarios, jobIds })
+      ]
+    );
+    yield* query(
+      `INSERT INTO ${t.audit} VALUES ($1,$2,'PrivateTraffic','synthetic-scenario',$3,$4)`,
+      [ref.sandboxId, ref.generation, scenarios.length, now2]
+    );
+  });
+  const ensure = (ref, now2) => Effect_exports.gen(function* () {
+    const prior = yield* query(
+      `SELECT request_id FROM ${t.receipts} WHERE sandbox_id=$1 AND generation=$2 AND operation='PrivateTraffic' AND request_id='starter-v1'`,
+      [ref.sandboxId, ref.generation]
+    );
+    if (!prior.length) {
+      yield* append3(ref, "starter-v1", starterScenarios, now2);
+    }
+  });
+  return { ensure, append: append3 };
+});
 
 // apps/playground-worker/src/persistence/authority/PostgreSqlAuthority.ts
 var viewerMillis = 15e3;
-var dbTime2 = "floor(extract(epoch FROM clock_timestamp())*1000)::bigint";
-var fail11 = (code) => new PlaygroundError({ code });
-var controls2 = (effect2) => effect2.pipe(
+var dbTime3 = "floor(extract(epoch FROM clock_timestamp())*1000)::bigint";
+var fail15 = (code) => new PlaygroundError({ code });
+var controls4 = (effect2) => effect2.pipe(
   Effect_exports.catchCause(
     (cause) => Effect_exports.failCause(
       Cause_exports.fromReasons(
@@ -29537,59 +32640,74 @@ var digest = (value6) => Effect_exports.tryPromise({
     ),
     (byte) => byte.toString(16).padStart(2, "0")
   ).join(""),
-  catch: () => fail11("unavailable")
+  catch: () => fail15("unavailable")
 });
-var view2 = (row) => Schema_exports.decodeUnknownEffect(SandboxView)(
+var view2 = (row, local = false) => Schema_exports.decodeUnknownEffect(SandboxView)(
   {
     ref: { sandboxId: row.sandbox_id, generation: Number(row.generation) },
     expiresAt: Number(row.expires_at),
+    ...row.demo_owned === true ? {} : {
+      capacity: {
+        mode: local ? "local" : "bounded",
+        retainedJobs: Number(row.retained_jobs),
+        admittedCommands: Number(row.admitted_commands ?? 0)
+      }
+    },
     capabilities: {
-      runScenario: true,
-      resetSandbox: true,
-      retryJob: false,
-      redriveJob: false,
-      cancelJob: false
+      runScenario: row.demo_owned !== true,
+      resetSandbox: row.demo_owned !== true,
+      retryJob: row.demo_owned !== true,
+      redriveJob: row.demo_owned !== true,
+      cancelJob: row.demo_owned !== true
     }
   },
   { onExcessProperty: "error" }
-).pipe(Effect_exports.mapError(() => fail11("unavailable")));
-var make37 = (schema) => Effect_exports.gen(function* () {
+).pipe(Effect_exports.mapError(() => fail15("unavailable")));
+var make45 = (schema) => Effect_exports.gen(function* () {
   const sql = yield* SqlClient;
+  const local = yield* LocalPrivate;
+  const retainedMaximum2 = retainedMaximum(local);
+  const admissionMaximum2 = admissionMaximum(local);
   const t = relations2(schema);
+  const traffic = yield* make44(schema);
   const query = (text3, values2 = []) => sql.unsafe(text3, values2).pipe(
     Effect_exports.mapError(
       () => new CommandTransactionFailure({ commitKnowledge: "Unknown" })
     )
+  );
+  const described = (id2) => query(
+    `SELECT s.*,((SELECT count(*) FROM ${t.admission} WHERE sandbox_id=s.sandbox_id)+(SELECT count(*) FROM "${schema}"."repair_admission" WHERE sandbox_id=s.sandbox_id)) AS admitted_commands FROM ${t.sandboxes} s WHERE sandbox_id=$1`,
+    [id2]
   );
   const locked = (id2) => Effect_exports.gen(function* () {
     const rows = yield* query(
       `SELECT * FROM ${t.sandboxes} WHERE sandbox_id=$1 FOR UPDATE`,
       [id2]
     );
-    const [clock] = yield* query(`SELECT ${dbTime2} AS db_now`);
-    return rows.map((row) => ({ ...row, db_now: clock.db_now }));
+    const [clock2] = yield* query(`SELECT ${dbTime3} AS db_now`);
+    return rows.map((row) => ({ ...row, db_now: clock2.db_now }));
   });
-  const guard2 = (rows, expected) => Effect_exports.gen(function* () {
+  const guard4 = (rows, expected) => Effect_exports.gen(function* () {
     const row = rows[0];
     if (!row) {
-      return yield* fail11("not-found");
+      return yield* fail15("not-found");
     }
     if (Number(row.expires_at) <= Number(row.db_now)) {
-      return yield* fail11("sandbox-expired");
+      return yield* fail15("sandbox-expired");
     }
     if (expected && Number(row.generation) !== expected.generation) {
-      return yield* fail11("stale-generation");
+      return yield* fail15("stale-generation");
     }
     return row;
   });
   const publicEffect = (effect2) => effect2.pipe(
     Effect_exports.mapError(
-      (error) => error instanceof PlaygroundError ? error : fail11("unavailable")
+      (error) => error instanceof PlaygroundError ? error : fail15("unavailable")
     )
   );
   const renew = (access) => sql.withTransaction(
     Effect_exports.gen(function* () {
-      const row = yield* guard2(
+      const row = yield* guard4(
         yield* locked(access.sandbox.ref.sandboxId),
         access.sandbox.ref
       );
@@ -29597,7 +32715,15 @@ var make37 = (schema) => Effect_exports.gen(function* () {
         `UPDATE ${t.sandboxes} SET viewer_until=LEAST(expires_at,$2::bigint+$3::bigint) WHERE sandbox_id=$1`,
         [row.sandbox_id, row.db_now, viewerMillis]
       );
-      return yield* view2(row);
+      if (row.demo_owned !== true) {
+        yield* traffic.ensure((yield* view2(row, local)).ref, Number(row.db_now)).pipe(
+          Effect_exports.catchTag(
+            "PlaygroundError",
+            (error) => error.code === "limit-reached" ? Effect_exports.void : Effect_exports.fail(error)
+          )
+        );
+      }
+      return yield* view2((yield* described(String(row.sandbox_id)))[0], local);
     })
   ).pipe(publicEffect);
   const authority = SandboxAuthority.of({
@@ -29610,58 +32736,73 @@ var make37 = (schema) => Effect_exports.gen(function* () {
       );
       const hash2 = yield* digest(credential);
       const id2 = yield* Effect_exports.sync(() => crypto.randomUUID());
-      const rows = yield* query(
-        `INSERT INTO ${t.sandboxes}(sandbox_id,generation,expires_at,credential_hash,viewer_until,next_generation_at)
-        VALUES ($1,1,${dbTime2}+$3::bigint,$2,${dbTime2}+$4::bigint,${dbTime2}+5000) RETURNING *`,
-        [id2, hash2, limits.sandboxLifetimeMillis, viewerMillis]
+      return yield* sql.withTransaction(
+        Effect_exports.gen(function* () {
+          const rows = yield* query(
+            `INSERT INTO ${t.sandboxes}(sandbox_id,generation,expires_at,credential_hash,viewer_until,next_generation_at)
+        VALUES ($1,1,${dbTime3}+$3::bigint,$2,${dbTime3}+$4::bigint,${dbTime3}+5000) RETURNING *,${dbTime3} AS db_now`,
+            [id2, hash2, limits.sandboxLifetimeMillis, viewerMillis]
+          );
+          yield* traffic.ensure(
+            (yield* view2(rows[0], local)).ref,
+            Number(rows[0].db_now)
+          );
+          const [created] = yield* described(id2);
+          return {
+            sandbox: yield* view2(created, local),
+            credential: Redacted_exports.make(credential)
+          };
+        })
       );
-      return { sandbox: yield* view2(rows[0]), credential: Redacted_exports.make(credential) };
     }).pipe(publicEffect),
     authenticate: (credential) => Effect_exports.gen(function* () {
       if (!/^[0-9a-f]{64}$/.test(Redacted_exports.value(credential))) {
-        return yield* fail11("not-found");
+        return yield* fail15("not-found");
       }
       const hash2 = yield* digest(Redacted_exports.value(credential));
-      const row = yield* guard2(
+      const row = yield* guard4(
         yield* query(
-          `SELECT *,${dbTime2} AS db_now FROM ${t.sandboxes} WHERE credential_hash=$1`,
+          `SELECT s.*,${dbTime3} AS db_now,((SELECT count(*) FROM ${t.admission} WHERE sandbox_id=s.sandbox_id)+(SELECT count(*) FROM "${schema}"."repair_admission" WHERE sandbox_id=s.sandbox_id)) AS admitted_commands FROM ${t.sandboxes} s WHERE credential_hash=$1`,
           [hash2]
         )
       );
-      return { sandbox: yield* view2(row) };
+      return { sandbox: yield* view2(row, local) };
     }).pipe(publicEffect),
     describe: renew
   });
-  const receipt = (ref, requestId, operation) => query(
+  const receipt = (ref, requestId, operation2) => query(
     `SELECT receipt FROM ${t.receipts} WHERE sandbox_id=$1 AND generation=$2 AND operation=$3 AND request_id=$4`,
-    [ref.sandboxId, ref.generation, operation, requestId]
+    [ref.sandboxId, ref.generation, operation2, requestId]
   ).pipe(
     Effect_exports.flatMap(
       (rows) => rows[0] ? Schema_exports.decodeUnknownEffect(StoredReceipt)(rows[0].receipt, {
         onExcessProperty: "error"
-      }).pipe(Effect_exports.mapError(() => fail11("unavailable"))) : Effect_exports.succeed(null)
+      }).pipe(Effect_exports.mapError(() => fail15("unavailable"))) : Effect_exports.succeed(null)
     )
   );
   const transactions = CommandTransactions.of({
-    owned: (access, request3, operation, body) => Effect_exports.gen(function* () {
+    owned: (access, request3, operation2, body) => Effect_exports.gen(function* () {
       if (Option_exports.isSome(yield* Effect_exports.serviceOption(sql.transactionService))) {
         return yield* new CommandTransactionFailure({
           commitKnowledge: "NotCommitted"
         });
       }
       if (request3.sandbox.sandboxId !== access.sandbox.ref.sandboxId) {
-        return yield* fail11("not-found");
+        return yield* fail15("not-found");
       }
-      const fresh2 = yield* controls2(
+      const fresh2 = yield* controls4(
         sql.withTransaction(
           Effect_exports.gen(function* () {
-            yield* guard2(yield* locked(request3.sandbox.sandboxId));
+            const admitted = yield* guard4(yield* locked(request3.sandbox.sandboxId));
+            if (admitted.demo_owned === true) {
+              return yield* fail15("capability-unavailable");
+            }
             const prior = yield* query(
               `SELECT request_id FROM ${t.admission} WHERE sandbox_id=$1 AND generation=$2 AND operation=$3 AND request_id=$4`,
               [
                 request3.sandbox.sandboxId,
                 request3.sandbox.generation,
-                operation,
+                operation2,
                 request3.requestId
               ]
             );
@@ -29669,18 +32810,18 @@ var make37 = (schema) => Effect_exports.gen(function* () {
               return false;
             }
             const [budget] = yield* query(
-              `SELECT count(*)::int AS n FROM ${t.admission} WHERE sandbox_id=$1`,
+              `SELECT count(*) AS n FROM ${t.admission} WHERE sandbox_id=$1`,
               [request3.sandbox.sandboxId]
             );
-            if (Number(budget.n) >= 200) {
-              return yield* fail11("limit-reached");
+            if (Number(budget.n) >= admissionMaximum2) {
+              return yield* fail15("limit-reached");
             }
             const inserted = yield* query(
-              `INSERT INTO ${t.admission} VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING request_id`,
+              `INSERT INTO ${t.admission}(sandbox_id,generation,operation,request_id) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING request_id`,
               [
                 request3.sandbox.sandboxId,
                 request3.sandbox.generation,
-                operation,
+                operation2,
                 request3.requestId
               ]
             );
@@ -29688,14 +32829,17 @@ var make37 = (schema) => Effect_exports.gen(function* () {
           })
         )
       );
-      return yield* controls2(
+      return yield* controls4(
         sql.withTransaction(
           Effect_exports.gen(function* () {
-            const row = yield* guard2(yield* locked(request3.sandbox.sandboxId));
+            const row = yield* guard4(yield* locked(request3.sandbox.sandboxId));
             if (request3.requestId.startsWith("auto-") && Number(row.viewer_until) <= Number(row.db_now)) {
-              return yield* fail11("sandbox-expired");
+              return yield* fail15("sandbox-expired");
             }
-            const current = (yield* view2(row)).ref;
+            if (row.demo_owned === true) {
+              return yield* fail15("capability-unavailable");
+            }
+            const current = (yield* view2(row, local)).ref;
             return yield* body({
               admission: fresh2 ? "Fresh" : "Unresolved",
               current,
@@ -29704,15 +32848,15 @@ var make37 = (schema) => Effect_exports.gen(function* () {
               receipt: (req, op) => receipt(req.sandbox, req.requestId, op),
               reserve: (count) => Effect_exports.gen(function* () {
                 if (!Number.isInteger(count) || count < 1 || count > 10) {
-                  return yield* fail11("limit-reached");
+                  return yield* fail15("limit-reached");
                 }
                 const reserved = yield* query(
                   `UPDATE ${t.sandboxes} SET retained_jobs=retained_jobs+$2::int
-              WHERE sandbox_id=$1 AND retained_jobs+$2::int<=100 RETURNING sandbox_id`,
+              WHERE sandbox_id=$1 AND retained_jobs<=${retainedMaximum2}-$2::int RETURNING sandbox_id`,
                   [current.sandboxId, count]
                 );
                 if (!reserved.length) {
-                  return yield* fail11("limit-reached");
+                  return yield* fail15("limit-reached");
                 }
               }),
               associate: (jobId, job) => query(`INSERT INTO ${t.associations} VALUES ($1,$2,$3,$4::jsonb)`, [
@@ -29721,28 +32865,38 @@ var make37 = (schema) => Effect_exports.gen(function* () {
                 jobId,
                 JSON.stringify({
                   syntheticActor: job.payload.actor,
+                  syntheticTenant: job.payload.tenant,
                   syntheticOrderId: job.payload.order
                 })
               ]).pipe(Effect_exports.asVoid),
               advanceGeneration: (expected) => Effect_exports.gen(function* () {
+                const [capacity] = yield* query(
+                  `SELECT retained_jobs,(SELECT count(*) FROM ${t.admission} WHERE sandbox_id=$1) AS admissions FROM ${t.sandboxes} WHERE sandbox_id=$1`,
+                  [expected.sandboxId]
+                );
+                if (Number(capacity.retained_jobs) > retainedMaximum2 - starterCount || Number(capacity.admissions) >= admissionMaximum2) {
+                  return yield* fail15("limit-reached");
+                }
                 const updated = yield* query(
-                  `UPDATE ${t.sandboxes} SET generation=generation+1, next_generation_at=${dbTime2}+5000
+                  `UPDATE ${t.sandboxes} SET generation=generation+1, next_generation_at=${dbTime3}+5000
               WHERE sandbox_id=$1 AND generation=$2 AND generation<9007199254740991 RETURNING *`,
                   [expected.sandboxId, expected.generation]
                 );
                 if (!updated.length) {
-                  return yield* fail11("stale-generation");
+                  return yield* fail15("stale-generation");
                 }
-                return (yield* view2(updated[0])).ref;
+                const advanced = (yield* view2(updated[0], local)).ref;
+                yield* traffic.ensure(advanced, Number(row.db_now));
+                return advanced;
               }),
               saveReceipt: (value6) => query(`INSERT INTO ${t.receipts} VALUES ($1,$2,$3,$4,$5::jsonb)`, [
                 request3.sandbox.sandboxId,
                 request3.sandbox.generation,
-                operation,
+                operation2,
                 request3.requestId,
                 JSON.stringify(value6)
               ]).pipe(Effect_exports.asVoid),
-              audit: (entry) => query(`INSERT INTO ${t.audit} VALUES ($1,$2,$3,$4,$5,${dbTime2})`, [
+              audit: (entry) => query(`INSERT INTO ${t.audit} VALUES ($1,$2,$3,$4,$5,${dbTime3})`, [
                 current.sandboxId,
                 current.generation,
                 entry.operation,
@@ -29754,17 +32908,17 @@ var make37 = (schema) => Effect_exports.gen(function* () {
         )
       );
     }),
-    lookup: (access, request3, operation) => controls2(
+    lookup: (access, request3, operation2) => controls4(
       sql.withTransaction(
         Effect_exports.gen(function* () {
           if (request3.sandbox.sandboxId !== access.sandbox.ref.sandboxId) {
-            return yield* fail11("not-found");
+            return yield* fail15("not-found");
           }
-          const row = yield* guard2(yield* locked(request3.sandbox.sandboxId));
+          const row = yield* guard4(yield* locked(request3.sandbox.sandboxId));
           if (request3.sandbox.generation > Number(row.generation)) {
-            return yield* fail11("stale-generation");
+            return yield* fail15("stale-generation");
           }
-          return yield* receipt(request3.sandbox, request3.requestId, operation);
+          return yield* receipt(request3.sandbox, request3.requestId, operation2);
         })
       )
     )
@@ -29773,795 +32927,13 @@ var make37 = (schema) => Effect_exports.gen(function* () {
 });
 var transactionsLayerNoDeps = (schema) => Layer_exports.effect(
   CommandTransactions,
-  make37(schema).pipe(Effect_exports.map((services) => services.transactions))
+  make45(schema).pipe(Effect_exports.map((services) => services.transactions))
 );
-
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/internal/codec/CanonicalJson.js
-var encoder3 = new TextEncoder();
-var validScalars2 = (value6) => {
-  for (const scalar of value6) {
-    const code = scalar.codePointAt(0);
-    if (code >= 55296 && code <= 57343) {
-      return false;
-    }
-  }
-  return true;
-};
-var canonicalText = (value6, maximum, reason, rootDepth = 0) => {
-  const seen = /* @__PURE__ */ new Set();
-  let length = 0;
-  const emit = (text3) => {
-    length += encoder3.encode(text3).byteLength;
-    if (length > maximum) {
-      throw new JobPayloadCodecError({ reason });
-    }
-    return text3;
-  };
-  const quote = (text3) => {
-    if (text3.length > maximum) {
-      throw new JobPayloadCodecError({ reason });
-    }
-    if (!validScalars2(text3)) {
-      throw new JobPayloadCodecError({ reason: "invalid-json-value" });
-    }
-    return emit(JSON.stringify(text3));
-  };
-  const visit = (item, depth) => {
-    if (depth > maximumJobPayloadDepth) {
-      throw new JobPayloadCodecError({ reason: "payload-too-deep" });
-    }
-    if (item === null) {
-      return emit("null");
-    }
-    switch (typeof item) {
-      case "boolean":
-        return emit(JSON.stringify(item));
-      case "string":
-        return quote(item);
-      case "number":
-        if (Number.isFinite(item)) {
-          return emit(JSON.stringify(item));
-        }
-        break;
-      case "object": {
-        if (seen.has(item)) {
-          break;
-        }
-        const array2 = Array.isArray(item);
-        if (!array2 && Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null) {
-          break;
-        }
-        seen.add(item);
-        const descriptors = Object.getOwnPropertyDescriptors(item);
-        const keys4 = Reflect.ownKeys(descriptors);
-        for (const key2 of keys4) {
-          if (array2 && key2 === "length") {
-            continue;
-          }
-          const descriptor = descriptors[key2];
-          if (typeof key2 !== "string" || !validScalars2(key2) || !descriptor.enumerable || !("value" in descriptor)) {
-            throw new JobPayloadCodecError({ reason: "invalid-json-value" });
-          }
-        }
-        let text3;
-        if (array2) {
-          emit("[]");
-          if (keys4.length !== item.length + 1) {
-            throw new JobPayloadCodecError({ reason: "invalid-json-value" });
-          }
-          const entries3 = [];
-          for (let index2 = 0; index2 < item.length; index2++) {
-            if (index2 > 0) {
-              emit(",");
-            }
-            const descriptor = descriptors[String(index2)];
-            if (descriptor === void 0) {
-              throw new JobPayloadCodecError({ reason: "invalid-json-value" });
-            }
-            entries3.push(visit(descriptor.value, depth + 1));
-          }
-          text3 = `[${entries3.join(",")}]`;
-        } else {
-          emit("{}");
-          text3 = `{${keys4.sort().map((key2, index2) => {
-            if (index2 > 0) {
-              emit(",");
-            }
-            return `${quote(key2)}${emit(":")}${visit(descriptors[key2].value, depth + 1)}`;
-          }).join(",")}}`;
-        }
-        seen.delete(item);
-        return text3;
-      }
-    }
-    throw new JobPayloadCodecError({ reason: "invalid-json-value" });
-  };
-  return visit(value6, rootDepth);
-};
-var canonicalBytes = (value6, maximum, reason, rootDepth = 0) => Effect_exports.try({
-  try: () => {
-    const bytes3 = encoder3.encode(canonicalText(value6, maximum, reason, rootDepth));
-    if (bytes3.byteLength > maximum) {
-      throw new JobPayloadCodecError({ reason });
-    }
-    return bytes3;
-  },
-  catch: (error) => error instanceof JobPayloadCodecError ? error : new JobPayloadCodecError({ reason: "invalid-json-value" })
-});
-var bytesEqual2 = (left, right) => left.length === right.length && left.every((byte, index2) => byte === right[index2]);
-var checkDecodedContainers = (value6) => Effect_exports.try({
-  try: () => {
-    const seen = /* @__PURE__ */ new Set();
-    const visit = (item, depth) => {
-      if (depth > maximumJobPayloadDepth) {
-        throw new JobPayloadCodecError({ reason: "payload-too-deep" });
-      }
-      if (typeof item === "number" && !Number.isFinite(item)) {
-        throw new JobPayloadCodecError({ reason: "invalid-json-value" });
-      }
-      if (item === null || typeof item !== "object") {
-        return;
-      }
-      if (!Array.isArray(item) && Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null) {
-        return;
-      }
-      if (seen.has(item)) {
-        throw new JobPayloadCodecError({ reason: "invalid-json-value" });
-      }
-      seen.add(item);
-      const descriptors = Object.getOwnPropertyDescriptors(item);
-      if (Array.isArray(item)) {
-        if (Reflect.ownKeys(descriptors).length !== item.length + 1) {
-          throw new JobPayloadCodecError({ reason: "invalid-json-value" });
-        }
-        for (let index2 = 0; index2 < item.length; index2++) {
-          if (!Object.hasOwn(descriptors, String(index2))) {
-            throw new JobPayloadCodecError({ reason: "invalid-json-value" });
-          }
-        }
-      }
-      for (const key2 of Reflect.ownKeys(descriptors)) {
-        if (Array.isArray(item) && key2 === "length") {
-          continue;
-        }
-        const descriptor = descriptors[key2];
-        if (typeof key2 !== "string" || !validScalars2(key2) || !descriptor.enumerable || !("value" in descriptor)) {
-          throw new JobPayloadCodecError({ reason: "invalid-json-value" });
-        }
-        visit(descriptor.value, depth + 1);
-      }
-      seen.delete(item);
-    };
-    visit(value6, 0);
-  },
-  catch: (error) => error instanceof JobPayloadCodecError ? error : new JobPayloadCodecError({ reason: "invalid-json-value" })
-});
-
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/internal/codec/EncryptedBoundary.js
-var links = /* @__PURE__ */ new WeakSet();
-var registerEncryption = (link2) => {
-  links.add(link2.transformation);
-};
-var hasEncryption = (ast) => ast.encoding?.some((link2) => links.has(link2.transformation)) ?? false;
-
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/internal/codec/ProtectedProjection.js
-var marked = (ast) => ast.annotations?.effectJobsProtectedPayload === true;
-var encoder4 = new TextEncoder();
-var prepareProjection = (schema) => Effect_exports.try({
-  try: () => {
-    const visit = (ast, transformed, protectedParent, ancestors) => {
-      if (ancestors.has(ast) || SchemaAST_exports.isSuspend(ast)) {
-        throw new JobPayloadCodecError({ reason: "invalid-schema" });
-      }
-      if (hasEncryption(ast)) {
-        if (transformed || protectedParent) {
-          throw new JobPayloadCodecError({ reason: "invalid-schema" });
-        }
-        visit(SchemaAST_exports.toEncoded(ast), false, false, ancestors);
-        return;
-      }
-      const boundary = transformed || ast.encoding !== void 0;
-      const protectedHere = marked(ast);
-      if (protectedHere && (boundary || protectedParent)) {
-        throw new JobPayloadCodecError({ reason: "invalid-schema" });
-      }
-      ancestors.add(ast);
-      const child = (node) => visit(node, boundary, protectedParent || protectedHere, ancestors);
-      if (SchemaAST_exports.isObjects(ast)) {
-        if (ast.indexSignatures.length > 0 || ast.propertySignatures.some((property) => typeof property.name !== "string")) {
-          throw new JobPayloadCodecError({ reason: "invalid-schema" });
-        }
-        ast.propertySignatures.forEach((property) => child(property.type));
-      } else if (SchemaAST_exports.isArrays(ast)) {
-        if (ast.elements.length !== 0 || ast.rest.length !== 1) {
-          throw new JobPayloadCodecError({ reason: "invalid-schema" });
-        }
-        ast.rest.forEach(child);
-      } else if (SchemaAST_exports.isUnion(ast)) {
-        ast.types.forEach(child);
-      } else if (SchemaAST_exports.isDeclaration(ast)) {
-        if (ast.encoding === void 0) {
-          throw new JobPayloadCodecError({ reason: "invalid-schema" });
-        }
-        ast.typeParameters.forEach(child);
-      }
-      ast.encoding?.forEach((link2) => child(link2.to));
-      ancestors.delete(ast);
-    };
-    visit(schema.ast, false, false, /* @__PURE__ */ new Set());
-    const encoded = SchemaAST_exports.toEncoded(schema.ast);
-    visit(encoded, false, false, /* @__PURE__ */ new Set());
-    return encoded;
-  },
-  catch: () => new JobPayloadCodecError({ reason: "invalid-schema" })
-});
-var project = (ast, value6) => Effect_exports.try({
-  try: () => {
-    let count = 0;
-    const protectedFields = [];
-    const visit = (node, item, path) => {
-      if (encoder4.encode(path).byteLength > maximumJobPayloadSchemaPathBytes) {
-        throw new JobPayloadCodecError({ reason: "schema-path-too-long" });
-      }
-      if (marked(node)) {
-        if (++count > maximumProtectedJobPayloadSubtrees) {
-          throw new JobPayloadCodecError({ reason: "too-many-protected-subtrees" });
-        }
-        if (item === null || typeof item !== "object" || Array.isArray(item) || !Object.hasOwn(item, "fingerprint")) {
-          throw new JobPayloadCodecError({ reason: "invalid-protected-value" });
-        }
-        const fingerprint = Object.getOwnPropertyDescriptor(item, "fingerprint");
-        if (Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null || !fingerprint.enumerable || !("value" in fingerprint)) {
-          throw new JobPayloadCodecError({ reason: "invalid-json-value" });
-        }
-        protectedFields.push([path, fingerprint.value]);
-        return null;
-      }
-      if (SchemaAST_exports.isUnion(node)) {
-        const branch = node.types.find((member) => Schema_exports.decodeUnknownExit(Schema_exports.make(member), {
-          onExcessProperty: "error"
-        })(item)._tag === "Success");
-        if (branch === void 0) {
-          throw new JobPayloadCodecError({ reason: "invalid-schema" });
-        }
-        return visit(branch, item, path);
-      }
-      if (SchemaAST_exports.isArrays(node) && Array.isArray(item)) {
-        return item.map((entry, index2) => visit(node.rest[0], entry, `${path}/${index2}`));
-      }
-      if (SchemaAST_exports.isObjects(node) && item !== null && typeof item === "object") {
-        if (Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null) {
-          throw new JobPayloadCodecError({ reason: "invalid-json-value" });
-        }
-        return Object.fromEntries(Object.entries(item).map(([key2, entry]) => {
-          const property = node.propertySignatures.find((field) => field.name === key2);
-          return [
-            key2,
-            property === void 0 ? entry : visit(property.type, entry, `${path}/${key2.replaceAll("~", "~0").replaceAll("/", "~1")}`)
-          ];
-        }));
-      }
-      return item;
-    };
-    const data = visit(ast, value6, "");
-    return { data, protected: Object.fromEntries(protectedFields) };
-  },
-  catch: (error) => error instanceof JobPayloadCodecError ? error : new JobPayloadCodecError({ reason: "invalid-schema" })
-});
-
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobPayloadCodec.js
-var strict = { onExcessProperty: "error" };
-var encodeJobPayload = Effect_exports.fnUntraced(function* (schema, payload) {
-  const ast = yield* prepareProjection(schema);
-  yield* checkDecodedContainers(payload);
-  yield* project(SchemaAST_exports.toType(schema.ast), payload);
-  const value6 = yield* Schema_exports.encodeEffect(schema, strict)(payload).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, () => new JobPayloadCodecError({ reason: "invalid-schema" })))));
-  const payloadBytes = yield* canonicalBytes(value6, maximumJobPayloadBytes, "payload-too-large");
-  yield* Schema_exports.decodeUnknownEffect(Schema_exports.make(ast), strict)(value6).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, () => new JobPayloadCodecError({ reason: "invalid-schema" })))));
-  const projection = yield* project(ast, value6);
-  const semanticProjectionBytes = yield* canonicalBytes(
-    projection,
-    maximumJobSemanticProjectionBytes,
-    "projection-too-large",
-    // The representation envelope is not an application-data depth level.
-    -1
-  );
-  return { formatVersion: jobPayloadFormatVersion, payloadBytes, semanticProjectionBytes };
-});
-var readArtifact = (encoded) => Effect_exports.try({
-  try: () => {
-    if (encoded.formatVersion !== jobPayloadFormatVersion || !(encoded.payloadBytes instanceof Uint8Array) || !(encoded.semanticProjectionBytes instanceof Uint8Array)) {
-      throw new JobPayloadCodecError({ reason: "invalid-encoding" });
-    }
-    if (encoded.payloadBytes.byteLength > maximumJobPayloadBytes) {
-      throw new JobPayloadCodecError({ reason: "payload-too-large" });
-    }
-    if (encoded.semanticProjectionBytes.byteLength > maximumJobSemanticProjectionBytes) {
-      throw new JobPayloadCodecError({ reason: "projection-too-large" });
-    }
-    return {
-      payloadBytes: new Uint8Array(encoded.payloadBytes),
-      semanticProjectionBytes: new Uint8Array(encoded.semanticProjectionBytes)
-    };
-  },
-  catch: (error) => error instanceof JobPayloadCodecError ? error : new JobPayloadCodecError({ reason: "invalid-encoding" })
-});
-var parse2 = (bytes3) => Effect_exports.try({
-  try: () => JSON.parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes3)),
-  catch: () => new JobPayloadCodecError({ reason: "invalid-encoding" })
-});
-var decodeJobPayload = Effect_exports.fnUntraced(function* (schema, encoded) {
-  const snapshot4 = yield* readArtifact(encoded);
-  const ast = yield* prepareProjection(schema);
-  const value6 = yield* parse2(snapshot4.payloadBytes);
-  const payloadBytes = yield* canonicalBytes(value6, maximumJobPayloadBytes, "payload-too-large");
-  const suppliedProjection = yield* parse2(snapshot4.semanticProjectionBytes);
-  const suppliedBytes = yield* canonicalBytes(suppliedProjection, maximumJobSemanticProjectionBytes, "projection-too-large", -1);
-  if (!bytesEqual2(payloadBytes, snapshot4.payloadBytes) || !bytesEqual2(suppliedBytes, snapshot4.semanticProjectionBytes)) {
-    return yield* new JobPayloadCodecError({ reason: "invalid-encoding" });
-  }
-  yield* Schema_exports.decodeUnknownEffect(Schema_exports.make(ast), strict)(value6).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, () => new JobPayloadCodecError({ reason: "invalid-schema" })))));
-  const projection = yield* project(ast, value6);
-  const projectionBytes = yield* canonicalBytes(projection, maximumJobSemanticProjectionBytes, "projection-too-large", -1);
-  if (!bytesEqual2(projectionBytes, snapshot4.semanticProjectionBytes)) {
-    return yield* new JobPayloadCodecError({ reason: "projection-mismatch" });
-  }
-  const decoded = yield* Schema_exports.decodeUnknownEffect(schema, strict)(value6).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, () => new JobPayloadCodecError({ reason: "invalid-schema" })))));
-  yield* checkDecodedContainers(decoded);
-  return decoded;
-});
-
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/Job.js
-var InvalidJobDefinition = class extends Data_exports.TaggedError("InvalidJobDefinition") {
-};
-function make38(options) {
-  const { kind, queue, payload } = options;
-  const version = options.version === void 0 ? 1 : options.version;
-  const encodePayload = options.encodePayload ?? encodeJobPayload;
-  const catalog = Object.freeze({ queue: queue.name, kind, version });
-  if (!Schema_exports.is(CatalogIdentity)(catalog) || !Schema_exports.isSchema(payload)) {
-    throw new InvalidJobDefinition({
-      expected: "valid queue/kind/version and payload Schema"
-    });
-  }
-  const prepare = Effect_exports.fnUntraced(function* (input) {
-    if (!Schema_exports.is(ProducerIdentity)(input.producer)) {
-      return yield* new InvalidJobInput({ field: "producer" });
-    }
-    if (!Schema_exports.is(PersistedJobPolicy)(input.policy)) {
-      return yield* new InvalidJobInput({ field: "policy" });
-    }
-    if (input.availableAt !== void 0 && !Schema_exports.is(EpochMillis)(input.availableAt)) {
-      return yield* new InvalidJobInput({ field: "availableAt" });
-    }
-    const producer = Object.freeze({
-      operation: input.producer.operation,
-      operationId: input.producer.operationId,
-      slot: input.producer.slot
-    });
-    const policy = Object.freeze({
-      ...input.policy,
-      retrySchedule: Object.freeze({ ...input.policy.retrySchedule }),
-      completedRetention: Object.freeze({ ...input.policy.completedRetention }),
-      deadRetention: Object.freeze({ ...input.policy.deadRetention })
-    });
-    const availableAt = input.availableAt;
-    const encoded = yield* encodePayload(payload, input.payload);
-    return Object.freeze({
-      catalog,
-      producer,
-      policy,
-      encoded,
-      ...availableAt === void 0 ? {} : { availableAt }
-    });
-  });
-  return Object.freeze({
-    kind,
-    version,
-    queue,
-    payload,
-    catalog,
-    enqueue: Effect_exports.fnUntraced(function* (input) {
-      const backend = yield* JobEnqueue;
-      return yield* backend.enqueue(prepare(input));
-    }),
-    enqueueStandalone: Effect_exports.fnUntraced(function* (input) {
-      const backend = yield* JobEnqueue;
-      return yield* backend.enqueueStandalone(prepare(input));
-    }),
-    enqueueInTransaction: Effect_exports.fnUntraced(function* (tx2, input) {
-      return yield* insertPrepared(tx2, yield* prepare(input));
-    }),
-    handlerLayer: (execute2, decodePayload) => Layer_exports.effectDiscard(Effect_exports.gen(function* () {
-      const registry = yield* JobRegistry;
-      const services = yield* Effect_exports.context();
-      yield* registry.install({
-        catalog,
-        execute: (encoded, context3) => Effect_exports.flatMap(decodePayload(payload, encoded), (decoded) => Effect_exports.suspend(() => execute2({ payload: decoded, context: context3 }))).pipe(Effect_exports.provide(services))
-      });
-    }))
-  });
-}
-
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobProducer.js
-var make39 = (options) => {
-  validateProducerDeclaration(options);
-  const operation = options.operation;
-  const slots = Object.freeze([...options.slots]);
-  return Object.freeze({
-    operation,
-    slots,
-    identity: (input) => {
-      validateOperationId(input.operationId);
-      if (!slots.includes(input.slot)) {
-        throw new JobDeclarationError({ field: "slots", expected: "a declared slot" });
-      }
-      return Object.freeze({
-        operation,
-        operationId: input.operationId,
-        slot: input.slot
-      });
-    }
-  });
-};
-
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobQueue.js
-var JobQueueTypeId = Symbol("effect-jobs/JobQueue");
-var InvalidJobQueue = class extends Data_exports.TaggedError("InvalidJobQueue") {
-};
-var make40 = (name3) => {
-  if (!Schema_exports.is(QueueName)(name3)) {
-    throw new InvalidJobQueue({
-      expected: "1\u201364 ASCII characters matching ^[a-z][a-z0-9.-]*$"
-    });
-  }
-  const queue = { [JobQueueTypeId]: JobQueueTypeId, name: name3 };
-  return Object.freeze(queue);
-};
-
-// node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobPayload.js
-var protectedPayload = (schema) => schema.annotate({ effectJobsProtectedPayload: true });
-var JobEncryptionError = class extends Data_exports.TaggedError("JobEncryptionError") {
-};
-var InvalidEncryptedSchema = class extends Data_exports.TaggedError("InvalidEncryptedSchema") {
-};
-var inspectDomain = (ast, ancestors = /* @__PURE__ */ new Set()) => {
-  if (hasEncryption(ast) || ast.annotations?.effectJobsProtectedPayload) {
-    throw new InvalidEncryptedSchema({ reason: "nested-encryption" });
-  }
-  if (ancestors.has(ast) || SchemaAST_exports.isSuspend(ast)) {
-    throw new InvalidEncryptedSchema({ reason: "recursive-schema" });
-  }
-  ancestors.add(ast);
-  if (SchemaAST_exports.isObjects(ast)) {
-    ast.propertySignatures.forEach((p) => inspectDomain(p.type, ancestors));
-    ast.indexSignatures.forEach((p) => {
-      inspectDomain(p.parameter, ancestors);
-      inspectDomain(p.type, ancestors);
-    });
-  }
-  if (SchemaAST_exports.isArrays(ast)) {
-    ast.elements.forEach((p) => inspectDomain(p, ancestors));
-    ast.rest.forEach((p) => inspectDomain(p, ancestors));
-  }
-  if (SchemaAST_exports.isUnion(ast)) {
-    ast.types.forEach((p) => inspectDomain(p, ancestors));
-  }
-  if (SchemaAST_exports.isDeclaration(ast)) {
-    ast.typeParameters.forEach((p) => inspectDomain(p, ancestors));
-  }
-  ast.encoding?.forEach((link2) => inspectDomain(link2.to, ancestors));
-  ancestors.delete(ast);
-};
-var encrypted = (options) => {
-  const { schema, codec: codec2 } = options;
-  inspectDomain(schema.ast);
-  inspectDomain(codec2.envelope.ast);
-  const inspectEnvelope = (ast) => {
-    if (ast.encoding !== void 0 || SchemaAST_exports.isDeclaration(ast)) {
-      throw new InvalidEncryptedSchema({ reason: "invalid-envelope" });
-    }
-    if (SchemaAST_exports.isObjects(ast)) {
-      if (ast.indexSignatures.length > 0) {
-        throw new InvalidEncryptedSchema({ reason: "invalid-envelope" });
-      }
-      ast.propertySignatures.forEach((p) => inspectEnvelope(p.type));
-    }
-    if (SchemaAST_exports.isArrays(ast)) {
-      if (ast.elements.length !== 0 || ast.rest.length !== 1) {
-        throw new InvalidEncryptedSchema({ reason: "invalid-envelope" });
-      }
-      ast.rest.forEach(inspectEnvelope);
-    }
-    if (SchemaAST_exports.isUnion(ast)) {
-      ast.types.forEach(inspectEnvelope);
-    }
-  };
-  inspectEnvelope(codec2.envelope.ast);
-  const envelopeAst = codec2.envelope.ast;
-  if (!SchemaAST_exports.isObjects(envelopeAst) || envelopeAst.encoding !== void 0 || !envelopeAst.propertySignatures.some((p) => p.name === "fingerprint" && p.type.context?.isOptional !== true)) {
-    throw new InvalidEncryptedSchema({ reason: "invalid-envelope" });
-  }
-  const issue = () => new SchemaIssue_exports.Forbidden({ message: "payload encryption failed" });
-  const result7 = protectedPayload(codec2.envelope).pipe(Schema_exports.decodeTo(schema, {
-    decode: SchemaGetter_exports.transformEffect((value6) => codec2.open(value6).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, issue))))),
-    encode: SchemaGetter_exports.transformEffect((value6) => codec2.seal(value6).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, issue)))))
-  }));
-  const link2 = result7.ast.encoding?.at(-1);
-  if (link2 === void 0) {
-    throw new InvalidEncryptedSchema({ reason: "invalid-envelope" });
-  }
-  registerEncryption(link2);
-  return result7;
-};
-
-// apps/playground-worker/src/scenarios/PrivateDocument.ts
-var DocumentKeys = class extends Context_exports.Service()("playground/DocumentKeys") {
-};
-var Document = Schema_exports.Struct({
-  subject: Schema_exports.Literal("demo-customer"),
-  tenant: Schema_exports.Literals(["demo-tenant-a", "demo-tenant-b"]),
-  note: Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMaxLength(256)))
-});
-var Envelope = Schema_exports.Struct({
-  nonce: Schema_exports.Array(
-    Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 0, maximum: 255 })))
-  ).pipe(Schema_exports.check(Schema_exports.isMinLength(12), Schema_exports.isMaxLength(12))),
-  ciphertext: Schema_exports.Array(
-    Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 0, maximum: 255 })))
-  ).pipe(Schema_exports.check(Schema_exports.isMaxLength(2048))),
-  fingerprint: Schema_exports.String.pipe(
-    Schema_exports.check(Schema_exports.isMinLength(64), Schema_exports.isMaxLength(64))
-  )
-});
-var aad = new TextEncoder().encode("playground-private-document-v1");
-var canonical = (value6) => new TextEncoder().encode(
-  JSON.stringify({ subject: value6.subject, tenant: value6.tenant, note: value6.note })
-);
-var hex = (value6) => Array.from(new Uint8Array(value6), (byte) => byte.toString(16).padStart(2, "0")).join("");
-var cryptoOperation = (run4) => Effect_exports.tryPromise({ try: run4, catch: () => new JobEncryptionError() });
-var keysLayer = Layer_exports.effect(
-  DocumentKeys,
-  cryptoOperation(async () => ({
-    encryption: await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
-      "encrypt",
-      "decrypt"
-    ]),
-    fingerprint: await crypto.subtle.generateKey(
-      { name: "HMAC", hash: "SHA-256", length: 256 },
-      false,
-      ["sign", "verify"]
-    )
-  }))
-);
-var codec = {
-  envelope: Envelope,
-  seal: (value6) => Effect_exports.gen(function* () {
-    const keys4 = yield* DocumentKeys;
-    return yield* cryptoOperation(async () => {
-      const bytes3 = canonical(value6);
-      const nonce = crypto.getRandomValues(new Uint8Array(12));
-      const ciphertext = await crypto.subtle.encrypt(
-        { name: "AES-GCM", iv: nonce, additionalData: aad },
-        keys4.encryption,
-        bytes3
-      );
-      const fingerprint = hex(await crypto.subtle.sign("HMAC", keys4.fingerprint, bytes3));
-      return {
-        nonce: Array.from(nonce),
-        ciphertext: Array.from(new Uint8Array(ciphertext)),
-        fingerprint
-      };
-    });
-  }),
-  open: (envelope) => Effect_exports.gen(function* () {
-    const keys4 = yield* DocumentKeys;
-    return yield* cryptoOperation(async () => {
-      const plaintext = await crypto.subtle.decrypt(
-        { name: "AES-GCM", iv: new Uint8Array(envelope.nonce), additionalData: aad },
-        keys4.encryption,
-        new Uint8Array(envelope.ciphertext)
-      );
-      const value6 = Schema_exports.decodeUnknownSync(Document)(
-        JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(plaintext)),
-        { onExcessProperty: "error" }
-      );
-      const expected = hex(
-        await crypto.subtle.sign("HMAC", keys4.fingerprint, canonical(value6))
-      );
-      if (expected !== envelope.fingerprint) {
-        throw new JobEncryptionError();
-      }
-      return value6;
-    });
-  })
-};
-var EncryptedDocument = encrypted({ schema: Document, codec });
-
-// apps/playground-worker/src/scenarios/Definitions.ts
-var Workload = Schema_exports.Literals([
-  "welcome-email",
-  "image-processing",
-  "webhook-delivery",
-  "private-data-export",
-  "catalog-sync",
-  "simulated-payment"
-]);
-var Behavior = Schema_exports.Literals([
-  "success",
-  "retry-then-success",
-  "dead",
-  "isolated",
-  "accepted-response-lost"
-]);
-var Payload = Schema_exports.Struct({
-  sandbox: SandboxRef,
-  version: Schema_exports.Literal(1),
-  seed: Schema_exports.Int.pipe(
-    Schema_exports.check(Schema_exports.isBetween({ minimum: 0, maximum: 4294967295 }))
-  ),
-  sequence: Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 1, maximum: 10 }))),
-  behavior: Behavior,
-  actor: Schema_exports.Literal("demo-customer"),
-  tenant: Schema_exports.Literals(["demo-tenant-a", "demo-tenant-b"]),
-  order: Schema_exports.Literals(["demo-order-a", "demo-order-b"])
-});
-var ExportPayload = Schema_exports.Struct({
-  ...Payload.fields,
-  document: EncryptedDocument
-});
-var communications = make40("playground-communications");
-var media = make40("playground-media");
-var commerce = make40("playground-commerce");
-var privateData = make40("playground-private");
-var WelcomeEmail = make38({
-  queue: communications,
-  kind: "playground.welcome-email",
-  payload: Payload
-});
-var ImageProcessing = make38({
-  queue: media,
-  kind: "playground.image-processing",
-  payload: Payload
-});
-var WebhookDelivery = make38({
-  queue: communications,
-  kind: "playground.webhook-delivery",
-  payload: Payload
-});
-var PrivateDataExport = make38({
-  queue: privateData,
-  kind: "playground.private-data-export",
-  payload: ExportPayload
-});
-var CatalogSync = make38({
-  queue: commerce,
-  kind: "playground.catalog-sync",
-  payload: Payload
-});
-var SimulatedPayment = make38({
-  queue: commerce,
-  kind: "playground.simulated-payment",
-  payload: Payload
-});
-var Producer = make39({
-  operation: "playground.synthetic",
-  slots: [
-    "welcome-email",
-    "image-processing",
-    "webhook-delivery",
-    "private-data-export",
-    "catalog-sync",
-    "simulated-payment"
-  ]
-});
-var definitions = [
-  WelcomeEmail,
-  ImageProcessing,
-  WebhookDelivery,
-  PrivateDataExport,
-  CatalogSync,
-  SimulatedPayment
-];
-
-// apps/playground-worker/src/scenarios/Plan.ts
-var InvalidScenario = class extends Data_exports.TaggedError("InvalidScenario") {
-};
-var workloads = Workload.literals;
-var behavior = (scenario) => {
-  switch (scenario) {
-    case "success":
-    case "deduplication":
-      return "success";
-    case "retry-then-success":
-      return "retry-then-success";
-    case "terminal-failure":
-      return "dead";
-    case "unknown-outcome":
-      return "accepted-response-lost";
-  }
-};
-var plan = Effect_exports.fn("Playground.plan")(function* (input, authorized, seed, availableAt) {
-  const command = yield* Schema_exports.decodeUnknownEffect(ScenarioCommand)(input, {
-    onExcessProperty: "error"
-  }).pipe(Effect_exports.mapError(() => new InvalidScenario()));
-  if (command.sandbox.sandboxId !== authorized.sandboxId || command.sandbox.generation !== authorized.generation || !Schema_exports.is(Payload.fields.seed)(seed) || availableAt !== void 0 && !Schema_exports.is(EpochMillis)(availableAt)) {
-    return yield* new InvalidScenario();
-  }
-  const bytes3 = new TextEncoder().encode(
-    JSON.stringify([authorized.sandboxId, authorized.generation, command.requestId])
-  );
-  const digest2 = yield* Effect_exports.tryPromise({
-    try: () => crypto.subtle.digest("SHA-256", bytes3),
-    catch: () => new InvalidScenario()
-  });
-  const operationId = `sandbox-request-${Array.from(new Uint8Array(digest2), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-  const jobs = [];
-  for (let index2 = 0; index2 < command.count; index2++) {
-    const workload = workloads[(seed + index2) % workloads.length];
-    jobs.push({
-      workload,
-      payload: {
-        sandbox: { ...authorized },
-        version: 1,
-        seed,
-        sequence: index2 + 1,
-        behavior: behavior(command.scenario),
-        actor: "demo-customer",
-        tenant: (seed + index2) % 2 === 0 ? "demo-tenant-a" : "demo-tenant-b",
-        order: (seed + index2) % 2 === 0 ? "demo-order-a" : "demo-order-b"
-      },
-      producer: Producer.identity({ operationId, slot: workload }),
-      policy: make30(),
-      ...availableAt === void 0 ? {} : { availableAt }
-    });
-  }
-  return jobs.map((job) => ({
-    ...job,
-    producer: Producer.identity({
-      operationId: `${operationId}-${job.payload.sequence}`,
-      slot: job.workload
-    })
-  }));
-});
-var exportPayload = (payload) => ({
-  ...payload,
-  document: {
-    subject: payload.actor,
-    tenant: payload.tenant,
-    note: "synthetic private export v1"
-  }
-});
-var enqueue = (job) => {
-  const input = {
-    producer: job.producer,
-    policy: job.policy,
-    payload: job.payload,
-    ...job.availableAt === void 0 ? {} : { availableAt: job.availableAt }
-  };
-  switch (job.workload) {
-    case "welcome-email":
-      return WelcomeEmail.enqueue(input);
-    case "image-processing":
-      return ImageProcessing.enqueue(input);
-    case "webhook-delivery":
-      return WebhookDelivery.enqueue(input);
-    case "private-data-export":
-      return PrivateDataExport.enqueue({
-        ...input,
-        payload: exportPayload(job.payload)
-      });
-    case "catalog-sync":
-      return CatalogSync.enqueue(input);
-    case "simulated-payment":
-      return SimulatedPayment.enqueue(input);
-  }
-};
 
 // apps/playground-worker/src/persistence/commands/Persistence.ts
-var fail12 = (code) => new PlaygroundError({ code });
-var decode6 = (schema, input, code = "invalid-request") => Schema_exports.decodeUnknownEffect(schema)(input, { onExcessProperty: "error" }).pipe(
-  Effect_exports.mapError(() => fail12(code))
+var fail16 = (code) => new PlaygroundError({ code });
+var decode10 = (schema, input, code = "invalid-request") => Schema_exports.decodeUnknownEffect(schema)(input, { onExcessProperty: "error" }).pipe(
+  Effect_exports.mapError(() => fail16(code))
 );
 var sanitizeCause = (cause) => Cause_exports.fromReasons(
   cause.reasons.map((reason) => {
@@ -30572,73 +32944,70 @@ var sanitizeCause = (cause) => Cause_exports.fromReasons(
       return Cause_exports.makeDieReason(new Error("Command persistence defect"));
     }
     return Cause_exports.makeFailReason(
-      fail12(reason.error instanceof PlaygroundError ? reason.error.code : "unavailable")
+      fail16(reason.error instanceof PlaygroundError ? reason.error.code : "unavailable")
     );
   })
 );
-var recoverMutation = (cause, unknown2, producer = false) => {
+var recoverMutation = (cause, unknown4, producer3 = false) => {
   const reason = cause.reasons.length === 1 ? cause.reasons[0] : void 0;
-  if (reason !== void 0 && Cause_exports.isFailReason(reason) && (reason.error instanceof CommandTransactionFailure || producer && reason.error instanceof JobBackendError) && reason.error.commitKnowledge === "Unknown") {
-    return Effect_exports.succeed(unknown2);
+  if (reason !== void 0 && Cause_exports.isFailReason(reason) && (reason.error instanceof CommandTransactionFailure || producer3 && reason.error instanceof JobBackendError) && reason.error.commitKnowledge === "Unknown") {
+    return Effect_exports.succeed(unknown4);
   }
   return Effect_exports.failCause(sanitizeCause(cause));
 };
-var sameRef = (a, b) => a.sandboxId === b.sandboxId && a.generation === b.generation;
-var guard = Effect_exports.fnUntraced(function* (access, expected, tx2) {
-  const current = yield* decode6(SandboxRef, tx2.current, "unavailable");
-  yield* decode6(EpochMillis, tx2.dbNow, "unavailable");
-  yield* decode6(EpochMillis, tx2.expiresAt, "unavailable");
+var sameRef3 = (a, b) => a.sandboxId === b.sandboxId && a.generation === b.generation;
+var guard3 = Effect_exports.fnUntraced(function* (access, expected, tx2) {
+  const current = yield* decode10(SandboxRef, tx2.current, "unavailable");
+  yield* decode10(EpochMillis, tx2.dbNow, "unavailable");
+  yield* decode10(EpochMillis, tx2.expiresAt, "unavailable");
   if (current.sandboxId !== access.sandbox.ref.sandboxId || expected.sandboxId !== current.sandboxId) {
-    return yield* fail12("not-found");
+    return yield* fail16("not-found");
   }
   if (tx2.expiresAt <= tx2.dbNow) {
-    return yield* fail12("sandbox-expired");
+    return yield* fail16("sandbox-expired");
   }
   if (expected.generation > current.generation) {
-    return yield* fail12("stale-generation");
+    return yield* fail16("stale-generation");
   }
   return current;
 });
-var validateReceipt = Effect_exports.fnUntraced(function* (raw, request3, operation) {
-  const receipt = yield* decode6(StoredReceipt, raw, "unavailable");
+var validateReceipt = Effect_exports.fnUntraced(function* (raw, request3, operation2) {
+  const receipt = yield* decode10(StoredReceipt, raw, "unavailable");
   const ref = receipt.result._tag === "Committed" && receipt._tag === "Scenario" ? receipt.result.sandbox : receipt._tag === "Reset" ? receipt.result.previous : receipt.command.sandbox;
-  if (receipt._tag !== operation || receipt.result._tag !== "Committed" || receipt.command.requestId !== request3.requestId || receipt.result.requestId !== request3.requestId || !sameRef(receipt.command.sandbox, request3.sandbox) || !sameRef(ref, request3.sandbox)) {
-    return yield* fail12("unavailable");
+  if (receipt._tag !== operation2 || receipt.result._tag !== "Committed" || receipt.command.requestId !== request3.requestId || receipt.result.requestId !== request3.requestId || !sameRef3(receipt.command.sandbox, request3.sandbox) || !sameRef3(ref, request3.sandbox)) {
+    return yield* fail16("unavailable");
   }
   if (receipt._tag === "Scenario" && receipt.result.jobIds.length !== receipt.command.count) {
-    return yield* fail12("unavailable");
+    return yield* fail16("unavailable");
   }
   return receipt;
 });
-var make41 = Effect_exports.gen(function* () {
+var make46 = Effect_exports.gen(function* () {
   const transactions = yield* CommandTransactions;
-  const producer = yield* JobEnqueue;
+  const producer3 = yield* JobEnqueue;
   const keys4 = yield* DocumentKeys;
   const enqueue2 = (job) => enqueue(job).pipe(
-    Effect_exports.provideService(JobEnqueue, producer),
+    Effect_exports.provideService(JobEnqueue, producer3),
     Effect_exports.provideService(DocumentKeys, keys4)
   );
-  const run4 = Effect_exports.fn("Commands.persistScenario")(function* (access, input) {
-    const command = yield* decode6(ScenarioCommand, input);
-    const jobs = yield* plan(command, access.sandbox.ref, 0).pipe(
-      Effect_exports.mapError(() => fail12("invalid-request"))
-    );
+  const run5 = Effect_exports.fn("Commands.persistScenario")(function* (access, input) {
+    const command = yield* decode10(ScenarioCommand, input);
     return yield* transactions.owned(
       access,
       command,
       "Scenario",
       (tx2) => Effect_exports.gen(function* () {
-        const current = yield* guard(access, command.sandbox, tx2);
+        const current = yield* guard3(access, command.sandbox, tx2);
         const stored = yield* tx2.receipt(command, "Scenario");
         if (stored !== null) {
           const receipt = yield* validateReceipt(stored, command, "Scenario");
           if (receipt._tag !== "Scenario" || receipt.command.scenario !== command.scenario || receipt.command.count !== command.count) {
-            return yield* fail12("invalid-request");
+            return yield* fail16("invalid-request");
           }
           return receipt.result;
         }
-        if (!sameRef(current, command.sandbox)) {
-          return yield* fail12("stale-generation");
+        if (!sameRef3(current, command.sandbox)) {
+          return yield* fail16("stale-generation");
         }
         if (tx2.admission === "Unresolved") {
           return {
@@ -30647,6 +33016,12 @@ var make41 = Effect_exports.gen(function* () {
             requestId: command.requestId
           };
         }
+        const jobs = yield* plan(
+          command,
+          current,
+          0,
+          command.scenario === "delayed-success" ? tx2.dbNow + 12e4 : void 0
+        ).pipe(Effect_exports.mapError(() => fail16("invalid-request")));
         yield* tx2.reserve(jobs.length);
         const jobIds = [];
         for (const job of jobs) {
@@ -30654,13 +33029,13 @@ var make41 = Effect_exports.gen(function* () {
           if (command.scenario === "deduplication") {
             const duplicate = yield* enqueue2(job);
             if (duplicate.jobId !== produced.jobId || duplicate._tag !== "AlreadyPresent") {
-              return yield* fail12("unavailable");
+              return yield* fail16("unavailable");
             }
           }
           yield* tx2.associate(produced.jobId, job);
           jobIds.push(produced.jobId);
         }
-        const result7 = yield* decode6(
+        const result7 = yield* decode10(
           ScenarioResult.members[0],
           {
             _tag: "Committed",
@@ -30693,23 +33068,23 @@ var make41 = Effect_exports.gen(function* () {
     );
   });
   const reset = Effect_exports.fn("Commands.persistReset")(function* (access, input) {
-    const command = yield* decode6(ResetCommand, input);
+    const command = yield* decode10(ResetCommand, input);
     return yield* transactions.owned(
       access,
       command,
       "Reset",
       (tx2) => Effect_exports.gen(function* () {
-        const current = yield* guard(access, command.sandbox, tx2);
+        const current = yield* guard3(access, command.sandbox, tx2);
         const stored = yield* tx2.receipt(command, "Reset");
         if (stored !== null) {
           const receipt = yield* validateReceipt(stored, command, "Reset");
           if (receipt._tag !== "Reset") {
-            return yield* fail12("unavailable");
+            return yield* fail16("unavailable");
           }
           return receipt.result;
         }
-        if (!sameRef(current, command.sandbox)) {
-          return yield* fail12("stale-generation");
+        if (!sameRef3(current, command.sandbox)) {
+          return yield* fail16("stale-generation");
         }
         if (tx2.admission === "Unresolved") {
           return {
@@ -30719,10 +33094,10 @@ var make41 = Effect_exports.gen(function* () {
           };
         }
         if (current.generation === Number.MAX_SAFE_INTEGER) {
-          return yield* fail12("limit-reached");
+          return yield* fail16("limit-reached");
         }
         const advanced = yield* tx2.advanceGeneration(command.sandbox);
-        const result7 = yield* decode6(
+        const result7 = yield* decode10(
           ResetResult,
           {
             _tag: "Committed",
@@ -30750,22 +33125,22 @@ var make41 = Effect_exports.gen(function* () {
       )
     );
   });
-  const lookup3 = (operation, access, input) => Effect_exports.gen(function* () {
-    const request3 = yield* decode6(ReceiptRequest, input);
+  const lookup3 = (operation2, access, input) => Effect_exports.gen(function* () {
+    const request3 = yield* decode10(ReceiptRequest, input);
     if (request3.sandbox.sandboxId !== access.sandbox.ref.sandboxId) {
-      return yield* fail12("not-found");
+      return yield* fail16("not-found");
     }
     if (request3.sandbox.generation > access.sandbox.ref.generation) {
-      return yield* fail12("stale-generation");
+      return yield* fail16("stale-generation");
     }
-    const raw = yield* transactions.lookup(access, request3, operation).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(sanitizeCause(cause))));
+    const raw = yield* transactions.lookup(access, request3, operation2).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(sanitizeCause(cause))));
     if (raw === null) {
       return null;
     }
-    return yield* validateReceipt(raw, request3, operation);
+    return yield* validateReceipt(raw, request3, operation2);
   });
   return CommandPersistence.of({
-    run: run4,
+    run: run5,
     reset,
     scenarioReceipt: Effect_exports.fn("Commands.scenarioReceipt")(function* (access, request3) {
       const receipt = yield* lookup3("Scenario", access, request3);
@@ -30777,7 +33152,7 @@ var make41 = Effect_exports.gen(function* () {
         };
       }
       if (receipt._tag !== "Scenario") {
-        return yield* fail12("unavailable");
+        return yield* fail16("unavailable");
       }
       return receipt.result;
     }),
@@ -30791,13 +33166,13 @@ var make41 = Effect_exports.gen(function* () {
         };
       }
       if (receipt._tag !== "Reset") {
-        return yield* fail12("unavailable");
+        return yield* fail16("unavailable");
       }
       return receipt.result;
     })
   });
 });
-var layerNoDeps = Layer_exports.effect(CommandPersistence, make41);
+var layerNoDeps5 = Layer_exports.effect(CommandPersistence, make46);
 
 // node_modules/.bun/effect-jobs@root/node_modules/effect-jobs/dist/JobConsumer.js
 var ConsumerOptions = Schema_exports.Struct({
@@ -30815,7 +33190,7 @@ var DuplicateJobConsumer = class extends Data_exports.TaggedError("DuplicateJobC
     return `Duplicate consumer for ${this.queue}; configure one consumer per logical queue`;
   }
 };
-var make42 = (queue, options) => Schema_exports.decodeEffect(ConsumerOptions)(options, { onExcessProperty: "error" }).pipe(Effect_exports.map((decoded) => Object.freeze({ queue, ...decoded })), Effect_exports.mapError(() => new InvalidJobConsumer({ reason: "invalid-options" })));
+var make47 = (queue, options) => Schema_exports.decodeEffect(ConsumerOptions)(options, { onExcessProperty: "error" }).pipe(Effect_exports.map((decoded) => Object.freeze({ queue, ...decoded })), Effect_exports.mapError(() => new InvalidJobConsumer({ reason: "invalid-options" })));
 
 // apps/playground-worker/src/providers/FakeProvider.ts
 var RetryRejected = class extends Data_exports.TaggedError("RetryRejected") {
@@ -30870,11 +33245,11 @@ var toJobFailure = Match_exports.type().pipe(
   Match_exports.exhaustive
 );
 var execute = (workload) => Effect_exports.fn("Playground.execute")(function* ({
-  payload,
+  payload: payload2,
   context: context3
 }) {
   const provider = yield* FakeProvider;
-  const encoded = yield* encodeJobPayload(Payload, payload).pipe(
+  const encoded = yield* encodeJobPayload(Payload, payload2).pipe(
     Effect_exports.catchCause(
       (cause) => Effect_exports.failCause(
         Cause_exports.map(cause, () => JobFailures.Isolate({ code: codes2.codec }))
@@ -30882,37 +33257,64 @@ var execute = (workload) => Effect_exports.fn("Playground.execute")(function* ({
     )
   );
   yield* provider.execute({
-    sandbox: payload.sandbox,
+    sandbox: payload2.sandbox,
     producer: context3.producer,
     workload,
-    behavior: payload.behavior,
+    behavior: payload2.behavior,
     semanticProjection: encoded.semanticProjectionBytes
   }).pipe(
     Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, toJobFailure)))
   );
 });
 var executeExport = Effect_exports.fn("Playground.executeExport")(function* ({
-  payload,
+  payload: payload2,
   context: context3
 }) {
   const provider = yield* FakeProvider;
-  if (payload.document.subject !== payload.actor || payload.document.tenant !== payload.tenant) {
+  if (payload2.document.subject !== payload2.actor || payload2.document.tenant !== payload2.tenant) {
     return yield* Effect_exports.fail(JobFailures.Isolate({ code: codes2.invariant }));
   }
-  const encoded = yield* encodeJobPayload(ExportPayload, payload).pipe(
+  const encoded = yield* encodeJobPayload(ExportPayload, payload2).pipe(
     Effect_exports.catchCause(
       (cause) => Effect_exports.failCause(Cause_exports.map(cause, () => JobFailures.Isolate({ code: codes2.codec })))
     )
   );
   yield* provider.execute({
-    sandbox: payload.sandbox,
+    sandbox: payload2.sandbox,
     producer: context3.producer,
     workload: "private-data-export",
-    behavior: payload.behavior,
+    behavior: payload2.behavior,
     semanticProjection: encoded.semanticProjectionBytes
   }).pipe(Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, toJobFailure))));
 });
-var layerNoDeps2 = Layer_exports.mergeAll(
+var executeSyntheticExport = Effect_exports.fn("Playground.executeSyntheticExport")(
+  function* ({ payload: payload2, context: context3 }) {
+    const provider = yield* FakeProvider;
+    if (payload2.document.subject !== payload2.actor || payload2.document.tenant !== payload2.tenant) {
+      return yield* Effect_exports.fail(JobFailures.Isolate({ code: codes2.invariant }));
+    }
+    const encoded = yield* encodeJobPayload(
+      SyntheticExportPayload,
+      payload2
+    ).pipe(
+      Effect_exports.catchCause(
+        (cause) => Effect_exports.failCause(
+          Cause_exports.map(cause, () => JobFailures.Isolate({ code: codes2.codec }))
+        )
+      )
+    );
+    yield* provider.execute({
+      sandbox: payload2.sandbox,
+      producer: context3.producer,
+      workload: "synthetic-document-export",
+      behavior: payload2.behavior,
+      semanticProjection: encoded.semanticProjectionBytes
+    }).pipe(
+      Effect_exports.catchCause((cause) => Effect_exports.failCause(Cause_exports.map(cause, toJobFailure)))
+    );
+  }
+);
+var layerNoDeps6 = Layer_exports.mergeAll(
   WelcomeEmail.handlerLayer(execute("welcome-email"), decodeJobPayload),
   ImageProcessing.handlerLayer(
     execute("image-processing"),
@@ -30920,6 +33322,10 @@ var layerNoDeps2 = Layer_exports.mergeAll(
   ),
   WebhookDelivery.handlerLayer(
     execute("webhook-delivery"),
+    decodeJobPayload
+  ),
+  SyntheticDocumentExport.handlerLayer(
+    executeSyntheticExport,
     decodeJobPayload
   ),
   PrivateDataExport.handlerLayer(executeExport, decodeJobPayload),
@@ -30930,9 +33336,13 @@ var layerNoDeps2 = Layer_exports.mergeAll(
   )
 );
 
+// apps/playground-worker/src/demo/Traffic.ts
+var maxRetainedJobs = 2e4;
+
 // apps/playground-worker/src/execution/PostgreSqlProvider.ts
-var make43 = (schema) => Effect_exports.gen(function* () {
+var make48 = (schema) => Effect_exports.gen(function* () {
   const sql = yield* SqlClient;
+  const local = yield* LocalPrivate;
   const t = relations2(schema);
   return FakeProvider.of({
     execute: (command) => Effect_exports.gen(function* () {
@@ -30955,10 +33365,10 @@ var make43 = (schema) => Effect_exports.gen(function* () {
             [command.sandbox.sandboxId]
           );
           const sandbox3 = rows[0];
-          const [clock] = yield* sql.unsafe(
+          const [clock2] = yield* sql.unsafe(
             "SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now"
           );
-          if (!sandbox3 || Number(sandbox3.generation) !== command.sandbox.generation || Number(sandbox3.expires_at) <= Number(clock.now)) {
+          if (!sandbox3 || Number(sandbox3.generation) !== command.sandbox.generation || Number(sandbox3.expires_at) <= Number(clock2.now)) {
             return new InvariantViolation();
           }
           const jobs = yield* sql.unsafe(
@@ -30986,10 +33396,10 @@ var make43 = (schema) => Effect_exports.gen(function* () {
           }
           if (!existing) {
             const size6 = (yield* sql.unsafe(
-              `SELECT count(*)::int AS n FROM ${t.ledger} WHERE sandbox_id=$1`,
+              `SELECT count(*) AS n FROM ${t.ledger} WHERE sandbox_id=$1`,
               [command.sandbox.sandboxId]
             ))[0].n;
-            if (size6 >= 100) {
+            if (Number(size6) >= (sandbox3.demo_owned === true ? maxRetainedJobs : retainedMaximum(local))) {
               return new LedgerFull();
             }
           }
@@ -31040,7 +33450,7 @@ var make43 = (schema) => Effect_exports.gen(function* () {
     inspect: () => Effect_exports.succeed(void 0)
   });
 });
-var layerNoDeps3 = (schema) => Layer_exports.effect(FakeProvider, make43(schema));
+var layerNoDeps7 = (schema) => Layer_exports.effect(FakeProvider, make48(schema));
 
 // apps/playground-worker/src/cloudflare/WakeCycle.ts
 var Delay = Schema_exports.Int.pipe(
@@ -31094,8 +33504,8 @@ var ExecutionDeadline = class extends Schema_exports.TaggedError()(
 };
 var consumers = Effect_exports.forEach(
   queueNames,
-  (name3) => make42(
-    definitions.find((definition) => definition.queue.name === name3).queue,
+  (name3) => make47(
+    definitions.find((definition2) => definition2.queue.name === name3).queue,
     {
       localConcurrency: limits3.concurrency,
       claimLimitPerRun: limits3.claimLimit,
@@ -31110,9 +33520,9 @@ var workerLayerNoDeps = (schema) => Layer_exports.unwrap(
       catalog: definitions,
       operationResponseBudgetMillis: 500
     }).pipe(
-      Layer_exports.provide(layerNoDeps2),
+      Layer_exports.provide(layerNoDeps6),
       Layer_exports.provide(layer2),
-      Layer_exports.provide(layerNoDeps3(schema))
+      Layer_exports.provide(layerNoDeps7(schema))
     );
   })
 );
@@ -31121,7 +33531,9 @@ var workerLayerNoDeps = (schema) => Layer_exports.unwrap(
 var Cursor = Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(1024)));
 var JobFilters = Schema_exports.Struct({
   state: Schema_exports.optional(JobState),
-  kind: Schema_exports.optional(CatalogIdentity.fields.kind)
+  kind: Schema_exports.optional(CatalogIdentity.fields.kind),
+  resolution: Schema_exports.optional(JobResolutionState),
+  needsAttention: Schema_exports.optional(Schema_exports.Literal(true))
 });
 var ListJobs = Schema_exports.Struct({
   sandbox: SandboxRef,
@@ -31140,21 +33552,120 @@ var JobSummary = Schema_exports.Struct({
   stalledCount: Counter,
   lifecycleVersion: Counter,
   lastFailureCode: Schema_exports.NullOr(FailureCode)
-}).pipe(Schema_exports.check(Schema_exports.makeFilter((job) => (job.state === "Completed" || job.state === "Dead") === (job.completedAt !== null))));
+}).pipe(Schema_exports.check(Schema_exports.makeFilter((job) => (job.state === "Completed" || job.state === "Dead" || job.state === "Cancelled") === (job.completedAt !== null))));
+var JobStats = Schema_exports.Struct({
+  total: Counter,
+  Pending: Counter,
+  RetryScheduled: Counter,
+  Active: Counter,
+  Completed: Counter,
+  Dead: Counter,
+  Cancelled: Counter,
+  Isolated: Counter
+}).pipe(Schema_exports.check(Schema_exports.makeFilter((stats) => stats.total === stats.Pending + stats.RetryScheduled + stats.Active + stats.Completed + stats.Dead + stats.Isolated + stats.Cancelled)));
+var JobAttentionStats = Schema_exports.Struct({
+  Open: Counter,
+  InProgress: Counter,
+  Resolved: Counter,
+  needsAttention: Counter
+}).pipe(Schema_exports.check(Schema_exports.makeFilter((s) => s.needsAttention === s.Open + s.InProgress)));
 var JobPage = Schema_exports.Struct({
   sandbox: SandboxRef,
   items: Schema_exports.Array(JobSummary).pipe(Schema_exports.check(Schema_exports.isMaxLength(50))),
-  nextCursor: Schema_exports.NullOr(Cursor)
+  nextCursor: Schema_exports.NullOr(Cursor),
+  // Matching rows before the cursor predicate, from the same scoped SQL snapshot.
+  filteredTotal: Counter,
+  stats: JobStats,
+  attentionStats: JobAttentionStats
 });
 var JobDetailRequest = Schema_exports.Struct({ sandbox: SandboxRef, jobId: JobId });
 var ApplicationRelations = Schema_exports.Struct({
   syntheticOrderId: Schema_exports.optional(Schema_exports.Literals(["demo-order-a", "demo-order-b"])),
-  syntheticActor: Schema_exports.optional(Schema_exports.Literal("demo-customer"))
+  syntheticActor: Schema_exports.optional(Schema_exports.Literal("demo-customer")),
+  syntheticTenant: Schema_exports.optional(Schema_exports.Literals(["demo-tenant-a", "demo-tenant-b"]))
 });
 var Observation = Schema_exports.Struct({
   source: Schema_exports.Literals(["mock", "local", "workerd", "hosted"]),
   observedAt: EpochMillis,
   outcome: Schema_exports.Literals(["success", "retry", "dead", "isolated", "unknown"])
+});
+var JobRedriveKind2 = Schema_exports.Literals(["Redrive", "CorrectedRedrive"]);
+var JobLineage2 = Schema_exports.Struct({
+  originalSourceJobId: JobId,
+  sourceJobId: Schema_exports.NullOr(JobId),
+  kind: JobRedriveKind2
+});
+var JobPayloadView = Schema_exports.Union([
+  Schema_exports.TaggedStruct("Available", {
+    formatVersion: Schema_exports.Literal(1),
+    catalog: CatalogIdentity,
+    encoded: JsonValue,
+    validation: Schema_exports.Literal("Valid"),
+    encryption: Schema_exports.Literals(["None", "PrivateDocumentV1", "SyntheticDocumentV1"])
+  }),
+  Schema_exports.TaggedStruct("Unavailable", {
+    reason: Schema_exports.Literals(["not-stored", "invalid-artifact", "unsupported-catalog"])
+  })
+]);
+var JobHistoryItem = Schema_exports.Union([
+  Schema_exports.TaggedStruct("Snapshot", { job: JobSummary, observedAt: EpochMillis }),
+  Schema_exports.TaggedStruct("Operator", {
+    requestId: RequestId,
+    action: Schema_exports.Literals(["retry-now", "cancel", "redrive", "corrected-redrive"]),
+    sourceJobId: JobId,
+    resultJobId: JobId,
+    observedAt: EpochMillis
+  }),
+  Schema_exports.TaggedStruct("Resolution", {
+    rootJobId: JobId,
+    state: JobResolutionState,
+    kind: Schema_exports.Literals([
+      "SuccessorCompleted",
+      "OperatorReconciled",
+      "ManualClose",
+      "Reopened"
+    ]),
+    reason: Schema_exports.NullOr(Reason),
+    observedAt: EpochMillis
+  })
+]);
+var JobHistory = Schema_exports.Struct({
+  coverage: Schema_exports.Literal("RetainedFacts"),
+  attempts: Schema_exports.Null,
+  items: Schema_exports.Array(JobHistoryItem).pipe(Schema_exports.check(Schema_exports.isMaxLength(50))),
+  nextCursor: Schema_exports.NullOr(Cursor)
+});
+var JobRelatedItem = Schema_exports.Struct({
+  jobId: JobId,
+  state: Schema_exports.NullOr(JobState),
+  kind: Schema_exports.NullOr(JobRedriveKind2),
+  sourceAvailable: Schema_exports.Boolean
+});
+var JobRelatedPage = Schema_exports.Struct({
+  items: Schema_exports.Array(JobRelatedItem).pipe(Schema_exports.check(Schema_exports.isMaxLength(50))),
+  nextCursor: Schema_exports.NullOr(Cursor)
+});
+var JobDetailPageRequest = Schema_exports.Struct({
+  sandbox: SandboxRef,
+  jobId: JobId,
+  cursor: Schema_exports.optional(Cursor),
+  limit: Schema_exports.Int.pipe(Schema_exports.check(Schema_exports.isBetween({ minimum: 1, maximum: 50 })))
+});
+var JobProblemRow = Schema_exports.Struct({
+  problem: JobProblem,
+  representative: Schema_exports.NullOr(JobSummary)
+});
+var JobProblemPage = Schema_exports.Struct({
+  sandbox: SandboxRef,
+  items: Schema_exports.Array(JobProblemRow).pipe(Schema_exports.check(Schema_exports.isMaxLength(50))),
+  nextCursor: Schema_exports.NullOr(Cursor),
+  filteredTotal: Counter,
+  stats: JobStats,
+  attentionStats: JobAttentionStats
+});
+var repairEligibility = Schema_exports.Struct({
+  enabled: Schema_exports.Boolean,
+  reason: Schema_exports.NullOr(JobRepairReason)
 });
 var JobDetail = Schema_exports.Struct({
   sandbox: SandboxRef,
@@ -31162,7 +33673,24 @@ var JobDetail = Schema_exports.Struct({
   producer: ProducerIdentity,
   policy: PersistedJobPolicy,
   relations: ApplicationRelations,
-  observation: Schema_exports.optional(Observation)
+  observation: Schema_exports.optional(Observation),
+  createdAt: Schema_exports.Null,
+  payload: JobPayloadView,
+  result: Schema_exports.TaggedStruct("Unavailable", { reason: Schema_exports.Literal("not-stored") }),
+  history: JobHistory,
+  provider: Schema_exports.NullOr(Schema_exports.Struct({
+    source: Schema_exports.Literal("synthetic-postgresql"),
+    accepted: Schema_exports.Boolean,
+    invocations: Counter,
+    observedAt: Schema_exports.Null
+  })),
+  lineage: Schema_exports.NullOr(JobLineage2),
+  problem: Schema_exports.NullOr(JobProblem),
+  related: JobRelatedPage,
+  eligibility: Schema_exports.Struct({
+    redrive: repairEligibility,
+    correctedRedrive: repairEligibility
+  })
 });
 
 // apps/playground-worker/src/persistence/read/Queries.ts
@@ -31178,11 +33706,17 @@ var summary2 = `jsonb_build_object(
   'completedAt',j.completed_at,'attemptsMade',j.attempts_made,
   'stalledCount',j.stalled_count,'lifecycleVersion',j.lifecycle_version,
   'lastFailureCode',j.last_failure_code)`;
-var make44 = (mapping2) => {
+var make49 = (mapping2) => {
   const schema = identifier4(mapping2.schema);
   const jobs = `${schema}.${identifier4(mapping2.jobsTable)}`;
   const sandboxes = `${schema}.${identifier4(mapping2.sandboxesTable)}`;
   const associations = `${schema}.${identifier4(mapping2.associationsTable)}`;
+  const payloads = `${schema}.${identifier4(mapping2.payloadsTable ?? "job_payloads")}`;
+  const problems = `${schema}."job_problems"`;
+  const members = `${schema}."job_repair_members"`;
+  const audit = `${schema}."repair_audit"`;
+  const receipts = `${schema}."command_receipts"`;
+  const ledger = `${schema}."provider_ledger"`;
   if ((/* @__PURE__ */ new Set([mapping2.jobsTable, mapping2.sandboxesTable, mapping2.associationsTable])).size !== 3) {
     throw new Error("Read mapping tables must differ");
   }
@@ -31195,62 +33729,258 @@ var make44 = (mapping2) => {
   )`;
   const scoped4 = `FROM ${associations} a JOIN ${jobs} j ON j.id=a.job_id
     WHERE a.sandbox_id=$1 AND a.generation=$2 AND (SELECT code FROM status)='ok'`;
+  const roots = `, retained AS MATERIALIZED (
+    SELECT j.*,a.relations ${scoped4}
+  ), recorded AS MATERIALIZED (
+    SELECT p.root_job_id,p.problem,tip.state AS tip_state,tip.updated_at AS tip_updated_at
+    FROM ${problems} p LEFT JOIN retained tip ON tip.id=p.problem->>'activeSuccessorJobId'
+    WHERE p.sandbox_id=$1 AND p.generation=$2 AND (SELECT code FROM status)='ok'
+  ), effective AS MATERIALIZED (
+    SELECT root_job_id,CASE WHEN problem->>'state'='InProgress' AND
+      (tip_state IS NULL OR tip_state IN ('Completed','Dead','Isolated','Cancelled'))
+      THEN problem || jsonb_build_object('state',CASE WHEN tip_state='Completed' AND problem->>'outcomeKnowledge'='KnownFailure' THEN 'Resolved' ELSE 'Open' END,
+        'version',(problem->>'version')::bigint+1,'updatedAt',coalesce(tip_updated_at,floor(extract(epoch FROM clock_timestamp())*1000)::bigint),
+        'resolution',CASE WHEN tip_state='Completed' AND problem->>'outcomeKnowledge'='KnownFailure' THEN
+          jsonb_build_object('kind','SuccessorCompleted','reason',NULL,'successorJobId',problem->>'activeSuccessorJobId','observedAt',tip_updated_at) ELSE NULL END)
+      ELSE problem END AS problem FROM recorded
+    UNION ALL
+    SELECT j.id,jsonb_build_object('rootJobId',j.id,'state','Open','version',0,'updatedAt',j.updated_at,
+       'activeSuccessorJobId',NULL,'outcomeKnowledge',CASE WHEN j.state='Dead' AND j.last_failure_code IN ('fake_provider_terminal_rejected','fake_provider_retry_rejected') AND EXISTS(SELECT 1 FROM ${ledger} l WHERE l.sandbox_id=$1 AND l.generation=$2 AND l.job_id=j.id AND l.accepted=false AND l.invocations>0) THEN 'KnownFailure' ELSE 'Unknown' END,'resolution',NULL)
+    FROM retained j WHERE j.state IN ('Dead','Isolated')
+      AND NOT EXISTS(SELECT 1 FROM ${members} m WHERE m.sandbox_id=$1 AND m.generation=$2 AND m.job_id=j.id)
+      AND NOT EXISTS(SELECT 1 FROM recorded p WHERE p.root_job_id=j.id)
+  ), representatives AS MATERIALIZED (
+    SELECT e.root_job_id,e.problem,coalesce(
+      (SELECT id FROM retained WHERE id=e.problem->>'activeSuccessorJobId'),
+      (SELECT id FROM retained WHERE id=e.root_job_id),
+      (SELECT j.id FROM ${members} m JOIN retained j ON j.id=m.job_id WHERE m.sandbox_id=$1 AND m.generation=$2 AND m.root_job_id=e.root_job_id ORDER BY j.id COLLATE "C" LIMIT 1)
+    ) AS representative_id FROM effective e
+  ), attention AS (
+    SELECT jsonb_build_object('Open',count(*) FILTER(WHERE problem->>'state'='Open'),
+      'InProgress',count(*) FILTER(WHERE problem->>'state'='InProgress'),
+      'Resolved',count(*) FILTER(WHERE problem->>'state'='Resolved'),
+      'needsAttention',count(*) FILTER(WHERE problem->>'state' IN ('Open','InProgress'))) AS stats FROM effective
+  )`;
+  const totals = `, totals AS (
+    SELECT jsonb_build_object('total',count(*),
+      'Pending',count(*) FILTER(WHERE j.state='Pending'),
+      'RetryScheduled',count(*) FILTER(WHERE j.state='RetryScheduled'),
+      'Active',count(*) FILTER(WHERE j.state='Active'),
+      'Completed',count(*) FILTER(WHERE j.state='Completed'),
+      'Cancelled',count(*) FILTER(WHERE j.state='Cancelled'),
+      'Dead',count(*) FILTER(WHERE j.state='Dead'),
+      'Isolated',count(*) FILTER(WHERE j.state='Isolated')) AS stats FROM retained j
+  )`;
+  const refValues = (ref) => [ref.sandboxId, ref.generation];
+  const related = `SELECT m.job_id AS id,jsonb_build_object('jobId',m.job_id,'state',j.state,
+      'kind',coalesce(j.redrive_kind,(SELECT CASE WHEN e.action='redrive' THEN 'Redrive' ELSE 'CorrectedRedrive' END FROM ${schema}."job_repairs" e WHERE e.sandbox_id=$1 AND e.generation=$2 AND e.result_job_id=m.job_id),
+      (SELECT 'Redrive' FROM ${schema}."operator_redrives" e WHERE e.sandbox_id=$1 AND e.generation=$2 AND e.original_successor_job_id=m.job_id)),
+      'sourceAvailable',j.id IS NOT NULL) AS item
+    FROM ${members} m LEFT JOIN retained j ON j.id=m.job_id
+    WHERE m.sandbox_id=$1 AND m.generation=$2 AND m.root_job_id=coalesce(
+      (SELECT root_job_id FROM ${members} WHERE sandbox_id=$1 AND generation=$2 AND job_id=$3),$3)
+      AND m.job_id<>$3`;
+  const facts = `, facts AS MATERIALIZED (
+    SELECT lpad(j.updated_at::text,15,'0')||':~snapshot' AS id,jsonb_build_object('_tag','Snapshot','job',${summary2},'observedAt',j.updated_at) AS item
+    FROM retained j WHERE j.id=$3
+    UNION ALL
+    SELECT lpad((r.receipt->'result'->>'observedAt'),15,'0')||':'||r.request_id||':'||(r.receipt->'result'->>'action'),
+      jsonb_build_object('_tag','Operator','requestId',r.request_id,'action',r.receipt->'result'->>'action',
+        'sourceJobId',r.receipt->'result'->>'sourceJobId','resultJobId',r.receipt->'result'->>'resultJobId',
+        'observedAt',(r.receipt->'result'->>'observedAt')::bigint)
+    FROM ${receipts} r WHERE r.sandbox_id=$1 AND r.generation=$2 AND r.operation='Operator' AND r.receipt->'result'->>'_tag'='Committed'
+      AND (r.receipt->'result'->>'sourceJobId'=$3 OR r.receipt->'result'->>'resultJobId'=$3)
+    UNION ALL
+    SELECT lpad(a.observed_at::text,15,'0')||':'||a.identity||':'||a.action,
+      a.fact - ARRAY['repairReason','operatorCategory','investigation','changes','validation']::text[]
+    FROM ${audit} a WHERE a.sandbox_id=$1 AND a.generation=$2 AND a.root_job_id=coalesce(
+      (SELECT root_job_id FROM ${members} WHERE sandbox_id=$1 AND generation=$2 AND job_id=$3),$3)
+  )`;
   return {
     list: (ref, request3, after) => ({
-      text: `${authority}, page AS (
-        SELECT j.id, ${summary2} AS item ${scoped4}
-          AND ($3::text IS NULL OR j.state=$3) AND ($4::text IS NULL OR j.kind=$4)
-          AND ($5::text IS NULL OR j.id COLLATE "C" > $5 COLLATE "C")
-        ORDER BY j.id COLLATE "C" ASC LIMIT $6
-      ) SELECT (SELECT code FROM status) AS status,
+      text: `${authority}${roots}${totals}, page AS (
+        SELECT j.id,${summary2} AS item FROM retained j
+        WHERE ($3::text IS NULL OR j.state=$3) AND ($4::text IS NULL OR j.kind=$4)
+          AND ($5::text IS NULL OR j.id COLLATE "C">$5 COLLATE "C") ORDER BY j.id COLLATE "C" LIMIT $6
+      ), filtered AS (
+        SELECT count(*) AS n FROM retained j WHERE ($3::text IS NULL OR j.state=$3) AND ($4::text IS NULL OR j.kind=$4)
+      ) SELECT (SELECT code FROM status) AS status,(SELECT stats FROM totals) AS stats,
+        (SELECT stats FROM attention) AS "attentionStats",(SELECT n FROM filtered)::double precision AS "filteredTotal",
         coalesce(jsonb_agg(item ORDER BY id COLLATE "C"),'[]'::jsonb) AS items FROM page`,
       values: [
-        ref.sandboxId,
-        ref.generation,
+        ...refValues(ref),
         request3.filters.state ?? null,
         request3.filters.kind ?? null,
         after,
         request3.limit + 1
       ]
     }),
+    problems: (ref, request3, after) => ({
+      text: `${authority}${roots}${totals}, filtered AS MATERIALIZED (
+        SELECT r.root_job_id,jsonb_build_object('problem',r.problem,'representative',CASE WHEN j.id IS NULL THEN NULL ELSE ${summary2} END) AS item
+        FROM representatives r LEFT JOIN retained j ON j.id=r.representative_id
+        WHERE ($3::text IS NULL OR j.state=$3) AND ($4::text IS NULL OR j.kind=$4)
+          AND ($5::text IS NULL OR r.problem->>'state'=$5)
+          AND (NOT $6::boolean OR r.problem->>'state' IN ('Open','InProgress'))
+      ), page AS (
+        SELECT * FROM filtered WHERE ($7::text IS NULL OR root_job_id COLLATE "C">$7 COLLATE "C") ORDER BY root_job_id COLLATE "C" LIMIT $8
+      ) SELECT (SELECT code FROM status) AS status,(SELECT stats FROM totals) AS stats,(SELECT stats FROM attention) AS "attentionStats",
+        (SELECT count(*) FROM filtered)::double precision AS "filteredTotal",coalesce(jsonb_agg(item ORDER BY root_job_id COLLATE "C"),'[]'::jsonb) AS items FROM page`,
+      values: [
+        ...refValues(ref),
+        request3.filters.state ?? null,
+        request3.filters.kind ?? null,
+        request3.filters.resolution ?? null,
+        request3.filters.needsAttention === true,
+        after,
+        request3.limit + 1
+      ]
+    }),
     detail: (ref, request3) => ({
-      text: `${authority} SELECT (SELECT code FROM status) AS status, (
-        SELECT jsonb_build_object('sandbox',jsonb_build_object('sandboxId',$1::text,'generation',$2::bigint),
-          'job',${summary2},'producer',jsonb_build_object('operation',j.operation,
-          'operationId',j.operation_id,'slot',j.slot),'policy',j.policy,'relations',a.relations)
-        ${scoped4} AND j.id=$3
-      ) AS detail`,
-      values: [ref.sandboxId, ref.generation, request3.jobId]
+      text: `${authority}${roots}${facts}, related_page AS (${related} ORDER BY m.job_id COLLATE "C" LIMIT 51), history_page AS (SELECT * FROM facts ORDER BY id COLLATE "C" LIMIT 51)
+      SELECT (SELECT code FROM status) AS status,(
+        SELECT jsonb_build_object('sandbox',jsonb_build_object('sandboxId',$1::text,'generation',$2::bigint),'job',${summary2},
+          'producer',jsonb_build_object('operation',j.operation,'operationId',j.operation_id,'slot',j.slot),'policy',j.policy,'relations',j.relations)
+        FROM retained j WHERE j.id=$3) AS detail,
+        (SELECT jsonb_build_object('rootJobId',e.root_job_id,'problem',e.problem) FROM effective e WHERE e.root_job_id=coalesce((SELECT root_job_id FROM ${members} WHERE sandbox_id=$1 AND generation=$2 AND job_id=$3),$3)) AS problem,
+        (SELECT jsonb_build_object('accepted',l.accepted,'invocations',l.invocations) FROM ${ledger} l WHERE l.sandbox_id=$1 AND l.generation=$2 AND l.job_id=$3 AND EXISTS(SELECT 1 FROM retained WHERE id=$3)) AS provider,
+        (SELECT jsonb_build_object('originalSourceJobId',j.original_source_job_id,'sourceJobId',j.source_job_id,'kind',j.redrive_kind) FROM retained j WHERE j.id=$3 AND j.original_source_job_id IS NOT NULL) AS lineage,
+        (SELECT format_version FROM ${payloads} WHERE job_id=$3 AND EXISTS(SELECT 1 FROM retained WHERE id=$3)) AS format_version,
+        (SELECT payload FROM ${payloads} WHERE job_id=$3 AND EXISTS(SELECT 1 FROM retained WHERE id=$3)) AS payload,
+        (SELECT projection FROM ${payloads} WHERE job_id=$3 AND EXISTS(SELECT 1 FROM retained WHERE id=$3)) AS projection,
+        coalesce((SELECT jsonb_agg(item ORDER BY id COLLATE "C") FROM related_page),'[]'::jsonb) AS related,
+        coalesce((SELECT jsonb_agg(jsonb_build_object('key',id,'item',item) ORDER BY id COLLATE "C") FROM history_page),'[]'::jsonb) AS history`,
+      values: [...refValues(ref), request3.jobId]
+    }),
+    related: (ref, request3, after) => ({
+      text: `${authority}${roots}, page AS (${related} AND ($4::text IS NULL OR m.job_id COLLATE "C">$4 COLLATE "C") ORDER BY m.job_id COLLATE "C" LIMIT $5)
+      SELECT (SELECT code FROM status) AS status,EXISTS(SELECT 1 FROM retained WHERE id=$3) AS found,coalesce(jsonb_agg(item ORDER BY id COLLATE "C"),'[]'::jsonb) AS items FROM page`,
+      values: [...refValues(ref), request3.jobId, after, request3.limit + 1]
+    }),
+    history: (ref, request3, after) => ({
+      text: `${authority}${roots}${facts}, page AS (SELECT * FROM facts WHERE ($4::text IS NULL OR id COLLATE "C">$4 COLLATE "C") ORDER BY id COLLATE "C" LIMIT $5)
+      SELECT (SELECT code FROM status) AS status,EXISTS(SELECT 1 FROM retained WHERE id=$3) AS found,coalesce(jsonb_agg(jsonb_build_object('key',id,'item',item) ORDER BY id COLLATE "C"),'[]'::jsonb) AS items FROM page`,
+      values: [...refValues(ref), request3.jobId, after, request3.limit + 1]
     })
   };
 };
 
+// apps/website/src/server/read/JobDetailsProjection.ts
+var unavailable3 = (reason) => ({ _tag: "Unavailable", reason });
+var payload = (detail, row) => Effect_exports.gen(function* () {
+  const catalog = detail.job.catalog;
+  const definition2 = definitions.find(
+    (entry) => entry.catalog.kind === catalog.kind && entry.catalog.queue === catalog.queue && entry.catalog.version === catalog.version
+  );
+  if (!definition2) {
+    return unavailable3("unsupported-catalog");
+  }
+  if (row.payload === null || row.payload === void 0) {
+    return unavailable3("not-stored");
+  }
+  const bytes4 = yield* artifact(row);
+  const wire = yield* decodeJobPayload(
+    Schema_exports.toEncoded(definition2.payload),
+    bytes4
+  );
+  if (wire.sandbox.sandboxId !== detail.sandbox.sandboxId || wire.sandbox.generation !== detail.sandbox.generation) {
+    return unavailable3("invalid-artifact");
+  }
+  let encryption = "None";
+  if ("document" in wire) {
+    const document = wire.document;
+    if (document.ciphertext.length < 16 || !/^[a-f0-9]{64}$/u.test(document.fingerprint)) {
+      return unavailable3("invalid-artifact");
+    }
+    encryption = String(definition2.catalog.kind) === "playground.synthetic-document-export" ? "SyntheticDocumentV1" : "PrivateDocumentV1";
+  }
+  return {
+    _tag: "Available",
+    formatVersion: 1,
+    catalog,
+    encoded: wire,
+    validation: "Valid",
+    encryption
+  };
+}).pipe(
+  Effect_exports.catchTag(
+    "RepairSourceRejected",
+    () => Effect_exports.succeed(unavailable3("invalid-artifact"))
+  ),
+  Effect_exports.catchTag(
+    "JobPayloadCodecError",
+    () => Effect_exports.succeed(unavailable3("invalid-artifact"))
+  )
+);
+var eligibility2 = (detail, problem, payloadView) => {
+  const selected = definitions.find(
+    (entry2) => entry2.catalog.kind === detail.job.catalog.kind && entry2.catalog.queue === detail.job.catalog.queue && entry2.catalog.version === detail.job.catalog.version
+  );
+  const entry = (reason) => ({ enabled: reason === null, reason });
+  const state = detail.job.state;
+  const common = state === "Active" ? "active-execution" : state !== "Dead" && state !== "Isolated" ? "not-eligible" : problem?.state === "InProgress" ? "repair-in-progress" : problem?.state === "Resolved" ? "already-resolved" : problem && (problem.activeSuccessorJobId ?? problem.rootJobId) !== detail.job.jobId ? "resolution-conflict" : null;
+  const plain = common ?? (payloadView._tag === "Unavailable" ? payloadView.reason === "unsupported-catalog" ? "unsupported-catalog" : "invalid-artifact" : null);
+  const correction = common ?? (selected === SyntheticDocumentExport && payloadView._tag === "Unavailable" ? "invalid-artifact" : null) ?? (selected && "document" in selected.payload.fields && selected !== SyntheticDocumentExport || payloadView._tag === "Available" && payloadView.encryption !== "None" && !(selected === SyntheticDocumentExport && payloadView.encryption === "SyntheticDocumentV1") ? "encrypted-correction-unavailable" : payloadView._tag === "Unavailable" && payloadView.reason === "unsupported-catalog" ? "unsupported-catalog" : null);
+  return { redrive: entry(plain), correctedRedrive: entry(correction) };
+};
+var retainedFields = {
+  createdAt: null,
+  result: { _tag: "Unavailable", reason: "not-stored" }
+};
+
 // apps/website/src/server/read/CursorCodec.ts
-var Position = Schema_exports.Struct({
-  version: Schema_exports.Literal(1),
-  sandbox: SandboxRef,
-  filters: JobFilters,
-  after: Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(128)))
-});
+var After = Schema_exports.String.pipe(
+  Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(128))
+);
+var Position = Schema_exports.Union([
+  Schema_exports.Struct({
+    version: Schema_exports.Literal(1),
+    sandbox: SandboxRef,
+    filters: JobFilters,
+    after: After
+  }).pipe(
+    Schema_exports.check(
+      Schema_exports.makeFilter(
+        (p) => p.filters.resolution === void 0 && p.filters.needsAttention === void 0
+      )
+    )
+  ),
+  Schema_exports.Struct({
+    version: Schema_exports.Literal(2),
+    view: Schema_exports.Literals(["jobs", "problems"]),
+    sandbox: SandboxRef,
+    filters: JobFilters,
+    after: After
+  }),
+  Schema_exports.Struct({
+    version: Schema_exports.Literal(2),
+    view: Schema_exports.Literals(["history", "related"]),
+    sandbox: SandboxRef,
+    jobId: After,
+    after: Schema_exports.String.pipe(
+      Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(512))
+    )
+  })
+]);
 var CursorCodec = class extends Context_exports.Service()("playground/read/CursorCodec") {
 };
 var utf82 = new TextEncoder();
 var text2 = new TextDecoder("utf-8", { fatal: true });
-var encodeBytes2 = (bytes3) => btoa(String.fromCharCode(...bytes3)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+var encodeBytes2 = (bytes4) => btoa(String.fromCharCode(...bytes4)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 var decodeBytes = (value6) => {
   if (!/^[A-Za-z0-9_-]+$/u.test(value6)) {
     throw new Error("Invalid cursor encoding");
   }
-  const bytes3 = Uint8Array.from(
+  const bytes4 = Uint8Array.from(
     atob(value6.replaceAll("-", "+").replaceAll("_", "/")),
     (c) => c.charCodeAt(0)
   );
-  if (encodeBytes2(bytes3) !== value6) {
+  if (encodeBytes2(bytes4) !== value6) {
     throw new Error("Noncanonical cursor encoding");
   }
-  return bytes3;
+  return bytes4;
 };
-var make45 = (key2) => {
+var make50 = (key2) => {
   const algorithm = key2.algorithm;
   if (key2.type !== "secret" || algorithm.name !== "HMAC" || algorithm.hash.name !== "SHA-256" || algorithm.length < 256 || !key2.usages.includes("sign") || !key2.usages.includes("verify")) {
     throw new Error("Cursor key requires HMAC SHA-256 and sign/verify usages");
@@ -31304,37 +34034,82 @@ var make45 = (key2) => {
     )
   };
 };
-var layer4 = (key2) => Layer_exports.succeed(CursorCodec, make45(key2));
+var layer4 = (key2) => Layer_exports.succeed(CursorCodec, make50(key2));
 
 // apps/website/src/server/read/PostgreSqlRead.ts
 var ReadDatabase = class extends Context_exports.Service()("playground/read/ReadDatabase") {
 };
 var Status = Schema_exports.Literals(["ok", "sandbox-expired", "stale-generation"]);
-var ListRows = Schema_exports.Array(
+var listRows = (item) => Schema_exports.Array(
   Schema_exports.Struct({
     status: Status,
-    items: Schema_exports.Array(JobSummary).pipe(Schema_exports.check(Schema_exports.isMaxLength(51)))
+    items: Schema_exports.Array(item).pipe(Schema_exports.check(Schema_exports.isMaxLength(51))),
+    filteredTotal: JobPage.fields.filteredTotal,
+    stats: JobStats,
+    attentionStats: JobPage.fields.attentionStats
   })
 ).pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(1)));
+var ListRows = listRows(JobSummary);
+var ProblemRows = listRows(JobProblemRow);
+var BaseDetail = Schema_exports.Struct({
+  sandbox: JobDetail.fields.sandbox,
+  job: JobDetail.fields.job,
+  producer: JobDetail.fields.producer,
+  policy: JobDetail.fields.policy,
+  relations: JobDetail.fields.relations
+});
+var KeyedHistory = Schema_exports.Struct({
+  key: Schema_exports.String.pipe(Schema_exports.check(Schema_exports.isMaxLength(512))),
+  item: JobHistoryItem
+});
 var DetailRows = Schema_exports.Array(
-  Schema_exports.Struct({ status: Status, detail: Schema_exports.NullOr(JobDetail) })
+  Schema_exports.Struct({
+    status: Status,
+    detail: Schema_exports.NullOr(BaseDetail),
+    problem: Schema_exports.NullOr(
+      Schema_exports.Struct({
+        rootJobId: JobSummary.fields.jobId,
+        problem: JobDetail.fields.problem
+      })
+    ),
+    provider: Schema_exports.NullOr(
+      Schema_exports.Struct({
+        accepted: Schema_exports.Boolean,
+        invocations: JobSummary.fields.attemptsMade
+      })
+    ),
+    lineage: JobDetail.fields.lineage,
+    format_version: Schema_exports.Unknown,
+    payload: Schema_exports.Unknown,
+    projection: Schema_exports.Unknown,
+    related: Schema_exports.Array(JobRelatedItem).pipe(Schema_exports.check(Schema_exports.isMaxLength(51))),
+    history: Schema_exports.Array(KeyedHistory).pipe(Schema_exports.check(Schema_exports.isMaxLength(51)))
+  })
 ).pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(1)));
-var sameRef2 = (left, right) => left.sandboxId === right.sandboxId && left.generation === right.generation;
+var Subread = Schema_exports.Struct({
+  ...JobDetailRequest.fields,
+  cursor: Schema_exports.optional(Cursor),
+  limit: ListJobs.fields.limit
+});
+var invalid6 = () => new PlaygroundError({ code: "invalid-request" });
+var unavailable4 = () => new PlaygroundError({ code: "unavailable" });
+var strict3 = { onExcessProperty: "error" };
+var sameRef4 = (left, right) => left.sandboxId === right.sandboxId && left.generation === right.generation;
 var authorize = (access, requested) => {
   if (access.sandbox.ref.sandboxId !== requested.sandboxId) {
     return Effect_exports.fail(new PlaygroundError({ code: "not-found" }));
   }
-  if (!sameRef2(access.sandbox.ref, requested)) {
+  if (!sameRef4(access.sandbox.ref, requested)) {
     return Effect_exports.fail(new PlaygroundError({ code: "stale-generation" }));
   }
   return Effect_exports.void;
 };
 var checkStatus = (status) => status === "ok" ? Effect_exports.void : Effect_exports.fail(new PlaygroundError({ code: status }));
 var unavailableCause = (cause) => Effect_exports.failCause(Cause_exports.map(cause, () => new PlaygroundError({ code: "unavailable" })));
-var make46 = (mapping2) => Effect_exports.gen(function* () {
+var make51 = (mapping2) => Effect_exports.gen(function* () {
   const database = yield* ReadDatabase;
   const cursor = yield* CursorCodec;
-  const queries = make44(mapping2);
+  const queries = make49(mapping2);
   const execute2 = (query) => database.execute(query).pipe(
     Effect_exports.catchCause(unavailableCause),
     Effect_exports.timeoutOrElse({
@@ -31342,75 +34117,259 @@ var make46 = (mapping2) => Effect_exports.gen(function* () {
       orElse: () => Effect_exports.fail(new PlaygroundError({ code: "unavailable" }))
     })
   );
+  const position = (request3, view3) => Effect_exports.gen(function* () {
+    if (request3.cursor === void 0) {
+      return null;
+    }
+    const decoded = yield* cursor.decode(request3.cursor);
+    if (!sameRef4(decoded.sandbox, request3.sandbox) || (decoded.version === 1 ? view3 !== "jobs" : decoded.view !== view3) || !("filters" in decoded) || decoded.filters.state !== request3.filters.state || decoded.filters.kind !== request3.filters.kind || decoded.filters.resolution !== request3.filters.resolution || decoded.filters.needsAttention !== request3.filters.needsAttention) {
+      return yield* invalid6();
+    }
+    return decoded.after;
+  });
   const list = Effect_exports.fn("JobsRead.list")(
     function* (access, input) {
-      const request3 = yield* Schema_exports.decodeUnknownEffect(ListJobs)(input, {
-        onExcessProperty: "error"
-      }).pipe(Effect_exports.mapError(() => new PlaygroundError({ code: "invalid-request" })));
-      yield* authorize(access, request3.sandbox);
-      let after = null;
-      if (request3.cursor !== void 0) {
-        const position = yield* cursor.decode(request3.cursor);
-        if (!sameRef2(position.sandbox, request3.sandbox) || position.filters.state !== request3.filters.state || position.filters.kind !== request3.filters.kind) {
-          return yield* new PlaygroundError({ code: "invalid-request" });
-        }
-        after = position.after;
+      const request3 = yield* Schema_exports.decodeUnknownEffect(ListJobs)(input, strict3).pipe(
+        Effect_exports.mapError(invalid6)
+      );
+      if (request3.filters.resolution !== void 0 || request3.filters.needsAttention !== void 0) {
+        return yield* invalid6();
       }
+      yield* authorize(access, request3.sandbox);
+      const after = yield* position(request3, "jobs");
       const rows = yield* execute2(
         queries.list(access.sandbox.ref, request3, after)
       ).pipe(
-        Effect_exports.flatMap(
-          (value6) => Schema_exports.decodeUnknownEffect(ListRows)(value6, { onExcessProperty: "error" })
-        ),
+        Effect_exports.flatMap((value6) => Schema_exports.decodeUnknownEffect(ListRows)(value6, strict3)),
         Effect_exports.catchCause(unavailableCause)
       );
       const row = rows[0];
       yield* checkStatus(row.status);
       const items = row.items.slice(0, request3.limit);
       const nextCursor = row.items.length > request3.limit ? yield* cursor.encode({
-        version: 1,
+        version: 2,
+        view: "jobs",
         sandbox: request3.sandbox,
         filters: request3.filters,
         after: items.at(-1).jobId
       }) : null;
       return yield* Schema_exports.decodeUnknownEffect(JobPage)(
-        { sandbox: request3.sandbox, items, nextCursor },
-        { onExcessProperty: "error" }
-      ).pipe(Effect_exports.mapError(() => new PlaygroundError({ code: "unavailable" })));
+        {
+          sandbox: request3.sandbox,
+          items,
+          nextCursor,
+          filteredTotal: row.filteredTotal,
+          stats: row.stats,
+          attentionStats: row.attentionStats
+        },
+        strict3
+      ).pipe(Effect_exports.mapError(unavailable4));
     }
   );
+  const problems = Effect_exports.fn(
+    "JobsRead.problems"
+  )(function* (access, input) {
+    const request3 = yield* Schema_exports.decodeUnknownEffect(ListJobs)(input, strict3).pipe(
+      Effect_exports.mapError(invalid6)
+    );
+    yield* authorize(access, request3.sandbox);
+    const after = yield* position(request3, "problems");
+    const rows = yield* execute2(
+      queries.problems(access.sandbox.ref, request3, after)
+    ).pipe(
+      Effect_exports.flatMap((value6) => Schema_exports.decodeUnknownEffect(ProblemRows)(value6, strict3)),
+      Effect_exports.catchCause(unavailableCause)
+    );
+    const row = rows[0];
+    yield* checkStatus(row.status);
+    const items = row.items.slice(0, request3.limit);
+    const nextCursor = row.items.length > request3.limit ? yield* cursor.encode({
+      version: 2,
+      view: "problems",
+      sandbox: request3.sandbox,
+      filters: request3.filters,
+      after: items.at(-1).problem.rootJobId
+    }) : null;
+    return yield* Schema_exports.decodeUnknownEffect(JobProblemPage)(
+      {
+        sandbox: request3.sandbox,
+        items,
+        nextCursor,
+        filteredTotal: row.filteredTotal,
+        stats: row.stats,
+        attentionStats: row.attentionStats
+      },
+      strict3
+    ).pipe(Effect_exports.mapError(unavailable4));
+  });
+  const historyPage = (request3, items, limit) => Effect_exports.gen(function* () {
+    const page = items.slice(0, limit);
+    const nextCursor = items.length > limit ? yield* cursor.encode({
+      version: 2,
+      view: "history",
+      sandbox: request3.sandbox,
+      jobId: request3.jobId,
+      after: page.at(-1).key
+    }) : null;
+    return {
+      coverage: "RetainedFacts",
+      attempts: null,
+      items: page.map((entry) => entry.item),
+      nextCursor
+    };
+  });
+  const relatedPage = (request3, items, limit) => Effect_exports.gen(function* () {
+    const page = items.slice(0, limit);
+    const nextCursor = items.length > limit ? yield* cursor.encode({
+      version: 2,
+      view: "related",
+      sandbox: request3.sandbox,
+      jobId: request3.jobId,
+      after: page.at(-1).jobId
+    }) : null;
+    return { items: page, nextCursor };
+  });
   const detail = Effect_exports.fn("JobsRead.detail")(
     function* (access, input) {
-      const request3 = yield* Schema_exports.decodeUnknownEffect(JobDetailRequest)(input, {
-        onExcessProperty: "error"
-      }).pipe(Effect_exports.mapError(() => new PlaygroundError({ code: "invalid-request" })));
+      const request3 = yield* Schema_exports.decodeUnknownEffect(JobDetailRequest)(
+        input,
+        strict3
+      ).pipe(Effect_exports.mapError(invalid6));
       if (request3.jobId.length > 128) {
-        return yield* new PlaygroundError({ code: "invalid-request" });
+        return yield* invalid6();
       }
       yield* authorize(access, request3.sandbox);
       const rows = yield* execute2(queries.detail(access.sandbox.ref, request3)).pipe(
         Effect_exports.flatMap(
-          (value6) => Schema_exports.decodeUnknownEffect(DetailRows)(value6, { onExcessProperty: "error" })
+          (value6) => Schema_exports.decodeUnknownEffect(DetailRows)(value6, strict3)
         ),
         Effect_exports.catchCause(unavailableCause)
       );
       const row = rows[0];
       yield* checkStatus(row.status);
-      if (row.detail === null) {
+      if (!row.detail) {
         return yield* new PlaygroundError({ code: "not-found" });
       }
-      if (!sameRef2(row.detail.sandbox, request3.sandbox) || row.detail.job.jobId !== request3.jobId) {
-        return yield* new PlaygroundError({ code: "unavailable" });
+      if (!sameRef4(row.detail.sandbox, request3.sandbox) || row.detail.job.jobId !== request3.jobId) {
+        return yield* unavailable4();
       }
-      return row.detail;
+      const payload2 = yield* payload(row.detail, row);
+      const problem = row.problem?.problem ?? null;
+      const projected = {
+        ...row.detail,
+        ...retainedFields,
+        payload: payload2,
+        problem,
+        lineage: row.lineage,
+        provider: row.provider ? { source: "synthetic-postgresql", ...row.provider, observedAt: null } : null,
+        history: yield* historyPage(request3, row.history, 50),
+        related: yield* relatedPage(request3, row.related, 50),
+        eligibility: eligibility2(row.detail, problem, payload2)
+      };
+      return yield* Schema_exports.decodeUnknownEffect(JobDetail)(projected, strict3).pipe(
+        Effect_exports.mapError(unavailable4)
+      );
     }
   );
-  return JobsRead.of({ list, detail });
+  const subread = (access, input, view3) => Effect_exports.gen(function* () {
+    const request3 = yield* Schema_exports.decodeUnknownEffect(Subread)(input, strict3).pipe(
+      Effect_exports.mapError(invalid6)
+    );
+    yield* authorize(access, request3.sandbox);
+    if (request3.jobId.length > 128) {
+      return yield* invalid6();
+    }
+    let after = null;
+    if (request3.cursor !== void 0) {
+      const decoded = yield* cursor.decode(request3.cursor);
+      if (decoded.version !== 2 || decoded.view !== view3 || !("jobId" in decoded) || !sameRef4(decoded.sandbox, request3.sandbox) || decoded.jobId !== request3.jobId) {
+        return yield* invalid6();
+      }
+      after = decoded.after;
+    }
+    if (view3 === "history") {
+      const rows2 = yield* execute2(
+        queries.history(request3.sandbox, request3, after)
+      ).pipe(
+        Effect_exports.flatMap(
+          (value6) => Schema_exports.decodeUnknownEffect(
+            Schema_exports.Array(
+              Schema_exports.Struct({
+                status: Status,
+                found: Schema_exports.Boolean,
+                items: Schema_exports.Array(KeyedHistory).pipe(
+                  Schema_exports.check(Schema_exports.isMaxLength(51))
+                )
+              })
+            ).pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(1)))
+          )(value6, strict3)
+        ),
+        Effect_exports.catchCause(unavailableCause)
+      );
+      const row2 = rows2[0];
+      yield* checkStatus(row2.status);
+      if (!row2.found) {
+        return yield* new PlaygroundError({ code: "not-found" });
+      }
+      return yield* Schema_exports.decodeUnknownEffect(JobHistory)(
+        yield* historyPage(request3, row2.items, request3.limit),
+        strict3
+      ).pipe(Effect_exports.mapError(unavailable4));
+    }
+    const rows = yield* execute2(
+      queries.related(request3.sandbox, request3, after)
+    ).pipe(
+      Effect_exports.flatMap(
+        (value6) => Schema_exports.decodeUnknownEffect(
+          Schema_exports.Array(
+            Schema_exports.Struct({
+              status: Status,
+              found: Schema_exports.Boolean,
+              items: Schema_exports.Array(JobRelatedItem).pipe(
+                Schema_exports.check(Schema_exports.isMaxLength(51))
+              )
+            })
+          ).pipe(Schema_exports.check(Schema_exports.isMinLength(1), Schema_exports.isMaxLength(1)))
+        )(value6, strict3)
+      ),
+      Effect_exports.catchCause(unavailableCause)
+    );
+    const row = rows[0];
+    yield* checkStatus(row.status);
+    if (!row.found) {
+      return yield* new PlaygroundError({ code: "not-found" });
+    }
+    return yield* Schema_exports.decodeUnknownEffect(JobRelatedPage)(
+      yield* relatedPage(request3, row.items, request3.limit),
+      strict3
+    ).pipe(Effect_exports.mapError(unavailable4));
+  });
+  return JobsRead.of({
+    list,
+    detail,
+    problems,
+    history: (access, input) => subread(access, input, "history").pipe(
+      Effect_exports.flatMap(
+        (value6) => Schema_exports.decodeUnknownEffect(JobHistory)(value6, strict3)
+      ),
+      Effect_exports.mapError(
+        (error) => error instanceof PlaygroundError ? error : unavailable4()
+      )
+    ),
+    related: (access, input) => subread(access, input, "related").pipe(
+      Effect_exports.flatMap(
+        (value6) => Schema_exports.decodeUnknownEffect(JobRelatedPage)(value6, strict3)
+      ),
+      Effect_exports.mapError(
+        (error) => error instanceof PlaygroundError ? error : unavailable4()
+      )
+    )
+  });
 });
-var layerNoDeps4 = (mapping2) => Layer_exports.effect(JobsRead, make46(mapping2));
+var layerNoDeps8 = (mapping2) => Layer_exports.effect(JobsRead, make51(mapping2));
 
 // apps/website/src/server/read/NativeReadDatabase.ts
-var layerNoDeps5 = Layer_exports.effect(
+var layerNoDeps9 = Layer_exports.effect(
   ReadDatabase,
   Effect_exports.gen(function* () {
     const client = yield* SqlClient;
@@ -31421,104 +34380,101 @@ var layerNoDeps5 = Layer_exports.effect(
 );
 
 // apps/website/src/server/commands/GuardedScenarios.ts
-var fail13 = (code) => new PlaygroundError({ code });
-var decode7 = (schema, value6, code = "invalid-request") => Schema_exports.decodeUnknownEffect(schema)(value6, { onExcessProperty: "error" }).pipe(
-  Effect_exports.mapError(() => fail13(code))
+var fail17 = (code) => new PlaygroundError({ code });
+var decode11 = (schema, value6, code = "invalid-request") => Schema_exports.decodeUnknownEffect(schema)(value6, { onExcessProperty: "error" }).pipe(
+  Effect_exports.mapError(() => fail17(code))
 );
-var make47 = Effect_exports.gen(function* () {
+var make52 = Effect_exports.gen(function* () {
   const authority = yield* SandboxAuthority;
   const persistence = yield* CommandPersistence;
-  const authorize2 = Effect_exports.fnUntraced(function* (access, expected, operation) {
-    const view3 = yield* decode7(
+  const authorize2 = Effect_exports.fnUntraced(function* (access, expected, operation2) {
+    const view3 = yield* decode11(
       SandboxView,
       yield* authority.describe(access),
       "unavailable"
     );
     if (view3.ref.sandboxId !== access.sandbox.ref.sandboxId || expected.sandboxId !== view3.ref.sandboxId) {
-      return yield* fail13("not-found");
+      return yield* fail17("not-found");
     }
-    if (operation === "receipt" ? expected.generation > view3.ref.generation : expected.generation !== view3.ref.generation) {
-      return yield* fail13("stale-generation");
+    if (operation2 === "receipt" ? expected.generation > view3.ref.generation : expected.generation !== view3.ref.generation) {
+      return yield* fail17("stale-generation");
     }
-    if (operation !== "receipt" && !view3.capabilities[operation]) {
-      return yield* fail13("capability-unavailable");
+    if (operation2 !== "receipt" && !view3.capabilities[operation2]) {
+      return yield* fail17("capability-unavailable");
     }
     return { sandbox: view3 };
   });
   return Scenarios.of({
     run: Effect_exports.fn("Commands.run")(function* (access, input) {
-      const command = yield* decode7(ScenarioCommand, input);
+      const command = yield* decode11(ScenarioCommand, input);
       const admitted = yield* authorize2(access, command.sandbox, "runScenario");
-      const result7 = yield* decode7(
+      const result7 = yield* decode11(
         ScenarioResult,
         yield* persistence.run(admitted, command),
         "unavailable"
       );
       if (result7.requestId !== command.requestId || result7.sandbox.sandboxId !== command.sandbox.sandboxId || result7.sandbox.generation !== command.sandbox.generation || result7._tag === "Committed" && result7.jobIds.length !== command.count) {
-        return yield* fail13("unavailable");
+        return yield* fail17("unavailable");
       }
       return result7;
     }),
     reset: Effect_exports.fn("Commands.reset")(function* (access, input) {
-      const command = yield* decode7(ResetCommand, input);
+      const command = yield* decode11(ResetCommand, input);
       const admitted = yield* authorize2(access, command.sandbox, "resetSandbox");
-      const result7 = yield* decode7(
+      const result7 = yield* decode11(
         ResetResult,
         yield* persistence.reset(admitted, command),
         "unavailable"
       );
       if (result7.requestId !== command.requestId || result7.previous.sandboxId !== command.sandbox.sandboxId || result7.previous.generation !== command.sandbox.generation) {
-        return yield* fail13("unavailable");
+        return yield* fail17("unavailable");
       }
       return result7;
     }),
     scenarioReceipt: Effect_exports.fn("Commands.scenarioReceipt")(function* (access, input) {
-      const request3 = yield* decode7(ReceiptRequest, input);
+      const request3 = yield* decode11(ReceiptRequest, input);
       const admitted = yield* authorize2(access, request3.sandbox, "receipt");
-      const result7 = yield* decode7(
+      const result7 = yield* decode11(
         ScenarioResult,
         yield* persistence.scenarioReceipt(admitted, request3),
         "unavailable"
       );
       if (result7.requestId !== request3.requestId || result7.sandbox.sandboxId !== request3.sandbox.sandboxId || result7.sandbox.generation !== request3.sandbox.generation) {
-        return yield* fail13("unavailable");
+        return yield* fail17("unavailable");
       }
       return result7;
     }),
     resetReceipt: Effect_exports.fn("Commands.resetReceipt")(function* (access, input) {
-      const request3 = yield* decode7(ReceiptRequest, input);
+      const request3 = yield* decode11(ReceiptRequest, input);
       const admitted = yield* authorize2(access, request3.sandbox, "receipt");
-      const result7 = yield* decode7(
+      const result7 = yield* decode11(
         ResetResult,
         yield* persistence.resetReceipt(admitted, request3),
         "unavailable"
       );
       if (result7.requestId !== request3.requestId || result7.previous.sandboxId !== request3.sandbox.sandboxId || result7.previous.generation !== request3.sandbox.generation) {
-        return yield* fail13("unavailable");
+        return yield* fail17("unavailable");
       }
       return result7;
     })
   });
 });
-var layerNoDeps6 = Layer_exports.effect(Scenarios, make47);
-var operatorCapabilities = Object.freeze({
-  retryJob: false,
-  redriveJob: false,
-  cancelJob: false
-});
+var layerNoDeps10 = Layer_exports.effect(Scenarios, make52);
 
 // apps/website/src/server/Services.ts
 var Application = class extends Context_exports.Service()(
   "playground/Application"
 ) {
 };
-var layerNoDeps7 = Layer_exports.effect(
+var layerNoDeps11 = Layer_exports.effect(
   Application,
   Effect_exports.gen(function* () {
     const authority = yield* SandboxAuthority;
     const read = yield* JobsRead;
     const scenarios = yield* Scenarios;
-    return Application.of({ ...authority, ...read, ...scenarios });
+    const repairs = yield* Repairs;
+    const operators = yield* Operators;
+    return Application.of({ ...authority, ...read, ...scenarios, ...operators, repairs });
   })
 );
 
@@ -31529,31 +34485,31 @@ var mapping = (schema) => ({
   sandboxesTable: "sandboxes",
   associationsTable: "associations"
 });
-var bytes2 = (hex2) => {
-  if (!/^[0-9a-f]{64}$/.test(hex2)) {
+var bytes3 = (hex3) => {
+  if (!/^[0-9a-f]{64}$/.test(hex3)) {
     throw new Error("Invalid synthetic key configuration");
   }
-  return Uint8Array.from(hex2.match(/../g), (byte) => Number.parseInt(byte, 16));
+  return Uint8Array.from(hex3.match(/../g), (byte) => Number.parseInt(byte, 16));
 };
 var keys3 = (config) => Effect_exports.tryPromise({
   try: async () => ({
     encryption: await crypto.subtle.importKey(
       "raw",
-      bytes2(config.encryptionKey),
+      bytes3(config.encryptionKey),
       "AES-GCM",
       false,
       ["encrypt", "decrypt"]
     ),
     fingerprint: await crypto.subtle.importKey(
       "raw",
-      bytes2(config.fingerprintKey),
+      bytes3(config.fingerprintKey),
       { name: "HMAC", hash: "SHA-256" },
       false,
       ["sign", "verify"]
     ),
     cursor: await crypto.subtle.importKey(
       "raw",
-      bytes2(config.cursorKey),
+      bytes3(config.cursorKey),
       { name: "HMAC", hash: "SHA-256" },
       false,
       ["sign", "verify"]
@@ -31561,9 +34517,9 @@ var keys3 = (config) => Effect_exports.tryPromise({
   }),
   catch: () => new PlaygroundError({ code: "unavailable" })
 });
-var run3 = (config, kick, operation) => Effect_exports.scoped(
+var run4 = (config, kick, operation2) => Effect_exports.scoped(
   Effect_exports.gen(function* () {
-    const client = yield* make35({
+    const client = yield* make42({
       url: Redacted_exports.make(config.connectionString),
       minConnections: 0,
       maxConnections: 2,
@@ -31577,47 +34533,76 @@ var run3 = (config, kick, operation) => Effect_exports.scoped(
     }).pipe(
       Effect_exports.provideService(
         PostgreSqlApplication,
-        make36({ client, operationTimeoutMillis: 2e3 })
+        make43({ client, operationTimeoutMillis: 2e3 })
       )
     );
     yield* backend.ready;
     const stable = yield* keys3(config);
-    const authority = (yield* make37(config.schema).pipe(
-      Effect_exports.provideService(SqlClient, client)
+    const authority = (yield* make45(config.schema).pipe(
+      Effect_exports.provideService(SqlClient, client),
+      Effect_exports.provideService(JobEnqueue, backend.producer),
+      Effect_exports.provideService(DocumentKeys, stable)
     )).authority;
     const activeAuthority = Layer_exports.succeed(SandboxAuthority, {
       ...authority,
       describe: (access) => authority.describe(access).pipe(Effect_exports.tap(() => kick))
     });
-    const commands = layerNoDeps.pipe(
+    const commands = layerNoDeps5.pipe(
       Layer_exports.provide(transactionsLayerNoDeps(config.schema)),
       Layer_exports.provide(Layer_exports.succeed(JobEnqueue, backend.producer))
     );
     const worker = workerLayerNoDeps(config.schema).pipe(
       Layer_exports.provide(Layer_exports.succeed(PostgreSqlJobs, backend))
     );
-    const read = layerNoDeps4(mapping(config.schema)).pipe(
-      Layer_exports.provide(layerNoDeps5),
+    const read = layerNoDeps8(mapping(config.schema)).pipe(
+      Layer_exports.provide(layerNoDeps9),
       Layer_exports.provide(layer4(stable.cursor))
     );
-    const guarded = layerNoDeps6.pipe(
+    const guarded = layerNoDeps10.pipe(
       Layer_exports.provide(Layer_exports.mergeAll(activeAuthority, commands))
     );
-    const app = layerNoDeps7.pipe(
-      Layer_exports.provide(Layer_exports.mergeAll(activeAuthority, read, guarded))
+    const operators = Layer_exports.effect(
+      Operators,
+      make37.pipe(
+        Effect_exports.map((service3) => ({
+          ...service3,
+          execute: (access, command) => service3.execute(access, command).pipe(
+            Effect_exports.tap(
+              (result7) => result7._tag === "Committed" ? kick : Effect_exports.void
+            )
+          ),
+          receipt: (access, request3) => service3.receipt(access, request3).pipe(
+            Effect_exports.tap(
+              (result7) => result7._tag === "Committed" ? kick : Effect_exports.void
+            )
+          )
+        }))
+      )
+    ).pipe(Layer_exports.provide(layerNoDeps4(config.schema)));
+    const repairs = layerNoDeps.pipe(
+      Layer_exports.provide(layerNoDeps2(config.schema))
     );
-    return yield* operation.pipe(
+    const syntheticRepairs = syntheticLayerNoDeps.pipe(
+      Layer_exports.provide(syntheticLayerNoDeps2(config.schema))
+    );
+    const app = layerNoDeps11.pipe(
+      Layer_exports.provide(Layer_exports.mergeAll(activeAuthority, read, guarded, operators, repairs))
+    );
+    return yield* operation2.pipe(
       Effect_exports.provide(app),
-      Effect_exports.provide(Layer_exports.mergeAll(worker, commands)),
+      Effect_exports.provide(Layer_exports.mergeAll(worker, commands, syntheticRepairs, read)),
       Effect_exports.provideService(SqlClient, client),
       Effect_exports.provideService(PostgreSqlJobs, backend),
       Effect_exports.provideService(DocumentKeys, stable)
     );
   })
-).pipe(Effect_exports.provide(layer));
+).pipe(
+  Effect_exports.provideService(LocalPrivate, config.localPrivate === true),
+  Effect_exports.provide(layer)
+);
 
 // apps/playground-worker/tests/integration/Admit.ts
-var delayed = (config, credential, requestId) => run3(
+var delayed = (config, credential, requestId) => run4(
   config,
   Effect_exports.void,
   Effect_exports.gen(function* () {

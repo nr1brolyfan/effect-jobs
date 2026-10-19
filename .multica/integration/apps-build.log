@@ -1,7 +1,4 @@
 @effect-jobs/playground-contracts build: Exited with code 0
-@effect-jobs/playground-website build: Bundled 233 modules in 24ms
-@effect-jobs/playground-website build: 
-@effect-jobs/playground-website build:   Client.js  0.26 MB  (entry point)
-@effect-jobs/playground-website build: 
-@effect-jobs/playground-website build: Exited with code 0
 @effect-jobs/playground-worker build: Exited with code 0
+@effect-jobs/playground-website build: Compiled 64 sources; extracted 727 StyleX rules; apps/website/dist
+@effect-jobs/playground-website build: Exited with code 0

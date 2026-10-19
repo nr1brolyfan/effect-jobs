@@ -1,0 +1,2078 @@
+{
+  "result": "PASS",
+  "checks": [
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": [
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": null,
+      "surface": "full",
+      "actions": [
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": [
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": [
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": [
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": [
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": [
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": [
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": [
+        "Retry now",
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": null,
+      "surface": "full",
+      "actions": [
+        "Retry now",
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": [
+        "Retry now",
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": [
+        "Retry now",
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": [
+        "Retry now",
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": [
+        "Retry now",
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": [
+        "Retry now",
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": [
+        "Retry now",
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": null,
+      "surface": "full",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": null,
+      "surface": "full",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 1280,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": [
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": null,
+      "surface": "full",
+      "actions": [
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": [
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": [
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": [
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": [
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": [
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Pending",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": [
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": [
+        "Retry now",
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": null,
+      "surface": "full",
+      "actions": [
+        "Retry now",
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": [
+        "Retry now",
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": [
+        "Retry now",
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": [
+        "Retry now",
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": [
+        "Retry now",
+        "Cancel job",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": [
+        "Retry now",
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "RetryScheduled",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": [
+        "Retry now",
+        "Cancel job"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Active",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Completed",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": null,
+      "surface": "full",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Dead",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": null,
+      "surface": "full",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Isolated",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": [
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": false,
+      "state": "Cancelled",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Pending",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "RetryScheduled",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Active",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Completed",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Dead",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Isolated",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": null,
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": null,
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": "Open",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": "Open",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": "InProgress",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": "InProgress",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": "Resolved",
+      "surface": "drawer",
+      "actions": []
+    },
+    {
+      "width": 390,
+      "publicMode": true,
+      "state": "Cancelled",
+      "resolution": "Resolved",
+      "surface": "full",
+      "actions": []
+    },
+    {
+      "lockedCorrectable": true,
+      "relock": true,
+      "copyErrorVisible": true,
+      "busyControlsRemain": true,
+      "failedOperationVisible": true
+    }
+  ],
+  "errors": [],
+  "mutationCount": 1
+}

@@ -1,0 +1,939 @@
+{
+  "name": "effect-jobs",
+  "version": "0.1.0-alpha.1",
+  "filename": "/home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-2382-259db7872eac/worktree/.multica/integration/artifact-GJRidA/effect-jobs-0.1.0-alpha.1.tgz",
+  "sha256": "b29189ea9cd1027458e146c80142c41bd018e0cfe1e2fa123e22ba62e5ffc388",
+  "sha512": "8b4f0038ec0a49872b8ace23dd4fe7f8f078ffe9b19aa4fad6f3ec8d5dad202e4fa9883b5d37da816cc4dc3c2b96547b8c441d0401a01bdf98a16c073d1faa25",
+  "integrity": "sha512-i08AOOwKSYcris4j3U/n+PB4/+mxmqT61vPsjV2tIC5PqYg7XTfagWzE3DwrllR7jEQdBAGgG9+YoWwHPR+qJQ==",
+  "npmPack": [
+    {
+      "id": "effect-jobs@0.1.0-alpha.1",
+      "name": "effect-jobs",
+      "version": "0.1.0-alpha.1",
+      "size": 152920,
+      "unpackedSize": 660852,
+      "shasum": "eba067d1e1a614f94fbc88e25704ac77c7985016",
+      "integrity": "sha512-i08AOOwKSYcris4j3U/n+PB4/+mxmqT61vPsjV2tIC5PqYg7XTfagWzE3DwrllR7jEQdBAGgG9+YoWwHPR+qJQ==",
+      "filename": "effect-jobs-0.1.0-alpha.1.tgz",
+      "files": [
+        {
+          "path": "CHANGELOG.md",
+          "size": 1648,
+          "mode": 420
+        },
+        {
+          "path": "LICENSE",
+          "size": 1125,
+          "mode": 420
+        },
+        {
+          "path": "README.md",
+          "size": 23175,
+          "mode": 420
+        },
+        {
+          "path": "dist/FailureCode.d.ts",
+          "size": 1711,
+          "mode": 420
+        },
+        {
+          "path": "dist/FailureCode.d.ts.map",
+          "size": 744,
+          "mode": 420
+        },
+        {
+          "path": "dist/FailureCode.js",
+          "size": 1920,
+          "mode": 420
+        },
+        {
+          "path": "dist/FailureCode.js.map",
+          "size": 1397,
+          "mode": 420
+        },
+        {
+          "path": "dist/index.d.ts",
+          "size": 217,
+          "mode": 420
+        },
+        {
+          "path": "dist/index.d.ts.map",
+          "size": 135,
+          "mode": 420
+        },
+        {
+          "path": "dist/index.js",
+          "size": 215,
+          "mode": 420
+        },
+        {
+          "path": "dist/index.js.map",
+          "size": 133,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/codec/CanonicalJson.d.ts",
+          "size": 872,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/codec/CanonicalJson.d.ts.map",
+          "size": 502,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/codec/CanonicalJson.js",
+          "size": 7490,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/codec/CanonicalJson.js.map",
+          "size": 7097,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/codec/EncryptedBoundary.d.ts",
+          "size": 230,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/codec/EncryptedBoundary.d.ts.map",
+          "size": 308,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/codec/EncryptedBoundary.js",
+          "size": 424,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/codec/EncryptedBoundary.js.map",
+          "size": 506,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/codec/ProtectedProjection.d.ts",
+          "size": 640,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/codec/ProtectedProjection.d.ts.map",
+          "size": 394,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/codec/ProtectedProjection.js",
+          "size": 6762,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/codec/ProtectedProjection.js.map",
+          "size": 6168,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/JobTransaction.d.ts",
+          "size": 1237,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/JobTransaction.d.ts.map",
+          "size": 836,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/JobTransaction.js",
+          "size": 1225,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/JobTransaction.js.map",
+          "size": 1275,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/lifecycle/Artifacts.d.ts",
+          "size": 1936,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/lifecycle/Artifacts.d.ts.map",
+          "size": 460,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/lifecycle/Artifacts.js",
+          "size": 2758,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/lifecycle/Artifacts.js.map",
+          "size": 2821,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/lifecycle/Reconciliation.d.ts",
+          "size": 3803,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/lifecycle/Reconciliation.d.ts.map",
+          "size": 1489,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/lifecycle/Reconciliation.js",
+          "size": 4778,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/lifecycle/Reconciliation.js.map",
+          "size": 4911,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Operators.d.ts",
+          "size": 474,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Operators.d.ts.map",
+          "size": 363,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Operators.js",
+          "size": 8050,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Operators.js.map",
+          "size": 7768,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Producer.d.ts",
+          "size": 1358,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Producer.d.ts.map",
+          "size": 651,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Producer.js",
+          "size": 4469,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Producer.js.map",
+          "size": 3819,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Readiness.d.ts",
+          "size": 417,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Readiness.d.ts.map",
+          "size": 306,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Readiness.js",
+          "size": 5201,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Readiness.js.map",
+          "size": 3844,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Rows.d.ts",
+          "size": 3028,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Rows.d.ts.map",
+          "size": 965,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Rows.js",
+          "size": 4331,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Rows.js.map",
+          "size": 4466,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Store.d.ts",
+          "size": 446,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Store.d.ts.map",
+          "size": 422,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Store.js",
+          "size": 11654,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/postgresql/Store.js.map",
+          "size": 11339,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Capability.d.ts",
+          "size": 4699,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Capability.d.ts.map",
+          "size": 1629,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Capability.js",
+          "size": 531,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Capability.js.map",
+          "size": 500,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Drain.d.ts",
+          "size": 916,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Drain.d.ts.map",
+          "size": 472,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Drain.js",
+          "size": 2926,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Drain.js.map",
+          "size": 3457,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Execution.d.ts",
+          "size": 584,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Execution.d.ts.map",
+          "size": 533,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Execution.js",
+          "size": 6323,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Execution.js.map",
+          "size": 6169,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Results.d.ts",
+          "size": 3818,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Results.d.ts.map",
+          "size": 1009,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Results.js",
+          "size": 113,
+          "mode": 420
+        },
+        {
+          "path": "dist/internal/worker/Results.js.map",
+          "size": 223,
+          "mode": 420
+        },
+        {
+          "path": "dist/Job.d.ts",
+          "size": 5461,
+          "mode": 420
+        },
+        {
+          "path": "dist/Job.d.ts.map",
+          "size": 3345,
+          "mode": 420
+        },
+        {
+          "path": "dist/Job.js",
+          "size": 3831,
+          "mode": 420
+        },
+        {
+          "path": "dist/Job.js.map",
+          "size": 3815,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobConsumer.d.ts",
+          "size": 3356,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobConsumer.d.ts.map",
+          "size": 1163,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobConsumer.js",
+          "size": 2768,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobConsumer.js.map",
+          "size": 1962,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobContract.d.ts",
+          "size": 7918,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobContract.d.ts.map",
+          "size": 2781,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobContract.js",
+          "size": 1777,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobContract.js.map",
+          "size": 807,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobEnqueue.d.ts",
+          "size": 1876,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobEnqueue.d.ts.map",
+          "size": 943,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobEnqueue.js",
+          "size": 576,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobEnqueue.js.map",
+          "size": 332,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobFailure.d.ts",
+          "size": 3145,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobFailure.d.ts.map",
+          "size": 804,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobFailure.js",
+          "size": 2166,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobFailure.js.map",
+          "size": 1620,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobId.d.ts",
+          "size": 475,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobId.d.ts.map",
+          "size": 264,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobId.js",
+          "size": 400,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobId.js.map",
+          "size": 332,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobIdentity.d.ts",
+          "size": 4311,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobIdentity.d.ts.map",
+          "size": 1603,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobIdentity.js",
+          "size": 4619,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobIdentity.js.map",
+          "size": 3582,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobLifecycle.d.ts",
+          "size": 16020,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobLifecycle.d.ts.map",
+          "size": 2894,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobLifecycle.js",
+          "size": 15039,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobLifecycle.js.map",
+          "size": 13037,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobOperators.d.ts",
+          "size": 7575,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobOperators.d.ts.map",
+          "size": 2508,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobOperators.js",
+          "size": 2158,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobOperators.js.map",
+          "size": 1607,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobPayload.d.ts",
+          "size": 4058,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobPayload.d.ts.map",
+          "size": 1523,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobPayload.js",
+          "size": 5721,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobPayload.js.map",
+          "size": 4640,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobPayloadCodec.d.ts",
+          "size": 1612,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobPayloadCodec.d.ts.map",
+          "size": 317,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobPayloadCodec.js",
+          "size": 6047,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobPayloadCodec.js.map",
+          "size": 4750,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobPolicy.d.ts",
+          "size": 5216,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobPolicy.d.ts.map",
+          "size": 1331,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobPolicy.js",
+          "size": 5569,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobPolicy.js.map",
+          "size": 3871,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobProducer.d.ts",
+          "size": 1389,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobProducer.d.ts.map",
+          "size": 799,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobProducer.js",
+          "size": 1588,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobProducer.js.map",
+          "size": 899,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobQueue.d.ts",
+          "size": 1110,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobQueue.d.ts.map",
+          "size": 509,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobQueue.js",
+          "size": 932,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobQueue.js.map",
+          "size": 683,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobRegistry.d.ts",
+          "size": 3433,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobRegistry.d.ts.map",
+          "size": 1328,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobRegistry.js",
+          "size": 2703,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobRegistry.js.map",
+          "size": 2212,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobStore.d.ts",
+          "size": 15948,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobStore.d.ts.map",
+          "size": 3533,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobStore.js",
+          "size": 2030,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobStore.js.map",
+          "size": 1409,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobTelemetry.d.ts",
+          "size": 608,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobTelemetry.d.ts.map",
+          "size": 626,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobTelemetry.js",
+          "size": 2823,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobTelemetry.js.map",
+          "size": 3068,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobTransaction.d.ts",
+          "size": 2077,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobTransaction.d.ts.map",
+          "size": 1110,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobTransaction.js",
+          "size": 479,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobTransaction.js.map",
+          "size": 298,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobWorker.d.ts",
+          "size": 2675,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobWorker.d.ts.map",
+          "size": 1075,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobWorker.js",
+          "size": 8487,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobWorker.js.map",
+          "size": 7926,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobWorkerRuntime.d.ts",
+          "size": 2823,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobWorkerRuntime.d.ts.map",
+          "size": 387,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobWorkerRuntime.js",
+          "size": 2272,
+          "mode": 420
+        },
+        {
+          "path": "dist/JobWorkerRuntime.js.map",
+          "size": 367,
+          "mode": 420
+        },
+        {
+          "path": "dist/PollingJobWorker.d.ts",
+          "size": 999,
+          "mode": 420
+        },
+        {
+          "path": "dist/PollingJobWorker.d.ts.map",
+          "size": 435,
+          "mode": 420
+        },
+        {
+          "path": "dist/PollingJobWorker.js",
+          "size": 2849,
+          "mode": 420
+        },
+        {
+          "path": "dist/PollingJobWorker.js.map",
+          "size": 2872,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlDrizzleSchema.d.ts",
+          "size": 24882,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlDrizzleSchema.d.ts.map",
+          "size": 1338,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlDrizzleSchema.js",
+          "size": 5214,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlDrizzleSchema.js.map",
+          "size": 5350,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlJobs.d.ts",
+          "size": 4345,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlJobs.d.ts.map",
+          "size": 1774,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlJobs.js",
+          "size": 6444,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlJobs.js.map",
+          "size": 6251,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlNative.d.ts",
+          "size": 1717,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlNative.d.ts.map",
+          "size": 609,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlNative.js",
+          "size": 4425,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlNative.js.map",
+          "size": 4199,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlSchema.d.ts",
+          "size": 3038,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlSchema.d.ts.map",
+          "size": 963,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlSchema.js",
+          "size": 8177,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlSchema.js.map",
+          "size": 3114,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlTransaction.d.ts",
+          "size": 3908,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlTransaction.d.ts.map",
+          "size": 1525,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlTransaction.js",
+          "size": 894,
+          "mode": 420
+        },
+        {
+          "path": "dist/PostgreSqlTransaction.js.map",
+          "size": 436,
+          "mode": 420
+        },
+        {
+          "path": "package.json",
+          "size": 7524,
+          "mode": 420
+        },
+        {
+          "path": "specs/api-refinements.md",
+          "size": 7638,
+          "mode": 420
+        },
+        {
+          "path": "specs/architecture-decisions.md",
+          "size": 39746,
+          "mode": 420
+        },
+        {
+          "path": "specs/core-contract.md",
+          "size": 17194,
+          "mode": 420
+        },
+        {
+          "path": "specs/drizzle-compatibility.md",
+          "size": 10001,
+          "mode": 420
+        },
+        {
+          "path": "specs/operator-contract.md",
+          "size": 7253,
+          "mode": 420
+        },
+        {
+          "path": "specs/postgresql-backend.md",
+          "size": 17952,
+          "mode": 420
+        },
+        {
+          "path": "specs/release-qualification.md",
+          "size": 10040,
+          "mode": 420
+        }
+      ],
+      "entryCount": 183,
+      "bundled": []
+    }
+  ]
+}

@@ -1,0 +1,1366 @@
+From 5adae2d9cc110d2300bc97838db3b7ee51f02567 Mon Sep 17 00:00:00 2001
+From: broly <88940768+nr1brolyfan@users.noreply.github.com>
+Date: Mon, 19 Oct 2026 17:35:48 +0200
+Subject: [PATCH] fix(playground): show applicable job controls and remove
+ payload footer
+
+---
+ .../src/features/jobs/Dashboard.stylex.ts     |   1 +
+ apps/website/src/features/jobs/Dashboard.tsx  |  83 +++--
+ .../src/features/jobs/OperatorControls.tsx    |   7 +-
+ .../src/features/jobs/OperatorEligibility.ts  |   7 +
+ .../jobs/details/JobDetailsPage.stylex.ts     |   8 +-
+ .../features/jobs/details/JobDetailsPage.tsx  |   7 +-
+ .../jobs/payload/JobPayloadPanel.stylex.ts    |  24 +-
+ .../features/jobs/payload/JobPayloadPanel.tsx |  23 +-
+ .../features/jobs/repair/JobRepairPanel.tsx   |  85 +++--
+ .../tests/ui/repair/Applicability.browser.mjs | 315 ++++++++++++++++++
+ apps/website/tests/ui/repair/Applicability.md | 100 ++++++
+ .../tests/ui/repair/Applicability.real.mjs    | 299 +++++++++++++++++
+ .../tests/ui/repair/Applicability.test.ts     |  86 +++++
+ .../tests/ui/repair/ApplicabilityOwned.py     |  43 +++
+ apps/website/tests/ui/repair/Browser.mjs      |  17 +-
+ 15 files changed, 997 insertions(+), 108 deletions(-)
+ create mode 100644 apps/website/tests/ui/repair/Applicability.browser.mjs
+ create mode 100644 apps/website/tests/ui/repair/Applicability.md
+ create mode 100644 apps/website/tests/ui/repair/Applicability.real.mjs
+ create mode 100644 apps/website/tests/ui/repair/Applicability.test.ts
+ create mode 100644 apps/website/tests/ui/repair/ApplicabilityOwned.py
+
+diff --git a/apps/website/src/features/jobs/Dashboard.stylex.ts b/apps/website/src/features/jobs/Dashboard.stylex.ts
+index d4821a56..e84b7b7a 100644
+--- a/apps/website/src/features/jobs/Dashboard.stylex.ts
++++ b/apps/website/src/features/jobs/Dashboard.stylex.ts
+@@ -2,6 +2,7 @@ import * as stylex from "@stylexjs/stylex"
+ import { colors, spacing, radii, typography, shadows } from "../../ui/Theme.stylex.js"
+ 
+ export const styles = stylex.create({
++  detailActions: { display: "grid", gap: spacing.lg, minWidth: 0, alignContent: "start" },
+   app: {
+     backgroundColor: colors.canvas,
+     color: colors.text,
+diff --git a/apps/website/src/features/jobs/Dashboard.tsx b/apps/website/src/features/jobs/Dashboard.tsx
+index d55994cc..a26a1f62 100644
+--- a/apps/website/src/features/jobs/Dashboard.tsx
++++ b/apps/website/src/features/jobs/Dashboard.tsx
+@@ -30,6 +30,7 @@ import { stateOrder, stateLabels } from "../../ui/Theme.stylex.js"
+ import { StatsChart } from "./StatsChart.js"
+ import { jobIcon, jobName, type IconName } from "./Design.js"
+ import { styles, layout } from "./Dashboard.stylex.js"
++import * as OperatorEligibility from "./OperatorEligibility.js"
+ import { OperatorControls } from "./OperatorControls.js"
+ import type { Runtime } from "./Runtime.js"
+ 
+@@ -366,6 +367,19 @@ export const Dashboard = ({
+     state.busy || state.pending !== undefined || state.sandbox.expiresAt <= now
+   const detail = state.detail
+   const identity = `${demo ? "demo" : "private"}:${state.sandbox.ref.sandboxId}:${state.sandbox.ref.generation}:${detail?.job.jobId}`
++  const repairActions = detail
++    ? OperatorEligibility.repairApplicability(detail, demo)
++    : undefined
++  const operatorActions = detail
++    ? OperatorEligibility.eligibility(detail, state.sandbox, now)
++    : undefined
++  const hasActions =
++    repairActions &&
++    (repairActions.redrive ||
++      repairActions.correct ||
++      repairActions.resolve ||
++      operatorActions?.retryNow.enabled ||
++      operatorActions?.cancel.enabled)
+   const detailProps = detail
+     ? {
+         detail,
+@@ -381,40 +395,41 @@ export const Dashboard = ({
+             allowCopyEncoded={!demo}
+           />
+         ),
+-        repairSlot: (
+-          <>
+-            <OperatorControls
+-              runtime={runtime}
+-              detail={detail}
+-              sandbox={state.sandbox}
+-              now={now}
+-              blocked={unavailable}
+-            />
+-            <JobRepairPanel
+-              key={identity}
+-              detail={detail}
+-              readOnly={
+-                demo ||
+-                state.busy ||
+-                (state.pending !== undefined && state.pending.kind !== "repair") ||
+-                state.sandbox.expiresAt <= now
+-              }
+-              pending={state.pending?.kind === "repair" ? state.pending.command : null}
+-              onSubmit={(command) => void runtime.run(runtime.repair(command))}
+-              onReceipt={() => void runtime.run(runtime.receipt)}
+-              onResolve={(command) => void runtime.run(runtime.repair(command))}
+-            />
+-            <p role="status">{state.notice}</p>
+-            {state.pending && state.pending.kind !== "repair" && (
+-              <Button
+-                disabled={state.busy}
+-                onClick={() => void runtime.run(runtime.receipt)}
+-              >
+-                Check exact {state.pending.kind} receipt
+-              </Button>
+-            )}
+-          </>
+-        )
++        repairSlot:
++          hasActions || state.pending || state.notice ? (
++            <div {...stylex.props(styles.detailActions)}>
++              <OperatorControls
++                runtime={runtime}
++                detail={detail}
++                sandbox={state.sandbox}
++                now={now}
++                blocked={unavailable}
++              />
++              <JobRepairPanel
++                key={identity}
++                detail={detail}
++                readOnly={demo}
++                blocked={
++                  state.busy ||
++                  (state.pending !== undefined && state.pending.kind !== "repair") ||
++                  state.sandbox.expiresAt <= now
++                }
++                pending={state.pending?.kind === "repair" ? state.pending.command : null}
++                onSubmit={(command) => void runtime.run(runtime.repair(command))}
++                onReceipt={() => void runtime.run(runtime.receipt)}
++                onResolve={(command) => void runtime.run(runtime.repair(command))}
++              />
++              {state.notice && <p role="status">{state.notice}</p>}
++              {state.pending && state.pending.kind !== "repair" && (
++                <Button
++                  disabled={state.busy}
++                  onClick={() => void runtime.run(runtime.receipt)}
++                >
++                  Check exact {state.pending.kind} receipt
++                </Button>
++              )}
++            </div>
++          ) : null
+       }
+     : undefined
+   if (route._tag !== "List") {
+diff --git a/apps/website/src/features/jobs/OperatorControls.tsx b/apps/website/src/features/jobs/OperatorControls.tsx
+index e79368ee..719095be 100644
+--- a/apps/website/src/features/jobs/OperatorControls.tsx
++++ b/apps/website/src/features/jobs/OperatorControls.tsx
+@@ -63,6 +63,9 @@ export const OperatorControls = ({
+     void runtime.run(runtime.operate(action, crypto.randomUUID(), action === "redrive"))
+     dismiss()
+   }
++  if (!available.retryNow.enabled && !available.cancel.enabled) {
++    return null
++  }
+   return (
+     <section {...stylex.props(styles.panel)} aria-label="Job operators">
+       <div {...stylex.props(styles.actions)}>
+@@ -73,7 +76,7 @@ export const OperatorControls = ({
+               : value === "cancel"
+                 ? available.cancel
+                 : available.redrive
+-          return (
++          return entry.enabled ? (
+             <Button
+               key={value}
+               disabled={blocked || !entry.enabled}
+@@ -84,7 +87,7 @@ export const OperatorControls = ({
+             >
+               {labels[value]}
+             </Button>
+-          )
++          ) : null
+         })}
+       </div>
+       <dialog
+diff --git a/apps/website/src/features/jobs/OperatorEligibility.ts b/apps/website/src/features/jobs/OperatorEligibility.ts
+index c9175c17..677325ca 100644
+--- a/apps/website/src/features/jobs/OperatorEligibility.ts
++++ b/apps/website/src/features/jobs/OperatorEligibility.ts
+@@ -57,3 +57,10 @@ export const explanation = (reason: JobOperatorReason | null): string => {
+       return "This action is unavailable for the current state."
+   }
+ }
++
++// Detail eligibility is server-projected semantic metadata, never busy/unlock state.
++export const repairApplicability = (detail: JobDetail, readOnly: boolean) => ({
++  redrive: !readOnly && detail.eligibility.redrive.enabled,
++  correct: !readOnly && detail.eligibility.correctedRedrive.enabled,
++  resolve: !readOnly && detail.problem !== null && detail.problem.state !== "Resolved"
++})
+diff --git a/apps/website/src/features/jobs/details/JobDetailsPage.stylex.ts b/apps/website/src/features/jobs/details/JobDetailsPage.stylex.ts
+index a2eb96c5..a43376c3 100644
+--- a/apps/website/src/features/jobs/details/JobDetailsPage.stylex.ts
++++ b/apps/website/src/features/jobs/details/JobDetailsPage.stylex.ts
+@@ -52,12 +52,6 @@ export const styles = stylex.create({
+     alignItems: "start",
+     gridColumn: "1 / -1"
+   },
+-  slotStack: {
+-    display: "grid",
+-    gridTemplateColumns: "minmax(0, 1fr)",
+-    gap: spacing.lg,
+-    minWidth: 0,
+-    alignContent: "start"
+-  },
++  payloadOnly: { gridTemplateColumns: "minmax(0, 1fr)" },
+   metadata: { minWidth: 0 }
+ })
+diff --git a/apps/website/src/features/jobs/details/JobDetailsPage.tsx b/apps/website/src/features/jobs/details/JobDetailsPage.tsx
+index 235e2dc2..98a713c7 100644
+--- a/apps/website/src/features/jobs/details/JobDetailsPage.tsx
++++ b/apps/website/src/features/jobs/details/JobDetailsPage.tsx
+@@ -45,9 +45,12 @@ export function JobDetailsPage({
+         <div {...stylex.props(styles.sections)}>
+           <JobOverview detail={detail} />
+           <JobScheduling detail={detail} />
+-          <div key={detailIdentityKey(detail)} {...stylex.props(styles.slots)}>
++          <div
++            key={detailIdentityKey(detail)}
++            {...stylex.props(styles.slots, !repairSlot && styles.payloadOnly)}
++          >
+             {payloadSlot}
+-            <div {...stylex.props(styles.slotStack)}>{repairSlot}</div>
++            {repairSlot}
+           </div>
+           <JobTimeline detail={detail} />
+           <JobRelatedJobs detail={detail} onRelated={onRelated} />
+diff --git a/apps/website/src/features/jobs/payload/JobPayloadPanel.stylex.ts b/apps/website/src/features/jobs/payload/JobPayloadPanel.stylex.ts
+index 3d255d37..d97b53c9 100644
+--- a/apps/website/src/features/jobs/payload/JobPayloadPanel.stylex.ts
++++ b/apps/website/src/features/jobs/payload/JobPayloadPanel.stylex.ts
+@@ -45,17 +45,15 @@ export const styles = stylex.create({
+   },
+   form: { display: "grid", gap: spacing.sm },
+   plaintext: { userSelect: "none" },
+-  result: {
+-    display: "flex",
+-    alignItems: "center",
+-    gap: spacing.md,
+-    borderTopWidth: "1px",
+-    borderTopStyle: "solid",
+-    borderTopColor: colors.border,
+-    paddingTop: spacing.md,
+-    margin: 0,
+-    color: colors.muted,
+-    fontSize: typography.secondary
+-  },
+-  resultValue: { margin: 0 }
++  srOnly: {
++    position: "absolute",
++    width: 1,
++    height: 1,
++    padding: 0,
++    margin: -1,
++    overflow: "hidden",
++    clipPath: "inset(50%)",
++    whiteSpace: "nowrap",
++    borderWidth: 0
++  }
+ })
+diff --git a/apps/website/src/features/jobs/payload/JobPayloadPanel.tsx b/apps/website/src/features/jobs/payload/JobPayloadPanel.tsx
+index 656778d9..4c5eb000 100644
+--- a/apps/website/src/features/jobs/payload/JobPayloadPanel.tsx
++++ b/apps/website/src/features/jobs/payload/JobPayloadPanel.tsx
+@@ -302,23 +302,18 @@ const PayloadContent = ({
+         </>
+       )}
+       {payload._tag === "Available" ? (
+-        <p role="status" {...stylex.props(styles.note)}>
++        <p
++          role="status"
++          {...stylex.props(
++            status.includes("authentication failed") ||
++              status === "Clipboard unavailable."
++              ? styles.note
++              : styles.srOnly
++          )}
++        >
+           {status}
+         </p>
+       ) : null}
+-      <dl {...stylex.props(styles.result)}>
+-        <dt>Result</dt>
+-        <dd {...stylex.props(styles.resultValue)}>
+-          {detail.result._tag === "Unavailable" ? (
+-            <span
+-              aria-label={`Result unavailable: ${detail.result.reason.replaceAll("-", " ")}.`}
+-              title={`Result unavailable: ${detail.result.reason.replaceAll("-", " ")}.`}
+-            >
+-              —
+-            </span>
+-          ) : null}
+-        </dd>
+-      </dl>
+     </section>
+   )
+ }
+diff --git a/apps/website/src/features/jobs/repair/JobRepairPanel.tsx b/apps/website/src/features/jobs/repair/JobRepairPanel.tsx
+index 18329abe..62fe15a0 100644
+--- a/apps/website/src/features/jobs/repair/JobRepairPanel.tsx
++++ b/apps/website/src/features/jobs/repair/JobRepairPanel.tsx
+@@ -16,12 +16,14 @@ import type {
+   Investigation
+ } from "@effect-jobs/playground-contracts/Repairs"
+ import { Button, Field } from "../../../ui/Primitives.js"
++import { repairApplicability } from "../OperatorEligibility.js"
+ import * as PayloadDiff from "./PayloadDiff.js"
+ import { styles } from "./JobRepairPanel.stylex.js"
+ 
+ export interface Props {
+   readonly detail: JobDetail
+   readonly readOnly: boolean
++  readonly blocked?: boolean
+   readonly pending: JobRepairCommand | null
+   readonly onSubmit: (command: JobRepairCommand) => void
+   readonly onReceipt: () => void
+@@ -36,6 +38,7 @@ export const JobRepairPanel = (props: Props) => {
+ const RepairForm = ({
+   detail,
+   readOnly,
++  blocked = false,
+   pending,
+   onSubmit,
+   onReceipt,
+@@ -115,6 +118,7 @@ const RepairForm = ({
+   const disabled =
+     sealing ||
+     readOnly ||
++    blocked ||
+     pending !== null ||
+     snapshot !== versionKey ||
+     !PayloadDiff.validReason(reason) ||
+@@ -238,6 +242,10 @@ const RepairForm = ({
+     }
+     close()
+   }
++  const { redrive, correct, resolve } = repairApplicability(detail, readOnly)
++  if (!redrive && !correct && !resolve && (readOnly || !pending)) {
++    return null
++  }
+   return (
+     <section
+       ref={panel}
+@@ -246,47 +254,58 @@ const RepairForm = ({
+       aria-label="Repair and resolution"
+     >
+       <h3 {...stylex.props(styles.heading)}>Repair and resolution</h3>
+-      {readOnly ? (
+-        <p {...stylex.props(styles.explanation)}>Read only</p>
+-      ) : pending ? (
++      {pending && (
+         <div role="status">
+           <p>
+             The outcome of request {pending.requestId} is unconfirmed. Check its exact
+             receipt before taking another action.
+           </p>
+-          <Button onClick={onReceipt}>Check repair receipt</Button>
+-        </div>
+-      ) : (
+-        <div {...stylex.props(styles.actions)}>
+-          <Button
+-            disabled={!detail.eligibility.redrive.enabled}
+-            onClick={(event) => begin("redrive", event.currentTarget)}
+-          >
+-            Redrive as new job
+-          </Button>
+-          <Button
+-            disabled={
+-              !detail.eligibility.correctedRedrive.enabled ||
+-              (synthetic && !session?.document)
+-            }
+-            onClick={(event) => begin("corrected-redrive", event.currentTarget)}
+-          >
+-            Correct and redrive
+-          </Button>
+-          <Button
+-            disabled={!detail.problem || detail.problem.state === "Resolved"}
+-            onClick={(event) => begin("reconcile-applied", event.currentTarget)}
+-          >
+-            Reconcile applied effect
+-          </Button>
+-          <Button
+-            disabled={!detail.problem || detail.problem.state === "Resolved"}
+-            onClick={(event) => begin("manual-close", event.currentTarget)}
+-          >
+-            Close problem
++          <Button disabled={blocked} onClick={onReceipt}>
++            Check repair receipt
+           </Button>
+         </div>
+       )}
++      <>
++        <div {...stylex.props(styles.actions)}>
++          {redrive && (
++            <Button
++              disabled={blocked || pending !== null}
++              onClick={(event) => begin("redrive", event.currentTarget)}
++            >
++              Redrive as new job
++            </Button>
++          )}
++          {correct && (
++            <Button
++              disabled={blocked || pending !== null || (synthetic && !session?.document)}
++              onClick={(event) => begin("corrected-redrive", event.currentTarget)}
++            >
++              Correct and redrive
++            </Button>
++          )}
++          {resolve && (
++            <Button
++              disabled={blocked || pending !== null}
++              onClick={(event) => begin("reconcile-applied", event.currentTarget)}
++            >
++              Reconcile applied effect
++            </Button>
++          )}
++          {resolve && (
++            <Button
++              disabled={blocked || pending !== null}
++              onClick={(event) => begin("manual-close", event.currentTarget)}
++            >
++              Close problem
++            </Button>
++          )}
++        </div>
++        {correct && synthetic && !session?.document && (
++          <p {...stylex.props(styles.explanation)}>
++            Unlock the payload to correct and redrive.
++          </p>
++        )}
++      </>
+       <Dialog.Root
+         open={action !== null && !readOnly && pending === null}
+         onOpenChange={(open) => {
+diff --git a/apps/website/tests/ui/repair/Applicability.browser.mjs b/apps/website/tests/ui/repair/Applicability.browser.mjs
+new file mode 100644
+index 00000000..7d375a47
+--- /dev/null
++++ b/apps/website/tests/ui/repair/Applicability.browser.mjs
+@@ -0,0 +1,315 @@
++// Production components/CSS against controlled HTTP snapshots; real PG is qualified separately.
++import { Effect } from "effect"
++import * as Crypto from "../../../../../packages/playground-contracts/dist/SyntheticCryptoFixture.js"
++import assert from "node:assert/strict"
++import { createServer } from "node:http"
++import { readFileSync, mkdirSync, writeFileSync } from "node:fs"
++import { createRequire } from "node:module"
++import { resolve } from "node:path"
++import * as Fixture from "../../../../../packages/playground-contracts/dist/Fixtures.js"
++const require = createRequire(resolve("apps/playground-worker/package.json"))
++const { chromium, expect } = require("@playwright/test")
++const output = ".multica/task/applicability"
++mkdirSync(output, { recursive: true })
++const labels = [
++  "Retry now",
++  "Cancel job",
++  "Redrive as new job",
++  "Correct and redrive",
++  "Reconcile applied effect",
++  "Close problem"
++]
++let detail, sandbox, releaseMutation
++let mutationCount = 0
++const html =
++  '<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/Jobs.css"></head><body><main id="jobs"></main><script type="module" src="/Client.js"></script></body></html>'
++const server = createServer(async (req, res) => {
++  const path = new URL(req.url, "http://localhost").pathname
++  if (path === "/Client.js" || path === "/Jobs.css") {
++    res.setHeader("Content-Type", path.endsWith("js") ? "text/javascript" : "text/css")
++    res.end(readFileSync(`apps/website/dist${path}`))
++    return
++  }
++  if (
++    path === "/jobs" ||
++    path.startsWith("/jobs/") ||
++    path === "/demo" ||
++    path.startsWith("/demo/jobs/")
++  ) {
++    res.setHeader("Content-Type", "text/html")
++    res.end(html)
++    return
++  }
++  res.setHeader("Content-Type", "application/json")
++  if (path === "/api/sandbox" || path === "/api/sandbox/issue" || path === "/api/demo") {
++    res.end(JSON.stringify(sandbox))
++  } else if (path.endsWith("/jobs/detail")) {
++    res.end(JSON.stringify(detail))
++  } else if (path === "/api/jobs" || path === "/api/demo/jobs") {
++    res.end(
++      JSON.stringify({
++        ...Fixture.page,
++        items: [detail.job],
++        stats: { ...Fixture.page.stats, Completed: 0, [detail.job.state]: 1 }
++      })
++    )
++  } else if (path === "/api/jobs/repair") {
++    let body = ""
++    for await (const chunk of req) {
++      body += chunk
++    }
++    const command = JSON.parse(body)
++    mutationCount++
++    await new Promise((done) => {
++      releaseMutation = done
++    })
++    res.end(
++      JSON.stringify({
++        _tag: "Rejected",
++        sandbox: command.sandbox,
++        requestId: command.requestId,
++        jobId: command.jobId,
++        reason: "not-eligible"
++      })
++    )
++  } else {
++    res.statusCode = 404
++    res.end('{"code":"not-found"}')
++  }
++})
++await new Promise((done) => server.listen(0, "127.0.0.1", done))
++let browser
++const checks = [],
++  errors = []
++try {
++  browser = await chromium.launch({
++    headless: true,
++    ...(process.env.UI_CHROMIUM_PATH
++      ? { executablePath: process.env.UI_CHROMIUM_PATH }
++      : {})
++  })
++  const page = await browser.newPage()
++  page.setDefaultTimeout(4000)
++  page.on("pageerror", (e) => errors.push(e.message))
++  for (const width of [1280, 390]) {
++    await page.setViewportSize({ width, height: 1000 })
++    for (const publicMode of [false, true]) {
++      for (const state of [
++        "Pending",
++        "RetryScheduled",
++        "Active",
++        "Completed",
++        "Dead",
++        "Isolated",
++        "Cancelled"
++      ]) {
++        for (const resolution of [null, "Open", "InProgress", "Resolved"]) {
++          const repairing =
++            (state === "Dead" || state === "Isolated") &&
++            (resolution === null || resolution === "Open")
++          const problem = resolution
++            ? {
++                rootJobId: Fixture.detail.job.jobId,
++                state: resolution,
++                version: 0,
++                updatedAt: Date.now(),
++                activeSuccessorJobId: resolution === "InProgress" ? "successor" : null,
++                outcomeKnowledge: "Unknown",
++                resolution:
++                  resolution === "Resolved"
++                    ? {
++                        kind: "ManualClose",
++                        reason: "fixture",
++                        observedAt: Date.now(),
++                        successorJobId: null
++                      }
++                    : null
++              }
++            : null
++          const enabled = {
++            enabled: repairing && !publicMode,
++            reason: repairing && !publicMode ? null : "not-eligible"
++          }
++          sandbox = {
++            ...Fixture.sandbox,
++            expiresAt: Date.now() + 600000,
++            capabilities: Object.fromEntries(
++              Object.keys(Fixture.sandbox.capabilities).map((k) => [k, !publicMode])
++            )
++          }
++          detail = {
++            ...Fixture.detail,
++            job: {
++              ...Fixture.detail.job,
++              state,
++              completedAt: ["Completed", "Dead", "Cancelled"].includes(state)
++                ? Date.now()
++                : null,
++              availableAt: Date.now() + 600000
++            },
++            problem,
++            eligibility: { redrive: enabled, correctedRedrive: enabled }
++          }
++          const expected = publicMode
++            ? []
++            : [
++                ...(state === "RetryScheduled" ? [labels[0]] : []),
++                ...(["Pending", "RetryScheduled"].includes(state) ? [labels[1]] : []),
++                ...(repairing ? labels.slice(2, 4) : []),
++                ...(resolution && resolution !== "Resolved" ? labels.slice(4) : [])
++              ]
++          await page.goto(
++            `http://127.0.0.1:${server.address().port}/${publicMode ? "demo" : "jobs"}`
++          )
++          await page.getByRole("button", { name: detail.job.jobId, exact: true }).click()
++          for (const surface of ["drawer", "full"]) {
++            if (surface === "full") {
++              await page
++                .getByRole("button", { name: "Open full details", exact: true })
++                .click()
++            }
++            await expect(
++              page.getByRole("heading", {
++                name: surface === "drawer" ? "Quick job details" : "Job details",
++                exact: true
++              })
++            ).toBeVisible()
++            for (const label of labels) {
++              await expect(
++                page.getByRole("button", { name: label, exact: true })
++              ).toHaveCount(expected.includes(label) ? 1 : 0)
++            }
++            await expect(page.getByRole("region", { name: "Job operators" })).toHaveCount(
++              expected.includes(labels[0]) || expected.includes(labels[1]) ? 1 : 0
++            )
++            await expect(
++              page.getByRole("region", { name: "Repair and resolution", exact: true })
++            ).toHaveCount(expected.some((l) => labels.slice(2).includes(l)) ? 1 : 0)
++            await expect(page.locator("dt").filter({ hasText: /^Result$/ })).toHaveCount(
++              0
++            )
++            checks.push({
++              width,
++              publicMode,
++              state,
++              resolution,
++              surface,
++              actions: expected
++            })
++          }
++        }
++      }
++    }
++  }
++
++  sandbox = {
++    ...sandbox,
++    capabilities: Object.fromEntries(
++      Object.keys(sandbox.capabilities).map((k) => [k, true])
++    )
++  }
++  const document = await Effect.runPromise(
++    Crypto.sealSyntheticDocument({
++      subject: "demo-customer",
++      tenant: "demo-tenant-a",
++      note: "Local applicability fixture"
++    })
++  )
++  detail = {
++    ...detail,
++    job: {
++      ...detail.job,
++      state: "Dead",
++      catalog: Crypto.syntheticDocumentCatalog,
++      completedAt: Date.now()
++    },
++    problem: { ...detail.problem, state: "Open", resolution: null },
++    eligibility: {
++      redrive: { enabled: true, reason: null },
++      correctedRedrive: { enabled: true, reason: null }
++    },
++    payload: {
++      _tag: "Available",
++      formatVersion: 1,
++      catalog: Crypto.syntheticDocumentCatalog,
++      validation: "Valid",
++      encryption: "SyntheticDocumentV1",
++      encoded: {
++        sandbox: sandbox.ref,
++        version: 1,
++        seed: 1,
++        sequence: 1,
++        behavior: "dead",
++        actor: "demo-customer",
++        tenant: "demo-tenant-a",
++        order: "demo-order-a",
++        document
++      }
++    }
++  }
++  await page.goto(`http://127.0.0.1:${server.address().port}/jobs`)
++  await page.getByRole("button", { name: detail.job.jobId, exact: true }).click()
++  const correct = page.getByRole("button", { name: "Correct and redrive", exact: true })
++  await expect(correct).toBeVisible()
++  await expect(correct).toBeDisabled()
++  await expect(
++    page.getByText("Unlock the payload to correct and redrive.", { exact: true })
++  ).toBeVisible()
++  await page.getByLabel("Demo unlock code", { exact: true }).fill("123")
++  await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
++  await expect(correct).toBeEnabled()
++  await page.getByRole("button", { name: "Relock", exact: true }).click()
++  await expect(correct).toBeVisible()
++  await expect(correct).toBeDisabled()
++  await page.evaluate(() => {
++    Object.defineProperty(navigator.clipboard, "writeText", {
++      configurable: true,
++      value: () => Promise.reject(new Error("fixture"))
++    })
++  })
++  await page.getByRole("button", { name: "Copy payload", exact: true }).click()
++  await expect(page.getByText("Clipboard unavailable.", { exact: true })).toBeVisible()
++  await page.getByRole("button", { name: "Redrive as new job", exact: true }).click()
++  await page
++    .getByLabel("Reason (synthetic context only)")
++    .fill("Busy applicability fixture")
++  await page.getByLabel("Investigation", { exact: true }).selectOption("KnownFailure")
++  await page.getByLabel("I confirm possible duplicate effects").check()
++  await page.getByRole("button", { name: "Submit repair", exact: true }).click()
++  await expect(
++    page.getByRole("button", { name: "Redrive as new job", exact: true })
++  ).toBeVisible()
++  await expect(
++    page.getByRole("button", { name: "Redrive as new job", exact: true })
++  ).toBeDisabled()
++  await expect(
++    page.getByRole("button", { name: "Close problem", exact: true })
++  ).toBeDisabled()
++  await expect(correct).toBeVisible()
++  await expect(
++    page.getByRole("button", { name: "Check repair receipt", exact: true })
++  ).toBeDisabled()
++  assert.equal(mutationCount, 1)
++  releaseMutation()
++  await expect(
++    page.getByRole("button", { name: "Redrive as new job", exact: true })
++  ).toBeEnabled()
++  await expect(page.getByRole("status").filter({ hasText: "not-eligible" })).toBeVisible()
++  checks.push({
++    lockedCorrectable: true,
++    relock: true,
++    copyErrorVisible: true,
++    busyControlsRemain: true,
++    failedOperationVisible: true
++  })
++  assert.deepEqual(errors, [])
++  writeFileSync(
++    `${output}/result.json`,
++    JSON.stringify({ result: "PASS", checks, errors, mutationCount }, null, 2)
++  )
++  console.log(JSON.stringify({ result: "PASS", cases: checks.length, errors }))
++} finally {
++  releaseMutation?.()
++  await browser?.close()
++  await new Promise((done) => server.close(done))
++}
+diff --git a/apps/website/tests/ui/repair/Applicability.md b/apps/website/tests/ui/repair/Applicability.md
+new file mode 100644
+index 00000000..434fc5dc
+--- /dev/null
++++ b/apps/website/tests/ui/repair/Applicability.md
+@@ -0,0 +1,100 @@
++# Job action applicability
++
++This matrix describes existing server semantics at base
++`78b0cd802ac76ef2b63fdceaac57cd98778b606b`, consumed by the UI. It grants no
++new lifecycle transitions or permissions. `Applicability.test.ts` checks the
++source projection; `Applicability.browser.mjs` checks production components/CSS
++with controlled HTTP snapshots. `Applicability.real.mjs` exercises real
++producer, worker, command, encrypted payload and reconciliation paths.
++
++| Selected lifecycle     | Retry now | Cancel  | Redrive / corrected redrive | Reconcile applied / close problem |
++| ---------------------- | --------- | ------- | --------------------------- | --------------------------------- |
++| Pending                | absent    | present | absent                      | only retained unresolved problem  |
++| RetryScheduled, future | present   | present | absent                      | only retained unresolved problem  |
++| RetryScheduled, due    | absent    | present | absent                      | only retained unresolved problem  |
++| Active                 | absent    | absent  | absent                      | only retained unresolved problem  |
++| Completed              | absent    | absent  | absent                      | only retained unresolved problem  |
++| Dead                   | absent    | absent  | conditional below           | only retained unresolved problem  |
++| Isolated               | absent    | absent  | conditional below           | only retained unresolved problem  |
++| Cancelled              | absent    | absent  | absent                      | only retained unresolved problem  |
++
++Completed/Cancelled with no unresolved problem render neither operators nor a
++repair card. Resolution is chain-level: a selected lifecycle alone does not
++establish or prohibit an operator assertion about an existing unresolved chain.
++The server does not restrict reconcile-applied to Unknown outcome alone.
++
++| Resolution | Redrive / correction of Dead or Isolated                             | Reconcile applied / close           |
++| ---------- | -------------------------------------------------------------------- | ----------------------------------- |
++| No problem | source projection may allow repair; server establishes implicit Open | absent until a problem is projected |
++| Open       | only current chain member, subject to artifact/catalog checks        | present                             |
++| InProgress | absent                                                               | present                             |
++| Resolved   | absent                                                               | absent                              |
++
++The normal read query projects an implicit Open problem for untracked Dead and
++Isolated sources. A stored problem can belong to a related selected job; both
++resolution commands target its root/version, not the selected job's lifecycle.
++
++| Payload / authority                             | Plain redrive                      | Correct and redrive                                                            |
++| ----------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------ |
++| Supported valid plain artifact                  | present when source/chain eligible | present when source/chain eligible                                             |
++| Plain missing/corrupt artifact                  | absent                             | source projection may allow replacement; editor validates complete replacement |
++| Unsupported catalog                             | absent                             | absent                                                                         |
++| Compatible private encrypted artifact           | present when source/chain eligible | absent (server does not support correction)                                    |
++| Compatible synthetic encrypted artifact, locked | present when source/chain eligible | visible, disabled; unlock prerequisite shown                                   |
++| Same synthetic artifact, unlocked               | present when source/chain eligible | enabled subject to busy/validation                                             |
++| Synthetic artifact unavailable                  | absent                             | absent                                                                         |
++| Public read-only                                | absent                             | absent; resolution and operator cards also absent                              |
++
++Busy/loading, pending commands, crypto work and invalid form inputs affect
++**enabled state**, not semantic applicability. Pending repair identity/receipt
++remains visible and other applicable controls remain disabled. Unknown outcome
++never authorizes replay. Isolated investigation and duplicate-effect confirmation
++remain mandatory. Unknown manual closure retains its explicit acknowledgment.
++Server-side scope, DB-time, source/version, artifact and permission checks remain
++unchanged. The applicability metadata cannot predict every concurrent server
++rejection or future expiry.
++
++Source evidence (paths and lines at the implementation handoff):
++
++- `src/JobLifecycle.ts:484`: exact snapshot validation; retry/cancel state and
++  DB-time `already-due` rejection at 501–508.
++- `src/internal/postgresql/Operators.ts:80`: source/version validation;
++  Dead/Isolated redrive at 146, canonical source and policy checks afterward.
++- `apps/website/src/server/read/JobDetailsProjection.ts:91`: source/chain common
++  refusal; plain artifact checks at 105; supported correction/encryption at 112.
++- `apps/playground-worker/src/persistence/commands/RepairPersistence.ts:90`:
++  resolution version, Resolved, InProgress and current member refusal.
++  Lines 155–205: implicit problem, unresolved resolution assertions and unknown
++  manual-close acknowledgment. No lifecycle-specific restriction on a stored
++  unresolved problem is added by the browser.
++- `apps/playground-worker/src/persistence/commands/RepairSource.ts:206`:
++  known-failure evidence and investigation; replacement catalog, authenticated
++  synthetic envelope and immutable relations checks below.
++- `apps/website/src/server/read/PostgreSqlRead.ts:291`: projected problem,
++  payload and eligibility. `apps/playground-worker/src/persistence/read/Queries.ts`
++  projects implicit failures and retained chain membership.
++- `apps/website/src/features/jobs/OperatorEligibility.ts:11`: private capabilities
++  and state/time eligibility; `repairApplicability` consumes server repair metadata.
++- `packages/playground-contracts/src/Jobs.ts:213` and
++  `apps/website/src/server/read/JobDetailsProjection.ts:134`: result has only
++  Unavailable/not-stored. There is no stored handler result to relocate. Retained
++  provider/history evidence continues in the existing overview/timeline; no dummy
++  result section is rendered in the payload panel.
++
++Qualification commands from repository root:
++
++```sh
++bun run playground:test
++node apps/playground-worker/tests/integration/Build.mjs
++node apps/website/tests/ui/repair/Applicability.browser.mjs
++bun apps/website/tests/ui/repair/Browser.mjs
++python3 apps/website/tests/ui/repair/ApplicabilityOwned.py
++```
++
++The owned runner provisions only a fresh pinned PostgreSQL 16.15 tmpfs container,
++uses docker.exe if the Linux daemon is unavailable, writes random credentials to
++a mode-0600 file, runs the real test within five minutes, and removes that exact
++container/config. The real test disposes its Chromium, workerd and PG pool.
++Evidence is runtime-local under `.multica/task/real`; deliver it as attachments.
++No existing preview, private config or owner database is used. No fake lifecycle
++SQL, hosted deployment or full unchanged historical qualification matrix.
+diff --git a/apps/website/tests/ui/repair/Applicability.real.mjs b/apps/website/tests/ui/repair/Applicability.real.mjs
+new file mode 100644
+index 00000000..7dd4c05d
+--- /dev/null
++++ b/apps/website/tests/ui/repair/Applicability.real.mjs
+@@ -0,0 +1,299 @@
++// Bounded real PostgreSQL/workerd/browser qualification. No lifecycle SQL writes.
++import assert from "node:assert/strict"
++import { readFileSync, mkdirSync, writeFileSync } from "node:fs"
++import { createRequire } from "node:module"
++import { resolve } from "node:path"
++import { Pool } from "pg"
++import { createLocal } from "../../../../playground-worker/tests/integration/Local.mjs"
++const require = createRequire(resolve("apps/playground-worker/package.json"))
++const { chromium, expect } = require("@playwright/test")
++const output = ".multica/task/real"
++mkdirSync(output, { recursive: true })
++const cfg = JSON.parse(readFileSync(process.env.PLAYGROUND_PRIVATE_CONFIG, "utf8"))
++const { migrations } = await import(resolve(".multica/integration/Migrations.mjs"))
++const pool = new Pool({
++  host: "127.0.0.1",
++  port: cfg.port,
++  user: cfg.user,
++  password: cfg.password,
++  database: cfg.database,
++  connectionTimeoutMillis: 2000,
++  statement_timeout: 5000
++})
++const checks = [],
++  errors = []
++const sql = async (text, values = []) => (await pool.query(text, values)).rows
++const until = async (check, label, ms = 30000) => {
++  const deadline = Date.now() + ms
++  while (!(await check())) {
++    assert(Date.now() < deadline, label)
++    await new Promise((done) => setTimeout(done, 200))
++  }
++}
++let local, browser, page
++try {
++  const version = (await sql("SHOW server_version"))[0].server_version
++  assert.match(version, /^16\.15/)
++  await sql(`CREATE SCHEMA "${cfg.schema}"`)
++  for (const migration of migrations(cfg.schema)) {
++    await sql(migration.sql)
++  }
++  cfg.connectionString = `postgres://${cfg.user}:${cfg.password}@127.0.0.1:${cfg.port}/${cfg.database}`
++  local = await createLocal(cfg, { https: false, localPrivate: true })
++  browser = await chromium.launch({
++    headless: true,
++    ...(process.env.UI_CHROMIUM_PATH
++      ? { executablePath: process.env.UI_CHROMIUM_PATH }
++      : {})
++  })
++  const context = await browser.newContext({
++    permissions: ["clipboard-read", "clipboard-write"]
++  })
++  page = await context.newPage()
++  page.setDefaultTimeout(8000)
++  page.on("pageerror", (e) => errors.push(e.message))
++  await page.goto(local.origin + "/jobs")
++  await expect(
++    page.getByRole("heading", { name: "Background Jobs", exact: true })
++  ).toBeVisible()
++  const cookies = await context.cookies()
++  const csrf = cookies.find((c) => c.name.startsWith("playground-local-csrf-")).value
++  const headers = {
++    Origin: local.origin,
++    "Content-Type": "application/json",
++    "X-Playground-CSRF": csrf
++  }
++  const post = async (path, data) => {
++    const response = await context.request.post(local.origin + path, { headers, data })
++    assert.equal(response.status(), 200, path)
++    return response.json()
++  }
++  const sandbox = await post("/api/sandbox")
++  const run = async (scenario, count = 6) => {
++    const result = await post("/api/scenarios", {
++      sandbox: sandbox.ref,
++      requestId: crypto.randomUUID(),
++      scenario,
++      count
++    })
++    assert.equal(result._tag, "Committed")
++    return result.jobIds
++  }
++  const pending = await run("delayed-success")
++  const success = await run("success")
++  const retry = await run("retry-then-success")
++  const dead = await run("terminal-failure")
++  const isolated = await run("isolated")
++  const queryJobs = async (ids) =>
++    sql(
++      `SELECT id,state,kind,lifecycle_version FROM "${cfg.schema}".jobs WHERE id=ANY($1::text[])`,
++      [ids]
++    )
++  for (const [ids, state] of [
++    [success, "Completed"],
++    [retry, "RetryScheduled"],
++    [dead, "Dead"],
++    [isolated, "Isolated"]
++  ]) {
++    await until(
++      async () => (await queryJobs(ids)).every((r) => r.state === state),
++      `real ${state}`
++    )
++  }
++  const chosen = {
++    Pending: pending[0],
++    Completed: success[0],
++    RetryScheduled: retry[0],
++    Dead: (await queryJobs(dead)).find(
++      (r) => r.kind === "playground.synthetic-document-export"
++    ).id,
++    Isolated: isolated[0]
++  }
++  // A real UI cancellation supplies the Cancelled fixture and exercises live groups.
++  const open = async (id, surface, width) => {
++    await page.setViewportSize({ width, height: 1000 })
++    if (await page.getByRole("heading", { name: "Job details", exact: true }).count()) {
++      await page.getByRole("button", { name: "Back to jobs", exact: true }).click()
++    } else if (
++      await page.getByRole("button", { name: "Close job details", exact: true }).count()
++    ) {
++      await page.getByRole("button", { name: "Close job details", exact: true }).click()
++    }
++    await page
++      .getByLabel("State", { exact: true })
++      .selectOption((await queryJobs([id]))[0].state)
++    await page.getByRole("combobox", { name: "Rows per page" }).selectOption("50")
++    await page.getByRole("button", { name: id, exact: true }).click()
++    await expect(
++      page.getByRole("heading", { name: "Quick job details", exact: true })
++    ).toBeVisible()
++    if (surface === "full") {
++      await page.getByRole("button", { name: "Open full details", exact: true }).click()
++      await expect(
++        page.getByRole("heading", { name: "Job details", exact: true })
++      ).toBeVisible()
++    }
++  }
++  await open(pending[1], "drawer", 1280)
++  await page.getByRole("button", { name: "Cancel job", exact: true }).click()
++  await page.getByRole("button", { name: "Confirm action", exact: true }).click()
++  await until(
++    async () => (await queryJobs([pending[1]]))[0].state === "Cancelled",
++    "cancel persisted"
++  )
++  await expect(page.getByRole("region", { name: "Job operators" })).toHaveCount(0)
++  await expect(
++    page.getByRole("region", { name: "Repair and resolution", exact: true })
++  ).toHaveCount(0)
++  chosen.Cancelled = pending[1]
++  checks.push("Pending -> Cancelled through confirmed UI; live action groups disappear")
++  for (const width of [1280, 390]) {
++    for (const [state, id] of Object.entries(chosen)) {
++      for (const surface of ["drawer", "full"]) {
++        await open(id, surface, width)
++        const payload = page.getByRole("region", { name: "Job payload", exact: true })
++        await expect(payload.locator("dt")).toHaveCount(0)
++        await expect(payload.getByRole("status")).toHaveCSS("position", "absolute")
++        const expected =
++          state === "Pending"
++            ? ["Cancel job"]
++            : state === "RetryScheduled"
++              ? ["Retry now", "Cancel job"]
++              : state === "Dead" || state === "Isolated"
++                ? [
++                    "Redrive as new job",
++                    "Correct and redrive",
++                    "Reconcile applied effect",
++                    "Close problem"
++                  ]
++                : []
++        for (const label of [
++          "Retry now",
++          "Cancel job",
++          "Redrive as new job",
++          "Correct and redrive",
++          "Reconcile applied effect",
++          "Close problem"
++        ]) {
++          await expect(
++            page.getByRole("button", { name: label, exact: true })
++          ).toHaveCount(expected.includes(label) ? 1 : 0)
++        }
++        if (state === "Dead") {
++          await expect(
++            page.getByRole("button", { name: "Correct and redrive", exact: true })
++          ).toBeDisabled()
++          await expect(
++            page.getByText("Unlock the payload to correct and redrive.", { exact: true })
++          ).toBeVisible()
++        }
++        await page.screenshot({
++          path: `${output}/${state}-${surface}-${width}.png`,
++          fullPage: surface === "full"
++        })
++        checks.push({ state, surface, width, expected })
++      }
++    }
++  }
++  await open(chosen.Dead, "drawer", 390)
++  await page.getByLabel("Demo unlock code", { exact: true }).fill("wrong")
++  await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
++  await expect(
++    page.getByText("Locked · authentication failed. Demo code: 123.", { exact: true })
++  ).toBeVisible()
++  await page.screenshot({ path: `${output}/wrong-code.png`, fullPage: false })
++  await page.getByLabel("Demo unlock code", { exact: true }).fill("123")
++  await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
++  await expect(page.getByLabel("Readable payload", { exact: true })).toBeVisible()
++  await expect(
++    page.getByRole("button", { name: "Correct and redrive", exact: true })
++  ).toBeEnabled()
++  await page.getByRole("button", { name: "Copy payload", exact: true }).click()
++  assert.equal(
++    await page.evaluate(() => navigator.clipboard.readText()),
++    await page.getByLabel("Readable payload", { exact: true }).textContent()
++  )
++  await page.getByRole("button", { name: "Correct and redrive", exact: true }).click()
++  const editor = page.getByLabel("Validated synthetic replacement JSON")
++  const replacement = JSON.parse(await editor.inputValue())
++  await editor.fill(
++    JSON.stringify({
++      ...replacement,
++      behavior: "success",
++      document: { ...replacement.document, note: "Corrected real synthetic fixture" }
++    })
++  )
++  await page
++    .getByLabel("Reason (synthetic context only)")
++    .fill("Correct synthetic failure")
++  await page.getByLabel("Investigation", { exact: true }).selectOption("KnownFailure")
++  await page.getByLabel("I confirm possible duplicate effects").check()
++  await page.screenshot({ path: `${output}/corrected-editor.png`, fullPage: false })
++  await page.getByRole("button", { name: "Submit repair", exact: true }).click()
++  await expect(editor).toHaveCount(0)
++  await expect(page.getByLabel("Readable payload", { exact: true })).toHaveCount(0)
++  await until(
++    async () =>
++      (
++        await sql(
++          `SELECT j.state FROM "${cfg.schema}".jobs j WHERE j.original_source_job_id=$1`,
++          [chosen.Dead]
++        )
++      ).some((r) => r.state === "Completed"),
++    "corrected successor completed"
++  )
++  await expect(
++    page.getByRole("button", { name: "Correct and redrive", exact: true })
++  ).toHaveCount(0)
++  checks.push(
++    "real encrypted payload: wrong code, unlock, clipboard equals displayed JSON, edit/seal/redrive, successor completion, source relock and live resolved groups"
++  )
++  await open(chosen.RetryScheduled, "full", 1280)
++  await page.getByRole("button", { name: "Retry now", exact: true }).click()
++  await page.getByRole("button", { name: "Confirm action", exact: true }).click()
++  await until(
++    async () => (await queryJobs([chosen.RetryScheduled]))[0].state === "Completed",
++    "retry completion"
++  )
++  await expect(page.getByRole("region", { name: "Job operators" })).toHaveCount(0)
++  checks.push("RetryScheduled -> Completed through confirmed UI; live controls disappear")
++  await page.goto(local.origin + "/demo")
++  await expect(
++    page.getByRole("button", { name: "Create jobs", exact: true })
++  ).toHaveCount(0)
++  const row = page.locator("button[data-job-id]").first()
++  await row.click()
++  await expect(page.getByRole("region", { name: "Job operators" })).toHaveCount(0)
++  await expect(
++    page.getByRole("region", { name: "Repair and resolution", exact: true })
++  ).toHaveCount(0)
++  checks.push("real public demo omits private action groups")
++  assert.deepEqual(errors, [])
++  writeFileSync(
++    `${output}/result.json`,
++    JSON.stringify({ result: "PASS", version, checks, errors }, null, 2)
++  )
++  console.log(JSON.stringify({ result: "PASS", checks: checks.length, version }))
++} catch (error) {
++  await page?.screenshot({ path: `${output}/failure.png`, fullPage: true })
++  console.log(
++    JSON.stringify({
++      headings: await page?.locator("h1,h2,h3,[role=status]").allTextContents(),
++      url: page?.url()
++    })
++  )
++  throw error
++} finally {
++  writeFileSync(`${output}/checkpoint.json`, JSON.stringify({ checks, errors }, null, 2))
++  await browser?.close()
++  await local?.mf.dispose()
++  await pool.end()
++  writeFileSync(
++    `${output}/cleanup.json`,
++    JSON.stringify({
++      browserClosed: !browser?.isConnected(),
++      miniflareDisposed: true,
++      poolEnded: true
++    })
++  )
++}
+diff --git a/apps/website/tests/ui/repair/Applicability.test.ts b/apps/website/tests/ui/repair/Applicability.test.ts
+new file mode 100644
+index 00000000..43bfdf0d
+--- /dev/null
++++ b/apps/website/tests/ui/repair/Applicability.test.ts
+@@ -0,0 +1,86 @@
++import { describe, expect, it } from "vitest"
++import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
++import * as Fixture from "../../../../playground-worker/tests/repairs/Fixtures.js"
++import * as Projection from "../../../src/server/read/JobDetailsProjection.js"
++import * as Eligibility from "../../../src/features/jobs/OperatorEligibility.js"
++
++const sandbox = {
++  ref: Fixture.ref,
++  expiresAt: 10000,
++  capabilities: {
++    runScenario: true,
++    resetSandbox: true,
++    retryJob: true,
++    cancelJob: true,
++    redriveJob: true
++  }
++}
++const states = [
++  "Pending",
++  "RetryScheduled",
++  "Active",
++  "Completed",
++  "Dead",
++  "Isolated",
++  "Cancelled"
++] as const
++
++describe("source-projected action applicability", () => {
++  for (const state of states) {
++    for (const resolution of [null, "Open", "InProgress", "Resolved"] as const) {
++      it(`${state}/${resolution ?? "no problem"}: semantic actions and public admission`, () => {
++        const problem =
++          resolution && Fixture.detail.problem
++            ? {
++                ...Fixture.detail.problem,
++                state: resolution
++              }
++            : null
++        const job = { ...Fixture.detail.job, state, availableAt: 2000 }
++        const detail: JobDetail = {
++          ...Fixture.detail,
++          job,
++          problem,
++          eligibility: Projection.eligibility({ job }, problem, Fixture.detail.payload)
++        }
++        const terminalFailure = state === "Dead" || state === "Isolated"
++        const repair = terminalFailure && (resolution === null || resolution === "Open")
++        expect(Eligibility.repairApplicability(detail, false)).toEqual({
++          redrive: repair,
++          correct: repair,
++          resolve: resolution !== null && resolution !== "Resolved"
++        })
++        const operators = Eligibility.eligibility(detail, sandbox, 1000)
++        expect(operators.retryNow.enabled).toBe(state === "RetryScheduled")
++        expect(operators.cancel.enabled).toBe(
++          state === "Pending" || state === "RetryScheduled"
++        )
++        expect(Eligibility.repairApplicability(detail, true)).toEqual({
++          redrive: false,
++          correct: false,
++          resolve: false
++        })
++        const publicView = {
++          ...sandbox,
++          capabilities: {
++            ...sandbox.capabilities,
++            retryJob: false,
++            cancelJob: false,
++            redriveJob: false
++          }
++        }
++        expect(
++          Object.values(Eligibility.eligibility(detail, publicView, 1000)).every(
++            (entry) => !entry.enabled
++          )
++        ).toBe(true)
++        if (state === "RetryScheduled") {
++          expect(Eligibility.eligibility(detail, sandbox, 2000).retryNow).toEqual({
++            enabled: false,
++            reason: "already-due"
++          })
++        }
++      })
++    }
++  }
++})
+diff --git a/apps/website/tests/ui/repair/ApplicabilityOwned.py b/apps/website/tests/ui/repair/ApplicabilityOwned.py
+new file mode 100644
+index 00000000..e41edc01
+--- /dev/null
++++ b/apps/website/tests/ui/repair/ApplicabilityOwned.py
+@@ -0,0 +1,43 @@
++import subprocess, json, secrets, os, pathlib, datetime, shutil
++root=pathlib.Path.cwd()
++out=root/'.multica/task/real'
++out.mkdir(parents=True,exist_ok=True)
++docker='docker'
++try:
++    result=subprocess.run([docker,'version','--format','{{.Server.Version}}'],capture_output=True,timeout=10)
++    if result.returncode: docker='docker.exe'
++except (OSError,subprocess.TimeoutExpired): docker='docker.exe'
++cid=None
++private=out/'private.json'
++receipt={'docker':docker,'status':'FAIL'}
++try:
++    password=secrets.token_hex(32)
++    env=os.environ.copy()
++    env.update(POSTGRES_USER='applicability',POSTGRES_DB='applicability',POSTGRES_PASSWORD=password)
++    if docker.endswith('.exe'): env['WSLENV']=':'.join(filter(None,[env.get('WSLENV',''),'POSTGRES_USER','POSTGRES_DB','POSTGRES_PASSWORD']))
++    image='postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea'
++    cid=subprocess.check_output([docker,'run','-d','--name','upve-2382-'+secrets.token_hex(5),'--label','task=UPVE-2382','--publish','127.0.0.1::5432','--tmpfs','/var/lib/postgresql/data:rw','-e','POSTGRES_USER','-e','POSTGRES_DB','-e','POSTGRES_PASSWORD',image],env=env,text=True,timeout=60).strip()
++    receipt.update(containerId=cid,image=image)
++    import time
++    for i in range(40):
++        if subprocess.run([docker,'exec',cid,'pg_isready','-U','applicability'],capture_output=True,timeout=5).returncode==0: break
++        time.sleep(.25)
++    else: raise RuntimeError('readiness timeout')
++    ports=json.loads(subprocess.check_output([docker,'inspect','--format','{{json .NetworkSettings.Ports}}',cid],text=True,timeout=10))
++    cfg={'user':'applicability','database':'applicability','password':password,'port':int(ports['5432/tcp'][0]['HostPort']),'schema':'applicability','encryptionKey':secrets.token_hex(32),'fingerprintKey':secrets.token_hex(32),'cursorKey':secrets.token_hex(32)}
++    with os.fdopen(os.open(private,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w') as f: json.dump(cfg,f)
++    env=os.environ.copy();env['PLAYGROUND_PRIVATE_CONFIG']=str(private)
++    with (out/'run.log').open('w') as log:
++        result=subprocess.run(['node','apps/website/tests/ui/repair/Applicability.real.mjs'],env=env,stdout=log,stderr=log,timeout=300)
++    receipt['exit']=result.returncode
++    if result.returncode==0: receipt['status']='PASS'
++finally:
++    if cid:
++        result=subprocess.run([docker,'rm','--force',cid],capture_output=True,text=True,timeout=30)
++        absent=subprocess.run([docker,'inspect',cid],capture_output=True,text=True,timeout=10)
++        receipt['cleanup']={'exit':result.returncode,'absentVerified':absent.returncode!=0 and 'no such object' in absent.stderr.lower()}
++    private.unlink(missing_ok=True)
++    receipt['privateConfigRemoved']=not private.exists()
++    (out/'owned-resource.json').write_text(json.dumps(receipt,indent=2))
++    print(json.dumps(receipt))
++    if receipt['status']!='PASS': raise SystemExit(1)
+diff --git a/apps/website/tests/ui/repair/Browser.mjs b/apps/website/tests/ui/repair/Browser.mjs
+index 612de005..934b851f 100644
+--- a/apps/website/tests/ui/repair/Browser.mjs
++++ b/apps/website/tests/ui/repair/Browser.mjs
+@@ -117,6 +117,15 @@ try {
+             ) {
+               return { path: resolve(external, `${args.path.split("/").at(-1)}.ts`) }
+             }
++            if (args.path.startsWith("@effect-jobs/playground-contracts/")) {
++              return {
++                path: resolve(
++                  repository,
++                  "packages/playground-contracts/dist",
++                  `${args.path.split("/").at(-1)}.js`
++                )
++              }
++            }
+             if (args.path.startsWith(".") && args.importer.startsWith(scratch)) {
+               const target = resolve(dirname(args.importer), args.path)
+               if (await exists(target)) {
+@@ -249,7 +258,9 @@ try {
+   await page.evaluate(() => window.repairFixture.revise())
+   await expect(page.getByRole("dialog")).toHaveCount(0)
+   await page.evaluate(() => window.repairFixture.readonly())
+-  await expect(page.getByText("Read only", { exact: true })).toBeVisible()
++  await expect(
++    page.getByRole("region", { name: "Repair and resolution", exact: true })
++  ).toHaveCount(0)
+   await expect(correct).toHaveCount(0)
+   checks.push(
+     "stale lifecycle/version closes editor; read-only removes mutation controls"
+@@ -258,7 +269,7 @@ try {
+     window.repairFixture.reset()
+     window.repairFixture.encrypted()
+   })
+-  await expect(correct).toBeDisabled()
++  await expect(correct).toHaveCount(0)
+   await page.evaluate(() => {
+     window.repairFixture.reset()
+     window.repairFixture.uncertain()
+@@ -276,7 +287,7 @@ try {
+     true
+   )
+   checks.push(
+-    "encrypted correction disabled; unknown manual close requires explicit confirmation"
++    "unsupported encrypted correction absent; unknown manual close requires explicit confirmation"
+   )
+   await page.evaluate(() => window.repairFixture.reset())
+   await page.setViewportSize({ width: 360, height: 700 })
+-- 
+2.43.0
+

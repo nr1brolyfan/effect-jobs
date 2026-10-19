@@ -1,0 +1,215 @@
+{
+  "result": "PASS",
+  "version": "16.15",
+  "checks": [
+    "Pending -> Cancelled through confirmed UI; live action groups disappear",
+    {
+      "state": "Pending",
+      "surface": "drawer",
+      "width": 1280,
+      "expected": [
+        "Cancel job"
+      ]
+    },
+    {
+      "state": "Pending",
+      "surface": "full",
+      "width": 1280,
+      "expected": [
+        "Cancel job"
+      ]
+    },
+    {
+      "state": "Completed",
+      "surface": "drawer",
+      "width": 1280,
+      "expected": []
+    },
+    {
+      "state": "Completed",
+      "surface": "full",
+      "width": 1280,
+      "expected": []
+    },
+    {
+      "state": "RetryScheduled",
+      "surface": "drawer",
+      "width": 1280,
+      "expected": [
+        "Retry now",
+        "Cancel job"
+      ]
+    },
+    {
+      "state": "RetryScheduled",
+      "surface": "full",
+      "width": 1280,
+      "expected": [
+        "Retry now",
+        "Cancel job"
+      ]
+    },
+    {
+      "state": "Dead",
+      "surface": "drawer",
+      "width": 1280,
+      "expected": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "state": "Dead",
+      "surface": "full",
+      "width": 1280,
+      "expected": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "state": "Isolated",
+      "surface": "drawer",
+      "width": 1280,
+      "expected": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "state": "Isolated",
+      "surface": "full",
+      "width": 1280,
+      "expected": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "state": "Cancelled",
+      "surface": "drawer",
+      "width": 1280,
+      "expected": []
+    },
+    {
+      "state": "Cancelled",
+      "surface": "full",
+      "width": 1280,
+      "expected": []
+    },
+    {
+      "state": "Pending",
+      "surface": "drawer",
+      "width": 390,
+      "expected": [
+        "Cancel job"
+      ]
+    },
+    {
+      "state": "Pending",
+      "surface": "full",
+      "width": 390,
+      "expected": [
+        "Cancel job"
+      ]
+    },
+    {
+      "state": "Completed",
+      "surface": "drawer",
+      "width": 390,
+      "expected": []
+    },
+    {
+      "state": "Completed",
+      "surface": "full",
+      "width": 390,
+      "expected": []
+    },
+    {
+      "state": "RetryScheduled",
+      "surface": "drawer",
+      "width": 390,
+      "expected": [
+        "Retry now",
+        "Cancel job"
+      ]
+    },
+    {
+      "state": "RetryScheduled",
+      "surface": "full",
+      "width": 390,
+      "expected": [
+        "Retry now",
+        "Cancel job"
+      ]
+    },
+    {
+      "state": "Dead",
+      "surface": "drawer",
+      "width": 390,
+      "expected": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "state": "Dead",
+      "surface": "full",
+      "width": 390,
+      "expected": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "state": "Isolated",
+      "surface": "drawer",
+      "width": 390,
+      "expected": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "state": "Isolated",
+      "surface": "full",
+      "width": 390,
+      "expected": [
+        "Redrive as new job",
+        "Correct and redrive",
+        "Reconcile applied effect",
+        "Close problem"
+      ]
+    },
+    {
+      "state": "Cancelled",
+      "surface": "drawer",
+      "width": 390,
+      "expected": []
+    },
+    {
+      "state": "Cancelled",
+      "surface": "full",
+      "width": 390,
+      "expected": []
+    },
+    "real encrypted payload: wrong code, unlock, clipboard equals displayed JSON, edit/seal/redrive, successor completion, source relock and live resolved groups",
+    "RetryScheduled -> Completed through confirmed UI; live controls disappear",
+    "real public demo omits private action groups"
+  ],
+  "errors": []
+}

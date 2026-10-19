@@ -15,6 +15,7 @@ package/dist/JobFailure.js
 package/dist/JobId.js
 package/dist/JobIdentity.js
 package/dist/JobLifecycle.js
+package/dist/JobOperators.js
 package/dist/JobPayload.js
 package/dist/JobPayloadCodec.js
 package/dist/JobPolicy.js
@@ -27,6 +28,7 @@ package/dist/internal/JobTransaction.js
 package/dist/JobTransaction.js
 package/dist/JobWorker.js
 package/dist/JobWorkerRuntime.js
+package/dist/internal/postgresql/Operators.js
 package/dist/PollingJobWorker.js
 package/dist/PostgreSqlDrizzleSchema.js
 package/dist/PostgreSqlJobs.js
@@ -73,6 +75,8 @@ package/dist/JobIdentity.d.ts.map
 package/dist/JobIdentity.js.map
 package/dist/JobLifecycle.d.ts.map
 package/dist/JobLifecycle.js.map
+package/dist/JobOperators.d.ts.map
+package/dist/JobOperators.js.map
 package/dist/JobPayload.d.ts.map
 package/dist/JobPayload.js.map
 package/dist/JobPayloadCodec.d.ts.map
@@ -97,6 +101,8 @@ package/dist/JobWorker.d.ts.map
 package/dist/JobWorker.js.map
 package/dist/JobWorkerRuntime.d.ts.map
 package/dist/JobWorkerRuntime.js.map
+package/dist/internal/postgresql/Operators.d.ts.map
+package/dist/internal/postgresql/Operators.js.map
 package/dist/PollingJobWorker.d.ts.map
 package/dist/PollingJobWorker.js.map
 package/dist/PostgreSqlDrizzleSchema.d.ts.map
@@ -128,6 +134,7 @@ package/specs/architecture-decisions.md
 package/CHANGELOG.md
 package/specs/core-contract.md
 package/specs/drizzle-compatibility.md
+package/specs/operator-contract.md
 package/specs/postgresql-backend.md
 package/README.md
 package/specs/release-qualification.md
@@ -147,6 +154,7 @@ package/dist/JobFailure.d.ts
 package/dist/JobId.d.ts
 package/dist/JobIdentity.d.ts
 package/dist/JobLifecycle.d.ts
+package/dist/JobOperators.d.ts
 package/dist/JobPayload.d.ts
 package/dist/JobPayloadCodec.d.ts
 package/dist/JobPolicy.d.ts
@@ -159,6 +167,7 @@ package/dist/internal/JobTransaction.d.ts
 package/dist/JobTransaction.d.ts
 package/dist/JobWorker.d.ts
 package/dist/JobWorkerRuntime.d.ts
+package/dist/internal/postgresql/Operators.d.ts
 package/dist/PollingJobWorker.d.ts
 package/dist/PostgreSqlDrizzleSchema.d.ts
 package/dist/PostgreSqlJobs.d.ts

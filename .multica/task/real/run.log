@@ -1,0 +1,2149 @@
+[15:34:54.956] INFO (#979): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:54.958] INFO (#1015): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:54.959] INFO (#1033): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:54.962] INFO (#997): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:54.966] INFO (#979): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:54.969] INFO (#1033): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:54.972] INFO (#1015): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:54.978] INFO (#997): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:54.985] INFO (#979): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:54.986] INFO (#1033): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:54.989] INFO (#1015): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:54.991] INFO (#997): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:54.993] INFO (#1122): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:34:54.997] INFO (#1122): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:54.997] INFO (#1122): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:54.999] INFO (#1134): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.003] INFO (#1134): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.004] INFO (#1134): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.004] INFO (#979): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.007] INFO (#1142): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.010] INFO (#1033): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.012] INFO (#1142): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.012] INFO (#1142): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.013] INFO (#1200): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.016] INFO (#1200): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.016] INFO (#1200): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.017] INFO (#1015): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.018] INFO (#1203): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:34:55.021] INFO (#1203): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.021] INFO (#1203): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.022] INFO (#979): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.023] INFO (#1206): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:34:55.027] INFO (#1206): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.027] INFO (#1206): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.028] INFO (#1033): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.032] INFO (#1172): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.034] INFO (#1015): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.036] INFO (#1172): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.036] INFO (#1172): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.037] INFO (#1213): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:34:55.040] INFO (#1213): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.040] INFO (#1213): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.041] INFO (#1252): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.041] INFO (#997): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.045] INFO (#1252): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.045] INFO (#1252): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.046] INFO (#1277): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.048] INFO (#997): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.049] INFO (#979): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.050] INFO (#1277): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.050] INFO (#1277): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.051] INFO (#1314): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:34:55.055] INFO (#1314): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.055] INFO (#1314): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.056] INFO (#1033): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.057] INFO (#1333): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.061] INFO (#1333): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.061] INFO (#1333): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.062] INFO (#1360): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.063] INFO (#1015): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.070] INFO (#1360): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.070] INFO (#1360): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.075] INFO (#1385): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:34:55.076] INFO (#1033): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.078] INFO (#1385): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.078] INFO (#1385): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.079] INFO (#1416): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:34:55.082] INFO (#1416): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.082] INFO (#1416): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.083] INFO (#1455): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:34:55.083] INFO (#1015): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.087] INFO (#1455): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.087] INFO (#1455): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.088] INFO (#1490): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.089] INFO (#997): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.092] INFO (#1490): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.092] INFO (#1490): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.093] INFO (#1513): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.095] INFO (#997): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.104] INFO (#1513): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.104] INFO (#1513): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.105] INFO (#1591): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.108] INFO (#1591): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.108] INFO (#1591): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.110] INFO (#1618): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.110] INFO (#1015): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.114] INFO (#1618): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.114] INFO (#1618): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.115] INFO (#1647): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.117] INFO (#1015): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.119] INFO (#1647): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.119] INFO (#1647): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.120] INFO (#997): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.121] INFO (#1703): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.124] INFO (#1703): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.124] INFO (#1703): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.125] INFO (#1744): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.126] INFO (#997): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.129] INFO (#1744): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.129] INFO (#1744): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.129] INFO (#1755): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.130] INFO (#1015): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.135] INFO (#1755): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.135] INFO (#1755): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.136] INFO (#1794): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.138] INFO (#1015): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.140] INFO (#1794): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.140] INFO (#1794): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.141] INFO (#997): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.142] INFO (#1811): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.145] INFO (#1811): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.145] INFO (#1811): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.145] INFO (#1852): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.147] INFO (#997): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.149] INFO (#1852): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.149] INFO (#1852): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.150] INFO (#1863): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.158] INFO (#1863): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.158] INFO (#1863): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.158] INFO (#1894): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:34:55.162] INFO (#1894): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:55.162] INFO (#1894): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:55.279] INFO (#2000): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:55.282] INFO (#2000): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.298] INFO (#2049): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:55.301] INFO (#2049): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.760] INFO (#2603): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:55.760] INFO (#2641): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:55.760] INFO (#2623): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:55.761] INFO (#2585): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:55.763] INFO (#2603): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.763] INFO (#2641): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.764] INFO (#2623): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:55.764] INFO (#2585): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:56.547] INFO (#3205): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:56.547] INFO (#3223): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:56.548] INFO (#3241): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:56.550] INFO (#3259): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:56.550] INFO (#3205): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:56.551] INFO (#3241): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:56.551] INFO (#3223): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:56.553] INFO (#3259): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:57.077] INFO (#3705): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:57.078] INFO (#3725): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:57.081] INFO (#3743): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:57.083] INFO (#3705): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:57.084] INFO (#3725): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:57.084] INFO (#3743): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:57.086] INFO (#3763): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:57.091] INFO (#3763): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:57.781] INFO (#4282): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:57.782] INFO (#4318): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:57.782] INFO (#4264): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:57.785] INFO (#4300): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:57.785] INFO (#4282): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:57.786] INFO (#4318): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:57.786] INFO (#4264): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:57.788] INFO (#4300): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:58.505] INFO (#4839): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:58.505] INFO (#4801): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:58.505] INFO (#4819): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:58.507] INFO (#4857): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:58.508] INFO (#4839): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:58.508] INFO (#4819): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:58.508] INFO (#4801): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:58.510] INFO (#4857): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:59.277] INFO (#5378): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:59.278] INFO (#5432): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:59.278] INFO (#5414): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:59.279] INFO (#5396): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:59.281] INFO (#5378): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:59.281] INFO (#5414): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:59.282] INFO (#5432): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:59.282] INFO (#5396): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:59.420] INFO (#5731): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:59.421] INFO (#5713): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:59.421] INFO (#5767): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:59.424] INFO (#5731): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:59.424] INFO (#5713): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:59.424] INFO (#5767): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:59.438] INFO (#5749): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:59.442] INFO (#5749): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:59.445] INFO (#5749): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:59.450] INFO (#5905): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:34:59.452] INFO (#5905): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:34:59.452] INFO (#5905): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:34:59.562] INFO (#6021): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:59.562] INFO (#6057): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:59.563] INFO (#6039): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:34:59.565] INFO (#6021): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:59.566] INFO (#6057): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:34:59.566] INFO (#6039): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:00.025] INFO (#6487): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:00.025] INFO (#6451): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:00.026] INFO (#6469): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:00.028] INFO (#6505): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:00.029] INFO (#6451): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:00.029] INFO (#6487): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:00.030] INFO (#6469): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:00.031] INFO (#6505): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:00.769] INFO (#7200): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:00.769] INFO (#7222): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:00.770] INFO (#7260): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:00.772] INFO (#7240): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:00.773] INFO (#7200): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:00.774] INFO (#7260): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:00.774] INFO (#7222): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:00.776] INFO (#7240): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:01.515] INFO (#7857): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:01.516] INFO (#7821): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:01.516] INFO (#7839): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:01.518] INFO (#7803): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:01.519] INFO (#7857): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:01.519] INFO (#7821): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:01.522] INFO (#7839): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:01.522] INFO (#7803): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:02.230] INFO (#8366): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:02.231] INFO (#8323): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:02.231] INFO (#8348): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:02.232] INFO (#8305): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:02.234] INFO (#8366): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:02.235] INFO (#8323): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:02.235] INFO (#8348): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:02.235] INFO (#8305): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:02.980] INFO (#8915): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:02.981] INFO (#8935): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:02.981] INFO (#8953): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:02.983] INFO (#8971): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:02.983] INFO (#8915): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:02.984] INFO (#8953): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:02.984] INFO (#8935): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:02.987] INFO (#8971): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:03.696] INFO (#9474): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:03.697] INFO (#9492): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:03.697] INFO (#9528): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:03.699] INFO (#9510): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:03.700] INFO (#9492): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:03.700] INFO (#9474): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:03.700] INFO (#9528): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:03.702] INFO (#9510): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:04.413] INFO (#9993): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:04.413] INFO (#10049): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:04.414] INFO (#10031): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:04.416] INFO (#10013): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:04.417] INFO (#10049): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:04.418] INFO (#9993): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:04.418] INFO (#10031): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:04.420] INFO (#10013): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:04.562] INFO (#10308): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:04.563] INFO (#10356): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:04.563] INFO (#10338): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:04.566] INFO (#10308): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:04.567] INFO (#10338): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:04.567] INFO (#10356): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:04.596] INFO (#10450): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:04.598] INFO (#10450): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:04.699] INFO (#10629): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:04.707] INFO (#10629): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:04.708] INFO (#10681): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:04.709] INFO (#10661): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:04.713] INFO (#10681): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:04.713] INFO (#10661): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:05.175] INFO (#11037): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:05.176] INFO (#11091): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:05.176] INFO (#11073): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:05.178] INFO (#11055): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:05.178] INFO (#11037): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:05.179] INFO (#11091): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:05.179] INFO (#11073): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:05.180] INFO (#11055): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:05.815] INFO (#11787): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:05.815] INFO (#11823): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:05.816] INFO (#11805): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:05.818] INFO (#11769): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:05.819] INFO (#11787): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:05.820] INFO (#11823): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:05.826] INFO (#11769): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:05.832] INFO (#11805): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:05.843] INFO (#11805): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:05.848] INFO (#11925): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:35:05.850] INFO (#11925): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:05.851] INFO (#11925): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:06.801] INFO (#12447): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:06.801] INFO (#12429): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:06.801] INFO (#12483): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:06.803] INFO (#12465): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:06.804] INFO (#12447): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:06.804] INFO (#12483): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:06.804] INFO (#12429): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:06.822] INFO (#12465): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:06.825] INFO (#12465): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:06.830] INFO (#12628): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:35:06.833] INFO (#12628): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:06.833] INFO (#12628): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.297] INFO (#13254): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:07.298] INFO (#13308): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:07.298] INFO (#13272): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:07.300] INFO (#13290): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:07.304] INFO (#13308): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.305] INFO (#13254): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.305] INFO (#13272): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.310] INFO (#13290): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.317] INFO (#13308): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.318] INFO (#13272): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.319] INFO (#13254): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.321] INFO (#13290): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.325] INFO (#13412): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.329] INFO (#13412): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.329] INFO (#13412): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.332] INFO (#13397): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.334] INFO (#13254): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.336] INFO (#13397): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.336] INFO (#13397): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.338] INFO (#13415): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.341] INFO (#13308): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.342] INFO (#13415): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.342] INFO (#13415): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.344] INFO (#13443): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.347] INFO (#13272): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.348] INFO (#13443): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.349] INFO (#13443): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.350] INFO (#13475): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.353] INFO (#13475): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.353] INFO (#13475): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.354] INFO (#13479): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.355] INFO (#13290): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.358] INFO (#13479): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.358] INFO (#13479): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.359] INFO (#13308): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.359] INFO (#13481): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.363] INFO (#13481): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.363] INFO (#13481): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.364] INFO (#13488): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.365] INFO (#13272): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.368] INFO (#13488): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.368] INFO (#13488): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.369] INFO (#13254): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.370] INFO (#13525): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:35:07.373] INFO (#13525): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.373] INFO (#13525): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.374] INFO (#13290): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.374] INFO (#13552): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:35:07.376] INFO (#13254): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.378] INFO (#13552): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.378] INFO (#13552): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.379] INFO (#13579): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.380] INFO (#13308): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.381] INFO (#13579): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.382] INFO (#13579): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.382] INFO (#13616): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:35:07.385] INFO (#13616): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.385] INFO (#13616): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.386] INFO (#13635): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.387] INFO (#13272): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.390] INFO (#13635): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.390] INFO (#13635): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.391] INFO (#13290): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.392] INFO (#13670): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:35:07.403] INFO (#13670): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.403] INFO (#13670): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.405] INFO (#13693): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.409] INFO (#13693): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.409] INFO (#13693): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.409] INFO (#13720): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.410] INFO (#13272): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.414] INFO (#13720): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.414] INFO (#13720): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.418] INFO (#13787): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.421] INFO (#13787): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.422] INFO (#13787): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.422] INFO (#13290): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.423] INFO (#13804): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.426] INFO (#13804): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.426] INFO (#13804): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.427] INFO (#13272): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.427] INFO (#13865): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.430] INFO (#13865): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.430] INFO (#13865): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.431] INFO (#13928): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:35:07.432] INFO (#13290): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.435] INFO (#13928): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.435] INFO (#13928): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.435] INFO (#13272): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.438] INFO (#13953): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:35:07.441] INFO (#13953): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.442] INFO (#13953): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.442] INFO (#13290): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.443] INFO (#13986): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.444] INFO (#13272): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.446] INFO (#13986): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.446] INFO (#13986): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.447] INFO (#14005): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.448] INFO (#13290): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:07.449] INFO (#14005): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.450] INFO (#14005): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:07.450] INFO (#14038): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'failure',
+  'jobs.cause_kind': 'failure',
+  'jobs.reason_count_bucket': '1'
+}
+[15:35:07.454] INFO (#14038): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:07.454] INFO (#14038): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:08.627] INFO (#14399): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:08.628] INFO (#14381): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:08.628] INFO (#14435): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:08.630] INFO (#14417): effect-jobs operation completed {
+  'jobs.operation': 'recover-expired',
+  'jobs.phase': 'maintenance',
+  'jobs.outcome': 'success'
+}
+[15:35:08.630] INFO (#14399): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:08.631] INFO (#14435): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:08.635] INFO (#14381): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:08.645] INFO (#14417): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:08.648] INFO (#14381): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:08.650] INFO (#14417): effect-jobs operation completed {
+  'jobs.operation': 'claim',
+  'jobs.phase': 'dispatch',
+  'jobs.outcome': 'success'
+}
+[15:35:08.654] INFO (#14518): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:35:08.657] INFO (#14518): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:08.657] INFO (#14518): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+[15:35:08.658] INFO (#14572): effect-jobs operation completed {
+  'jobs.operation': 'execute',
+  'jobs.phase': 'handler',
+  'jobs.outcome': 'success'
+}
+[15:35:08.666] INFO (#14572): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'finalization',
+  'jobs.outcome': 'success'
+}
+[15:35:08.666] INFO (#14572): effect-jobs operation completed {
+  'jobs.operation': 'finalize',
+  'jobs.phase': 'protocol',
+  'jobs.outcome': 'success'
+}
+{"result":"PASS","checks":28,"version":"16.15"}

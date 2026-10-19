@@ -1,0 +1,6 @@
+$ bun run toolchain:setup && tsc -p tsconfig.playground.json
+$ effect-tsgo patch --typescript --oxlint
+typescript skipped because its hash matches the replacement.
+oxlint skipped because its hash matches the replacement.
+oxlint-dts skipped because its hash matches the replacement.
+oxlint-tsgolint skipped because its hash matches the replacement.
