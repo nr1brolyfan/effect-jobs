@@ -45,17 +45,15 @@ export const styles = stylex.create({
   },
   form: { display: "grid", gap: spacing.sm },
   plaintext: { userSelect: "none" },
-  result: {
-    display: "flex",
-    alignItems: "center",
-    gap: spacing.md,
-    borderTopWidth: "1px",
-    borderTopStyle: "solid",
-    borderTopColor: colors.border,
-    paddingTop: spacing.md,
-    margin: 0,
-    color: colors.muted,
-    fontSize: typography.secondary
-  },
-  resultValue: { margin: 0 }
+  srOnly: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: "hidden",
+    clipPath: "inset(50%)",
+    whiteSpace: "nowrap",
+    borderWidth: 0
+  }
 })

@@ -2,6 +2,7 @@ import * as stylex from "@stylexjs/stylex"
 import { colors, spacing, radii, typography, shadows } from "../../ui/Theme.stylex.js"
 
 export const styles = stylex.create({
+  detailActions: { display: "grid", gap: spacing.lg, minWidth: 0, alignContent: "start" },
   app: {
     backgroundColor: colors.canvas,
     color: colors.text,

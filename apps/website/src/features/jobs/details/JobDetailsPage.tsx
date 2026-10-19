@@ -45,9 +45,12 @@ export function JobDetailsPage({
         <div {...stylex.props(styles.sections)}>
           <JobOverview detail={detail} />
           <JobScheduling detail={detail} />
-          <div key={detailIdentityKey(detail)} {...stylex.props(styles.slots)}>
+          <div
+            key={detailIdentityKey(detail)}
+            {...stylex.props(styles.slots, !repairSlot && styles.payloadOnly)}
+          >
             {payloadSlot}
-            <div {...stylex.props(styles.slotStack)}>{repairSlot}</div>
+            {repairSlot}
           </div>
           <JobTimeline detail={detail} />
           <JobRelatedJobs detail={detail} onRelated={onRelated} />

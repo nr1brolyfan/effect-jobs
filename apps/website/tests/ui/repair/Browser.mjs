@@ -117,6 +117,15 @@ try {
             ) {
               return { path: resolve(external, `${args.path.split("/").at(-1)}.ts`) }
             }
+            if (args.path.startsWith("@effect-jobs/playground-contracts/")) {
+              return {
+                path: resolve(
+                  repository,
+                  "packages/playground-contracts/dist",
+                  `${args.path.split("/").at(-1)}.js`
+                )
+              }
+            }
             if (args.path.startsWith(".") && args.importer.startsWith(scratch)) {
               const target = resolve(dirname(args.importer), args.path)
               if (await exists(target)) {
@@ -249,7 +258,9 @@ try {
   await page.evaluate(() => window.repairFixture.revise())
   await expect(page.getByRole("dialog")).toHaveCount(0)
   await page.evaluate(() => window.repairFixture.readonly())
-  await expect(page.getByText("Read only", { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole("region", { name: "Repair and resolution", exact: true })
+  ).toHaveCount(0)
   await expect(correct).toHaveCount(0)
   checks.push(
     "stale lifecycle/version closes editor; read-only removes mutation controls"
@@ -258,7 +269,7 @@ try {
     window.repairFixture.reset()
     window.repairFixture.encrypted()
   })
-  await expect(correct).toBeDisabled()
+  await expect(correct).toHaveCount(0)
   await page.evaluate(() => {
     window.repairFixture.reset()
     window.repairFixture.uncertain()
@@ -276,7 +287,7 @@ try {
     true
   )
   checks.push(
-    "encrypted correction disabled; unknown manual close requires explicit confirmation"
+    "unsupported encrypted correction absent; unknown manual close requires explicit confirmation"
   )
   await page.evaluate(() => window.repairFixture.reset())
   await page.setViewportSize({ width: 360, height: 700 })

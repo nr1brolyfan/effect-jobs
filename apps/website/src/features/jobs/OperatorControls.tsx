@@ -63,6 +63,9 @@ export const OperatorControls = ({
     void runtime.run(runtime.operate(action, crypto.randomUUID(), action === "redrive"))
     dismiss()
   }
+  if (!available.retryNow.enabled && !available.cancel.enabled) {
+    return null
+  }
   return (
     <section {...stylex.props(styles.panel)} aria-label="Job operators">
       <div {...stylex.props(styles.actions)}>
@@ -73,7 +76,7 @@ export const OperatorControls = ({
               : value === "cancel"
                 ? available.cancel
                 : available.redrive
-          return (
+          return entry.enabled ? (
             <Button
               key={value}
               disabled={blocked || !entry.enabled}
@@ -84,7 +87,7 @@ export const OperatorControls = ({
             >
               {labels[value]}
             </Button>
-          )
+          ) : null
         })}
       </div>
       <dialog

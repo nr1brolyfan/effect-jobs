@@ -30,6 +30,7 @@ import { stateOrder, stateLabels } from "../../ui/Theme.stylex.js"
 import { StatsChart } from "./StatsChart.js"
 import { jobIcon, jobName, type IconName } from "./Design.js"
 import { styles, layout } from "./Dashboard.stylex.js"
+import * as OperatorEligibility from "./OperatorEligibility.js"
 import { OperatorControls } from "./OperatorControls.js"
 import type { Runtime } from "./Runtime.js"
 
@@ -366,6 +367,19 @@ export const Dashboard = ({
     state.busy || state.pending !== undefined || state.sandbox.expiresAt <= now
   const detail = state.detail
   const identity = `${demo ? "demo" : "private"}:${state.sandbox.ref.sandboxId}:${state.sandbox.ref.generation}:${detail?.job.jobId}`
+  const repairActions = detail
+    ? OperatorEligibility.repairApplicability(detail, demo)
+    : undefined
+  const operatorActions = detail
+    ? OperatorEligibility.eligibility(detail, state.sandbox, now)
+    : undefined
+  const hasActions =
+    repairActions &&
+    (repairActions.redrive ||
+      repairActions.correct ||
+      repairActions.resolve ||
+      operatorActions?.retryNow.enabled ||
+      operatorActions?.cancel.enabled)
   const detailProps = detail
     ? {
         detail,
@@ -381,40 +395,41 @@ export const Dashboard = ({
             allowCopyEncoded={!demo}
           />
         ),
-        repairSlot: (
-          <>
-            <OperatorControls
-              runtime={runtime}
-              detail={detail}
-              sandbox={state.sandbox}
-              now={now}
-              blocked={unavailable}
-            />
-            <JobRepairPanel
-              key={identity}
-              detail={detail}
-              readOnly={
-                demo ||
-                state.busy ||
-                (state.pending !== undefined && state.pending.kind !== "repair") ||
-                state.sandbox.expiresAt <= now
-              }
-              pending={state.pending?.kind === "repair" ? state.pending.command : null}
-              onSubmit={(command) => void runtime.run(runtime.repair(command))}
-              onReceipt={() => void runtime.run(runtime.receipt)}
-              onResolve={(command) => void runtime.run(runtime.repair(command))}
-            />
-            <p role="status">{state.notice}</p>
-            {state.pending && state.pending.kind !== "repair" && (
-              <Button
-                disabled={state.busy}
-                onClick={() => void runtime.run(runtime.receipt)}
-              >
-                Check exact {state.pending.kind} receipt
-              </Button>
-            )}
-          </>
-        )
+        repairSlot:
+          hasActions || state.pending || state.notice ? (
+            <div {...stylex.props(styles.detailActions)}>
+              <OperatorControls
+                runtime={runtime}
+                detail={detail}
+                sandbox={state.sandbox}
+                now={now}
+                blocked={unavailable}
+              />
+              <JobRepairPanel
+                key={identity}
+                detail={detail}
+                readOnly={demo}
+                blocked={
+                  state.busy ||
+                  (state.pending !== undefined && state.pending.kind !== "repair") ||
+                  state.sandbox.expiresAt <= now
+                }
+                pending={state.pending?.kind === "repair" ? state.pending.command : null}
+                onSubmit={(command) => void runtime.run(runtime.repair(command))}
+                onReceipt={() => void runtime.run(runtime.receipt)}
+                onResolve={(command) => void runtime.run(runtime.repair(command))}
+              />
+              {state.notice && <p role="status">{state.notice}</p>}
+              {state.pending && state.pending.kind !== "repair" && (
+                <Button
+                  disabled={state.busy}
+                  onClick={() => void runtime.run(runtime.receipt)}
+                >
+                  Check exact {state.pending.kind} receipt
+                </Button>
+              )}
+            </div>
+          ) : null
       }
     : undefined
   if (route._tag !== "List") {

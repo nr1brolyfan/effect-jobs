@@ -57,3 +57,10 @@ export const explanation = (reason: JobOperatorReason | null): string => {
       return "This action is unavailable for the current state."
   }
 }
+
+// Detail eligibility is server-projected semantic metadata, never busy/unlock state.
+export const repairApplicability = (detail: JobDetail, readOnly: boolean) => ({
+  redrive: !readOnly && detail.eligibility.redrive.enabled,
+  correct: !readOnly && detail.eligibility.correctedRedrive.enabled,
+  resolve: !readOnly && detail.problem !== null && detail.problem.state !== "Resolved"
+})

@@ -302,23 +302,18 @@ const PayloadContent = ({
         </>
       )}
       {payload._tag === "Available" ? (
-        <p role="status" {...stylex.props(styles.note)}>
+        <p
+          role="status"
+          {...stylex.props(
+            status.includes("authentication failed") ||
+              status === "Clipboard unavailable."
+              ? styles.note
+              : styles.srOnly
+          )}
+        >
           {status}
         </p>
       ) : null}
-      <dl {...stylex.props(styles.result)}>
-        <dt>Result</dt>
-        <dd {...stylex.props(styles.resultValue)}>
-          {detail.result._tag === "Unavailable" ? (
-            <span
-              aria-label={`Result unavailable: ${detail.result.reason.replaceAll("-", " ")}.`}
-              title={`Result unavailable: ${detail.result.reason.replaceAll("-", " ")}.`}
-            >
-              —
-            </span>
-          ) : null}
-        </dd>
-      </dl>
     </section>
   )
 }

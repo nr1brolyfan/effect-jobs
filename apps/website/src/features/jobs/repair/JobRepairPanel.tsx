@@ -16,12 +16,14 @@ import type {
   Investigation
 } from "@effect-jobs/playground-contracts/Repairs"
 import { Button, Field } from "../../../ui/Primitives.js"
+import { repairApplicability } from "../OperatorEligibility.js"
 import * as PayloadDiff from "./PayloadDiff.js"
 import { styles } from "./JobRepairPanel.stylex.js"
 
 export interface Props {
   readonly detail: JobDetail
   readonly readOnly: boolean
+  readonly blocked?: boolean
   readonly pending: JobRepairCommand | null
   readonly onSubmit: (command: JobRepairCommand) => void
   readonly onReceipt: () => void
@@ -36,6 +38,7 @@ export const JobRepairPanel = (props: Props) => {
 const RepairForm = ({
   detail,
   readOnly,
+  blocked = false,
   pending,
   onSubmit,
   onReceipt,
@@ -115,6 +118,7 @@ const RepairForm = ({
   const disabled =
     sealing ||
     readOnly ||
+    blocked ||
     pending !== null ||
     snapshot !== versionKey ||
     !PayloadDiff.validReason(reason) ||
@@ -238,6 +242,10 @@ const RepairForm = ({
     }
     close()
   }
+  const { redrive, correct, resolve } = repairApplicability(detail, readOnly)
+  if (!redrive && !correct && !resolve && (readOnly || !pending)) {
+    return null
+  }
   return (
     <section
       ref={panel}
@@ -246,47 +254,58 @@ const RepairForm = ({
       aria-label="Repair and resolution"
     >
       <h3 {...stylex.props(styles.heading)}>Repair and resolution</h3>
-      {readOnly ? (
-        <p {...stylex.props(styles.explanation)}>Read only</p>
-      ) : pending ? (
+      {pending && (
         <div role="status">
           <p>
             The outcome of request {pending.requestId} is unconfirmed. Check its exact
             receipt before taking another action.
           </p>
-          <Button onClick={onReceipt}>Check repair receipt</Button>
-        </div>
-      ) : (
-        <div {...stylex.props(styles.actions)}>
-          <Button
-            disabled={!detail.eligibility.redrive.enabled}
-            onClick={(event) => begin("redrive", event.currentTarget)}
-          >
-            Redrive as new job
-          </Button>
-          <Button
-            disabled={
-              !detail.eligibility.correctedRedrive.enabled ||
-              (synthetic && !session?.document)
-            }
-            onClick={(event) => begin("corrected-redrive", event.currentTarget)}
-          >
-            Correct and redrive
-          </Button>
-          <Button
-            disabled={!detail.problem || detail.problem.state === "Resolved"}
-            onClick={(event) => begin("reconcile-applied", event.currentTarget)}
-          >
-            Reconcile applied effect
-          </Button>
-          <Button
-            disabled={!detail.problem || detail.problem.state === "Resolved"}
-            onClick={(event) => begin("manual-close", event.currentTarget)}
-          >
-            Close problem
+          <Button disabled={blocked} onClick={onReceipt}>
+            Check repair receipt
           </Button>
         </div>
       )}
+      <>
+        <div {...stylex.props(styles.actions)}>
+          {redrive && (
+            <Button
+              disabled={blocked || pending !== null}
+              onClick={(event) => begin("redrive", event.currentTarget)}
+            >
+              Redrive as new job
+            </Button>
+          )}
+          {correct && (
+            <Button
+              disabled={blocked || pending !== null || (synthetic && !session?.document)}
+              onClick={(event) => begin("corrected-redrive", event.currentTarget)}
+            >
+              Correct and redrive
+            </Button>
+          )}
+          {resolve && (
+            <Button
+              disabled={blocked || pending !== null}
+              onClick={(event) => begin("reconcile-applied", event.currentTarget)}
+            >
+              Reconcile applied effect
+            </Button>
+          )}
+          {resolve && (
+            <Button
+              disabled={blocked || pending !== null}
+              onClick={(event) => begin("manual-close", event.currentTarget)}
+            >
+              Close problem
+            </Button>
+          )}
+        </div>
+        {correct && synthetic && !session?.document && (
+          <p {...stylex.props(styles.explanation)}>
+            Unlock the payload to correct and redrive.
+          </p>
+        )}
+      </>
       <Dialog.Root
         open={action !== null && !readOnly && pending === null}
         onOpenChange={(open) => {

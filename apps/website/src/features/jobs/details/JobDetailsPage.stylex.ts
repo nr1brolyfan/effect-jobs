@@ -52,12 +52,6 @@ export const styles = stylex.create({
     alignItems: "start",
     gridColumn: "1 / -1"
   },
-  slotStack: {
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr)",
-    gap: spacing.lg,
-    minWidth: 0,
-    alignContent: "start"
-  },
+  payloadOnly: { gridTemplateColumns: "minmax(0, 1fr)" },
   metadata: { minWidth: 0 }
 })
