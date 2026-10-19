@@ -164,9 +164,9 @@ export function Icon({
 // Controlled values and onValueChange use the pinned Base UI Root contract.
 export const TabsRoot = BaseTabs.Root
 export type TabsRootProps = BaseTabs.Root.Props
-export type TabsListProps = BaseTabs.List.Props
+export type TabsListProps = BaseTabs.List.Props & { readonly wrap?: boolean }
 export const TabsList = forwardRef<HTMLDivElement, TabsListProps>(function TabsList(
-  { className, activateOnFocus = false, ...props },
+  { className, activateOnFocus = false, wrap = true, ...props },
   ref
 ) {
   return (
@@ -178,6 +178,7 @@ export const TabsList = forwardRef<HTMLDivElement, TabsListProps>(function TabsL
         [
           stylex.props(
             styles.tabsList,
+            !wrap && styles.tabsNoWrap,
             state.orientation === "vertical" && styles.tabsVertical
           ).className,
           typeof className === "function" ? className(state) : className

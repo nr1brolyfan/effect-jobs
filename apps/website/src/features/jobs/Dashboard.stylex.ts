@@ -286,7 +286,6 @@ export const layout = stylex.create({
   },
   tabs: {
     display: "flex",
-    flexWrap: "nowrap",
     overflowX: "auto",
     gap: "3px",
     borderBottom: `1px solid ${colors.border}`,

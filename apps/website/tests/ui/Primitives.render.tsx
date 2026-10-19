@@ -18,6 +18,7 @@ function Fixture() {
   const tab = useRef<HTMLElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const popup = useRef<HTMLDivElement>(null)
+  const [vertical, setVertical] = useState(false)
   const [value, setValue] = useState("all")
   const [activations, setActivations] = useState(0)
   const [submits, setSubmits] = useState(0)
@@ -65,7 +66,9 @@ function Fixture() {
         Submits: <span id="submits">{submits}</span>; disabled clicks:{" "}
         <span id="disabled-clicks">{disabledClicks}</span>
       </p>
+      <Button onClick={() => setVertical(!vertical)}>Toggle tabs orientation</Button>
       <TabsRoot
+        orientation={vertical ? "vertical" : "horizontal"}
         value={value}
         onValueChange={(next) => {
           setValue(next)
@@ -129,6 +132,7 @@ function Fixture() {
         hasPrevious={current > 1}
         hasNext={current < 9}
         disabled={loading}
+        busy={loading}
         onPage={(page) => {
           setCurrent(page)
           setLastAction(`page ${page}`)

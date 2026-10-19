@@ -10,10 +10,13 @@ const require = createRequire(resolve("apps/playground-worker/package.json"))
 const { chromium, expect } = require("@playwright/test")
 const { WebSocketServer } = createRequire(require.resolve("miniflare"))("ws")
 const baseline = process.argv.includes("--before")
-const output = `.multica/declutter/${baseline ? "before" : "after"}`
+const output =
+  process.env.DECLUTTER_OUTPUT_DIRECTORY ??
+  `.multica/declutter/${baseline ? "before" : "after"}`
+const buildDirectory = process.env.DECLUTTER_BUILD_DIRECTORY ?? "apps/website/dist"
 mkdirSync(output, { recursive: true })
-const script = readFileSync("apps/website/dist/Client.js")
-const css = readFileSync("apps/website/dist/Jobs.css")
+const script = readFileSync(resolve(buildDirectory, "Client.js"))
+const css = readFileSync(resolve(buildDirectory, "Jobs.css"))
 const sandbox = {
   ...F.sandbox,
   expiresAt: Date.now() + 3600000,
@@ -50,7 +53,8 @@ let delay = 0,
 const requests = [],
   errors = [],
   checks = [],
-  heights = {}
+  heights = {},
+  mobileTabs = {}
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost")
   if (url.pathname === "/Client.js" || url.pathname === "/Jobs.css") {
@@ -133,7 +137,9 @@ try {
   )
   for (const width of [1440, 1024, 390]) {
     await page.setViewportSize({ width, height: 1000 })
+    await page.locator(".state-tabs").scrollIntoViewIfNeeded()
     await page.screenshot({ path: `${output}/${width}.png`, fullPage: true })
+    await page.locator(".state-tabs").screenshot({ path: `${output}/${width}-tabs.png` })
     heights[width] = await page.evaluate(() => ({
       height: document.documentElement.scrollHeight,
       tableY: document.querySelector(".jobs-table").getBoundingClientRect().top + scrollY,
@@ -173,17 +179,80 @@ try {
     for (const s of states) {
       await select(s)
     }
-    // The last tab is reachable through roving keyboard focus without a network read on focus.
+    // Assert actual layout and scrolling: a wrapped fourth row can also receive End.
+    const list = page.getByRole("tablist", { name: "Job states" })
+    const geometry = await list.evaluate((el) => ({
+      wrap: getComputedStyle(el).flexWrap,
+      clientWidth: el.clientWidth,
+      scrollWidth: el.scrollWidth,
+      height: el.getBoundingClientRect().height,
+      tops: [...el.querySelectorAll('[role="tab"]')].map(
+        (tab) => tab.getBoundingClientRect().top
+      )
+    }))
+    console.log(JSON.stringify({ mobileGeometry: geometry }))
+    assert.equal(geometry.tops.length, 8)
+    assert(
+      geometry.tops.every((top) => Math.abs(top - geometry.tops[0]) < 0.5),
+      "all eight mobile tabs must occupy one row"
+    )
+    assert.equal(geometry.wrap, "nowrap")
+    assert(
+      geometry.scrollWidth > geometry.clientWidth,
+      "mobile tabs must overflow horizontally"
+    )
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+    await select("all")
     const all = page.getByRole("tab", { name: /^All jobs/ })
+    const cancelled = page.getByRole("tab", { name: /^Cancelled/ })
     await all.focus()
+    await list.evaluate((el) => {
+      el.scrollLeft = 0
+    })
     const prior = requests.length
+    const urlBeforeFocus = page.url()
     await page.keyboard.press("End")
-    await expect(page.getByRole("tab", { name: /^Cancelled/ })).toBeFocused()
+    await expect(cancelled).toBeFocused()
+    await expect.poll(() => list.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0)
+    const end = await list.evaluate((el) => {
+      const bounds = el.getBoundingClientRect()
+      const target = el.querySelector('[role="tab"]:last-child').getBoundingClientRect()
+      return {
+        scrollLeft: el.scrollLeft,
+        visible: target.left >= bounds.left - 0.5 && target.right <= bounds.right + 0.5
+      }
+    })
+    assert(end.visible, "End must reveal Cancelled inside the scrolling list")
     assert.equal(requests.length, prior)
+    assert.equal(page.url(), urlBeforeFocus)
+    await expect(all).toHaveAttribute("aria-selected", "true")
+    await expect(result).toHaveText("77 results")
     await page.keyboard.press("Enter")
+    await expect(cancelled).toHaveAttribute("aria-selected", "true")
     await expect(result).toHaveText("11 results")
-    const tabBounds = await page.getByRole("tab", { name: /^Cancelled/ }).boundingBox()
-    assert(tabBounds.x >= 0 && tabBounds.x + tabBounds.width <= 390)
+    await expect.poll(() => requests.at(-1)?.state).toBe("Cancelled")
+    assert.equal(new URL(page.url()).searchParams.get("state"), "Cancelled")
+    const priorHome = requests.length
+    const cancelledUrl = page.url()
+    await page.keyboard.press("Home")
+    await expect(all).toBeFocused()
+    await expect
+      .poll(() => list.evaluate((el) => el.scrollLeft))
+      .toBeLessThan(end.scrollLeft)
+    assert.equal(requests.length, priorHome)
+    assert.equal(page.url(), cancelledUrl)
+    await expect(cancelled).toHaveAttribute("aria-selected", "true")
+    await page.keyboard.press("Enter")
+    await expect(all).toHaveAttribute("aria-selected", "true")
+    await expect(result).toHaveText("77 results")
+    await expect.poll(() => requests.at(-1)?.state).toBe(undefined)
+    assert.equal(new URL(page.url()).searchParams.get("state"), null)
+    Object.assign(mobileTabs, {
+      geometry,
+      end,
+      homeScrollLeft: await list.evaluate((el) => el.scrollLeft)
+    })
+    await select("Isolated")
     await select("all")
     // No removed State form draft can restore the previous tab when applying kind.
     await page.getByLabel("Kind (exact)", { exact: true }).fill("test.even")
@@ -354,6 +423,7 @@ try {
         result: "PASS",
         baseline,
         heights,
+        mobileTabs,
         checks,
         requests,
         errors,

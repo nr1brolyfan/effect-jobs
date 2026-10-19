@@ -147,6 +147,7 @@ export const styles = stylex.create({
     backgroundColor: colors.canvas,
     maxWidth: "100%"
   },
+  tabsNoWrap: { flexWrap: "nowrap" },
   tabsVertical: { flexDirection: "column", alignItems: "stretch" },
   tab: {
     backgroundColor: { default: "transparent", ":hover:enabled": colors.raised },

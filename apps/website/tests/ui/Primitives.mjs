@@ -171,6 +171,52 @@ try {
   checks.push(
     "manual controlled tabs: arrow focus includes discoverable disabled tab without action; Enter/Space activate, wrap, real linked panels and global count labels"
   )
+  const list = page.getByRole("tablist", { name: "Job state", exact: true })
+  const horizontal = await list.evaluate((el) => ({
+    wrap: getComputedStyle(el).flexWrap,
+    direction: getComputedStyle(el).flexDirection
+  }))
+  assert.deepEqual(horizontal, { wrap: "wrap", direction: "row" })
+  // Constrain the existing consumer to demonstrate actual default wrapping.
+  await list.evaluate((el) => {
+    el.style.width = "180px"
+  })
+  assert(
+    await list.evaluate(
+      (el) =>
+        new Set(
+          [...el.querySelectorAll('[role="tab"]')].map(
+            (tab) => tab.getBoundingClientRect().top
+          )
+        ).size > 1
+    )
+  )
+  await list.evaluate((el) => {
+    el.style.removeProperty("width")
+  })
+  await page.getByRole("button", { name: "Toggle tabs orientation" }).click()
+  await expect(list).toHaveAttribute("aria-orientation", "vertical")
+  assert.deepEqual(
+    await list.evaluate((el) => ({
+      wrap: getComputedStyle(el).flexWrap,
+      direction: getComputedStyle(el).flexDirection,
+      align: getComputedStyle(el).alignItems
+    })),
+    { wrap: "wrap", direction: "column", align: "stretch" }
+  )
+  await all.focus()
+  await page.keyboard.press("End")
+  await expect(pending).toBeFocused()
+  await expect(all).toHaveAttribute("aria-selected", "true")
+  await page.keyboard.press("Enter")
+  await expect(pending).toHaveAttribute("aria-selected", "true")
+  await page.keyboard.press("Home")
+  await page.keyboard.press("Enter")
+  await expect(all).toHaveAttribute("aria-selected", "true")
+  await page.getByRole("button", { name: "Toggle tabs orientation" }).click()
+  checks.push(
+    "default horizontal wrapping preserved; vertical column/stretch and manual End/Home activation preserved"
+  )
   const trigger = page.getByRole("button", { name: "Exact timestamp", exact: true })
   await trigger.focus()
   await page.keyboard.press("Enter")

@@ -616,7 +616,7 @@ export const Dashboard = ({
                   )
                 }}
               >
-                <TabsList aria-label="Job states" {...classes("state-tabs")}>
+                <TabsList wrap={false} aria-label="Job states" {...classes("state-tabs")}>
                   <TabsTab
                     value="all"
                     {...classes("state-tab")}
