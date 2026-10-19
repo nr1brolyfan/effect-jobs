@@ -45,7 +45,6 @@ const classStyles = {
   "sidebar-navigation": layout.nav,
   "sidebar-item": layout.navButton,
   active: layout.navActive,
-  "sidebar-note": layout.sidebarNote,
   "sidebar-profile": layout.profile,
   "profile-avatar": layout.avatar,
   "dashboard-main": layout.main,
@@ -441,14 +440,18 @@ export const Dashboard = ({
             <span {...stylex.props(layout.sublabel)}>Developer console</span>
           </div>
         </div>
-        <div {...classes("workspace-switcher")}>
+        <Button
+          variant="ghost"
+          {...classes("workspace-switcher")}
+          aria-label="Playground workspace"
+        >
           <span {...classes("workspace-avatar")}>P</span>
-          <div>
+          <span {...stylex.props(layout.controlText)}>
             <strong>Playground</strong>
             <span {...stylex.props(layout.sublabel)}>Personal workspace</span>
-          </div>
+          </span>
           <Icon name="down" />
-        </div>
+        </Button>
         <nav {...classes("sidebar-navigation")} aria-label="Main navigation">
           <p {...stylex.props(layout.navLabel)}>WORKSPACE</p>
           {navigation.map(([label, icon]) => (
@@ -468,29 +471,41 @@ export const Dashboard = ({
             </Button>
           ))}
         </nav>
-        <div {...classes("sidebar-note")}>
-          <Icon name="code" />
-          <p {...stylex.props(layout.paragraph)}>All data is synthetic.</p>
-        </div>
-        <div {...classes("sidebar-profile")}>
+        <Button
+          variant="ghost"
+          {...classes("sidebar-profile")}
+          aria-label={
+            demo ? "Demo viewer · Public · read only" : "Demo admin · Isolated sandbox"
+          }
+        >
           <span {...classes("profile-avatar")}>DA</span>
-          <div {...stylex.props(layout.desktop)}>
+          <span {...stylex.props(layout.desktop, layout.controlText)}>
             <strong>{demo ? "Demo viewer" : "Demo admin"}</strong>
             <span {...stylex.props(layout.sublabel)}>
               {demo ? "Public · read only" : "Isolated sandbox"}
             </span>
-          </div>
-          <Icon name="shield" />
-        </div>
+          </span>
+          <span {...stylex.props(layout.desktop)}>
+            <Icon name="down" />
+          </span>
+        </Button>
       </aside>
       <div {...classes("dashboard-main")}>
         <div {...classes("topbar")}>
-          <div {...classes("breadcrumb")}>
-            <Icon name="grid" />
-            <span>Workspace</span>
+          <nav {...classes("breadcrumb")} aria-label="Breadcrumb">
+            <Button variant="ghost" {...stylex.props(layout.breadcrumbButton)}>
+              <Icon name="grid" />
+              Workspace
+            </Button>
             <Icon name="chevron" />
-            <strong>Background Jobs</strong>
-          </div>
+            <Button
+              variant="ghost"
+              {...stylex.props(layout.breadcrumbButton)}
+              aria-current="page"
+            >
+              Background Jobs
+            </Button>
+          </nav>
           <span {...classes("environment-badge")}>Local playground</span>
         </div>
         <div {...classes("dashboard-canvas")}>

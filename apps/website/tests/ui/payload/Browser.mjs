@@ -22,6 +22,7 @@ const paths = [
   "src/features/jobs/payload/JobPayloadPanel.tsx",
   "src/features/jobs/payload/JobPayloadPanel.stylex.ts",
   "src/features/jobs/payload/BrowserDocumentCrypto.ts",
+  "src/features/jobs/payload/SyntheticDocumentSession.tsx",
   "tests/ui/payload/Render.tsx"
 ]
 const hash = (value) => createHash("sha256").update(value).digest("hex")
@@ -194,11 +195,16 @@ try {
   const locked = async () => {
     await expect(plain).toHaveCount(0)
   }
-  await expect(page.getByText(/Synthetic demo data only/)).toBeVisible()
+  await expect(page.getByText(/Synthetic demo data only/)).toHaveCount(0)
+  await expect(page.getByLabel("Demo unlock code")).toHaveAttribute(
+    "placeholder",
+    "Demo code: 123"
+  )
   await expect(page.locator("details")).toHaveCount(0)
   await expect(page.getByText(/Shape validation does not verify/)).toHaveCount(0)
-  await expect(page.getByLabel("Result unavailable: not stored.")).toHaveText("—")
-  await expect(page.getByText("Schema 1 · Valid", { exact: true })).toBeVisible()
+  await expect(
+    page.getByText(/Schema 1 · Valid|^Encoded JSON$|Readable JSON ·/)
+  ).toHaveCount(0)
   await page.getByLabel("Demo unlock code").fill("321")
   await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
   await expect(page.getByRole("status")).toContainText("authentication failed")
@@ -408,7 +414,7 @@ try {
         }
       })
     )
-  assert.equal(borders.length, 3)
+  assert.equal(borders.length, 2)
   assert.ok(
     borders.every(
       (border) =>

@@ -96,13 +96,20 @@ export const layout = stylex.create({
   sublabel: { display: "block", color: colors.muted, fontSize: typography.small },
   workspace: {
     display: { default: "flex", "@media (max-width: 900px)": "none" },
-    gap: "10px",
+    gap: "8px",
     alignItems: "center",
-    padding: "10px",
+    padding: "8px",
     border: `1px solid ${colors.border}`,
     borderRadius: radii.md,
-    backgroundColor: colors.surface
+    backgroundColor: {
+      default: colors.surface,
+      ":hover:enabled": colors.raised,
+      ":active:enabled": colors.canvas
+    },
+    textAlign: "left",
+    justifyContent: "flex-start"
   },
+  controlText: { flexGrow: 1, minWidth: 0 },
   avatar: {
     width: "28px",
     height: "28px",
@@ -148,15 +155,19 @@ export const layout = stylex.create({
     borderColor: colors.border,
     boxShadow: `inset 3px 0 ${colors.accent}`
   },
-  sidebarNote: {
-    margin: "auto 6px 24px",
-    paddingTop: "20px",
-    color: colors.muted,
-    display: { default: "block", "@media (max-width: 900px)": "none" }
-  },
   profile: {
     marginTop: "auto",
-    paddingTop: "18px",
+    padding: { default: "14px 6px", "@media (max-width: 900px)": "14px 0" },
+    justifyContent: { default: "flex-start", "@media (max-width: 900px)": "center" },
+    minWidth: 0,
+    textAlign: "left",
+    borderRadius: radii.md,
+    borderWidth: 0,
+    backgroundColor: {
+      default: "transparent",
+      ":hover:enabled": colors.raised,
+      ":active:enabled": colors.canvas
+    },
     display: "flex",
     alignItems: "center",
     gap: "10px",
@@ -178,10 +189,21 @@ export const layout = stylex.create({
     justifyContent: "space-between",
     padding: { default: "0 36px", "@media (max-width: 600px)": "0 14px" }
   },
+  breadcrumbButton: {
+    padding: "4px 6px",
+    fontSize: typography.secondary,
+    fontWeight: 500,
+    color: colors.muted,
+    backgroundColor: {
+      default: "transparent",
+      ":hover:enabled": colors.raised,
+      ":active:enabled": colors.canvas
+    }
+  },
   breadcrumb: {
     display: "flex",
     alignItems: "center",
-    gap: "12px",
+    gap: { default: "6px", "@media (max-width: 600px)": "2px" },
     color: colors.muted,
     fontSize: typography.secondary
   },
@@ -321,7 +343,7 @@ export const layout = stylex.create({
     padding: "8px 14px"
   },
   td: { padding: "13px 14px", borderBottom: `1px solid ${colors.border}` },
-  row: { backgroundColor: { default: "transparent", ":hover": colors.raised } },
+  row: { backgroundColor: { default: "transparent", ":hover:enabled": colors.raised } },
   identity: { display: "flex", alignItems: "center", gap: "11px" },
   jobIcon: {
     width: "31px",

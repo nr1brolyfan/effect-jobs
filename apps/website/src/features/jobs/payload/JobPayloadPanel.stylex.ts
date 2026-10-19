@@ -38,12 +38,18 @@ export const styles = stylex.create({
   literal: { color: colors.retryScheduled },
   viewerHeader: {
     display: "flex",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     alignItems: "center",
     flexWrap: "wrap",
     gap: spacing.sm
   },
   form: { display: "grid", gap: spacing.sm },
+  unlockRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center"
+  },
+  codeField: { display: "block", flex: "1 1 120px", minWidth: "120px" },
   plaintext: { userSelect: "none" },
   srOnly: {
     position: "absolute",

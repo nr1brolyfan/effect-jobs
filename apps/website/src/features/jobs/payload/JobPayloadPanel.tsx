@@ -7,6 +7,7 @@ import { Button, Field } from "../../../ui/Primitives.js"
 import { useSyntheticDocumentSession } from "./SyntheticDocumentSession.js"
 import * as BrowserDocumentCrypto from "./BrowserDocumentCrypto.js"
 import { styles } from "./JobPayloadPanel.stylex.js"
+import { styles as primitiveStyles } from "../../../ui/Primitives.stylex.js"
 
 const HighlightedJson = ({ value }: { readonly value: unknown }) => {
   const text = JSON.stringify(value, null, 2)
@@ -210,12 +211,6 @@ const PayloadContent = ({
       ) : (
         <>
           <div {...stylex.props(styles.viewerHeader)}>
-            <span {...stylex.props(styles.note)}>
-              {plaintext === null ? "Encoded JSON" : "Readable JSON · decrypted locally"}
-            </span>
-            <span {...stylex.props(styles.note)}>
-              Schema {payload.catalog.version} · {payload.validation}
-            </span>
             {canCopy ? (
               <Button onClick={copyPayload} disabled={copyBusy || busy}>
                 Copy payload
@@ -242,13 +237,13 @@ const PayloadContent = ({
           </pre>
           {synthetic || compatible ? (
             <>
-              <p {...stylex.props(styles.note)}>
-                {synthetic
-                  ? "Synthetic demo data only · demo code: 123."
-                  : "PrivateDocumentV1 · local keys required."}
-              </p>
+              {compatible ? (
+                <p {...stylex.props(styles.note)}>
+                  PrivateDocumentV1 · local keys required.
+                </p>
+              ) : null}
               <form
-                {...stylex.props(styles.form)}
+                {...stylex.props(styles.form, synthetic && styles.unlockRow)}
                 autoComplete="off"
                 onSubmit={(event) => {
                   event.preventDefault()
@@ -256,14 +251,17 @@ const PayloadContent = ({
                 }}
               >
                 {synthetic ? (
-                  <Field label="Demo unlock code">
+                  <label {...stylex.props(styles.codeField)}>
+                    <span {...stylex.props(styles.srOnly)}>Demo unlock code</span>
                     <input
+                      {...stylex.props(primitiveStyles.control)}
+                      placeholder="Demo code: 123"
                       ref={code}
                       type="password"
                       autoComplete="off"
                       maxLength={128}
                     />
-                  </Field>
+                  </label>
                 ) : (
                   <>
                     <Field label="Local encryption key (hex)">
