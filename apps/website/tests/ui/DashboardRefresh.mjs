@@ -232,7 +232,6 @@ try {
     )
     delay = 0
     await page.getByRole("tab", { name: /^Completed/ }).click()
-    await page.getByRole("button", { name: "Apply filters", exact: true }).click()
     await expect(page.locator(".results-count")).toContainText("50 results")
     assert.equal(
       await page.getByRole("button", { name: "Page 3", exact: true }).count(),
@@ -261,7 +260,6 @@ try {
     fail = true
     const oldCount = requests.length
     await page.getByRole("tab", { name: /^Dead/ }).click()
-    await page.getByRole("button", { name: "Apply filters", exact: true }).click()
     await expect.poll(() => requests.length).toBeGreaterThan(oldCount)
     delay = 0
     fail = false

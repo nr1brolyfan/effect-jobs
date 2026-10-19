@@ -72,6 +72,12 @@ export const make = (client: Client, sandbox: SandboxView, options: Options = {}
       },
       restore: (context, notice) => {
         state.restore(context, notice)
+        if (context === null) {
+          state.registry.set(
+            state.atoms.filters,
+            Navigation.listStateFilters(new URL(window.location.href))
+          )
+        }
         viewportPending = true
         void run(state.refresh)
       }
@@ -210,6 +216,12 @@ export const make = (client: Client, sandbox: SandboxView, options: Options = {}
       })
     )
   )
+  if (state.registry.get(navigation.route)._tag === "List") {
+    state.registry.set(
+      state.atoms.filters,
+      Navigation.listStateFilters(new URL(window.location.href))
+    )
+  }
   connect()
   void run(state.refresh).then(followRoute)
   const dispose = () => {

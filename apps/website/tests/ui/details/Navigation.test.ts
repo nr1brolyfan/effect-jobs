@@ -10,7 +10,7 @@ const sandbox = Schema.decodeSync(SandboxRef)({ sandboxId: "synthetic", generati
 const jobId = Schema.decodeSync(JobId)("job a/#%")
 const context: Navigation.JobReturnContext = {
   sandbox,
-  filters: { state: "Dead", kind: "synthetic.kind" },
+  filters: { state: "Dead" },
   view: "jobs",
   pageSize: 20,
   pageNumber: 3,
@@ -64,6 +64,24 @@ function browser(initial = "https://example.test/jobs") {
 }
 
 describe("detail navigation in the existing Atom registry", () => {
+  it("retains only one valid state parameter for list requests", () => {
+    for (const query of [
+      "",
+      "state=unknown",
+      "state=Dead&state=Pending",
+      "kind=hidden&due=true"
+    ]) {
+      expect(
+        Navigation.listStateFilters(new URL(`https://example.test/jobs?${query}`))
+      ).toEqual({})
+    }
+    expect(
+      Navigation.listStateFilters(
+        new URL("https://example.test/jobs?state=Pending&kind=hidden&due=true")
+      )
+    ).toEqual({ state: "Pending" })
+  })
+
   it("parses encoded identities and refuses missing, repeated, foreign-mode or stale generations", () => {
     expect(
       Navigation.readRoute(
@@ -153,13 +171,13 @@ describe("detail navigation in the existing Atom registry", () => {
       nav.close()
       current = {
         ...context,
-        filters: { kind: "synthetic.kind" },
+        filters: {},
         pageNumber: 1,
         cursors: [undefined]
       }
       nav.syncList()
       expect(new URL(port.location.href).searchParams.get("state")).toBeNull()
-      expect(new URL(port.location.href).searchParams.get("kind")).toBe("synthetic.kind")
+      expect(new URL(port.location.href).searchParams.get("kind")).toBeNull()
       expect(registry.get(nav.returnContext)?.filters).toEqual(current.filters)
       nav.openFull(jobId)
       const detailUrl = port.location.href
@@ -173,6 +191,46 @@ describe("detail navigation in the existing Atom registry", () => {
       registry.dispose()
     }
   })
+
+  it.each(["private", "demo"] as const)(
+    "normalizes legacy %s list URLs on entry and Back while retaining state",
+    (mode) => {
+      const path = mode === "demo" ? "/demo" : "/jobs"
+      const port = browser(
+        `https://example.test${path}?state=Dead&kind=hidden&due=true#jobs`
+      )
+      const registry = AtomRegistry.make()
+      const scope = Scope.makeUnsafe()
+      const restored: Array<Navigation.JobReturnContext | null> = []
+      const legacy = { ...context, filters: { state: "Dead" as const, kind: "hidden" } }
+      const nav = Effect.runSync(
+        Navigation.make(registry, port, {
+          mode,
+          sandbox: () => sandbox,
+          capture: () => legacy,
+          relock: () => undefined,
+          restore: (saved) => restored.push(saved)
+        }).pipe(Scope.provide(scope))
+      )
+      try {
+        expect(port.location.href).toBe(`https://example.test${path}?state=Dead#jobs`)
+        nav.openFull(jobId)
+        // Simulate a legacy history entry created before the toolbar was removed.
+        port.history.back()
+        port.history.replaceState(null, "", `${path}?state=Dead&kind=hidden&due=1`)
+        port.emit("popstate")
+        expect(new URL(port.location.href).searchParams.get("state")).toBe("Dead")
+        expect(new URL(port.location.href).searchParams.has("kind")).toBe(false)
+        expect(new URL(port.location.href).searchParams.has("due")).toBe(false)
+        expect(restored.at(-1)?.filters).toEqual({ state: "Dead" })
+        expect(restored.at(-1)?.pageNumber).toBe(1)
+        expect(restored.at(-1)?.cursors).toEqual([undefined])
+      } finally {
+        Effect.runSync(Scope.close(scope, Exit.void))
+        registry.dispose()
+      }
+    }
+  )
 
   it("direct demo links return to demo and stale scopes clear anchors without retargeting jobs", () => {
     const port = browser("https://example.test/demo/jobs/source?generation=2")

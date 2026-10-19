@@ -29,7 +29,6 @@ export const styles = stylex.create({
   controls: { display: "flex", gap: spacing.sm, flexWrap: "wrap" },
   details: { overflowWrap: "anywhere" },
   retry: { fontSize: typography.secondary },
-  search: { minWidth: 0 },
   notice: { color: colors.muted, fontSize: typography.small }
 })
 
@@ -303,13 +302,6 @@ export const layout = stylex.create({
     borderBottom: "2px solid transparent"
   },
   tabActive: { color: colors.accent, borderBottomColor: colors.accent },
-  filters: {
-    display: "flex",
-    gap: "8px",
-    alignItems: "end",
-    padding: "10px 16px",
-    flexWrap: "wrap"
-  },
   scroll: { width: "100%", overflowX: "auto" },
   table: {
     fontVariantNumeric: "tabular-nums",

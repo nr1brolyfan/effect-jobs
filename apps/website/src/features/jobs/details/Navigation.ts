@@ -2,6 +2,7 @@
 import { Effect, Schema } from "effect"
 import * as Atom from "effect/reactivity/Atom"
 import type * as AtomRegistry from "effect/reactivity/AtomRegistry"
+import { JobState } from "effect-jobs/JobLifecycle"
 import { JobId } from "effect-jobs/JobId"
 import { Generation, type SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import type { Cursor, JobFilters } from "@effect-jobs/playground-contracts/Jobs"
@@ -32,7 +33,13 @@ const listPath = (mode: JobMode) => (mode === "demo" ? "/demo" : "/jobs")
 const detailPrefix = (mode: JobMode) => (mode === "demo" ? "/demo/jobs/" : "/jobs/")
 const sameScope = (a: SandboxRef, b: SandboxRef) =>
   a.sandboxId === b.sandboxId && a.generation === b.generation
-const shareableFilterKeys = new Set(["state", "kind", "resolution", "needsAttention"])
+const shareableFilterKeys = new Set(["state", "resolution", "needsAttention"])
+
+export function listStateFilters(url: URL): JobFilters {
+  const values = url.searchParams.getAll("state")
+  const state = values[0]
+  return values.length === 1 && Schema.is(JobState)(state) ? { state } : {}
+}
 
 export function detailPath(mode: JobMode, jobId: JobId, generation: number) {
   return `${detailPrefix(mode)}${encodeURIComponent(jobId)}?generation=${generation}`
@@ -83,6 +90,7 @@ export function captureReturnContext(context: JobReturnContext): JobReturnContex
     Object.entries(context.filters).filter(([key]) => shareableFilterKeys.has(key))
   ) as JobFilters
   const bounded =
+    context.filters.kind === undefined &&
     context.cursors.length <= 100 &&
     Number.isInteger(context.pageNumber) &&
     context.pageNumber >= 1 &&
@@ -142,9 +150,22 @@ export const make = (
   bindings: NavigationBindings
 ) =>
   Effect.gen(function* () {
-    const route = Atom.make<JobRoute>(
-      readRoute(new URL(browser.location.href), bindings.mode, bindings.sandbox())
-    ).pipe(Atom.keepAlive)
+    // Normalize legacy dashboard controls on entry and every history navigation.
+    // Keep state tabs and unrelated parameters; backend filtering is unchanged.
+    const currentRoute = () => {
+      const url = new URL(browser.location.href)
+      const parsed = readRoute(url, bindings.mode, bindings.sandbox())
+      if (
+        parsed._tag === "List" &&
+        (url.searchParams.has("kind") || url.searchParams.has("due"))
+      ) {
+        url.searchParams.delete("kind")
+        url.searchParams.delete("due")
+        browser.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`)
+      }
+      return parsed
+    }
+    const route = Atom.make<JobRoute>(currentRoute()).pipe(Atom.keepAlive)
     const returnContext = Atom.make<JobReturnContext | null>(null).pipe(Atom.keepAlive)
     let pushedFromList = false
     let disposed = false
@@ -156,11 +177,7 @@ export const make = (
         return
       }
       bindings.relock()
-      const parsed = readRoute(
-        new URL(browser.location.href),
-        bindings.mode,
-        bindings.sandbox()
-      )
+      const parsed = currentRoute()
       const next =
         parsed._tag === "Detail" &&
         (scopeRevoked || !sameScope(detailScope, bindings.sandbox()))
@@ -173,7 +190,7 @@ export const make = (
         const saved = registry.get(returnContext)
         const valid = saved !== null && sameScope(saved.sandbox, bindings.sandbox())
         bindings.restore(
-          valid ? saved : null,
+          valid ? captureReturnContext(saved) : null,
           valid
             ? returnNotice
             : "Return context unavailable or stale. Showing the first page in this mode."
@@ -230,7 +247,7 @@ export const make = (
         returnNotice =
           context.pageNumber === captured.pageNumber
             ? ""
-            : "Saved page anchor exceeds the bounded return history. Showing the first page."
+            : "Saved page anchor no longer matches dashboard filters or bounded return history. Showing the first page."
         if (!sameScope(context.sandbox, bindings.sandbox())) {
           clear()
           return

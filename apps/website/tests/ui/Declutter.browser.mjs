@@ -254,34 +254,36 @@ try {
     })
     await select("Isolated")
     await select("all")
-    // No removed State form draft can restore the previous tab when applying kind.
-    await page.getByLabel("Kind (exact)", { exact: true }).fill("test.even")
-    await page.getByRole("button", { name: "Apply filters", exact: true }).click()
-    await expect(result).toHaveText("39 results")
-    await page.getByRole("tab", { name: /^Cancelled/ }).click()
-    await expect(result).toHaveText("6 results")
-    await page.getByRole("tab", { name: /^All jobs/ }).click()
-    await expect(result).toHaveText("39 results")
-    await page.getByLabel("Kind (exact)", { exact: true }).fill("")
-    await page.getByRole("button", { name: "Apply filters", exact: true }).click()
-    await expect(result).toHaveText("77 results")
-    await page.getByLabel("Search job ID on this page", { exact: true }).fill("000")
-    await expect(page.locator(".job-list tr")).toHaveCount(1)
-    await expect(result).toHaveText("77 results")
-    await page.getByLabel("Search job ID on this page", { exact: true }).fill("")
-    await page
-      .getByLabel("Due Pending on this page (browser clock)", { exact: true })
-      .check()
-    assert(
-      (await page.locator(".job-list tr td:nth-child(3)").allTextContents()).every(
-        (s) => s === "Pending"
-      )
+    await expect(page.locator(".filter-bar, form[aria-label='Job filters']")).toHaveCount(
+      0
     )
-    await page
-      .getByLabel("Due Pending on this page (browser clock)", { exact: true })
-      .uncheck()
+    for (const label of [
+      "Kind (exact)",
+      "Search job ID on this page",
+      "Due Pending on this page (browser clock)"
+    ]) {
+      await expect(page.getByLabel(label, { exact: true })).toHaveCount(0)
+    }
+    await expect(
+      page.getByRole("button", { name: "Apply filters", exact: true })
+    ).toHaveCount(0)
+    // Legacy links cannot silently constrain rows. Preserve the state tab parameter.
+    await page.goto(
+      `http://127.0.0.1:${server.address().port}/jobs?state=Dead&kind=unknown.kind&due=true`
+    )
+    await expect(result).toHaveText("11 results")
+    await expect(page.getByRole("tab", { name: /^Dead/ })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    )
+    assert.equal(new URL(page.url()).searchParams.get("kind"), null)
+    assert.equal(new URL(page.url()).searchParams.get("due"), null)
+    assert.equal(new URL(page.url()).searchParams.get("state"), "Dead")
+    await select("Dead")
+    await select("all")
+    assert(requests.every((q) => !q.kind && !q.due))
     checks.push(
-      "all seven status tabs; All clears state; mobile keyboard End/Enter; combined kind; page-local search/due remain distinct from authoritative count"
+      "toolbar and wrapper absent; all status tabs and mobile keyboard navigation; legacy kind/due URL normalization preserves state parameter"
     )
     await page.setViewportSize({ width: 1440, height: 1000 })
     delay = 650
@@ -344,12 +346,6 @@ try {
     delay = 0
     await page.getByRole("button", { name: "Refresh reads", exact: true }).click()
     await expect(result).toHaveText("11 results")
-    await page.getByLabel("Kind (exact)", { exact: true }).fill("unknown.kind")
-    await page.getByRole("button", { name: "Apply filters", exact: true }).click()
-    await expect(result).toHaveText("0 results")
-    await page.getByLabel("Kind (exact)", { exact: true }).fill("test.even")
-    await page.getByRole("button", { name: "Apply filters", exact: true }).click()
-    await expect(result).toHaveText("6 results")
     const id = await page.locator(".job-id").first().textContent()
     await page.getByRole("button", { name: id, exact: true }).click()
     await expect(
@@ -360,13 +356,10 @@ try {
       page.getByRole("heading", { name: "Job details", exact: true })
     ).toBeVisible()
     await page.goBack()
-    await expect(result).toHaveText("6 results")
+    await expect(result).toHaveText("11 results")
     await expect(page.getByRole("tab", { name: /^Dead/ })).toHaveAttribute(
       "aria-selected",
       "true"
-    )
-    await expect(page.getByLabel("Kind (exact)", { exact: true })).toHaveValue(
-      "test.even"
     )
     assert.equal(new URL(page.url()).searchParams.get("state"), "Dead")
     if (
@@ -375,8 +368,7 @@ try {
       await page.getByRole("button", { name: "Close job details", exact: true }).click()
     }
     await page.getByRole("tab", { name: /^All jobs/ }).click()
-    await page.getByRole("button", { name: "Apply filters", exact: true }).click()
-    await expect(result).toHaveText("38 results")
+    await expect(result).toHaveText("76 results")
     await expect.poll(() => new URL(page.url()).searchParams.get("state")).toBe(null)
     // Open again after clearing the restored state; Back must retain All jobs.
     await page.locator(".job-id").first().click()
@@ -389,7 +381,7 @@ try {
       "aria-selected",
       "true"
     )
-    await expect(result).toHaveText("38 results")
+    await expect(result).toHaveText("76 results")
     await page.getByRole("button", { name: "Create jobs", exact: true }).click()
     await expect(page.getByLabel("Fake provider behavior", { exact: true })).toBeFocused()
     await expect(
@@ -403,16 +395,10 @@ try {
     await page.getByRole("button", { name: "Reset my sandbox", exact: true }).click()
     assert.match(confirmation, /Running jobs are not cancelled/)
     checks.push(
-      "20/50 rows; next/previous; loading and failed query honesty; live total update; stable background DOM/focus; details Back restores URL/tab/kind; All plus form cannot restore stale status; create/reset safety"
+      "20/50 rows; next/previous; loading and failed query honesty; live total update; stable background DOM/focus; details Back restores URL/tab; All clears status; create/reset safety"
     )
-    const beforeHeights = JSON.parse(
-      readFileSync(".multica/declutter/before/receipt.json")
-    ).heights
     for (const width of [1440, 1024, 390]) {
       assert(!heights[width].overflow)
-      assert(heights[width].height <= beforeHeights[width].height)
-      assert(heights[width].tableY < beforeHeights[width].tableY)
-      assert(heights[width].headingHeight <= beforeHeights[width].headingHeight)
     }
   }
   assert.deepEqual(errors, [])

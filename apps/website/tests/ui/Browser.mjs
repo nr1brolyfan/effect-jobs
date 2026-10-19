@@ -192,10 +192,8 @@ try {
   await text(status(), "connected")
   assert.equal(await rows().first().getByRole("button").innerText(), "demo-job-06")
   const cursor = await page.evaluate(() => window.jobsBrowserTest.snapshot().cursor)
-  await page.getByLabel("Search job ID on this page").fill("06")
   await page.evaluate(() => window.jobsBrowserTest.update())
   await read()
-  await expect(rows()).toHaveCount(1)
   assert.match(await rows().first().innerText(), /Completed/)
   assert.equal(
     await page.evaluate(() => window.jobsBrowserTest.snapshot().cursor),
@@ -205,9 +203,8 @@ try {
     await page.evaluate(() => window.jobsBrowserTest.snapshot().selected),
     "demo-job-02"
   )
-  assert.equal(await page.getByLabel("Search job ID on this page").inputValue(), "06")
   checks.push(
-    "page 2 lifecycle update replaces metadata and retains opaque cursor, selected job and local search"
+    "page 2 lifecycle update replaces metadata and retains opaque cursor, selected job"
   )
 
   await page.evaluate(() => window.jobsBrowserTest.mode("invalid-cursor"))
@@ -220,25 +217,11 @@ try {
   await page.evaluate(() => window.jobsBrowserTest.mode("normal"))
   await page.getByRole("button", { name: "First page", exact: true }).click()
   await text(status(), "connected")
-  await page.getByLabel("Search job ID on this page").fill("")
   await page.getByRole("tab", { name: /^Dead/ }).click()
-  await page.getByLabel("Kind (exact)").fill("playground.scenario")
-  await page.getByRole("button", { name: "Apply filters", exact: true }).click()
   await text(status(), "connected")
   await expect(rows()).toHaveCount(2)
-  await page.getByLabel("Kind (exact)").fill("absent")
-  await page.getByRole("button", { name: "Apply filters", exact: true }).click()
-  await text(
-    page.getByRole("region", { name: "Jobs list" }),
-    "No jobs match on this page"
-  )
-  checks.push(
-    "combined state/kind filters, empty state and explicit invalid-cursor restart"
-  )
+  checks.push("status tab filtering and explicit invalid-cursor restart")
 
-  await page.getByLabel("Kind (exact)").fill("playground.scenario")
-  await page.getByRole("button", { name: "Apply filters", exact: true }).click()
-  await text(status(), "connected")
   await page.evaluate(() => window.jobsBrowserTest.mode("error"))
   await read()
   await text(status(), "stale · unavailable")
@@ -272,11 +255,7 @@ try {
     true
   )
   await page.getByRole("tab", { name: /^All jobs/ }).click()
-  await page.getByRole("button", { name: "Apply filters", exact: true }).click()
   await text(status(), "connected")
-  await page.getByLabel("Due Pending on this page (browser clock)").check()
-  await expect(rows()).toHaveCount(1)
-  await page.getByLabel("Due Pending on this page (browser clock)").uncheck()
   await page.getByRole("button", { name: "demo-job-01", exact: true }).focus()
   await page.keyboard.press("Enter")
   await text(page.getByRole("region", { name: "Job details" }), "Producer identity")
@@ -288,9 +267,7 @@ try {
   )
   await accessibility()
   await page.screenshot({ path: resolve(output, "mobile.png"), fullPage: true })
-  checks.push(
-    "390px viewport without horizontal overflow, due page view and keyboard detail navigation"
-  )
+  checks.push("390px viewport without horizontal overflow, keyboard detail navigation")
   checks.push(
     `axe-core WCAG 2 A/AA and 2.1 AA: ${accessibilityFailures.length} violations across desktop/mobile audits`
   )

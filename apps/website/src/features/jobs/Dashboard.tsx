@@ -69,7 +69,6 @@ const classStyles = {
   "state-tabs": layout.tabs,
   "state-tab": layout.tab,
   "active-tab": layout.tabActive,
-  "filter-bar": layout.filters,
   "table-scroll": layout.scroll,
   "jobs-table": layout.table,
   "job-identity": layout.identity,
@@ -109,26 +108,12 @@ const navigation: ReadonlyArray<readonly [string, IconName]> = [
 
 const JobsTable = ({
   runtime,
-  data,
-  search,
-  due
+  data
 }: {
   readonly runtime: Runtime
   readonly data: ReadonlyArray<JobSummary>
-  readonly search: string
-  readonly due: boolean
 }) => {
   const selected = useAtomValue(runtime.atoms.selected)
-  const now = useAtomValue(runtime.now)
-  const visible = useMemo(
-    () =>
-      data.filter(
-        (job) =>
-          job.jobId.toLowerCase().includes(search.toLowerCase()) &&
-          (!due || (job.state === "Pending" && job.availableAt <= now))
-      ),
-    [data, search, due, now]
-  )
   const columns = useMemo<ColumnDef<JobSummary>[]>(
     () => [
       {
@@ -197,8 +182,9 @@ const JobsTable = ({
     ],
     [runtime, selected]
   )
+  const rows = useMemo(() => [...data], [data])
   const table = useReactTable({
-    data: visible,
+    data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (job) => job.jobId,
@@ -241,7 +227,7 @@ const JobsTable = ({
           </tbody>
         </table>
       </div>
-      {visible.length === 0 && (
+      {data.length === 0 && (
         <div {...classes("empty-state")}>
           <Icon name="jobs" />
           <strong>{"No jobs match on this page"}</strong>
@@ -279,9 +265,6 @@ export const Dashboard = ({
     }
     focusedSelection.current = state.selected
   }, [state.selected])
-  const [search, setSearch] = useState("")
-  const [due, setDue] = useState(false)
-  const [kind, setKind] = useState("")
   const [scenario, setScenario] = useState<typeof ScenarioId.Type>("success")
   const [count, setCount] = useState(1)
   const close = () => {
@@ -303,7 +286,6 @@ export const Dashboard = ({
   useLayoutEffect(() => {
     runtime.restoreViewport()
   }, [runtime, state.resultsCurrent, state.page])
-  useEffect(() => setKind(state.filters.kind ?? ""), [state.filters.kind])
   const fullDetailFocus = useRef<{ identity: string; focused: boolean } | undefined>(
     undefined
   )
@@ -636,47 +618,6 @@ export const Dashboard = ({
                   ))}
                 </TabsList>
                 <TabsPanel value={state.filters.state ?? "all"} keepMounted>
-                  <form
-                    {...classes("filter-bar")}
-                    aria-label="Job filters"
-                    onSubmit={(event) => {
-                      event.preventDefault()
-                      void runtime.run(
-                        runtime.filter({
-                          resolution: state.filters.resolution,
-                          needsAttention: state.filters.needsAttention,
-                          state: state.filters.state,
-                          ...(kind === "" ? {} : { kind })
-                        })
-                      )
-                    }}
-                  >
-                    <Field label="Kind (exact)">
-                      <input
-                        value={kind}
-                        onChange={(event) => setKind(event.target.value)}
-                        maxLength={128}
-                      />
-                    </Field>
-                    <Field label="Search this page">
-                      <input
-                        type="search"
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                        aria-label="Search job ID on this page"
-                        maxLength={128}
-                      />
-                    </Field>
-                    <Field label="Due now">
-                      <input
-                        type="checkbox"
-                        checked={due}
-                        onChange={(event) => setDue(event.target.checked)}
-                        aria-label="Due Pending on this page (browser clock)"
-                      />
-                    </Field>
-                    <Button type="submit">Apply filters</Button>
-                  </form>
                   <div aria-busy={state.loading}>
                     {state.page === undefined ? (
                       <div {...classes("empty-state")}>
@@ -684,12 +625,7 @@ export const Dashboard = ({
                         <strong>Connecting to your workspace</strong>
                       </div>
                     ) : (
-                      <JobsTable
-                        runtime={runtime}
-                        data={state.page.items}
-                        search={search}
-                        due={due}
-                      />
+                      <JobsTable runtime={runtime} data={state.page.items} />
                     )}
                   </div>
                   <div {...classes("pagination")}>
