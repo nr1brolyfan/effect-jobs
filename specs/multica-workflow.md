@@ -1,23 +1,23 @@
-# Multica workflow
+# Multica workflow — effect-jobs
 
-Ten dokument opisuje docelowe zasady pracy w projektach effect-auth, effect-jobs i ALDO. Nie jest raportem bieżącego stanu ani automatyczną autoryzacją uruchomienia backlogu, zmian konfiguracji, pushu, merge, publikacji lub deploymentu. Zakres i uprawnienia konkretnej pracy zapisujemy w projekcie i zadaniu Multica.
+This policy applies exclusively to effect-jobs and changes no other project. Canonical project workflow and roster: UPVE-1020.
+
+Ten dokument opisuje zasady pracy w projekcie effect-jobs. Nie jest raportem bieżącego stanu ani automatyczną autoryzacją uruchomienia backlogu, zmian konfiguracji, pushu, merge, publikacji lub deploymentu. Zakres i uprawnienia konkretnej pracy zapisujemy w projekcie i zadaniu Multica.
 
 ## 1. Model i role
 
-**Wszystkie role używają GPT-6.1 Sol z reasoning Medium:** `openai/gpt-6.1-sol#medium`, z jawnym `thinking_level: medium`. Dotyczy to implementorów, trzech reviewerów, triage i koordynatorów. Nie używamy High, innych modeli ani fallbacków.
+**Wszystkie role używają GPT-6.1 Sol z reasoning Medium:** `openai/gpt-6.1-sol#medium`, z jawnym `thinking_level: medium`. Dotyczy to implementora, jednego reviewera, triage i koordynatora. Nie używamy High, innych modeli ani fallbacków.
 
 W Multica używamy runtime **Codex** zamiast OpenCode jako workaround błędów zakończenia streamu. Dla Codex zapis modelu to `gpt-6.1-sol` z osobnym `thinking_level: medium` — ten sam model i reasoning. Zmiana profilu dotyczy kolejnych wykonań; nie przerywamy zdrowych sesji ani nie powtarzamy ukończonych etapów. Workaround nie oznacza naprawy OpenCode.
 
-Każdy projekt ma własny podstawowy roster sześciu wielorazowych profili:
+Każdy projekt ma własny podstawowy roster czterech wielorazowych profili:
 
-| Rola                                                                | Odpowiedzialność                                                                                                                                           |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Implementor                                                         | Implementacja, lokalne testy, handoff i zaakceptowane poprawki na tej samej gałęzi.                                                                        |
-| Reviewer DX / Standardization                                       | Ergonomia, overengineering, spójność, SRP i składanie Layerów.                                                                                             |
-| Reviewer Security / Persistence / Concurrency                       | Granice zaufania, bezpieczeństwo danych oraz trwałość i współbieżność.                                                                                     |
-| Reviewer Correctness / Effect / Tests / Observability / Performance | Poprawność, Effect, testy, diagnostyka i rzeczywisty koszt kodu/importów.                                                                                  |
-| Findings Triage                                                     | Jedna krytyczna ocena wszystkich raportów i jedna lista zaakceptowanych poprawek.                                                                          |
-| Coordinator                                                         | Rozdział zadań, zależności i ownership, dobór potrzebnych reviews do ryzyka zmiany, zlecanie etapów, odbiór wyników, kontrola bramek i autoryzowany merge. |
+| Role        | Responsibility                                                                      |
+| ----------- | ----------------------------------------------------------------------------------- |
+| Implementor | Implementation, local qualification, handoff and accepted original-author fixes.    |
+| Reviewer    | One independent review of the complete frozen integrated diff and real callers.     |
+| Triage      | One independent findings-only adjudication when actual findings need resolution.    |
+| Coordinator | Scope, ownership, dependencies, review choice, evidence and authorized integration. |
 
 **Profil agenta jest stałą rolą, nie pojedynczym taskiem.** Nowe zadanie oznacza osobne issue i wykonanie, nie nowego agenta nazwanego numerem PR-a. Ten sam profil może obsługiwać kilka niezależnych wykonań, każde z własnym kontekstem i worktree. Konfiguracja concurrency nie jest gwarancją przepustowości hosta.
 
@@ -25,15 +25,15 @@ Nie dokładamy ukrytych reviewerów, dodatkowego final review ani koordynatorów
 
 ### Nazewnictwo agentów
 
-Stosujemy **`<projekt> · <rola>`**. Kanoniczne prefiksy projektów to `effect-auth`, `effect-jobs` i `ALDO`; nazwy ról to `Implementor`, `Reviewer DX`, `Reviewer Security`, `Reviewer Correctness`, `Triage` i `Coordinator`.
+Stosujemy **`<projekt> · <rola>`**. For this project use the prefix `effect-jobs` and roles `Implementor`, `Reviewer`, `Triage`, `Coordinator`.
 
-Przykłady: `effect-auth · Implementor`, `effect-jobs · Reviewer Security`, `ALDO · Coordinator`. Pełne połączone zakresy reviewerów opisujemy w ich instrukcjach/opisach, nie rozbudowujemy nimi nazwy profilu.
+Examples: `effect-jobs · Implementor`, `effect-jobs · Reviewer`, `effect-jobs · Coordinator`. Pełne połączone zakresy reviewerów opisujemy w ich instrukcjach/opisach, nie rozbudowujemy nimi nazwy profilu.
 
 Nie dodajemy do nazw modelu, reasoning, numeru issue/PR-a, nazwy funkcjonalności ani fali. „Permissions”, „sessions” i podobne informacje należą do zadań, nie do nazw stałych agentów. Model i reasoning przechowujemy w konfiguracji. Zmiana nazwy istniejącego profilu zachowuje jego ID i historię; nie tworzymy nowego agenta tylko dla nowej nazwy.
 
 ## 2. Izolacja projektów i własność pracy
 
-- effect-auth, effect-jobs i ALDO mają osobne pule implementorów, reviewerów, triage i koordynatorów. Nie współdzielimy kolejki jednej roli między projektami przez używanie tego samego profilu.
+- effect-jobs has its own profiles; do not dispatch or mutate profiles, issues, timers or code from other projects. effect-auth remains a read-only source/consumer unless explicitly authorized; effect-jobs must not depend on it.
 - Koordynator przed dispatch sprawdza `project_id`, agenta z rosteru tego projektu, autoryzację, zależności i brak istniejącego równoważnego wykonania.
 - Agent pracuje wyłącznie w przypisanym projekcie i repozytorium. Nie zmienia issues, agentów, timerów ani kodu innego projektu. Zależność od innego repo domyślnie oznacza referencję read-only; zapis wymaga osobnej, jawnej autoryzacji.
 - Każda implementacja ma izolowany worktree/branch i rozłączną własność plików. Nie przełączamy ani nie nadpisujemy checkoutu właściciela. Nie usuwamy cudzych zmian.
@@ -82,47 +82,65 @@ Lokalna checklista zależy od projektu i aktualnego CI; obejmuje wymagane format
 
 Implementor przygotowuje PR, jeśli push/PR są autoryzowane; w przeciwnym razie lokalny handoff. Nie wykonuje self-merge. Commity są zgodne z Conventional Commits.
 
-## 5. Dobór review do ryzyka — od zera do trzech reviewerów
+## 5. One independent review, or zero for a narrow low-risk diff
 
-**Koordynator decyduje dla konkretnego PR-a, czy review AI jest potrzebne i które zakresy uruchomić: 0, 1, 2 albo 3 reviewerów.** Nie uruchamiamy całej trójki automatycznie. Decyzja opiera się na rzeczywistym diffie, ryzyku, zmianie kontraktów i istniejących dowodach — nie na liczbie plików lub samej etykiecie taska.
+Decide from the COMPLETE final integrated diff, contracts and evidence. Zero review
+is allowed ONLY for truly simple editorial documentation or unambiguous test-only
+changes with unchanged behavior/contracts and no weakened oracle, negative controls
+or gates. Everything else receives ONE independent project Reviewer, including
+normative documentation and runtime/API/security/persistence/concurrency changes.
+This does not waive local CI, installed/runtime/hosted gates or authorization.
 
-- **0 reviews:** prosta korekta Markdown, redakcyjna aktualizacja dokumentacji lub mała test-only zmiana z jednoznacznym oracle i lokalnym dowodem, bez zmiany zachowania/kontraktu lub osłabiania bramek. To poprawny zwykły wybór koordynatora, nie wyjątek wymagający każdorazowej zgody właściciela.
-- **1–2 reviews:** ograniczona zmiana wymagająca oceny tylko wybranych aspektów; uruchamiamy właściwe role, nie brakujących reviewerów „dla kompletu”.
-- **3 reviews:** zalecane dla istotnych zmian runtime, publicznego API, granic bezpieczeństwa, persistence/transakcji lub współbieżności, gdy wszystkie trzy perspektywy są przydatne.
+Before dispatch record `no AI review` or Reviewer, rationale and exact base/head/tree
+in the issue. For uncommitted work freeze the complete changed/new file inventory
+and artifact/diff hashes. Review the complete integrated snapshot once, including
+new files, migrations, public declarations and qualification deltas. Follow real
+callers and surrounding cross-module flows rather than the author summary.
 
-Markdown może zmieniać normatywny kontrakt bezpieczeństwa, a testy mogą zmieniać oracle, usuwać negatywne kontrole lub ukrywać regresję. Takie PR-y nie są automatycznie low-risk. Jawne wymagania właściciela/projektu dotyczące konkretnej zmiany pozostają wiążące; oszczędność tokenów nie jest powodem do ich obejścia.
+Build a risk map and trace reachable success/failure/interruption/retry/concurrency
+scenarios. Assess public/behavior/error/environment contracts; actual trust
+boundaries/privacy/input; transaction ownership, atomic enqueue plus receipts,
+deduplication, races, DB-time leases/fencing, bounded recovery, retention and Unknown
+outcomes; Effect Scope/resource finalization/cancellation/errors; installed consumers;
+actual test oracles/negative controls and final source/runtime/artifact bytes;
+consequential DX, complexity and performance. Lenses are not a finding quota.
+Evaluate actual import costs without automatic barrel bans; background reference:
+<https://marvinh.dev/blog/speeding-up-javascript-ecosystem-part-7/>.
 
-Przed dispatch koordynator zapisuje w issue krótko: wybrane role albo `no AI review`, uzasadnienie oraz snapshot. Dobór może zostać skorygowany po zobaczeniu finalnego diffu, ale nie służy odrzucaniu niewygodnych findings lub uruchamianiu kolejnej rundy po poprawkach.
+Use current Traits reports to avoid mechanical convention audits. Inspect their
+scope/snapshot and unresolved results; challenge them when real behavior disproves
+the conclusion. Traits cannot prove runtime correctness, security or test coverage.
+Default assessment covers relevant authored TS/TSX/MTS; Markdown/HTML are excluded.
+Missing setup/model results, errors, empty/incomplete coverage and unresolved
+assessments are not PASS. Preserve raw reports and manual dispositions separately.
 
-Jeśli review jest potrzebne, koordynator zamraża **ten sam base/head/tree** dla wszystkich wybranych reviewerów. Startują równolegle na **Sol Medium**; przy kilku implementacjach reviews również mogą pracować równolegle. Obowiązuje **maksymalnie jedna runda**, bez drugiego/delta/final review po poprawkach. Przy zerze reviews przechodzimy bezpośrednio do testów i bramek integracji/merge, bez pustych wykonań review lub triage.
+No invented malicious trusted callers, security theatre, style blockers or
+preference-driven rewrites. Identify contract changes explicitly. Zero findings is
+valid; setup failure or incomplete coverage means INCOMPLETE. Separate confirmed
+defects, unresolved evidence and optional nonblocking advice.
 
-### DX / Overengineering / Standardization
+Each finding needs severity, path/line, violated contract, reachable prerequisites,
+exact snapshot, reproduction command/input or deterministic compile/code-path proof,
+expected/actual result and impact. State which reproductions ran. No fabricated
+proof or dismissal of material unresolved evidence because infrastructure is missing.
+The Reviewer is independent of the author and implementation collaborators, read-only,
+with no delegation/hidden subreviewers, product edits, approval, merge, push, deploy
+or cross-project mutation. Bounded task-owned reproduction fixtures may not change
+frozen source/shared inputs. Do not read other reviewer conclusions before reporting.
 
-Ergonomia API, unikanie zbędnych abstrakcji i defensywności wobec zaufanego kodu wewnętrznego. Spójne nazewnictwo, struktura i umieszczenie plików, składanie i providowanie Layerów. Współdzielenie powtarzanej logiki tylko tam, gdzie odpowiedzialności rzeczywiście się pokrywają — respektujemy SRP; nie każde podobieństwo kodu jest duplikacją.
-
-### Security / Persistence / Concurrency
-
-Rzeczywiste granice zaufania, ochrona danych i sekretów, prywatność logów oraz bezpieczeństwo wejścia i SQL. Tam, gdzie dotyczy: atomowość transakcji, deduplikacja, współbieżność, leases/fencing, nieznane wyniki operacji, retry/recovery i retencja. Bez security theatre ani wymyślania złośliwych wewnętrznych callerów.
-
-### Correctness / Effect / Tests / Observability / Performance
-
-Poprawność kodu i testów, właściwe wykorzystanie Effect, Schema, tagged errors/enums, Scope i interruption. Sensowne logi i spany. Preferowanie Effect zamiast Promise, async/await i try/catch/finally, z uzasadnionymi wyjątkami na granicach integracji. Reviewer czyta <https://marvinh.dev/blog/speeding-up-javascript-ecosystem-part-7/> i ocenia nasze importy/barrels na podstawie rzeczywistego kodu, nie automatycznego zakazu.
-
-### Zasady wspólne
-
-- Reviewerzy są read-only i **nie czytają wzajemnych raportów przed oddaniem własnego**. Koordynator nie podaje im cudzych findings ani wyników triage.
-- Każdy zgłoszony błąd wymaga konkretnej reprodukcji: osiągalny scenariusz, komendy/input, oczekiwany i rzeczywisty wynik oraz dokładny snapshot. Bez wymyślania problemów dla wypełnienia raportu.
-- Preferencje i opcjonalne sugestie są jawnie nieblokujące. **Zero findingów jest poprawnym wynikiem.**
-- Błąd setupu nie jest zerem findings. Naprawiamy setup i kończymy ten sam pierwszy review; nie tworzymy nowej rundy.
-- Kompletny raport pozostaje użyteczny mimo późniejszego EOF/błędu platformy. Najpierw odbieramy dowody, nie powtarzamy ukończonego review.
-- Jeśli review zostało wybrane, odbywa się **tylko raz bezpośrednio po implementacji**. Nie ma drugiego review, delta review ani dodatkowego final reviewer po poprawkach.
-- Wybór mniejszej liczby reviewerów lub brak review nie znosi wymaganych testów, lokalnej kwalifikacji, checks, autoryzacji ani bramek merge.
+No second/delta/final review. Reuse complete evidence despite later platform EOF;
+resume only an identified unfinished portion. Independent implementations may have
+concurrent reviewers, but each diff has only one Reviewer. Existing assigned sessions
+finish their old workflow; preserve historical review sets, without retrospective
+waivers. Old profiles receive no NEW dispatch; preserve unfinished assignments,
+sessions/reports/history. Archive only after complete assignment/run inventories and
+actual session/process/tool liveness establish safety; platform failure is insufficient.
 
 ## 6. Krytyczny triage i poprawki
 
-Po odebraniu **wszystkich zaplanowanych pełnych raportów**, jeśli zgłoszono findings do rozstrzygnięcia, koordynator zleca jednemu agentowi triage ich krytyczną ocenę. Nie wysyła implementorowi surowych findings przed triage. Przy braku review lub findings nie uruchamiamy pustego triage tylko dla potwierdzenia; zapisujemy ten wynik i przechodzimy do wymaganych bramek.
+Po odebraniu **kompletnego oryginalnego raportu**, jeśli zgłoszono findings do rozstrzygnięcia, koordynator zleca jednemu agentowi triage ich jednorazową, niezależną ocenę findings-only. Nie wysyła implementorowi surowych findings przed triage. Przy braku review lub findings nie uruchamiamy pustego triage tylko dla potwierdzenia; zapisujemy ten wynik i przechodzimy do wymaganych bramek.
 
-Triage deduplikuje przyczyny, weryfikuje dowody i klasyfikuje zgłoszenia jako accepted/rejected/deferred z uzasadnieniem. Odrzuca false positives, uwagi zbyt nieistotne, overengineering, security theatre i szkodliwe DX. To nie głosowanie ani mechaniczne połączenie raportów; zero zaakceptowanych poprawek jest poprawnym wynikiem.
+Triage nie jest kolejnym blanket audytem. Triage deduplikuje przyczyny, weryfikuje dowody i klasyfikuje zgłoszenia jako accepted/rejected/deferred z uzasadnieniem. Odrzuca false positives, uwagi zbyt nieistotne, overengineering, security theatre i szkodliwe DX. To nie głosowanie ani mechaniczne połączenie raportów; zero zaakceptowanych poprawek jest poprawnym wynikiem.
 
 Tylko accepted findings wracają do **tego samego implementora, issue i gałęzi/PR-a**. Lista jest skończona, z kryteriami weryfikacji. Po poprawkach uruchamiamy oryginalne reprodukcje i dotknięte testy/bramki, **bez kolejnego AI review**. Koordynator sprawdza dowody i integrację; nie staje się dodatkowym reviewerem z nowym blanket audytem.
 
@@ -163,3 +181,10 @@ Gotowe niezależne PR-y nie czekają na niezwiązane zadania. Nie rerunujemy teg
 Implementację oznaczamy `done` po zweryfikowanej integracji/merge zgodnej z autoryzacją, nie po samym utworzeniu PR-a. Całą dostawę zamykamy dopiero po potwierdzeniu uzgodnionego inventory, wyłączamy jej monitoring i przekazujemy krótki wynik z ograniczeniami. Historyczne raporty zachowujemy.
 
 Publikacja pakietu, produkcyjny deployment i aktywacja kolejnego zakresu wymagają osobnych decyzji. Porządkowanie rosteru zaczynamy od kopii konfiguracji i sprawdzenia aktywnych wykonań/przypisań; zbędne profile archiwizujemy bez kasowania historii.
+
+## 9. Measurement
+
+For the first three REAL future authorized tasks record handoff-ready, review-start,
+report and fix-complete timestamps; reviewer/Traits tokens and cost if available;
+accepted/rejected findings and later regressions. Record unavailable values honestly.
+Do not launch artificial benchmark tasks or promise unmeasured speedups.

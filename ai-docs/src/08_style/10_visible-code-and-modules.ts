@@ -26,8 +26,8 @@ class ProviderReadUnavailable extends Schema.TaggedError<ProviderReadUnavailable
 
 const readRetry = Schedule.recurs(2).pipe(
   Schedule.setInputType<ProviderReadUnavailable>(),
-  Schedule.while(({ input }) =>
-    Match.value(input).pipe(
+  Schedule.while((options) =>
+    Match.value(options.input).pipe(
       Match.when({ reason: "timeout" }, () => true),
       Match.when({ reason: "transient" }, () => true),
       Match.when({ reason: "denied" }, () => false),

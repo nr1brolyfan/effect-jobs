@@ -4,6 +4,7 @@
 import { Match, Schema } from "effect"
 import type { RegistrationFailure } from "../fixtures/Auth.js"
 
+export type RegistrationWireError = typeof RegistrationWireError.Type
 export const RegistrationWireError = Schema.Union([
   Schema.TaggedStruct("RegistrationValidationError", {
     reason: Schema.Literal("malformed")
@@ -14,7 +15,6 @@ export const RegistrationWireError = Schema.Union([
   Schema.TaggedStruct("RegistrationUnavailableError", {}),
   Schema.TaggedStruct("RegistrationOutcomeUnconfirmedError", {})
 ])
-export type RegistrationWireError = typeof RegistrationWireError.Type
 
 export const toRegistrationWireError = (
   error: RegistrationFailure

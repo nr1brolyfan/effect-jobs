@@ -20,20 +20,22 @@ export const admit = (candidate: Option.Option<UserId>): Admission =>
 
 export const authorize = (decision: AuthenticationDecision): Admission =>
   Match.value(decision).pipe(
-    Match.when({ _tag: "Allow" }, ({ userId }) => Admission.Authenticated({ userId })),
+    Match.when({ _tag: "Allow" }, (value) =>
+      Admission.Authenticated({ userId: value.userId })
+    ),
     Match.when({ _tag: "Reject" }, () => Admission.Anonymous()),
     Match.exhaustive
   )
 
-export const SessionId = Schema.String.pipe(Schema.brand("SessionId"))
 export type SessionId = typeof SessionId.Type
+export const SessionId = Schema.String.pipe(Schema.brand("SessionId"))
 
+export type SessionSnapshot = typeof SessionSnapshot.Type
 export const SessionSnapshot = Schema.Struct({
   id: SessionId,
   userId: UserId,
   status: Schema.Literals(["active", "revoked"])
 })
-export type SessionSnapshot = typeof SessionSnapshot.Type
 
 export const decodeSessionSnapshot = Schema.decodeUnknownEffect(SessionSnapshot, {
   onExcessProperty: "error"
