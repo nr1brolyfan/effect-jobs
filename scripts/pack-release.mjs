@@ -7,7 +7,10 @@ import { join, resolve } from "node:path"
 const root = resolve(import.meta.dirname, "..")
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
 assert.equal(manifest.name, "effect-jobs")
-assert.match(manifest.version, /^\d+\.\d+\.\d+-alpha\.\d+$/)
+assert.match(
+  manifest.version,
+  /^\d+\.\d+\.\d+-alpha\.\d+(?:-effect\.4\.0\.5\.local\.\d+)?$/
+)
 assert.equal(manifest.private, false)
 assert.equal(manifest.publishConfig.tag, "alpha")
 assert.equal(process.version, "v24.15.0")

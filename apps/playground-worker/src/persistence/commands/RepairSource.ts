@@ -276,16 +276,16 @@ export const replacement = (
           Effect.flatMap((bytes) =>
             Codec.decodeJobPayload(Definitions.SyntheticExportPayload, bytes)
           ),
-          Effect.catchTag("RepairSourceRejected", () => Effect.succeed(null)),
-          Effect.catchTag("JobPayloadCodecError", () => Effect.succeed(null))
+          Effect.catchTags({ RepairSourceRejected: () => Effect.succeed(null) }),
+          Effect.catchTags({ JobPayloadCodecError: () => Effect.succeed(null) })
         )
       : null
     const old = synthetic
       ? oldSynthetic
       : yield* artifact(row).pipe(
           Effect.flatMap((bytes) => Codec.decodeJobPayload(Definitions.Payload, bytes)),
-          Effect.catchTag("RepairSourceRejected", () => Effect.succeed(null)),
-          Effect.catchTag("JobPayloadCodecError", () => Effect.succeed(null))
+          Effect.catchTags({ RepairSourceRejected: () => Effect.succeed(null) }),
+          Effect.catchTags({ JobPayloadCodecError: () => Effect.succeed(null) })
         )
     if (
       old &&

@@ -10,7 +10,8 @@ const percentage = (count: number, total: number) =>
   `${total === 0 ? 0 : Math.round((count / total) * 100)}%`
 
 /** The caller supplies global API statistics, independent of the visible job page. */
-export const StatsChart = ({ stats }: { readonly stats: JobStats | undefined }) => {
+export const StatsChart = (props: { readonly stats: JobStats | undefined }) => {
+  const stats = props.stats
   const headingId = useId()
   const data = stateOrder.map((state) => ({
     state,
@@ -54,9 +55,9 @@ export const StatsChart = ({ stats }: { readonly stats: JobStats | undefined }) 
                   />
                   <Tooltip
                     isAnimationActive={false}
-                    content={({ active, payload }) => {
-                      const item = payload?.[0]
-                      if (!active || typeof item?.value !== "number") {
+                    content={(tooltip) => {
+                      const item = tooltip.payload?.[0]
+                      if (!tooltip.active || typeof item?.value !== "number") {
                         return null
                       }
                       return (
@@ -84,18 +85,23 @@ export const StatsChart = ({ stats }: { readonly stats: JobStats | undefined }) 
           </div>
         </div>
         <ul {...stylex.props(styles.legend)} aria-label="Jobs by state">
-          {data.map(({ state, name, value }) => (
-            <li key={state} {...stylex.props(styles.row)}>
-              <span {...stylex.props(styles.dot, stateDots[state])} aria-hidden="true" />
-              <span {...stylex.props(styles.stateLabel)}>{name}</span>
-              <strong {...stylex.props(styles.count)}>
-                {stats === undefined ? "—" : countFormat.format(value)}
-              </strong>
-              <span {...stylex.props(styles.percent)}>
-                {stats === undefined ? "" : percentage(value, stats.total)}
-              </span>
-            </li>
-          ))}
+          {data.map((item) => {
+            return (
+              <li key={item.state} {...stylex.props(styles.row)}>
+                <span
+                  {...stylex.props(styles.dot, stateDots[item.state])}
+                  aria-hidden="true"
+                />
+                <span {...stylex.props(styles.stateLabel)}>{item.name}</span>
+                <strong {...stylex.props(styles.count)}>
+                  {stats === undefined ? "—" : countFormat.format(item.value)}
+                </strong>
+                <span {...stylex.props(styles.percent)}>
+                  {stats === undefined ? "" : percentage(item.value, stats.total)}
+                </span>
+              </li>
+            )
+          })}
         </ul>
       </div>
     </section>

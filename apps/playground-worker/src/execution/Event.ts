@@ -174,8 +174,7 @@ export const run = <A, E>(
         Layer.provide(Layer.mergeAll(activeAuthority, read, guarded, operators, repairs))
       )
       return yield* operation.pipe(
-        Effect.provide(app),
-        Effect.provide(Layer.mergeAll(worker, commands, syntheticRepairs, read)),
+        Effect.provide(Layer.mergeAll(app, worker, commands, syntheticRepairs, read)),
         Effect.provideService(SqlClient, client),
         Effect.provideService(Backend.PostgreSqlJobs, backend),
         Effect.provideService(DocumentKeys, stable)

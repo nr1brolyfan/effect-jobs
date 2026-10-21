@@ -24,8 +24,14 @@ import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Registry from "effect-jobs/JobRegistry"
 import * as Worker from "effect-jobs/JobWorker"
 import * as Consumer from "effect-jobs/JobConsumer"
-import * as Wake from "./WakeCycle.js"
+import * as Wake from "../../src/cloudflare/WakeCycle.js"
 
+/**
+ * @param {string} url
+ * @param {string} schema
+ * @param {import("../../src/cloudflare/WakeCycle.js").WakeAlarm["Service"]} alarm
+ * @param {string[]} checks
+ */
 export const probe = (url, schema, alarm, checks = []) =>
   Effect.scoped(
     Effect.gen(function* () {

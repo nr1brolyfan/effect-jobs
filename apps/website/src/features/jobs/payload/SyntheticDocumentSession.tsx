@@ -18,11 +18,7 @@ interface Session {
 }
 const Context = createContext<Session | null>(null)
 export const useSyntheticDocumentSession = () => useContext(Context)
-export const SyntheticDocumentSession = ({
-  children
-}: {
-  readonly children: ReactNode
-}) => {
+export const SyntheticDocumentSession = (props: { readonly children: ReactNode }) => {
   const [document, setDocument] = useState<Document | null>(null)
   const [revision, setRevision] = useState(0)
   const lifetime = useRef({ revision: 0, mounted: true })
@@ -56,7 +52,7 @@ export const SyntheticDocumentSession = ({
           lifetime.current.mounted && lifetime.current.revision === value
       }}
     >
-      {children}
+      {props.children}
     </Context.Provider>
   )
 }

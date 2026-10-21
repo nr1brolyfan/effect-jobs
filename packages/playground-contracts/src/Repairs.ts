@@ -123,6 +123,7 @@ export const JsonValue = Schema.declare<JsonValue>((input): input is JsonValue =
     return false
   }
 })
+export type Reason = typeof Reason.Type
 export const Reason = Schema.String.pipe(
   Schema.check(
     Schema.makeFilter(
@@ -135,26 +136,24 @@ export const Reason = Schema.String.pipe(
     )
   )
 )
-export type Reason = typeof Reason.Type
-export const JobResolutionState = Schema.Literals(["Open", "InProgress", "Resolved"])
 export type JobResolutionState = typeof JobResolutionState.Type
+export const JobResolutionState = Schema.Literals(["Open", "InProgress", "Resolved"])
+export type JobProblem = typeof JobProblem.Type
 export const JobProblem = Schema.Struct({
   rootJobId: JobId,
   state: JobResolutionState,
   version: Counter,
   updatedAt: EpochMillis,
-  activeSuccessorJobId: Schema.NullOr(JobId),
+  activeSuccessorJobId: JobId.pipe(Schema.NullOr),
   outcomeKnowledge: Schema.Literals(["KnownFailure", "Unknown"]),
-  resolution: Schema.NullOr(
-    Schema.Struct({
-      kind: Schema.Literals(["SuccessorCompleted", "OperatorReconciled", "ManualClose"]),
-      reason: Schema.NullOr(Reason),
-      observedAt: EpochMillis,
-      successorJobId: Schema.NullOr(JobId)
-    })
-  )
+  resolution: Schema.Struct({
+    kind: Schema.Literals(["SuccessorCompleted", "OperatorReconciled", "ManualClose"]),
+    reason: Reason.pipe(Schema.NullOr),
+    observedAt: EpochMillis,
+    successorJobId: JobId.pipe(Schema.NullOr)
+  }).pipe(Schema.NullOr)
 })
-export type JobProblem = typeof JobProblem.Type
+export type JobRepairReason = typeof JobRepairReason.Type
 export const JobRepairReason = Schema.Literals([
   ...JobOperatorReason.literals,
   "invalid-payload",
@@ -165,14 +164,13 @@ export const JobRepairReason = Schema.Literals([
   "encrypted-correction-unavailable",
   "lineage-conflict"
 ])
-export type JobRepairReason = typeof JobRepairReason.Type
+export type Investigation = typeof Investigation.Type
 export const Investigation = Schema.Union([
   Schema.TaggedStruct("KnownFailure", {}),
   Schema.TaggedStruct("ConfirmedNotApplied", { reason: Reason }),
   Schema.TaggedStruct("AcceptDuplicateRisk", { reason: Reason }),
   Schema.TaggedStruct("Unconfirmed", {})
 ])
-export type Investigation = typeof Investigation.Type
 const guard = {
   sandbox: SandboxRef,
   requestId: RequestId,
@@ -184,6 +182,7 @@ const guard = {
   confirmDuplicateEffects: Schema.Literal(true),
   investigation: Investigation
 }
+export type JobRepairCommand = typeof JobRepairCommand.Type
 export const JobRepairCommand = Schema.Union([
   Schema.Struct({ ...guard, action: Schema.Literal("redrive") }),
   Schema.Struct({
@@ -192,12 +191,12 @@ export const JobRepairCommand = Schema.Union([
     payload: JsonValue
   })
 ])
-export type JobRepairCommand = typeof JobRepairCommand.Type
+export type JobRepairReceiptRequest = typeof JobRepairReceiptRequest.Type
 export const JobRepairReceiptRequest = Schema.Struct({
   sandbox: SandboxRef,
   requestId: RequestId
 })
-export type JobRepairReceiptRequest = typeof JobRepairReceiptRequest.Type
+export type JobRepairResult = typeof JobRepairResult.Type
 export const JobRepairResult = Schema.Union([
   Schema.TaggedStruct("Committed", {
     sandbox: SandboxRef,
@@ -218,7 +217,7 @@ export const JobRepairResult = Schema.Union([
   }),
   Schema.TaggedStruct("OutcomeUnknown", { sandbox: SandboxRef, requestId: RequestId })
 ])
-export type JobRepairResult = typeof JobRepairResult.Type
+export type JobResolutionCommand = typeof JobResolutionCommand.Type
 export const JobResolutionCommand = Schema.Struct({
   sandbox: SandboxRef,
   requestId: RequestId,
@@ -226,9 +225,9 @@ export const JobResolutionCommand = Schema.Struct({
   expectedResolutionVersion: Counter,
   reason: Reason,
   action: Schema.Literals(["reconcile-applied", "manual-close"]),
-  confirmUnknownOutcome: Schema.optional(Schema.Literal(true))
+  confirmUnknownOutcome: Schema.Literal(true).pipe(Schema.optional)
 })
-export type JobResolutionCommand = typeof JobResolutionCommand.Type
+export type JobResolutionResult = typeof JobResolutionResult.Type
 export const JobResolutionResult = Schema.Union([
   Schema.TaggedStruct("Committed", {
     sandbox: SandboxRef,
@@ -244,7 +243,6 @@ export const JobResolutionResult = Schema.Union([
   }),
   Schema.TaggedStruct("OutcomeUnknown", { sandbox: SandboxRef, requestId: RequestId })
 ])
-export type JobResolutionResult = typeof JobResolutionResult.Type
 export class Repairs extends Context.Service<
   Repairs,
   {

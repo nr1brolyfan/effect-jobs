@@ -38,18 +38,27 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/jobs`)
   const row = page.getByRole("button", { name: "demo-job-02", exact: true })
   await row.click()
-  await expect(page.getByRole("region", { name: "Job details" })).toBeFocused()
+  await expect(
+    page.getByRole("button", { name: "Close job details", exact: true })
+  ).toBeFocused()
   await page.keyboard.press("Escape")
   await expect(row).toBeFocused()
   await row.click()
-  await page.getByRole("button", { name: "Close details", exact: true }).click()
+  await page.getByRole("button", { name: "Close job details", exact: true }).click()
   await expect(row).toBeFocused()
   await row.click()
-  await page.getByRole("button", { name: "Next page", exact: true }).click()
+  // A modal makes background controls inert; model a live page change through the owned runtime.
+  await page.evaluate(() => window.jobsBrowserTest.next())
   await expect(row).toHaveCount(0)
+  await expect(page.getByRole("dialog")).toBeVisible()
   await page.keyboard.press("Escape")
-  await expect(page.getByRole("region", { name: "Jobs list", exact: true })).toBeFocused()
-  assert.equal(await page.getByRole("region", { name: "Job details" }).isVisible(), false)
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  const fallback = page.getByRole("region", { name: "Jobs list", exact: true })
+  // Base UI 1.9 resolves a non-tabbable finalFocus container to its first tabbable
+  // descendant. Assert the exact safe list target, rather than the old non-modal container.
+  await expect(fallback.getByRole("tab", { name: /^All jobs/ })).toBeFocused()
+  assert(await fallback.evaluate((node) => node.contains(document.activeElement)))
+  assert.equal(await page.getByRole("dialog").isVisible(), false)
   console.log(
     "PASS: Escape and Close details return focus to selected job; page eviction focuses Jobs list"
   )

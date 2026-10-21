@@ -26,19 +26,22 @@ const scripts = {
   "/BrowserEntry.js": await readFile(resolve(output, "BrowserEntry.js"))
 }
 const server = createServer((req, res) => {
-  if (req.url === "/Jobs.css") {
+  const path = new URL(req.url, "http://localhost").pathname
+  if (path === "/Jobs.css") {
     res.setHeader("content-type", "text/css")
     res.end(css)
-  } else if (Object.hasOwn(scripts, req.url ?? "")) {
+  } else if (Object.hasOwn(scripts, path)) {
     res.setHeader("content-type", "text/javascript")
-    res.end(scripts[req.url])
-  } else if (req.url === "/docs/jobs") {
+    res.end(scripts[path])
+  } else if (path === "/docs/jobs") {
     res.setHeader("content-type", "text/html")
     res.end(guide)
-  } else if (["/jobs", "/commands", "/fixture", "/poll"].includes(req.url)) {
+  } else if (["/jobs", "/commands", "/fixture", "/poll"].includes(path)) {
     res.setHeader("content-type", "text/html")
     res.end(
-      req.url === "/fixture" ? html : html.replace("/FixtureEntry.js", "/BrowserEntry.js")
+      new URL(req.url, "http://localhost").searchParams.has("fixture")
+        ? html
+        : html.replace("/FixtureEntry.js", "/BrowserEntry.js")
     )
   } else {
     res.writeHead(404)
@@ -122,14 +125,14 @@ try {
   }
   await page.goto(`${url}/jobs`)
   await text(status(), "connected")
-  await expect(rows()).toHaveCount(5)
+  await expect(rows()).toHaveCount(20)
   assert.equal(
     await page.getByRole("heading", { name: "Background Jobs", exact: true }).count(),
     1
   )
   assert.equal(await page.getByRole("table", { name: "Background jobs" }).count(), 1)
   assert.equal(await page.locator(".stat-card").count(), 4)
-  assert.equal(await page.locator(".stat-value").first().textContent(), "13")
+  assert.equal(await page.locator(".stat-value").first().textContent(), "43")
   assert.equal(
     await page
       .getByRole("region", { name: "Job distribution" })
@@ -157,9 +160,7 @@ try {
   checks.push(
     "dark workspace shell, jobs-only navigation, global statistics/chart and semantic jobs table"
   )
-  assert(
-    await page.getByRole("button", { name: "Create jobs", exact: true }).isDisabled()
-  )
+  assert(await page.getByRole("button", { name: "Create jobs", exact: true }).isEnabled())
   await page.locator(".scenario-panel summary").click()
   assert.equal(
     await page.getByRole("button", { name: "Run scenario", exact: true }).isDisabled(),
@@ -172,25 +173,34 @@ try {
     true
   )
   await page.getByRole("button", { name: "demo-job-02", exact: true }).click()
-  await text(page.getByRole("region", { name: "Job details" }), "Unknown outcome")
+  await text(page.getByRole("dialog"), "Active")
   assert.equal(
-    await page
-      .getByRole("button", { name: "Cancel · unavailable", exact: true })
-      .isDisabled(),
-    true
+    await page.evaluate(
+      () => window.jobsBrowserTest.snapshot().detail.observation.outcome
+    ),
+    "unknown"
   )
-  assert.match(
-    await page.getByRole("region", { name: "Job details" }).innerText(),
-    /Payload and protected fields are unavailable/
-  )
+  assert.equal(await page.getByRole("button", { name: /Cancel/ }).count(), 0)
+  await expect(
+    page.getByLabel("Payload unavailable: not stored.", { exact: true })
+  ).toBeVisible()
+  await expect(page.getByLabel("Encoded payload", { exact: true })).toHaveCount(0)
+  await expect(page.getByLabel("Readable payload", { exact: true })).toHaveCount(0)
+  await page.getByRole("button", { name: "Close job details", exact: true }).click()
   checks.push(
     "own sandbox, mock source, disabled commands, unknown observation and private detail allowlist"
   )
 
   await page.getByRole("button", { name: "Next page", exact: true }).click()
-  await text(page.locator('nav[aria-label="Pagination"]'), "Page 2")
+  await expect(page.getByRole("button", { name: "Page 2", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page"
+  )
   await text(status(), "connected")
-  assert.equal(await rows().first().getByRole("button").innerText(), "demo-job-06")
+  assert.equal(
+    await rows().first().locator("button[data-job-id]").innerText(),
+    "demo-job-21"
+  )
   const cursor = await page.evaluate(() => window.jobsBrowserTest.snapshot().cursor)
   await page.evaluate(() => window.jobsBrowserTest.update())
   await read()
@@ -201,10 +211,10 @@ try {
   )
   assert.equal(
     await page.evaluate(() => window.jobsBrowserTest.snapshot().selected),
-    "demo-job-02"
+    undefined
   )
   checks.push(
-    "page 2 lifecycle update replaces metadata and retains opaque cursor, selected job"
+    "page 2 lifecycle update replaces metadata and retains opaque cursor after explicit detail close"
   )
 
   await page.evaluate(() => window.jobsBrowserTest.mode("invalid-cursor"))
@@ -219,13 +229,13 @@ try {
   await text(status(), "connected")
   await page.getByRole("tab", { name: /^Dead/ }).click()
   await text(status(), "connected")
-  await expect(rows()).toHaveCount(2)
+  await expect(rows()).toHaveCount(8)
   checks.push("status tab filtering and explicit invalid-cursor restart")
 
   await page.evaluate(() => window.jobsBrowserTest.mode("error"))
   await read()
   await text(status(), "stale · unavailable")
-  await expect(rows()).toHaveCount(2)
+  await expect(rows()).toHaveCount(8)
   await page.evaluate(() => window.jobsBrowserTest.mode("normal"))
   await page.evaluate(() => window.dispatchEvent(new Event("online")))
   await text(status(), "connected")
@@ -249,7 +259,6 @@ try {
   await page.screenshot({ path: resolve(output, "desktop.png"), fullPage: true })
 
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.getByRole("button", { name: "Close details", exact: true }).click()
   assert.equal(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     true
@@ -258,11 +267,11 @@ try {
   await text(status(), "connected")
   await page.getByRole("button", { name: "demo-job-01", exact: true }).focus()
   await page.keyboard.press("Enter")
-  await text(page.getByRole("region", { name: "Job details" }), "Producer identity")
+  await text(page.getByRole("dialog"), "Quick job details")
   assert.equal(
     await page
-      .getByRole("region", { name: "Job details" })
-      .evaluate((node) => node === document.activeElement),
+      .getByRole("dialog")
+      .evaluate((node) => node.contains(document.activeElement)),
     true
   )
   await accessibility()
@@ -281,7 +290,7 @@ try {
   )
   checks.push("external reset revokes old data and selection with generation explanation")
 
-  await page.goto(`${url}/commands`)
+  await page.goto(`${url}/jobs?commands=1`)
   await text(status(), "connected")
   await page.getByRole("button", { name: "Create jobs", exact: true }).click()
   await page.getByLabel("Fake provider behavior").selectOption("unknown-outcome")
@@ -313,7 +322,7 @@ try {
   checks.push(
     "scripted command outcome unknown locks writes; exact receipt absence never replays"
   )
-  await page.goto(`${url}/commands`)
+  await page.goto(`${url}/jobs?commands=1`)
   await text(status(), "connected")
   await page.getByRole("button", { name: "Create jobs", exact: true }).click()
   page.once("dialog", (dialog) => dialog.accept())
@@ -323,7 +332,7 @@ try {
   checks.push(
     "confirmed own-sandbox reset hides previous generation without claiming cancellation"
   )
-  await page.goto(`${url}/poll`)
+  await page.goto(`${url}/jobs?poll=1`)
   await text(status(), "connected")
   await page.waitForFunction(() => window.jobsBrowserTest.requests().length >= 2, null, {
     timeout: 8_000
@@ -349,12 +358,10 @@ try {
     "real React StrictMode first lifetime cleanup; final unmount removes both countdown/poll intervals and events"
   )
   checks.push("real five-second visible-page reconciliation and cleanup")
-  await page.goto(`${url}/fixture`)
+  await page.goto(`${url}/jobs?fixture=1`)
   await text(status(), "connected")
-  await expect(rows()).toHaveCount(5)
-  assert(
-    await page.getByRole("button", { name: "Create jobs", exact: true }).isDisabled()
-  )
+  await expect(rows()).toHaveCount(13)
+  assert(await page.getByRole("button", { name: "Create jobs", exact: true }).isEnabled())
   await page.locator(".scenario-panel summary").click()
   assert.equal(
     await page.getByRole("button", { name: "Run scenario", exact: true }).isDisabled(),

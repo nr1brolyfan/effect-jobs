@@ -105,73 +105,81 @@ const navigation: ReadonlyArray<readonly [string, IconName]> = [
   ["Settings", "settings"]
 ]
 
-const JobsTable = ({
-  runtime,
-  data
-}: {
+const JobsTable = (props: {
   readonly runtime: Runtime
   readonly data: ReadonlyArray<JobSummary>
 }) => {
-  const selected = useAtomValue(runtime.atoms.selected)
+  // oxlint-disable-next-line effecttsgo/unstable-api-usage -- Pinned atom-react 4.0.5 has no stable subscription hook; preserve the shared Atom registry and cleanup.
+  const selected = useAtomValue(props.runtime.atoms.selected)
   const columns = useMemo<ColumnDef<JobSummary>[]>(
     () => [
       {
         id: "job",
         header: "Job",
-        cell: ({ row }) => (
-          <div {...classes("job-identity")}>
-            <span {...classes("job-icon")}>
-              <Icon name={jobIcon(row.original.catalog.kind)} />
-            </span>
-            <div>
-              <strong
-                {...classes("job-name")}
-                title={`${row.original.catalog.kind} v${row.original.catalog.version}`}
-              >
-                {jobName(row.original.catalog.kind)}
-              </strong>
-              <button
-                type="button"
-                {...classes("job-id")}
-                title={row.original.jobId}
-                data-job-id={row.original.jobId}
-                aria-pressed={selected === row.original.jobId}
-                onClick={() => {
-                  void runtime.run(runtime.select(row.original.jobId))
-                }}
-              >
-                {row.original.jobId}
-              </button>
+        cell: (cell) => {
+          return (
+            <div {...classes("job-identity")}>
+              <span {...classes("job-icon")}>
+                <Icon name={jobIcon(cell.row.original.catalog.kind)} />
+              </span>
+              <div>
+                <strong
+                  {...classes("job-name")}
+                  title={`${cell.row.original.catalog.kind} v${cell.row.original.catalog.version}`}
+                >
+                  {jobName(cell.row.original.catalog.kind)}
+                </strong>
+                <button
+                  type="button"
+                  {...classes("job-id")}
+                  title={cell.row.original.jobId}
+                  data-job-id={cell.row.original.jobId}
+                  aria-pressed={selected === cell.row.original.jobId}
+                  onClick={() => {
+                    void props.runtime.run(props.runtime.select(cell.row.original.jobId))
+                  }}
+                >
+                  {cell.row.original.jobId}
+                </button>
+              </div>
             </div>
-          </div>
-        )
+          )
+        }
       },
       { id: "queue", header: "Queue", accessorFn: (job) => job.catalog.queue },
       {
         id: "status",
         header: "Status",
-        cell: ({ row }) => <Badge state={row.original.state} />
+        cell: (cell) => {
+          return <Badge state={cell.row.original.state} />
+        }
       },
       {
         id: "attempts",
         header: "Attempts",
-        cell: ({ row }) => (
-          <span title="Finalized attempts, not all handler invocations">
-            {String(row.original.attemptsMade).padStart(2, "0")}
-          </span>
-        )
+        cell: (cell) => {
+          return (
+            <span title="Finalized attempts, not all handler invocations">
+              {String(cell.row.original.attemptsMade).padStart(2, "0")}
+            </span>
+          )
+        }
       },
       {
         id: "updated",
         header: "Updated",
-        cell: ({ row }) => <DateTime value={row.original.updatedAt} label="Updated" />
+        cell: (cell) => {
+          return <DateTime value={cell.row.original.updatedAt} label="Updated" />
+        }
       },
       {
         id: "terminal",
         header: "Terminal",
-        cell: ({ row }) => (
-          <DateTime value={row.original.completedAt} label="Terminal timestamp" />
-        )
+        cell: (cell) => {
+          return (
+            <DateTime value={cell.row.original.completedAt} label="Terminal timestamp" />
+          )
+        }
       },
       {
         id: "failure",
@@ -179,9 +187,9 @@ const JobsTable = ({
         accessorFn: (job) => job.lastFailureCode ?? "—"
       }
     ],
-    [runtime, selected]
+    [props.runtime, selected]
   )
-  const rows = useMemo(() => [...data], [data])
+  const rows = useMemo(() => [...props.data], [props.data])
   const table = useReactTable({
     data: rows,
     columns,
@@ -226,7 +234,7 @@ const JobsTable = ({
           </tbody>
         </table>
       </div>
-      {data.length === 0 && (
+      {props.data.length === 0 && (
         <div {...classes("empty-state")}>
           <Icon name="jobs" />
           <strong>{"No jobs match on this page"}</strong>
@@ -236,16 +244,16 @@ const JobsTable = ({
   )
 }
 
-export const Dashboard = ({
-  runtime,
-  demo
-}: {
+export const Dashboard = (inputProps: {
   readonly runtime: Runtime
   readonly demo: boolean
 }) => {
-  const state = useAtomValue(runtime.stateAtom)
-  const now = useAtomValue(runtime.now)
-  const route = useAtomValue(runtime.navigation.route)
+  // oxlint-disable-next-line effecttsgo/unstable-api-usage -- Pinned atom-react 4.0.5 has no stable subscription hook; preserve the shared Atom registry and cleanup.
+  const state = useAtomValue(inputProps.runtime.stateAtom)
+  // oxlint-disable-next-line effecttsgo/unstable-api-usage -- Pinned atom-react 4.0.5 has no stable subscription hook; preserve the shared Atom registry and cleanup.
+  const now = useAtomValue(inputProps.runtime.now)
+  // oxlint-disable-next-line effecttsgo/unstable-api-usage -- Pinned atom-react 4.0.5 has no stable subscription hook; preserve the shared Atom registry and cleanup.
+  const route = useAtomValue(inputProps.runtime.navigation.route)
   const detailPanel = useRef<HTMLElement>(null)
   const jobsPanel = useRef<HTMLElement>(null)
   const scenariosPanel = useRef<HTMLDetailsElement>(null)
@@ -268,14 +276,17 @@ export const Dashboard = ({
   const [count, setCount] = useState(1)
   const close = () => {
     if (route._tag === "List") {
-      runtime.closeDetail()
+      inputProps.runtime.closeDetail()
     } else {
-      runtime.navigation.close()
+      inputProps.runtime.navigation.close()
     }
   }
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && runtime.snapshot().selected !== undefined) {
+      if (
+        event.key === "Escape" &&
+        inputProps.runtime.snapshot().selected !== undefined
+      ) {
         close()
       }
     }
@@ -283,8 +294,8 @@ export const Dashboard = ({
     return () => window.removeEventListener("keydown", escape)
   })
   useLayoutEffect(() => {
-    runtime.restoreViewport()
-  }, [runtime, state.resultsCurrent, state.page])
+    inputProps.runtime.restoreViewport()
+  }, [inputProps.runtime, state.resultsCurrent, state.page])
   const fullDetailFocus = useRef<{ identity: string; focused: boolean } | undefined>(
     undefined
   )
@@ -331,9 +342,9 @@ export const Dashboard = ({
   const unavailable =
     state.busy || state.pending !== undefined || state.sandbox.expiresAt <= now
   const detail = state.detail
-  const identity = `${demo ? "demo" : "private"}:${state.sandbox.ref.sandboxId}:${state.sandbox.ref.generation}:${detail?.job.jobId}`
+  const identity = `${inputProps.demo ? "demo" : "private"}:${state.sandbox.ref.sandboxId}:${state.sandbox.ref.generation}:${detail?.job.jobId}`
   const repairActions = detail
-    ? OperatorEligibility.repairApplicability(detail, demo)
+    ? OperatorEligibility.repairApplicability(detail, inputProps.demo)
     : undefined
   const operatorActions = detail
     ? OperatorEligibility.eligibility(detail, state.sandbox, now)
@@ -350,21 +361,22 @@ export const Dashboard = ({
         detail,
         now,
         onClose: close,
-        onOpenFull: () => runtime.navigation.openFull(detail.job.jobId),
-        onRelated: (jobId: typeof detail.job.jobId) => runtime.navigation.openFull(jobId),
+        onOpenFull: () => inputProps.runtime.navigation.openFull(detail.job.jobId),
+        onRelated: (jobId: typeof detail.job.jobId) =>
+          inputProps.runtime.navigation.openFull(jobId),
         payloadSlot: (
           <JobPayloadPanel
             key={identity}
             detail={detail}
             identityKey={identity}
-            allowCopyEncoded={!demo}
+            allowCopyEncoded={!inputProps.demo}
           />
         ),
         repairSlot:
           hasActions || state.pending || state.notice ? (
             <div {...stylex.props(styles.detailActions)}>
               <OperatorControls
-                runtime={runtime}
+                runtime={inputProps.runtime}
                 detail={detail}
                 sandbox={state.sandbox}
                 now={now}
@@ -373,22 +385,26 @@ export const Dashboard = ({
               <JobRepairPanel
                 key={identity}
                 detail={detail}
-                readOnly={demo}
+                readOnly={inputProps.demo}
                 blocked={
                   state.busy ||
                   (state.pending !== undefined && state.pending.kind !== "repair") ||
                   state.sandbox.expiresAt <= now
                 }
                 pending={state.pending?.kind === "repair" ? state.pending.command : null}
-                onSubmit={(command) => void runtime.run(runtime.repair(command))}
-                onReceipt={() => void runtime.run(runtime.receipt)}
-                onResolve={(command) => void runtime.run(runtime.repair(command))}
+                onSubmit={(command) =>
+                  void inputProps.runtime.run(inputProps.runtime.repair(command))
+                }
+                onReceipt={() => void inputProps.runtime.run(inputProps.runtime.receipt)}
+                onResolve={(command) =>
+                  void inputProps.runtime.run(inputProps.runtime.repair(command))
+                }
               />
               {state.notice && <p role="status">{state.notice}</p>}
               {state.pending && state.pending.kind !== "repair" && (
                 <Button
                   disabled={state.busy}
-                  onClick={() => void runtime.run(runtime.receipt)}
+                  onClick={() => void inputProps.runtime.run(inputProps.runtime.receipt)}
                 >
                   Check exact {state.pending.kind} receipt
                 </Button>
@@ -421,7 +437,10 @@ export const Dashboard = ({
           </>
         )}
         {state.pending && (
-          <Button disabled={state.busy} onClick={() => void runtime.run(runtime.receipt)}>
+          <Button
+            disabled={state.busy}
+            onClick={() => void inputProps.runtime.run(inputProps.runtime.receipt)}
+          >
             Check exact request receipt
           </Button>
         )}
@@ -475,14 +494,16 @@ export const Dashboard = ({
           variant="ghost"
           {...classes("sidebar-profile")}
           aria-label={
-            demo ? "Demo viewer · Public · read only" : "Demo admin · Isolated sandbox"
+            inputProps.demo
+              ? "Demo viewer · Public · read only"
+              : "Demo admin · Isolated sandbox"
           }
         >
           <span {...classes("profile-avatar")}>DA</span>
           <span {...stylex.props(layout.desktop, layout.controlText)}>
-            <strong>{demo ? "Demo viewer" : "Demo admin"}</strong>
+            <strong>{inputProps.demo ? "Demo viewer" : "Demo admin"}</strong>
             <span {...stylex.props(layout.sublabel)}>
-              {demo ? "Public · read only" : "Isolated sandbox"}
+              {inputProps.demo ? "Public · read only" : "Isolated sandbox"}
             </span>
           </span>
           <span {...stylex.props(layout.desktop)}>
@@ -514,7 +535,7 @@ export const Dashboard = ({
               <h1 {...stylex.props(layout.title)}>Background Jobs</h1>
             </div>
             <div {...classes("header-actions")}>
-              {!demo && (
+              {!inputProps.demo && (
                 <Button
                   variant="primary"
                   onClick={() => {
@@ -605,8 +626,8 @@ export const Dashboard = ({
               <TabsRoot
                 value={state.filters.state ?? "all"}
                 onValueChange={(value) => {
-                  void runtime.run(
-                    runtime.filter({
+                  void inputProps.runtime.run(
+                    inputProps.runtime.filter({
                       ...state.filters,
                       state: value === "all" ? undefined : (value as JobSummary["state"])
                     })
@@ -640,7 +661,7 @@ export const Dashboard = ({
                         <strong>Connecting to your workspace</strong>
                       </div>
                     ) : (
-                      <JobsTable runtime={runtime} data={state.page.items} />
+                      <JobsTable runtime={inputProps.runtime} data={state.page.items} />
                     )}
                   </div>
                   <div {...classes("pagination")}>
@@ -661,10 +682,16 @@ export const Dashboard = ({
                       }
                       disabled={state.error === "sandbox-expired"}
                       busy={state.loading}
-                      onPage={(n) => void runtime.run(runtime.goTo(n))}
-                      onFirst={() => void runtime.run(runtime.first)}
-                      onPrevious={() => void runtime.run(runtime.previous)}
-                      onNext={() => void runtime.run(runtime.next)}
+                      onPage={(n) =>
+                        void inputProps.runtime.run(inputProps.runtime.goTo(n))
+                      }
+                      onFirst={() =>
+                        void inputProps.runtime.run(inputProps.runtime.first)
+                      }
+                      onPrevious={() =>
+                        void inputProps.runtime.run(inputProps.runtime.previous)
+                      }
+                      onNext={() => void inputProps.runtime.run(inputProps.runtime.next)}
                     />
                     <label {...stylex.props(layout.pageSize)}>
                       <span {...stylex.props(layout.pageSizeLabel)}>Rows per page</span>
@@ -674,8 +701,10 @@ export const Dashboard = ({
                         value={state.pageSize}
                         disabled={state.error === "sandbox-expired"}
                         onChange={(event) =>
-                          void runtime.run(
-                            runtime.setPageSize(Number(event.target.value) as 20 | 50)
+                          void inputProps.runtime.run(
+                            inputProps.runtime.setPageSize(
+                              Number(event.target.value) as 20 | 50
+                            )
                           )
                         }
                       >
@@ -709,8 +738,8 @@ export const Dashboard = ({
                 }
                 onChange={(event) => {
                   const value = event.target.value
-                  void runtime.run(
-                    runtime.filter({
+                  void inputProps.runtime.run(
+                    inputProps.runtime.filter({
                       ...state.filters,
                       resolution:
                         value === "Open" || value === "InProgress" || value === "Resolved"
@@ -749,16 +778,16 @@ export const Dashboard = ({
                 : ""}
             </p>
             <p {...classes("sandbox-scope")}>
-              {demo ? "Public demo" : "Own sandbox"}: {state.sandbox.ref.sandboxId} ·
-              generation {state.sandbox.ref.generation} · expires{" "}
-              <DateTime value={state.sandbox.expiresAt} label="Session expires" />
+              {inputProps.demo ? "Public demo" : "Own sandbox"}:{" "}
+              {state.sandbox.ref.sandboxId} · generation {state.sandbox.ref.generation} ·
+              expires <DateTime value={state.sandbox.expiresAt} label="Session expires" />
             </p>
             <Button
               variant="ghost"
               aria-disabled={state.loading || undefined}
               onClick={() => {
-                if (!runtime.snapshot().loading) {
-                  void runtime.run(runtime.refresh)
+                if (!inputProps.runtime.snapshot().loading) {
+                  void inputProps.runtime.run(inputProps.runtime.refresh)
                 }
               }}
             >
@@ -774,7 +803,7 @@ export const Dashboard = ({
               </Button>
             )}
           </div>
-          {!demo && (
+          {!inputProps.demo && (
             <details
               ref={scenariosPanel}
               {...classes("scenario-panel")}
@@ -823,8 +852,13 @@ export const Dashboard = ({
                         state.sandbox.capacity.admittedCommands >= 200))
                   }
                   onClick={() =>
-                    void runtime.run(
-                      runtime.command("scenario", crypto.randomUUID(), scenario, count)
+                    void inputProps.runtime.run(
+                      inputProps.runtime.command(
+                        "scenario",
+                        crypto.randomUUID(),
+                        scenario,
+                        count
+                      )
                     )
                   }
                 >
@@ -844,8 +878,13 @@ export const Dashboard = ({
                         "Start a new generation with 6 starter jobs? Old jobs and receipts remain. Running jobs are not cancelled."
                       )
                     ) {
-                      void runtime.run(
-                        runtime.command("reset", crypto.randomUUID(), "success", 1)
+                      void inputProps.runtime.run(
+                        inputProps.runtime.command(
+                          "reset",
+                          crypto.randomUUID(),
+                          "success",
+                          1
+                        )
                       )
                     }
                   }}
@@ -854,7 +893,7 @@ export const Dashboard = ({
                 </Button>
                 <Button
                   disabled={state.pending === undefined || state.busy}
-                  onClick={() => void runtime.run(runtime.receipt)}
+                  onClick={() => void inputProps.runtime.run(inputProps.runtime.receipt)}
                 >
                   Check exact request receipt
                 </Button>

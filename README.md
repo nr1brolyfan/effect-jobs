@@ -56,11 +56,11 @@ const ReceiptHandler = SendReceipt.handlerLayer(
 
 ## Install
 
-Examples target `0.1.0-alpha.1`. This prerelease changes the alpha.0 enqueue,
+Examples target the local-only `0.1.0-alpha.1-effect.4.0.5.local.2` candidate, which is not an npm release. This prerelease changes the alpha.0 enqueue,
 policy, failure-code and encrypted-payload APIs; update callers before upgrading.
 
 ```sh
-npm install effect-jobs@0.1.0-alpha.1 effect@4.0.0
+npm install ./effect-jobs-0.1.0-alpha.1-effect.4.0.5.local.2.tgz effect@4.0.5
 ```
 
 Imports are omitted below. Use package subpaths (`effect-jobs/Job`, `effect-jobs/JobPolicy`, …); the root export is empty. `Codec` refers to `JobPayloadCodec`; `Consumer`, `Worker`, `Runtime`, `Polling` and `Registry` refer to the corresponding `JobConsumer`, `JobWorker`, `JobWorkerRuntime`, `PollingJobWorker` and `JobRegistry` modules.
@@ -215,19 +215,21 @@ yield* Runtime.drain(billing).pipe(Effect.provide(WorkerLayer))
 The backend exposes its producer service as `jobsStorage.producer`.
 Provide it as `JobEnqueue` to effects that call `enqueue` or `enqueueStandalone`.
 `PostgreSqlNative.layer({ client, operationTimeoutMillis })` bridges the exact
-application-owned `PgClient@4.0.0`, including its active `transactionService`.
-Native `drizzle-orm/effect-postgres` transactions on that same client support
-ambient enqueue; missing or foreign-client transactions fail before preparation.
+application-owned `PgClient@4.0.5`, including its active `transactionService`.
+Use public `PgClient.withTransaction` on that same client with Drizzle queries
+inside its Effect body. Missing or foreign-client transactions fail before preparation.
 Pools, keys, timeouts and transaction ownership remain application-owned.
 
 ```ts
-// nativeDrizzle is drizzle-orm/effect-postgres; invoiceTable is app-owned.
+// PgClient is @effect/sql-pg/PgClient; nativeDrizzle is drizzle-orm/effect-postgres.
+// invoiceTable is app-owned. This must be the client passed to PostgreSqlNative.
+const client = yield* PgClient.PgClient
 const db = yield* nativeDrizzle.makeWithDefaults()
 
-yield* db
-  .transaction((tx) =>
+yield* client
+  .withTransaction(
     Effect.gen(function* () {
-      yield* tx.insert(invoiceTable).values({ id: invoiceId })
+      yield* db.insert(invoiceTable).values({ id: invoiceId })
 
       return yield* SendReceipt.enqueue({
         producer: IssueInvoice.identity({ operationId, slot: "receipt" }),
@@ -242,6 +244,20 @@ yield* db
 Alternatively, `jobsStorage.withTransaction` delegates to the same client manager
 and supplies `JobEnqueue`, as used by `issueInvoice`. Provide the scoped native
 PgClient Layer around the whole application; defining a Layer alone starts no work.
+
+Joined results remain provisional until the outer owner acknowledges COMMIT.
+Keep business, receipt and enqueue writes in one Effect/Context; do not run an
+independent `runPromise` inside the transaction. The qualified route supports
+ordinary outer transactions and jobs joining them without a savepoint. Nested
+transactions, Drizzle transaction options and isolation settings are not qualified
+as equivalent. `db.transaction` retains an upstream error-type limitation and is
+excluded from this route; no local type correction is used. Strict/exactOptional
+checks of our sources (A+B) remain required with dependency `skipLibCheck:true`.
+The full foreign declaration audit (C) remains known upstream FAIL, separately
+reported and nonblocking. Outer provider errors can also occur as defects: the
+application must sanitize them without losing caller errors/interruption, preserve
+Unknown COMMIT knowledge and reconcile its exact receipt read-only. Missing
+receipts or lost responses never authorize automatic replay or prove NotCommitted.
 
 `enqueue` requires an active transaction. For a job with no accompanying domain
 write, `enqueueStandalone` opens its own transaction and rejects active ones:
@@ -580,7 +596,8 @@ Start with one DO and concurrency `2`; add named consumers only after measuring 
 ## Alpha boundaries
 
 PostgreSQL only. Application-owned adapters, pools, migrations and cleanup. No recurring scheduler or admin API. Every TypeScript fence is extracted and declaration-checked against source and
-the packed alpha.1 artifact. Node/Bun composition, handler, codec and encryption
+the historical packed alpha.1 artifact. The current local Effect 4.0.5 candidate
+requires its own receipts; see `specs/release-qualification.md`. Node/Bun composition, handler, codec and encryption
 checks use explicit application fixtures. Real native PostgreSQL transaction
 gates are separate. Cloudflare external PostgreSQL, deployment, server crashes
 and arbitrary network faults are NotTested; upstream full strict Drizzle

@@ -11,6 +11,7 @@ import type { ReceiptRequest } from "@effect-jobs/playground-contracts/Scenarios
 import { PlaygroundError, Scenarios } from "@effect-jobs/playground-contracts/Services"
 import type { PlannedJob } from "../../scenarios/Plan.js"
 
+export type StoredReceipt = typeof StoredReceipt.Type
 export const StoredReceipt = Schema.Union([
   Schema.TaggedStruct("Scenario", {
     command: ScenarioCommand,
@@ -18,7 +19,6 @@ export const StoredReceipt = Schema.Union([
   }),
   Schema.TaggedStruct("Reset", { command: ResetCommand, result: ResetResult })
 ])
-export type StoredReceipt = typeof StoredReceipt.Type
 
 export class CommandTransactionFailure extends Schema.TaggedError<CommandTransactionFailure>()(
   "CommandTransactionFailure",
@@ -40,16 +40,21 @@ export interface CommandTransaction {
     operation: "Scenario" | "Reset"
   ) => Effect.Effect<StoredReceipt | null, StoreError>
   readonly reserve: (count: number) => Effect.Effect<void, StoreError>
-  readonly associate: (jobId: JobId, job: PlannedJob) => Effect.Effect<void, StoreError>
+  readonly associate: (
+    jobId: JobId,
+    job: PlannedJob
+  ) => Effect.Effect<void, CommandTransactionFailure>
   readonly advanceGeneration: (
     expected: SandboxRef
   ) => Effect.Effect<SandboxRef, StoreError>
-  readonly saveReceipt: (receipt: StoredReceipt) => Effect.Effect<void, StoreError>
+  readonly saveReceipt: (
+    receipt: StoredReceipt
+  ) => Effect.Effect<void, CommandTransactionFailure>
   readonly audit: (entry: {
     readonly operation: "Scenario" | "Reset"
     readonly reason: "synthetic-scenario" | "generation-revocation"
     readonly count: number
-  }) => Effect.Effect<void, StoreError>
+  }) => Effect.Effect<void, CommandTransactionFailure>
 }
 export class CommandTransactions extends Context.Service<
   CommandTransactions,

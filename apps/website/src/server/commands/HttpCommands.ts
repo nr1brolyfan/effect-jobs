@@ -55,52 +55,47 @@ const body = (request: Request) =>
     (reader) =>
       reader === undefined
         ? Effect.fail(invalid())
-        : Effect.tryPromise({
-            try: async () => {
-              const chunks: Uint8Array[] = []
-              let size = 0
-              for (;;) {
-                const chunk = await reader.read()
-                if (chunk.done) {
-                  break
-                }
-                size += chunk.value.byteLength
-                if (size > 4096) {
-                  throw invalid()
-                }
-                chunks.push(chunk.value)
+        : Effect.gen(function* () {
+            const chunks: Uint8Array[] = []
+            let size = 0
+            for (;;) {
+              const chunk = yield* Effect.tryPromise({
+                try: () => reader.read(),
+                catch: invalid
+              })
+              if (chunk.done) {
+                break
               }
-              const bytes = new Uint8Array(size)
-              let offset = 0
-              for (const chunk of chunks) {
-                bytes.set(chunk, offset)
-                offset += chunk.byteLength
+              size += chunk.value.byteLength
+              if (size > 4096) {
+                return yield* invalid()
               }
-              return JSON.parse(
-                new TextDecoder("utf-8", { fatal: true }).decode(bytes)
-              ) as unknown
-            },
-            catch: invalid
+              chunks.push(chunk.value)
+            }
+            return yield* Effect.try({
+              try: () => {
+                const bytes = new Uint8Array(size)
+                let offset = 0
+                for (const chunk of chunks) {
+                  bytes.set(chunk, offset)
+                  offset += chunk.byteLength
+                }
+                return JSON.parse(
+                  new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+                ) as unknown
+              },
+              catch: invalid
+            })
           }),
     (reader) =>
       reader === undefined
         ? Effect.void
-        : Effect.promise(async () => {
-            // Fetch FFI owns the timer and observes late cancel rejection. The
-            // finalizer itself must finish even while native cancel stays pending.
-            let timer: ReturnType<typeof setTimeout> | undefined
-            try {
-              await Promise.race([
-                reader.cancel().catch(() => undefined),
-                new Promise<void>((resolve) => {
-                  timer = setTimeout(resolve, bodyCleanupBudgetMillis)
-                })
-              ])
-            } finally {
-              clearTimeout(timer)
-              reader.releaseLock()
-            }
-          })
+        : Effect.tryPromise({ try: () => reader.cancel(), catch: () => undefined }).pipe(
+            Effect.ignore,
+            Effect.interruptible,
+            Effect.timeoutOption(bodyCleanupBudgetMillis),
+            Effect.ensuring(Effect.sync(() => reader.releaseLock()))
+          )
   ).pipe(Effect.timeout("2 seconds"), Effect.mapError(invalid))
 
 // Routes must authenticate the capability and apply global/per-sandbox rate limits

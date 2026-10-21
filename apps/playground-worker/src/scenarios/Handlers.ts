@@ -36,70 +36,11 @@ export const toJobFailure = Match.type<ProviderFailure>().pipe(
 )
 
 export const execute = (workload: Exclude<Definitions.Workload, "private-data-export">) =>
-  Effect.fn("Playground.execute")(function* ({
-    payload,
-    context
-  }: HandlerInput<Definitions.Payload>) {
+  Effect.fn("Playground.execute")(function* (input: HandlerInput<Definitions.Payload>) {
     const provider = yield* FakeProvider
-    const encoded = yield* Codec.encodeJobPayload(Definitions.Payload, payload).pipe(
-      Effect.catchCause((cause) =>
-        Effect.failCause(
-          Cause.map(cause, () => JobFailures.Isolate({ code: codes.codec }))
-        )
-      )
-    )
-    yield* provider
-      .execute({
-        sandbox: payload.sandbox,
-        producer: context.producer,
-        workload,
-        behavior: payload.behavior,
-        semanticProjection: encoded.semanticProjectionBytes
-      })
-      .pipe(
-        Effect.catchCause((cause) => Effect.failCause(Cause.map(cause, toJobFailure)))
-      )
-  })
-
-export const executeExport = Effect.fn("Playground.executeExport")(function* ({
-  payload,
-  context
-}: HandlerInput<Definitions.ExportPayload>) {
-  const provider = yield* FakeProvider
-  if (
-    payload.document.subject !== payload.actor ||
-    payload.document.tenant !== payload.tenant
-  ) {
-    return yield* Effect.fail(JobFailures.Isolate({ code: codes.invariant }))
-  }
-  const encoded = yield* Codec.encodeJobPayload(Definitions.ExportPayload, payload).pipe(
-    Effect.catchCause((cause) =>
-      Effect.failCause(Cause.map(cause, () => JobFailures.Isolate({ code: codes.codec })))
-    )
-  )
-  yield* provider
-    .execute({
-      sandbox: payload.sandbox,
-      producer: context.producer,
-      workload: "private-data-export",
-      behavior: payload.behavior,
-      semanticProjection: encoded.semanticProjectionBytes
-    })
-    .pipe(Effect.catchCause((cause) => Effect.failCause(Cause.map(cause, toJobFailure))))
-})
-
-export const executeSyntheticExport = Effect.fn("Playground.executeSyntheticExport")(
-  function* ({ payload, context }: HandlerInput<Definitions.SyntheticExportPayload>) {
-    const provider = yield* FakeProvider
-    if (
-      payload.document.subject !== payload.actor ||
-      payload.document.tenant !== payload.tenant
-    ) {
-      return yield* Effect.fail(JobFailures.Isolate({ code: codes.invariant }))
-    }
     const encoded = yield* Codec.encodeJobPayload(
-      Definitions.SyntheticExportPayload,
-      payload
+      Definitions.Payload,
+      input.payload
     ).pipe(
       Effect.catchCause((cause) =>
         Effect.failCause(
@@ -109,10 +50,71 @@ export const executeSyntheticExport = Effect.fn("Playground.executeSyntheticExpo
     )
     yield* provider
       .execute({
-        sandbox: payload.sandbox,
-        producer: context.producer,
+        sandbox: input.payload.sandbox,
+        producer: input.context.producer,
+        workload,
+        behavior: input.payload.behavior,
+        semanticProjection: encoded.semanticProjectionBytes
+      })
+      .pipe(
+        Effect.catchCause((cause) => Effect.failCause(Cause.map(cause, toJobFailure)))
+      )
+  })
+
+export const executeExport = Effect.fn("Playground.executeExport")(function* (
+  input: HandlerInput<Definitions.ExportPayload>
+) {
+  const provider = yield* FakeProvider
+  if (
+    input.payload.document.subject !== input.payload.actor ||
+    input.payload.document.tenant !== input.payload.tenant
+  ) {
+    return yield* Effect.fail(JobFailures.Isolate({ code: codes.invariant }))
+  }
+  const encoded = yield* Codec.encodeJobPayload(
+    Definitions.ExportPayload,
+    input.payload
+  ).pipe(
+    Effect.catchCause((cause) =>
+      Effect.failCause(Cause.map(cause, () => JobFailures.Isolate({ code: codes.codec })))
+    )
+  )
+  yield* provider
+    .execute({
+      sandbox: input.payload.sandbox,
+      producer: input.context.producer,
+      workload: "private-data-export",
+      behavior: input.payload.behavior,
+      semanticProjection: encoded.semanticProjectionBytes
+    })
+    .pipe(Effect.catchCause((cause) => Effect.failCause(Cause.map(cause, toJobFailure))))
+})
+
+export const executeSyntheticExport = Effect.fn("Playground.executeSyntheticExport")(
+  function* (input: HandlerInput<Definitions.SyntheticExportPayload>) {
+    const provider = yield* FakeProvider
+    if (
+      input.payload.document.subject !== input.payload.actor ||
+      input.payload.document.tenant !== input.payload.tenant
+    ) {
+      return yield* Effect.fail(JobFailures.Isolate({ code: codes.invariant }))
+    }
+    const encoded = yield* Codec.encodeJobPayload(
+      Definitions.SyntheticExportPayload,
+      input.payload
+    ).pipe(
+      Effect.catchCause((cause) =>
+        Effect.failCause(
+          Cause.map(cause, () => JobFailures.Isolate({ code: codes.codec }))
+        )
+      )
+    )
+    yield* provider
+      .execute({
+        sandbox: input.payload.sandbox,
+        producer: input.context.producer,
         workload: "synthetic-document-export",
-        behavior: payload.behavior,
+        behavior: input.payload.behavior,
         semanticProjection: encoded.semanticProjectionBytes
       })
       .pipe(

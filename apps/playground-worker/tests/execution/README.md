@@ -38,3 +38,27 @@ Production TS is checked/linted using the repository's pinned tools. The native
 MJS assertion harness uses `oxlint.json` only to disable Effect diagnostics for
 untyped external FFI channels and unstable API warnings. All other inherited
 lint checks remain enabled. It does not weaken production lint or root configs.
+
+## Frozen uncommitted qualification
+
+The current runners qualify the actual sorted input SHA256 map, including
+untracked source. `QUALIFICATION_BASELINE_MANIFEST` records the exact frozen
+baseline manifest hash and per-file delta. They compare input bytes before and
+after qualification and run mutation/addition/deletion rejection controls.
+The repository HEAD is context only; no index tree represents these bytes and
+no commit is required. Packed dist byte equality remains mandatory.
+
+Prepare preserves the original worker/website relative module topology, compiles
+the complete execution dependency graph with strict/exact optional declarations,
+and explicitly loads Node declarations. Probe source imports resolve to real
+TypeScript APIs for lint; only disposable consumer copies target emitted JS.
+The runtime setup applies the actual registered application migrations and supplies
+the producer required by authority starter jobs. Six-command-job assertions remain
+scoped to their returned IDs, independent of the application's starter traffic.
+No negative cases are deleted. The resource owner uses a fresh ten-minute expiry,
+removes the exact container and private config, and removes its consumer after
+both runtime attempts. A failed runtime makes the runner exit nonzero.
+
+Pinned unstable SQL APIs are allowed only for exact test files and exact exports
+in the worker tsconfig; all diagnostic severities and production scopes remain.
+The inclusion of MJS allows those precise overrides and source API inference.

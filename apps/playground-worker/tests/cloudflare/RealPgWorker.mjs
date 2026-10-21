@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
 import { Effect } from "effect"
-import * as Wake from "./WakeCycle.js"
+import * as Wake from "../../src/cloudflare/WakeCycle.js"
 import { probe } from "./RealPgProbe.mjs"
 export class RealProbe extends DurableObject {
   async fetch() {

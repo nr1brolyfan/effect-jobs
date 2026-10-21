@@ -14,14 +14,9 @@ export function JobDetailsDrawer(props: JobDetailsProps) {
   return <SelectedDrawer key={detailIdentityKey(props.detail)} {...props} />
 }
 
-function SelectedDrawer({
-  detail,
-  onClose,
-  onOpenFull,
-  onRelated,
-  payloadSlot,
-  repairSlot
-}: JobDetailsProps) {
+function SelectedDrawer(props: JobDetailsProps) {
+  const { detail, onClose, onOpenFull, onRelated, payloadSlot, repairSlot } = props
+
   const [open, setOpen] = useState(true)
   const leave = (action: () => void) => {
     setOpen(false)

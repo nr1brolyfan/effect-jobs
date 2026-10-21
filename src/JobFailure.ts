@@ -8,6 +8,12 @@ import { FailureCode } from "./FailureCode.js"
 export { FailureCode } from "./FailureCode.js"
 
 /**
+ * Decoded value of the JobFailure Schema.
+ *
+ * @category models
+ */
+export type JobFailure = typeof JobFailure.Type
+/**
  * Explicit Retry, Dead, Isolate or OutcomeUnknown handler failure Schema/type.
  * Unknown does not prove the external effect failed and is not a durable state.
  *
@@ -16,18 +22,12 @@ export { FailureCode } from "./FailureCode.js"
 export const JobFailure = Schema.Union([
   Schema.TaggedStruct("Retry", {
     code: FailureCode,
-    notAfter: Schema.optional(EpochMillis)
+    notAfter: EpochMillis.pipe(Schema.optional)
   }),
   Schema.TaggedStruct("Dead", { code: FailureCode }),
   Schema.TaggedStruct("Isolate", { code: FailureCode }),
   Schema.TaggedStruct("OutcomeUnknown", { code: FailureCode })
 ])
-/**
- * Decoded value of the JobFailure Schema.
- *
- * @category models
- */
-export type JobFailure = typeof JobFailure.Type
 const failures = Data.taggedEnum<JobFailure>()
 
 /**

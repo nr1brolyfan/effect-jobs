@@ -56,8 +56,8 @@ writeFileSync(
       type: "module",
       dependencies: {
         "effect-jobs": `file:${archive}`,
-        effect: "4.0.0",
-        "@effect/sql-pg": "4.0.0",
+        effect: "4.0.5",
+        "@effect/sql-pg": "4.0.5",
         "drizzle-orm": "1.0.0-rc.5-169397b",
         pg: "8.23.0",
         "@types/pg": "8.20.0",

@@ -86,7 +86,7 @@ export const start = <A>(options: BrowserOptions<A>) => {
     const readController = new AbortController()
     controller = readController
     // Promise bridge belongs to browser callbacks. Effect owns timeout and cancellation.
-    void Effect.runPromise(
+    void Effect.runPromiseExit(
       options.snapshot().pipe(
         Effect.timeout("4 seconds"),
         Effect.match({
@@ -97,42 +97,46 @@ export const start = <A>(options: BrowserOptions<A>) => {
               (error.code === "sandbox-expired" || error.code === "stale-generation")
           }),
           onSuccess: (value) => ({ ok: true as const, value })
-        })
+        }),
+        Effect.tap((result) =>
+          Effect.sync(() => {
+            if (!active() || readController.signal.aborted) {
+              return
+            }
+            if (result.ok) {
+              // Admission, changed jobs and lifetime transitions supersede a read;
+              // periodic reconciliation only requests another authoritative snapshot.
+              if (captured === revision) {
+                options.render(result.value)
+              }
+            } else if (result.expired) {
+              expire()
+            } else {
+              options.unavailable()
+            }
+          })
+        ),
+        Effect.catchCause(() =>
+          Effect.sync(() => {
+            if (active() && !readController.signal.aborted) {
+              options.unavailable()
+            }
+          })
+        ),
+        Effect.ensuring(
+          Effect.sync(() => {
+            reading = false
+            if (controller === readController) {
+              controller = undefined
+            }
+            if (active() && capturedDemand !== refreshDemand) {
+              scheduleRefresh()
+            }
+          })
+        )
       ),
       { signal: readController.signal }
     )
-      .then(
-        (result) => {
-          if (!active() || readController.signal.aborted) {
-            return
-          }
-          if (result.ok) {
-            // Admission, changed jobs and lifetime transitions supersede a read;
-            // periodic reconciliation only requests another authoritative snapshot.
-            if (captured === revision) {
-              options.render(result.value)
-            }
-          } else if (result.expired) {
-            expire()
-          } else {
-            options.unavailable()
-          }
-        },
-        () => {
-          if (active() && !readController.signal.aborted) {
-            options.unavailable()
-          }
-        }
-      )
-      .finally(() => {
-        reading = false
-        if (controller === readController) {
-          controller = undefined
-        }
-        if (active() && capturedDemand !== refreshDemand) {
-          scheduleRefresh()
-        }
-      })
   }
   const scheduleRefresh = () => {
     if (!active() || reading || refreshTimer !== undefined) {

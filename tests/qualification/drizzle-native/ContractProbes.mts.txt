@@ -1,0 +1,116 @@
+import * as Pg from "@effect/sql-pg/PgClient"
+import * as Drizzle from "drizzle-orm/effect-postgres"
+import { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
+import { integer, pgTable, text } from "drizzle-orm/pg-core"
+import { Context, Data, Effect } from "effect"
+import type { SqlError } from "effect/sql/SqlError"
+import * as Native from "effect-jobs/PostgreSqlNative"
+import * as Storage from "effect-jobs/PostgreSqlJobs"
+import * as DrizzleSchema from "effect-jobs/PostgreSqlDrizzleSchema"
+import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
+
+export const users = pgTable("proof_users", {
+  id: integer().primaryKey(),
+  name: text().notNull()
+})
+export const jobTables = DrizzleSchema.makeJobTables({ schema: "proof" })
+export class Caller extends Context.Service<Caller, { readonly name: string }>()(
+  "proof/Caller"
+) {}
+export class CallerError extends Data.TaggedError("CallerError")<{}> {}
+
+// No return annotations: all channels below are inferred from actual public calls.
+export const selectProgram = Effect.gen(function* () {
+  const db = yield* Drizzle.makeWithDefaults()
+  return yield* db.select().from(users)
+})
+export const insertProgram = Effect.gen(function* () {
+  const db = yield* Drizzle.makeWithDefaults()
+  return yield* db.insert(users).values({ id: 1, name: "fixture" }).returning()
+})
+export const transactionProgram = Effect.gen(function* () {
+  const client = yield* Pg.PgClient
+  const db = yield* Drizzle.makeWithDefaults()
+  return yield* client.withTransaction(
+    Effect.gen(function* () {
+      const caller = yield* Caller
+      if (caller.name === "reject") { return yield* new CallerError() }
+      return yield* db.insert(users).values({ id: 2, name: caller.name }).returning()
+    })
+  )
+})
+export const joinedProgram = Effect.gen(function* () {
+  const client = yield* Pg.PgClient
+  const db = yield* Drizzle.makeWithDefaults()
+  const backend = yield* Storage.make({
+    schema: "proof",
+    operationResponseBudgetMillis: 100
+  }).pipe(
+    Effect.provideService(
+      PostgreSqlApplication,
+      Native.make({ client, operationTimeoutMillis: 1000 })
+    )
+  )
+  return yield* client.withTransaction(
+    backend.withTransaction(() =>
+      Effect.gen(function* () {
+        const caller = yield* Caller
+        if (caller.name === "reject") { return yield* new CallerError() }
+        return yield* db.select().from(users)
+      })
+    )
+  )
+})
+
+type Equal<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
+type TxOutput = Effect.Success<typeof transactionProgram>
+type TxError = Effect.Error<typeof transactionProgram>
+type TxContext = Effect.Services<typeof transactionProgram>
+export const exactQueryError: Equal<
+  Effect.Error<typeof selectProgram>,
+  EffectDrizzleQueryError
+> = true
+export const exactInsertError: Equal<
+  Effect.Error<typeof insertProgram>,
+  EffectDrizzleQueryError
+> = true
+export const exactTransactionError: Equal<
+  TxError,
+  CallerError | EffectDrizzleQueryError | SqlError
+> = true
+export const exactTransactionContext: Equal<TxContext, Pg.PgClient | Caller> = true
+export const exactOutput: Equal<
+  Effect.Success<typeof transactionProgram>,
+  { id: number; name: string }[]
+> = true
+export const exactJoinedContext: Equal<
+  Effect.Services<typeof joinedProgram>,
+  Pg.PgClient | Caller
+> = true
+export const exactJoinedError: Equal<
+  Effect.Error<typeof joinedProgram>,
+  | TxError
+  | import("effect-jobs/PostgreSqlSchema").PostgreSqlConfigurationError
+  | import("effect-jobs/PostgreSqlTransaction").PostgreSqlError
+> = true
+
+// Negative oracles only. Removing each directive must produce an application diagnostic.
+// @ts-expect-error -- ORACLE: inferred query errors must reject strings.
+export const badQueryError: Effect.Error<typeof selectProgram> = "not-an-error"
+// @ts-expect-error -- ORACLE: inferred transaction errors must reject strings.
+export const badTransactionError: TxError = "not-an-error"
+// @ts-expect-error -- ORACLE: native join must not widen its error channel.
+export const badJoinedError: Effect.Error<typeof joinedProgram> = "not-an-error"
+// @ts-expect-error -- ORACLE: output id remains numeric.
+export const badOutput: TxOutput = [{ id: "wrong", name: "fixture" }]
+// @ts-expect-error -- ORACLE: caller dependency must remain required.
+export const missingCaller: Effect.Effect<
+  Effect.Success<typeof transactionProgram>,
+  TxError,
+  Pg.PgClient
+> = transactionProgram
+export const invalidInputProgram = Effect.gen(function* () {
+  const db = yield* Drizzle.makeWithDefaults()
+  // @ts-expect-error -- ORACLE: typed insert rejects a string id.
+  return yield* db.insert(users).values({ id: "wrong", name: "fixture" })
+})

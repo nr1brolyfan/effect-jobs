@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "drizzle-orm": "1.0.0-rc.5-169397b",
+    "drizzle-orm": "1.0.0-rc.5-ab785fc",
     "pg": "8.23.0"
   },
   "devDependencies": {

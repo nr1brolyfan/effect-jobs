@@ -59,11 +59,11 @@ var Capabilities = Schema.Struct({
 var SandboxView = Schema.Struct({
   ref: SandboxRef,
   expiresAt: EpochMillis,
-  capacity: Schema.optional(Schema.Struct({
+  capacity: Schema.Struct({
     mode: Schema.Literals(["local", "bounded"]),
     retainedJobs: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }))),
     admittedCommands: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER })))
-  })),
+  }).pipe(Schema.optional),
   capabilities: Capabilities
 });
 var limits = Object.freeze({
@@ -203,7 +203,7 @@ var JobOperatorReceiptRequest = Schema4.Struct({
 });
 var eligibility = Schema4.Struct({
   enabled: Schema4.Boolean,
-  reason: Schema4.NullOr(JobOperatorReason)
+  reason: JobOperatorReason.pipe(Schema4.NullOr)
 });
 var JobOperatorEligibility = Schema4.Struct({
   retryNow: eligibility,
@@ -313,14 +313,14 @@ var JobProblem = Schema5.Struct({
   state: JobResolutionState,
   version: Counter2,
   updatedAt: EpochMillis3,
-  activeSuccessorJobId: Schema5.NullOr(JobId3),
+  activeSuccessorJobId: JobId3.pipe(Schema5.NullOr),
   outcomeKnowledge: Schema5.Literals(["KnownFailure", "Unknown"]),
-  resolution: Schema5.NullOr(Schema5.Struct({
+  resolution: Schema5.Struct({
     kind: Schema5.Literals(["SuccessorCompleted", "OperatorReconciled", "ManualClose"]),
-    reason: Schema5.NullOr(Reason),
+    reason: Reason.pipe(Schema5.NullOr),
     observedAt: EpochMillis3,
-    successorJobId: Schema5.NullOr(JobId3)
-  }))
+    successorJobId: JobId3.pipe(Schema5.NullOr)
+  }).pipe(Schema5.NullOr)
 });
 var JobRepairReason = Schema5.Literals([
   ...JobOperatorReason.literals,
@@ -388,7 +388,7 @@ var JobResolutionCommand = Schema5.Struct({
   expectedResolutionVersion: Counter2,
   reason: Reason,
   action: Schema5.Literals(["reconcile-applied", "manual-close"]),
-  confirmUnknownOutcome: Schema5.optional(Schema5.Literal(true))
+  confirmUnknownOutcome: Schema5.Literal(true).pipe(Schema5.optional)
 });
 var JobResolutionResult = Schema5.Union([
   Schema5.TaggedStruct("Committed", {
@@ -744,15 +744,15 @@ import { EpochMillis as EpochMillis4, PersistedJobPolicy } from "effect-jobs/Job
 import { FailureCode } from "effect-jobs/JobFailure";
 var Cursor = Schema7.String.pipe(Schema7.check(Schema7.isMinLength(1), Schema7.isMaxLength(1024)));
 var JobFilters = Schema7.Struct({
-  state: Schema7.optional(JobState2),
-  kind: Schema7.optional(CatalogIdentity.fields.kind),
-  resolution: Schema7.optional(JobResolutionState),
-  needsAttention: Schema7.optional(Schema7.Literal(true))
+  state: JobState2.pipe(Schema7.optional),
+  kind: CatalogIdentity.fields.kind.pipe(Schema7.optional),
+  resolution: JobResolutionState.pipe(Schema7.optional),
+  needsAttention: Schema7.Literal(true).pipe(Schema7.optional)
 });
 var ListJobs = Schema7.Struct({
   sandbox: SandboxRef,
   filters: JobFilters,
-  cursor: Schema7.optional(Cursor),
+  cursor: Cursor.pipe(Schema7.optional),
   limit: Schema7.Int.pipe(Schema7.check(Schema7.isBetween({ minimum: 1, maximum: 50 })))
 });
 var JobSummary = Schema7.Struct({
@@ -761,11 +761,11 @@ var JobSummary = Schema7.Struct({
   state: JobState2,
   availableAt: EpochMillis4,
   updatedAt: EpochMillis4,
-  completedAt: Schema7.NullOr(EpochMillis4),
+  completedAt: EpochMillis4.pipe(Schema7.NullOr),
   attemptsMade: Counter3,
   stalledCount: Counter3,
   lifecycleVersion: Counter3,
-  lastFailureCode: Schema7.NullOr(FailureCode)
+  lastFailureCode: FailureCode.pipe(Schema7.NullOr)
 }).pipe(Schema7.check(Schema7.makeFilter((job) => (job.state === "Completed" || job.state === "Dead" || job.state === "Cancelled") === (job.completedAt !== null))));
 var JobStats = Schema7.Struct({
   total: Counter3,
@@ -786,7 +786,7 @@ var JobAttentionStats = Schema7.Struct({
 var JobPage = Schema7.Struct({
   sandbox: SandboxRef,
   items: Schema7.Array(JobSummary).pipe(Schema7.check(Schema7.isMaxLength(50))),
-  nextCursor: Schema7.NullOr(Cursor),
+  nextCursor: Cursor.pipe(Schema7.NullOr),
   // Matching rows before the cursor predicate, from the same scoped SQL snapshot.
   filteredTotal: Counter3,
   stats: JobStats,
@@ -794,9 +794,9 @@ var JobPage = Schema7.Struct({
 });
 var JobDetailRequest = Schema7.Struct({ sandbox: SandboxRef, jobId: JobId4 });
 var ApplicationRelations = Schema7.Struct({
-  syntheticOrderId: Schema7.optional(Schema7.Literals(["demo-order-a", "demo-order-b"])),
-  syntheticActor: Schema7.optional(Schema7.Literal("demo-customer")),
-  syntheticTenant: Schema7.optional(Schema7.Literals(["demo-tenant-a", "demo-tenant-b"]))
+  syntheticOrderId: Schema7.Literals(["demo-order-a", "demo-order-b"]).pipe(Schema7.optional),
+  syntheticActor: Schema7.Literal("demo-customer").pipe(Schema7.optional),
+  syntheticTenant: Schema7.Literals(["demo-tenant-a", "demo-tenant-b"]).pipe(Schema7.optional)
 });
 var Observation = Schema7.Struct({
   source: Schema7.Literals(["mock", "local", "workerd", "hosted"]),
@@ -806,7 +806,7 @@ var Observation = Schema7.Struct({
 var JobRedriveKind = Schema7.Literals(["Redrive", "CorrectedRedrive"]);
 var JobLineage = Schema7.Struct({
   originalSourceJobId: JobId4,
-  sourceJobId: Schema7.NullOr(JobId4),
+  sourceJobId: JobId4.pipe(Schema7.NullOr),
   kind: JobRedriveKind
 });
 var JobPayloadView = Schema7.Union([
@@ -839,7 +839,7 @@ var JobHistoryItem = Schema7.Union([
       "ManualClose",
       "Reopened"
     ]),
-    reason: Schema7.NullOr(Reason),
+    reason: Reason.pipe(Schema7.NullOr),
     observedAt: EpochMillis4
   })
 ]);
@@ -847,39 +847,39 @@ var JobHistory = Schema7.Struct({
   coverage: Schema7.Literal("RetainedFacts"),
   attempts: Schema7.Null,
   items: Schema7.Array(JobHistoryItem).pipe(Schema7.check(Schema7.isMaxLength(50))),
-  nextCursor: Schema7.NullOr(Cursor)
+  nextCursor: Cursor.pipe(Schema7.NullOr)
 });
 var JobRelatedItem = Schema7.Struct({
   jobId: JobId4,
-  state: Schema7.NullOr(JobState2),
-  kind: Schema7.NullOr(JobRedriveKind),
+  state: JobState2.pipe(Schema7.NullOr),
+  kind: JobRedriveKind.pipe(Schema7.NullOr),
   sourceAvailable: Schema7.Boolean
 });
 var JobRelatedPage = Schema7.Struct({
   items: Schema7.Array(JobRelatedItem).pipe(Schema7.check(Schema7.isMaxLength(50))),
-  nextCursor: Schema7.NullOr(Cursor)
+  nextCursor: Cursor.pipe(Schema7.NullOr)
 });
 var JobDetailPageRequest = Schema7.Struct({
   sandbox: SandboxRef,
   jobId: JobId4,
-  cursor: Schema7.optional(Cursor),
+  cursor: Cursor.pipe(Schema7.optional),
   limit: Schema7.Int.pipe(Schema7.check(Schema7.isBetween({ minimum: 1, maximum: 50 })))
 });
 var JobProblemRow = Schema7.Struct({
   problem: JobProblem,
-  representative: Schema7.NullOr(JobSummary)
+  representative: JobSummary.pipe(Schema7.NullOr)
 });
 var JobProblemPage = Schema7.Struct({
   sandbox: SandboxRef,
   items: Schema7.Array(JobProblemRow).pipe(Schema7.check(Schema7.isMaxLength(50))),
-  nextCursor: Schema7.NullOr(Cursor),
+  nextCursor: Cursor.pipe(Schema7.NullOr),
   filteredTotal: Counter3,
   stats: JobStats,
   attentionStats: JobAttentionStats
 });
 var repairEligibility = Schema7.Struct({
   enabled: Schema7.Boolean,
-  reason: Schema7.NullOr(JobRepairReason)
+  reason: JobRepairReason.pipe(Schema7.NullOr)
 });
 var JobDetail = Schema7.Struct({
   sandbox: SandboxRef,
@@ -887,19 +887,19 @@ var JobDetail = Schema7.Struct({
   producer: ProducerIdentity,
   policy: PersistedJobPolicy,
   relations: ApplicationRelations,
-  observation: Schema7.optional(Observation),
+  observation: Observation.pipe(Schema7.optional),
   createdAt: Schema7.Null,
   payload: JobPayloadView,
   result: Schema7.TaggedStruct("Unavailable", { reason: Schema7.Literal("not-stored") }),
   history: JobHistory,
-  provider: Schema7.NullOr(Schema7.Struct({
+  provider: Schema7.Struct({
     source: Schema7.Literal("synthetic-postgresql"),
     accepted: Schema7.Boolean,
     invocations: Counter3,
     observedAt: Schema7.Null
-  })),
-  lineage: Schema7.NullOr(JobLineage),
-  problem: Schema7.NullOr(JobProblem),
+  }).pipe(Schema7.NullOr),
+  lineage: JobLineage.pipe(Schema7.NullOr),
+  problem: JobProblem.pipe(Schema7.NullOr),
   related: JobRelatedPage,
   eligibility: Schema7.Struct({
     redrive: repairEligibility,

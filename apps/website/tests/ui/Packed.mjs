@@ -37,6 +37,10 @@ const run = (name, command, args, cwd = root, env = process.env) => {
   }
 }
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
+const website = JSON.parse(readFileSync(join(root, "apps/website/package.json"), "utf8"))
+const dependencies = { ...website.dependencies, ...website.devDependencies }
+delete dependencies["@effect-jobs/playground-contracts"]
+delete dependencies["effect-jobs"]
 run("pack", "node", ["scripts/pack-release.mjs"], root, {
   ...process.env,
   EFFECT_JOBS_ARTIFACT_DIRECTORY: join(evidence, "artifact")
@@ -60,8 +64,9 @@ writeFileSync(
       private: true,
       type: "module",
       dependencies: {
+        ...dependencies,
         "effect-jobs": `file:${archive}`,
-        effect: "4.0.0",
+        effect: "4.0.5",
         typescript: "7.0.2",
         "@types/node": "26.4.1"
       }
@@ -85,9 +90,16 @@ for (const path of ["package.json", "src", "dist"]) {
     recursive: true
   })
 }
-cpSync(join(root, "apps/website/src/features/jobs"), join(consumer, "src"), {
-  recursive: true
-})
+// Preserve relative imports, including browser-consumed scenario Schemas.
+// Copy source inputs only; dependencies are independently installed above.
+for (const path of ["apps/website/src", "apps/website/build.mjs"]) {
+  cpSync(join(root, path), join(consumer, path), { recursive: true })
+}
+for (const file of ["Definitions.ts", "PrivateDocument.ts"]) {
+  const directory = join(consumer, "apps/playground-worker/src/scenarios")
+  mkdirSync(directory, { recursive: true })
+  cpSync(join(root, "apps/playground-worker/src/scenarios", file), join(directory, file))
+}
 writeFileSync(
   join(consumer, "tsconfig.json"),
   JSON.stringify(
@@ -102,45 +114,89 @@ writeFileSync(
         noUncheckedIndexedAccess: true,
         verbatimModuleSyntax: true,
         skipLibCheck: false,
-        noEmit: true
+        noEmit: true,
+        jsx: "react-jsx",
+        types: ["node"]
       },
-      include: ["src/**/*.ts"]
+      include: [
+        "apps/website/src/features/**/*.ts",
+        "apps/website/src/features/**/*.tsx",
+        "apps/website/src/ui/**/*.ts",
+        "apps/website/src/ui/**/*.tsx",
+        "apps/website/src/live/**/*.ts"
+      ]
     },
     null,
     2
   )
 )
-run("types", "node", ["node_modules/typescript/bin/tsc", "-p", "tsconfig.json"], consumer)
+let typeFailure
+try {
+  run(
+    "types",
+    "node",
+    ["node_modules/typescript/bin/tsc", "-p", "tsconfig.json"],
+    consumer
+  )
+} catch (error) {
+  typeFailure = error
+}
+// A supplemental own-code check does not relabel the strict declaration gate.
 run(
-  "browser",
-  "bun",
-  ["build", "src/View.ts", "src/FixtureEntry.ts", "--target=browser", "--outdir=browser"],
+  "own-types",
+  "node",
+  ["node_modules/typescript/bin/tsc", "-p", "tsconfig.json", "--skipLibCheck"],
   consumer
 )
+run("browser", "bun", ["apps/website/build.mjs"], consumer)
 writeFileSync(
   join(consumer, "Smoke.ts"),
   `
 import assert from "node:assert/strict"
 import { createRequire } from "node:module"
-import { Effect, Layer } from "effect"
+import { Effect, Layer, Schema } from "effect"
+import { JobId } from "effect-jobs/JobId"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
-import * as Controller from "./src/Controller.js"
-import * as FixtureClient from "./src/FixtureClient.js"
-import { JobsClient } from "./src/Adapter.js"
+import * as Atoms from "./apps/website/src/features/jobs/Atoms.js"
+import * as FixtureClient from "./apps/website/src/features/jobs/FixtureClient.js"
+import { JobsClient, type Client } from "./apps/website/src/features/jobs/Adapter.js"
 const require = createRequire(import.meta.url)
 assert.throws(() => require.resolve("drizzle-orm"))
 assert.throws(() => require.resolve("pg"))
-const controller = Controller.make(Fixtures.sandbox, () => {})
-const layer = Layer.succeed(JobsClient, FixtureClient.client)
+const controller = Atoms.make(Fixtures.sandbox)
+const items = Array.from({ length: 43 }, (_, index) => ({ ...FixtureClient.page.items[index % 13]!, jobId: Schema.decodeUnknownSync(JobId)("installed-job-" + String(index + 1).padStart(2, "0")) }))
+const stats = { ...FixtureClient.page.stats, total: items.length }
+for (const state of ["Pending", "RetryScheduled", "Active", "Completed", "Dead", "Isolated", "Cancelled"] as const) {
+  stats[state] = items.filter((job) => job.state === state).length
+}
+const client: Client = { ...FixtureClient.client, list: (request) => {
+  const start = request.cursor === undefined ? 0 : items.findIndex((job) => job.jobId === request.cursor) + 1
+  const visible = items.slice(start, start + request.limit)
+  return Effect.succeed({ ...FixtureClient.page, sandbox: request.sandbox, items: visible, filteredTotal: items.length,
+    stats, nextCursor: start + request.limit < items.length ? visible.at(-1)!.jobId : null })
+} }
+const layer = Layer.succeed(JobsClient, client)
 await Effect.runPromise(controller.refresh.pipe(Effect.provide(layer)))
-assert.equal(controller.snapshot().page.items.length, 5)
+assert.equal(controller.snapshot().page!.items.length, 20)
 await Effect.runPromise(controller.next.pipe(Effect.provide(layer)))
 assert.equal(controller.snapshot().pageNumber, 2)
-assert.equal(controller.snapshot().page.items[0].jobId, "demo-job-06")
+assert.equal(controller.snapshot().page!.items[0]!.jobId, "installed-job-21")
 await Effect.runPromise(controller.command("scenario", "disabled", "success", 1).pipe(Effect.provide(layer)))
 assert.equal(controller.snapshot().pending, undefined)
+controller.dispose()
 console.log("installed UI state and disabled mock command PASS; no backend peers")
 `
+)
+// Type-check the generated caller too, keeping strict/exact-optional own-code checks.
+const configPath = join(consumer, "tsconfig.json")
+const config = JSON.parse(readFileSync(configPath, "utf8"))
+config.include.push("Smoke.ts")
+writeFileSync(configPath, JSON.stringify(config, null, 2))
+run(
+  "smoke-types",
+  "node",
+  ["node_modules/typescript/bin/tsc", "-p", "tsconfig.json", "--skipLibCheck"],
+  consumer
 )
 run(
   "smoke-build",
@@ -163,25 +219,40 @@ const record = (directory, prefix) => {
     }
   }
 }
-record(join(root, "apps/website/src/features/jobs"), "apps/website/src/features/jobs")
+record(join(root, "apps/website/src"), "apps/website/src")
+for (const file of ["Definitions.ts", "PrivateDocument.ts"]) {
+  const path = `apps/playground-worker/src/scenarios/${file}`
+  hashes[path] = createHash("sha256")
+    .update(readFileSync(join(root, path)))
+    .digest("hex")
+}
 const receipt = {
-  result: "PASS",
+  result: typeFailure ? "FAIL" : "PASS",
+  strictDeclarationGate: typeFailure ? "FAIL (see types.log)" : "PASS",
   evidence,
-  head: run("head", "git", ["rev-parse", "HEAD"]).trim(),
-  tree: run("tree", "git", ["write-tree"]).trim(),
+  baseHead: run("head", "git", ["rev-parse", "HEAD"]).trim(),
+  baseTree: run("tree", "git", ["rev-parse", "HEAD^{tree}"]).trim(),
+  provenance:
+    "Uncommitted candidate: sourceHashes and archive hash identify tested inputs; baseHead/baseTree are historical metadata only.",
+  qualificationRunnerSha256: createHash("sha256")
+    .update(readFileSync(import.meta.filename))
+    .digest("hex"),
+  consumerLockSha256: createHash("sha256")
+    .update(readFileSync(join(consumer, "package-lock.json")))
+    .digest("hex"),
   sourceHashes: hashes,
   archiveSha256: createHash("sha256").update(readFileSync(archive)).digest("hex"),
   consumer,
   tools: {
     node: process.version,
     bun: run("bun-version", "bun", ["--version"]).trim(),
-    effect: "4.0.0",
+    effect: "4.0.5",
     typescript: "7.0.2"
   },
   checks: [
     "packed dist byte equality",
     "no apps/private packages in library archive",
-    "independent strict UI types without aliases",
+    "independent strict own-code UI types without aliases; full declaration gate separately reported",
     "actual UI browser bundle",
     "Node/Bun UI-state smoke without PG/Drizzle peers"
   ],
@@ -195,3 +266,9 @@ const receipt = {
 }
 writeFileSync(join(evidence, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n")
 console.log(JSON.stringify(receipt, null, 2))
+
+if (typeFailure) {
+  throw new Error(
+    "Installed UI strict declaration gate failed; later independent gates completed"
+  )
+}

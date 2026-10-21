@@ -68,12 +68,12 @@ export const payload = (
       encryption
     }
   }).pipe(
-    Effect.catchTag("RepairSourceRejected", () =>
-      Effect.succeed(unavailable("invalid-artifact"))
-    ),
-    Effect.catchTag("JobPayloadCodecError", () =>
-      Effect.succeed(unavailable("invalid-artifact"))
-    )
+    Effect.catchTags({
+      RepairSourceRejected: () => Effect.succeed(unavailable("invalid-artifact"))
+    }),
+    Effect.catchTags({
+      JobPayloadCodecError: () => Effect.succeed(unavailable("invalid-artifact"))
+    })
   )
 
 export const eligibility = (

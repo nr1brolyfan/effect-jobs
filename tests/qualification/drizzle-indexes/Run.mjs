@@ -1,3 +1,4 @@
+import { selectSnapshot, checkInstalledGraph } from "../DrizzleSnapshot.mjs"
 /** Finite app-owned migration generation proof against the immutable artifact. */
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
@@ -6,6 +7,9 @@ import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from
 import { join, resolve } from "node:path"
 
 const root = resolve(import.meta.dirname, "../../..")
+const drizzleVersion = selectSnapshot(
+  JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
+)
 const archive = resolve(process.env.EFFECT_JOBS_ARCHIVE)
 const directory = join(root, ".toolchain/drizzle-indexes")
 mkdirSync(directory, { recursive: true })
@@ -29,8 +33,8 @@ writeFileSync(
       type: "module",
       dependencies: {
         "effect-jobs": `file:${archive}`,
-        effect: "4.0.0",
-        "drizzle-orm": "1.0.0-rc.5-169397b",
+        effect: "4.0.5",
+        "drizzle-orm": drizzleVersion,
         "drizzle-kit": "1.0.0-rc.5-5935859"
       }
     },
@@ -45,6 +49,7 @@ writeFileSync(
   }) + "\n"
 )
 run("install", "npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"])
+const resolvedGraph = checkInstalledGraph(work, drizzleVersion)
 writeFileSync(
   join(work, "schema.ts"),
   `
@@ -118,7 +123,8 @@ writeFileSync(
   JSON.stringify(
     {
       archiveSha256: createHash("sha256").update(readFileSync(archive)).digest("hex"),
-      orm: "1.0.0-rc.5-169397b",
+      orm: drizzleVersion,
+      resolvedGraph,
       kit: "1.0.0-rc.5-5935859",
       customAndMandatoryDDL: true,
       snapshotRetainsCustom: true,

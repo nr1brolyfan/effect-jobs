@@ -50,6 +50,12 @@ export const JobState = Schema.Literals([
   "Cancelled"
 ])
 /**
+ * Decoded value of the JobOwnership Schema.
+ *
+ * @category models
+ */
+export type JobOwnership = typeof JobOwnership.Type
+/**
  * Exact job/token/expiry/version fencing identity; handlers do not receive it.
  *
  * @category schemas
@@ -60,12 +66,6 @@ export const JobOwnership = Schema.Struct({
   leaseExpiresAt: EpochMillis,
   lifecycleVersion: Counter
 })
-/**
- * Decoded value of the JobOwnership Schema.
- *
- * @category models
- */
-export type JobOwnership = typeof JobOwnership.Type
 
 const SnapshotStruct = Schema.Struct({
   jobId: JobId,
@@ -76,11 +76,13 @@ const SnapshotStruct = Schema.Struct({
   attemptsMade: Counter,
   stalledCount: Counter,
   lifecycleVersion: Counter,
-  leaseToken: Schema.NullOr(LeaseToken),
-  leaseExpiresAt: Schema.NullOr(EpochMillis),
-  completedAt: Schema.NullOr(EpochMillis),
-  lastFailureCode: Schema.NullOr(FailureCode)
+  leaseToken: LeaseToken.pipe(Schema.NullOr),
+  leaseExpiresAt: EpochMillis.pipe(Schema.NullOr),
+  completedAt: EpochMillis.pipe(Schema.NullOr),
+  lastFailureCode: FailureCode.pipe(Schema.NullOr)
 })
+/** Decoded complete lifecycle metadata; does not include or validate the payload. */
+export type JobSnapshot = typeof JobSnapshot.Type
 /** Complete durable metadata. Payload validation belongs to the codec, not this Schema. */
 export const JobSnapshot = SnapshotStruct.pipe(
   Schema.check(
@@ -106,21 +108,19 @@ export const JobSnapshot = SnapshotStruct.pipe(
     )
   )
 )
-/** Decoded complete lifecycle metadata; does not include or validate the payload. */
-export type JobSnapshot = typeof JobSnapshot.Type
 
+/** Confirmable durable transitions; OutcomeUnknown is deliberately absent. */
+export type JobFinalization = typeof JobFinalization.Type
 /** Retry uses the first stored policy; callers cannot replace its schedule. */
 export const JobFinalization = Schema.Union([
   Schema.TaggedStruct("Complete", {}),
   Schema.TaggedStruct("Retry", {
     code: FailureCode,
-    notAfter: Schema.optional(EpochMillis)
+    notAfter: EpochMillis.pipe(Schema.optional)
   }),
   Schema.TaggedStruct("Dead", { code: FailureCode }),
   Schema.TaggedStruct("Isolate", { code: FailureCode })
 ])
-/** Confirmable durable transitions; OutcomeUnknown is deliberately absent. */
-export type JobFinalization = typeof JobFinalization.Type
 /**
  * Tagged constructors and matchers for durable finalization commands.
  *

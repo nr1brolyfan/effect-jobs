@@ -229,18 +229,10 @@ const requireEmptyBody = (request: Request) =>
             })
           ),
         (reader) =>
-          Effect.promise(async () => {
-            let timer: ReturnType<typeof setTimeout> | undefined
-            try {
-              await Promise.race([
-                reader.cancel().catch(() => undefined),
-                new Promise<void>((done) => {
-                  timer = setTimeout(done, 100)
-                })
-              ])
-            } finally {
-              clearTimeout(timer)
-              reader.releaseLock()
-            }
-          })
+          Effect.tryPromise({ try: () => reader.cancel(), catch: () => undefined }).pipe(
+            Effect.ignore,
+            Effect.interruptible,
+            Effect.timeoutOption(100),
+            Effect.ensuring(Effect.sync(() => reader.releaseLock()))
+          )
       )

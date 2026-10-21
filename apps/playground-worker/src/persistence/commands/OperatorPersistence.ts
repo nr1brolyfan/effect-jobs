@@ -120,11 +120,12 @@ export const make = Effect.gen(function* () {
                 observedAt: transition.after.updatedAt
               })
             }).pipe(
-              Effect.catchTag("JobOperatorRejected", (error) =>
-                error.reason === "lineage-conflict"
-                  ? Effect.fail(error)
-                  : Effect.succeed(reject(error.reason))
-              )
+              Effect.catchTags({
+                JobOperatorRejected: (error) =>
+                  error.reason === "lineage-conflict"
+                    ? Effect.fail(error)
+                    : Effect.succeed(reject(error.reason))
+              })
             )
             const result = yield* operate
             yield* tx.save(result)

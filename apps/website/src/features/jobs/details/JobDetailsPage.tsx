@@ -22,14 +22,8 @@ export interface JobDetailsProps {
 export const detailIdentityKey = (detail: JobDetail) =>
   JSON.stringify([detail.sandbox.sandboxId, detail.sandbox.generation, detail.job.jobId])
 
-export function JobDetailsPage({
-  detail,
-  onClose,
-  onRelated,
-  payloadSlot,
-  repairSlot
-}: JobDetailsProps) {
-  const { job } = detail
+export function JobDetailsPage(props: JobDetailsProps) {
+  const { job } = props.detail
   return (
     <main aria-label="Job details" {...stylex.props(styles.page)}>
       <header {...stylex.props(styles.header)}>
@@ -39,24 +33,24 @@ export function JobDetailsPage({
           </h1>
           <p {...stylex.props(styles.identity)}>{job.jobId}</p>
         </div>
-        <Button onClick={onClose}>Back to jobs</Button>
+        <Button onClick={props.onClose}>Back to jobs</Button>
       </header>
       <div {...stylex.props(styles.layout)}>
         <div {...stylex.props(styles.sections)}>
-          <JobOverview detail={detail} />
-          <JobScheduling detail={detail} />
+          <JobOverview detail={props.detail} />
+          <JobScheduling detail={props.detail} />
           <div
-            key={detailIdentityKey(detail)}
-            {...stylex.props(styles.slots, !repairSlot && styles.payloadOnly)}
+            key={detailIdentityKey(props.detail)}
+            {...stylex.props(styles.slots, !props.repairSlot && styles.payloadOnly)}
           >
-            {payloadSlot}
-            {repairSlot}
+            {props.payloadSlot}
+            {props.repairSlot}
           </div>
-          <JobTimeline detail={detail} />
-          <JobRelatedJobs detail={detail} onRelated={onRelated} />
+          <JobTimeline detail={props.detail} />
+          <JobRelatedJobs detail={props.detail} onRelated={props.onRelated} />
         </div>
         <aside aria-label="Job metadata" {...stylex.props(styles.metadata)}>
-          <JobMetadata detail={detail} />
+          <JobMetadata detail={props.detail} />
         </aside>
       </div>
     </main>

@@ -23,19 +23,19 @@ come from the parent issue, D1–D8 in `architecture-decisions.md`, and
 
 ## What exists at the base
 
-| Boundary | Existing capability and evidence | Required extension |
-| --- | --- | --- |
-| Library operators | `JobOperatorsService.retryNow`, `cancel`, `redrive`; `src/internal/postgresql/Operators.ts` locks and checks exact state/version, DB time, policy and artifacts | Corrected payload production and durable generic lineage |
-| Production | `JobDefinition.enqueue`, `enqueueStandalone`, `enqueueInTransaction`; `Producer.insertOrCompareAt` uses the globally unique producer tuple and semantic projection | Reuse insertion/comparison; compare operator lineage as well |
-| Transaction | `PostgreSqlNative.make` resolves the configured client's exact `transactionService`; no connection-string identity inference | Retain same-client ambient operation and provisional library result |
-| Storage | Configurable schema/jobs/payload table names; SQL and optional pinned Drizzle declarations; readiness; payload FK cascades only that job's payload | Additive lineage columns/FK/checks; no successor cascade |
-| Application command | `OperatorPersistence`, `PostgreSqlOperatorTransactions`, immutable separately committed admission, atomic receipt/association/audit, sandbox then source lock | Corrected request identity, problem resolution, explicit investigation |
-| Application lineage | `operator_redrives` stores source/successor/scoped receipt and source state/version; restrictive association FKs | Durable original identities plus nullable live references; redrive kind |
-| Read | `JobsRead.list/detail`, association-scoped SQL, strict DTO decoding, signed cursor, DB-time authority; no payload reads today | Explicit detail projections, repair chain and resolution filters |
-| Execution evidence | Current job snapshot; durable `provider_ledger` accepted/invocations; `command_audit` and exact operator receipts | Project retained facts; no new execution event subsystem |
-| Browser | React, Effect Atom registry, StyleX, Base UI; selected job side panel, detail revisions, cursor history and stale-generation revocation | Accessible drawer/full page and return context; new isolated components |
-| Encryption | `PrivateDocument` AES-256-GCM/HMAC-SHA-256 envelope, application keys, codec format 1 | Browser compatibility adapter and separate known synthetic fixture |
-| Demo | GET-only demo endpoints and persisted demo ownership checks; real producer/worker seed | Internal trusted repair example, never public operator admission |
+| Boundary            | Existing capability and evidence                                                                                                                                   | Required extension                                                      |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| Library operators   | `JobOperatorsService.retryNow`, `cancel`, `redrive`; `src/internal/postgresql/Operators.ts` locks and checks exact state/version, DB time, policy and artifacts    | Corrected payload production and durable generic lineage                |
+| Production          | `JobDefinition.enqueue`, `enqueueStandalone`, `enqueueInTransaction`; `Producer.insertOrCompareAt` uses the globally unique producer tuple and semantic projection | Reuse insertion/comparison; compare operator lineage as well            |
+| Transaction         | `PostgreSqlNative.make` resolves the configured client's exact `transactionService`; no connection-string identity inference                                       | Retain same-client ambient operation and provisional library result     |
+| Storage             | Configurable schema/jobs/payload table names; SQL and optional pinned Drizzle declarations; readiness; payload FK cascades only that job's payload                 | Additive lineage columns/FK/checks; no successor cascade                |
+| Application command | `OperatorPersistence`, `PostgreSqlOperatorTransactions`, immutable separately committed admission, atomic receipt/association/audit, sandbox then source lock      | Corrected request identity, problem resolution, explicit investigation  |
+| Application lineage | `operator_redrives` stores source/successor/scoped receipt and source state/version; restrictive association FKs                                                   | Durable original identities plus nullable live references; redrive kind |
+| Read                | `JobsRead.list/detail`, association-scoped SQL, strict DTO decoding, signed cursor, DB-time authority; no payload reads today                                      | Explicit detail projections, repair chain and resolution filters        |
+| Execution evidence  | Current job snapshot; durable `provider_ledger` accepted/invocations; `command_audit` and exact operator receipts                                                  | Project retained facts; no new execution event subsystem                |
+| Browser             | React, Effect Atom registry, StyleX, Base UI; selected job side panel, detail revisions, cursor history and stale-generation revocation                            | Accessible drawer/full page and return context; new isolated components |
+| Encryption          | `PrivateDocument` AES-256-GCM/HMAC-SHA-256 envelope, application keys, codec format 1                                                                              | Browser compatibility adapter and separate known synthetic fixture      |
+| Demo                | GET-only demo endpoints and persisted demo ownership checks; real producer/worker seed                                                                             | Internal trusted repair example, never public operator admission        |
 
 Important limits: handler signature is `Effect<void, JobFailure, R>`. There is no
 stored handler return value, created timestamp, per-attempt start/end record,
@@ -187,18 +187,28 @@ type JobRepairCommand = {
   reason: Reason
   confirmDuplicateEffects: true
   investigation: Investigation
-} & (
-  | { action: "redrive" }
-  | { action: "corrected-redrive"; payload: JsonValue }
-)
+} & ({ action: "redrive" } | { action: "corrected-redrive"; payload: JsonValue })
 type JobRepairReceiptRequest = { sandbox: SandboxRef; requestId: RequestId }
 type JobRepairResult =
-  | { _tag: "Committed"; sandbox: SandboxRef; requestId: RequestId;
-      action: "redrive" | "corrected-redrive"; sourceJobId: JobId;
-      sourceState: "Dead" | "Isolated"; sourceLifecycleVersion: Counter;
-      resultJobId: JobId; observedAt: EpochMillis; problem: JobProblem }
-  | { _tag: "Rejected"; sandbox: SandboxRef; requestId: RequestId;
-      jobId: JobId; reason: JobRepairReason }
+  | {
+      _tag: "Committed"
+      sandbox: SandboxRef
+      requestId: RequestId
+      action: "redrive" | "corrected-redrive"
+      sourceJobId: JobId
+      sourceState: "Dead" | "Isolated"
+      sourceLifecycleVersion: Counter
+      resultJobId: JobId
+      observedAt: EpochMillis
+      problem: JobProblem
+    }
+  | {
+      _tag: "Rejected"
+      sandbox: SandboxRef
+      requestId: RequestId
+      jobId: JobId
+      reason: JobRepairReason
+    }
   | { _tag: "OutcomeUnknown"; sandbox: SandboxRef; requestId: RequestId }
 ```
 
@@ -231,14 +241,14 @@ validation outcome; do not store duplicated source plaintext or values in audit.
 
 ### Eligibility and uncertainty
 
-| Source/evidence | Redrive / corrected redrive | Automatic resolution |
-| --- | --- | --- |
-| Known failure Dead | Allowed after explicit reason + duplicate confirmation | Completed current successor can resolve |
-| Investigated valid Isolated, effects known not applied | Allowed with `ConfirmedNotApplied` reason + confirmation | Completed current successor can resolve |
-| Isolated or Dead with uncertain/missing effect evidence | Only explicit `AcceptDuplicateRisk` with investigation reason + confirmation | Never solely from successor success |
-| Confirmed already applied | Close problem through explicit reconciliation; no suggested replay | Operator reconciliation only |
-| Unconfirmed investigation | Reject `investigation-required` | Never |
-| Pending/RetryScheduled/Active/Completed/Cancelled | Repair refused; existing retry/cancel rules retained | No repair implication |
+| Source/evidence                                         | Redrive / corrected redrive                                                  | Automatic resolution                    |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------- |
+| Known failure Dead                                      | Allowed after explicit reason + duplicate confirmation                       | Completed current successor can resolve |
+| Investigated valid Isolated, effects known not applied  | Allowed with `ConfirmedNotApplied` reason + confirmation                     | Completed current successor can resolve |
+| Isolated or Dead with uncertain/missing effect evidence | Only explicit `AcceptDuplicateRisk` with investigation reason + confirmation | Never solely from successor success     |
+| Confirmed already applied                               | Close problem through explicit reconciliation; no suggested replay           | Operator reconciliation only            |
+| Unconfirmed investigation                               | Reject `investigation-required`                                              | Never                                   |
+| Pending/RetryScheduled/Active/Completed/Cancelled       | Repair refused; existing retry/cancel rules retained                         | No repair implication                   |
 
 Server derives known failure only from allowlisted supported stored failure/provider
 evidence: at this base a valid Dead snapshot with exact scoped durable synthetic
@@ -411,22 +421,22 @@ Nullable means required null, not an omitted pretend value. Existing `job`,
 `producer`, `policy`, `relations`, optional genuine `observation` remain; no mock
 observation inferred from state.
 
-| Field/type | Required shape and privacy |
-| --- | --- |
-| `createdAt` | `null` at this base; availability/update time is not creation |
-| `payload: JobPayloadView` | See union below; detail only, never list/stat/live hint |
-| `result` | `{ _tag: "Unavailable", reason: "not-stored" }`; no void-success JSON result |
-| `history: JobHistory` | `{ coverage: "RetainedFacts", attempts: null, items: JobHistoryItem[], nextCursor: Cursor|null }`; real audit facts only |
-| `provider: JobProviderEvidence|null` | `{source:"synthetic-postgresql", accepted:boolean, invocations:Counter, observedAt:null}` from exact scoped ledger; no signatures |
-| `lineage: JobLineage|null` | Durable original identity plus current live FK; absent for ordinary jobs |
-| `problem: JobProblem|null` | Chain-effective application resolution, independent of job state |
-| `related: JobRelatedPage` | Up to 50 scoped `{jobId,state:JobState|null,kind:JobRedriveKind|null,sourceAvailable:boolean}` and nextCursor; state null if gone |
-| `eligibility` | `{redrive,correctedRedrive}` each `{enabled:boolean,reason:JobRepairReason|null}`; server result, rechecked at command |
+| Field/type                     | Required shape and privacy                                                                |
+| ------------------------------ | ----------------------------------------------------------------------------------------- |
+| `createdAt`                    | `null` at this base; availability/update time is not creation                             |
+| `payload: JobPayloadView`      | See union below; detail only, never list/stat/live hint                                   |
+| `result`                       | `{ _tag: "Unavailable", reason: "not-stored" }`; no void-success JSON result              |
+| `history: JobHistory`          | `{ coverage: "RetainedFacts", attempts: null, items: JobHistoryItem[], nextCursor: Cursor | null }`; real audit facts only                                                                                                    |
+| `provider: JobProviderEvidence | null`                                                                                     | `{source:"synthetic-postgresql", accepted:boolean, invocations:Counter, observedAt:null}` from exact scoped ledger; no signatures |
+| `lineage: JobLineage           | null`                                                                                     | Durable original identity plus current live FK; absent for ordinary jobs                                                          |
+| `problem: JobProblem           | null`                                                                                     | Chain-effective application resolution, independent of job state                                                                  |
+| `related: JobRelatedPage`      | Up to 50 scoped `{jobId,state:JobState                                                    | null,kind:JobRedriveKind                                                                                                          | null,sourceAvailable:boolean}` and nextCursor; state null if gone |
+| `eligibility`                  | `{redrive,correctedRedrive}` each `{enabled:boolean,reason:JobRepairReason                | null}`; server result, rechecked at command                                                                                       |
 
 `JobPayloadView` union:
 
 - `Available {formatVersion:1, catalog:CatalogIdentity, encoded:JsonValue,
-  validation:"Valid", encryption:"None"|"PrivateDocumentV1"|"SyntheticDocumentV1"}`.
+validation:"Valid", encryption:"None"|"PrivateDocumentV1"|"SyntheticDocumentV1"}`.
 - `Unavailable {reason:"not-stored"|"invalid-artifact"|"unsupported-catalog"}`.
 
 Only supported allowlisted synthetic schema wire data is exposed. Never blindly
@@ -528,8 +538,8 @@ synthetic exception to runtime key persistence, not a production key practice.
   owner serves the existing app shell on those paths; `/demo/jobs/...` must be
   recognized as demo by Client and Worker, not private bootstrap.
 - Define `JobReturnContext {sandbox:SandboxRef, filters:JobFilters,
-  view:"jobs"|"problems", pageSize:number, pageNumber:number,
-  cursors:(Cursor|undefined)[], scrollY:number, selectedJobId:JobId|null}` in
+view:"jobs"|"problems", pageSize:number, pageNumber:number,
+cursors:(Cursor|undefined)[], scrollY:number, selectedJobId:JobId|null}` in
   volatile existing registry/navigation state. URL includes shareable filter/view/
   generation metadata only. No payload/key/plaintext in return state.
 - Opening full page preserves list filters/cursor page/scroll; Back/Close restores
@@ -544,11 +554,11 @@ synthetic exception to runtime key persistence, not a production key practice.
   retained evidence and related chain. Execution and resolution badges separate.
 - Component interfaces: `JobDetailsPage`/`JobDetailsDrawer` take
   `{detail:JobDetail, now:number, onClose:()=>void, onOpenFull:()=>void,
-  onRelated:(jobId:JobId)=>void, payloadSlot:ReactNode, repairSlot:ReactNode}`.
+onRelated:(jobId:JobId)=>void, payloadSlot:ReactNode, repairSlot:ReactNode}`.
   `JobPayloadPanel` takes `{detail:JobDetail, identityKey:string}`.
   `JobRepairPanel` takes `{detail:JobDetail, readOnly:boolean,
-  pending:JobRepairCommand|null, onSubmit:(command:JobRepairCommand)=>void,
-  onReceipt:()=>void, onResolve:(command:JobResolutionCommand)=>void}`.
+pending:JobRepairCommand|null, onSubmit:(command:JobRepairCommand)=>void,
+onReceipt:()=>void, onResolve:(command:JobResolutionCommand)=>void}`.
   Integrator supplies request identity/state/scope; components do not own clients.
 
 ## Public/private enforcement and real showcase
@@ -618,14 +628,14 @@ must not create temporary duplicate shared contracts in the repository. Compile
 fixtures may declare local test shapes until the serial contract registration.
 Report shared registration requests as a finite handoff, not concurrent edits.
 
-| Issue | Exclusive files / interfaces |
-| --- | --- |
-| UPVE-2146 | This spec only; frozen before dispatch |
-| UPVE-2147 | `src/JobOperators.ts`, `src/internal/postgresql/{Operators,Producer,Readiness,Rows}.ts`, `src/PostgreSqlSchema.ts`, `src/PostgreSqlDrizzleSchema.ts`; necessary backend composition internals in `src/PostgreSqlJobs.ts`; existing `tests/core/operators/*`, `tests/postgresql/operators/*`, `tests/types/operators.ts`, new corrected/lineage cases there and `tests/types/repair-operators.ts`; refinements to `specs/operator-contract.md`. No app files, index/export/package registrars |
-| UPVE-2148 | New `apps/website/src/features/jobs/details/{JobDetailsPage,JobDetailsDrawer,JobOverview,JobTimeline,JobRelatedJobs}.tsx`, their `.stylex.ts`, `details/Navigation.ts`; new `apps/website/tests/ui/details/*`. Reserve payload/repair slots; no existing Dashboard/Atoms/Mount/Client/build/route edits |
-| UPVE-2149 | New `apps/website/src/features/jobs/payload/{JobPayloadPanel.tsx,JobPayloadPanel.stylex.ts,BrowserDocumentCrypto.ts}`, `packages/playground-contracts/src/SyntheticCryptoFixture.ts`, new `apps/website/tests/ui/payload/*` and `packages/playground-contracts/tests/SyntheticCryptoFixture.test.ts`. No manifest/exports/definition registrar edits |
+| Issue     | Exclusive files / interfaces                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UPVE-2146 | This spec only; frozen before dispatch                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| UPVE-2147 | `src/JobOperators.ts`, `src/internal/postgresql/{Operators,Producer,Readiness,Rows}.ts`, `src/PostgreSqlSchema.ts`, `src/PostgreSqlDrizzleSchema.ts`; necessary backend composition internals in `src/PostgreSqlJobs.ts`; existing `tests/core/operators/*`, `tests/postgresql/operators/*`, `tests/types/operators.ts`, new corrected/lineage cases there and `tests/types/repair-operators.ts`; refinements to `specs/operator-contract.md`. No app files, index/export/package registrars                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| UPVE-2148 | New `apps/website/src/features/jobs/details/{JobDetailsPage,JobDetailsDrawer,JobOverview,JobTimeline,JobRelatedJobs}.tsx`, their `.stylex.ts`, `details/Navigation.ts`; new `apps/website/tests/ui/details/*`. Reserve payload/repair slots; no existing Dashboard/Atoms/Mount/Client/build/route edits                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| UPVE-2149 | New `apps/website/src/features/jobs/payload/{JobPayloadPanel.tsx,JobPayloadPanel.stylex.ts,BrowserDocumentCrypto.ts}`, `packages/playground-contracts/src/SyntheticCryptoFixture.ts`, new `apps/website/tests/ui/payload/*` and `packages/playground-contracts/tests/SyntheticCryptoFixture.test.ts`. No manifest/exports/definition registrar edits                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | UPVE-2150 | New `apps/playground-worker/src/persistence/commands/{RepairPersistence,RepairTransactions,RepairSource,RepairSchema}.ts`, `persistence/authority/PostgreSqlRepairTransactions.ts`, `execution/RepairReconciliation.ts`; new `apps/website/src/server/read/JobDetailsProjection.ts`, `server/commands/HttpRepairs.ts`; new `features/jobs/repair/{JobRepairPanel.tsx,JobRepairPanel.stylex.ts,PayloadDiff.ts}` and focused `tests/ui/repair/*`; new worker `tests/repairs/*`. Existing files exclusively available to this author: `apps/playground-worker/src/persistence/read/Queries.ts`, `apps/website/src/server/read/{PostgreSqlRead,HttpRead,CursorCodec}.ts`, `apps/playground-worker/src/persistence/commands/{OperatorPersistence,OperatorSource,OperatorTransactions}.ts`, `persistence/authority/PostgreSqlOperatorTransactions.ts`, `execution/Executor.ts`, `demo/Manager.ts`. No shared registrations |
-| UPVE-2151 | Sole serial owner: `packages/playground-contracts/src/{Jobs,Repairs,Services,Operators,Sandbox}.ts` and shared fixtures/mock services; all package manifests/lockfiles/exports, `src/index.ts`; `persistence/MigrationRegistry.ts`, existing app schema registrars; `HandlerRegistry.ts`, scenario `Definitions/PrivateDocument/Handlers/Fixtures`, trusted seed module; `execution/{Event,Application}.ts`, `Worker.ts`, `demo/Http.ts`; website `features/jobs/{Atoms,Adapter,Runtime,Dashboard,Dashboard.stylex,Mount,OperatorControls,OperatorEligibility}.ts[x]`, `Client.ts`, `integration/HttpClient.ts`, `server/{Routes,Services,HttpApplication}.ts`, website/worker build/asset registrars and final integration harness |
+| UPVE-2151 | Sole serial owner: `packages/playground-contracts/src/{Jobs,Repairs,Services,Operators,Sandbox}.ts` and shared fixtures/mock services; all package manifests/lockfiles/exports, `src/index.ts`; `persistence/MigrationRegistry.ts`, existing app schema registrars; `HandlerRegistry.ts`, scenario `Definitions/PrivateDocument/Handlers/Fixtures`, trusted seed module; `execution/{Event,Application}.ts`, `Worker.ts`, `demo/Http.ts`; website `features/jobs/{Atoms,Adapter,Runtime,Dashboard,Dashboard.stylex,Mount,OperatorControls,OperatorEligibility}.ts[x]`, `Client.ts`, `integration/HttpClient.ts`, `server/{Routes,Services,HttpApplication}.ts`, website/worker build/asset registrars and final integration harness                                                                                                                                                                                  |
 
 The library author may refine the core contract details but must preserve these
 shared interface names/semantics or report a concrete incompatibility before

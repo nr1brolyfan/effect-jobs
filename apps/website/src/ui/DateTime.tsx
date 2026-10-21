@@ -10,7 +10,9 @@ export interface DateTimeProps {
   readonly label?: string
 }
 
-export function DateTime({ value, seconds = true, label = "Timestamp" }: DateTimeProps) {
+export function DateTime(props: DateTimeProps) {
+  const { value, seconds = true, label = "Timestamp" } = props
+
   const headingId = useId()
   const formatted = formatDateTime(value, { seconds })
   if (!formatted) {

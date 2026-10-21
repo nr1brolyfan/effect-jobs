@@ -1,6 +1,7 @@
 import { Schema } from "effect"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 
+export type Signal = typeof Signal.Type
 export const Signal = Schema.Struct({
   kind: Schema.Literals(["ready", "invalidate"]),
   sandbox: SandboxRef,
@@ -9,7 +10,6 @@ export const Signal = Schema.Struct({
     Schema.check(Schema.isBetween({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }))
   )
 })
-export type Signal = typeof Signal.Type
 export const Ack = Schema.Struct({
   kind: Schema.Literal("ack"),
   sequence: Signal.fields.sequence

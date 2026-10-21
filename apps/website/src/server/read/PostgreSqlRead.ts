@@ -55,19 +55,15 @@ const KeyedHistory = Schema.Struct({
 const DetailRows = Schema.Array(
   Schema.Struct({
     status: Status,
-    detail: Schema.NullOr(BaseDetail),
-    problem: Schema.NullOr(
-      Schema.Struct({
-        rootJobId: JobSummary.fields.jobId,
-        problem: JobDetail.fields.problem
-      })
-    ),
-    provider: Schema.NullOr(
-      Schema.Struct({
-        accepted: Schema.Boolean,
-        invocations: JobSummary.fields.attemptsMade
-      })
-    ),
+    detail: BaseDetail.pipe(Schema.NullOr),
+    problem: Schema.Struct({
+      rootJobId: JobSummary.fields.jobId,
+      problem: JobDetail.fields.problem
+    }).pipe(Schema.NullOr),
+    provider: Schema.Struct({
+      accepted: Schema.Boolean,
+      invocations: JobSummary.fields.attemptsMade
+    }).pipe(Schema.NullOr),
     lineage: JobDetail.fields.lineage,
     format_version: Schema.Unknown,
     payload: Schema.Unknown,
@@ -78,7 +74,7 @@ const DetailRows = Schema.Array(
 ).pipe(Schema.check(Schema.isMinLength(1), Schema.isMaxLength(1)))
 const Subread = Schema.Struct({
   ...JobDetailRequest.fields,
-  cursor: Schema.optional(Cursor),
+  cursor: Cursor.pipe(Schema.optional),
   limit: ListJobs.fields.limit
 })
 const invalid = () => new PlaygroundError({ code: "invalid-request" })

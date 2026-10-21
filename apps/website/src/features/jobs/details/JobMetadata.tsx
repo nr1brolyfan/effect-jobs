@@ -4,7 +4,7 @@ import { Panel } from "../../../ui/Primitives.js"
 import { PropertyGrid, Absent, DetailTime, formatDuration } from "./PropertyGrid.js"
 import { styles } from "./PropertyGrid.stylex.js"
 
-export function JobScheduling({ detail }: { readonly detail: JobDetail }) {
+export function JobScheduling(props: { readonly detail: JobDetail }) {
   return (
     <Panel {...stylex.props(styles.panel)}>
       <h2 {...stylex.props(styles.heading)}>Scheduling</h2>
@@ -12,16 +12,21 @@ export function JobScheduling({ detail }: { readonly detail: JobDetail }) {
         items={[
           {
             label: "Available",
-            value: <DetailTime value={detail.job.availableAt} label="Available" />
+            value: <DetailTime value={props.detail.job.availableAt} label="Available" />
           },
           {
             label: "Updated",
-            value: <DetailTime value={detail.job.updatedAt} label="Lifecycle updated" />
+            value: (
+              <DetailTime value={props.detail.job.updatedAt} label="Lifecycle updated" />
+            )
           },
           {
             label: "Terminal at",
             value: (
-              <DetailTime value={detail.job.completedAt} label="Terminal completion" />
+              <DetailTime
+                value={props.detail.job.completedAt}
+                label="Terminal completion"
+              />
             )
           },
           { label: "Created", value: <Absent reason="Creation time is not stored" /> }
@@ -31,8 +36,8 @@ export function JobScheduling({ detail }: { readonly detail: JobDetail }) {
   )
 }
 
-export function JobMetadata({ detail }: { readonly detail: JobDetail }) {
-  const { job, producer, policy } = detail
+export function JobMetadata(inputProps: { readonly detail: JobDetail }) {
+  const { job, producer, policy } = inputProps.detail
   return (
     <Panel {...stylex.props(styles.panel)}>
       <details>
@@ -51,7 +56,7 @@ export function JobMetadata({ detail }: { readonly detail: JobDetail }) {
                 { label: "Producer operation", value: producer.operation, mono: true },
                 { label: "Operation identity", value: producer.operationId, mono: true },
                 { label: "Slot", value: producer.slot, mono: true },
-                { label: "Generation", value: detail.sandbox.generation }
+                { label: "Generation", value: inputProps.detail.sandbox.generation }
               ]}
             />
           </section>
@@ -96,12 +101,12 @@ export function JobMetadata({ detail }: { readonly detail: JobDetail }) {
               items={[
                 {
                   label: "Synthetic order",
-                  value: detail.relations.syntheticOrderId ?? <Absent />,
+                  value: inputProps.detail.relations.syntheticOrderId ?? <Absent />,
                   mono: true
                 },
                 {
                   label: "Synthetic actor",
-                  value: detail.relations.syntheticActor ?? <Absent />,
+                  value: inputProps.detail.relations.syntheticActor ?? <Absent />,
                   mono: true
                 }
               ]}

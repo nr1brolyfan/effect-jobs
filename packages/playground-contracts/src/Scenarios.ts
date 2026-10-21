@@ -2,6 +2,7 @@ import { Schema } from "effect"
 import { JobId } from "effect-jobs/JobId"
 import { SandboxRef } from "./Sandbox.js"
 
+export type ScenarioId = typeof ScenarioId.Type
 export const ScenarioId = Schema.Literals([
   "success",
   "delayed-success",
@@ -11,18 +12,18 @@ export const ScenarioId = Schema.Literals([
   "unknown-outcome",
   "deduplication"
 ])
-export type ScenarioId = typeof ScenarioId.Type
 export const RequestId = Schema.String.pipe(
   Schema.check(Schema.isMinLength(1), Schema.isMaxLength(128))
 )
+export type ScenarioCommand = typeof ScenarioCommand.Type
 export const ScenarioCommand = Schema.Struct({
   sandbox: SandboxRef,
   requestId: RequestId,
   scenario: ScenarioId,
   count: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 1, maximum: 10 })))
 })
-export type ScenarioCommand = typeof ScenarioCommand.Type
 // Acknowledged enqueue is not proof of handler success.
+export type ScenarioResult = typeof ScenarioResult.Type
 export const ScenarioResult = Schema.Union([
   Schema.TaggedStruct("Committed", {
     sandbox: SandboxRef,
@@ -33,9 +34,9 @@ export const ScenarioResult = Schema.Union([
   }),
   Schema.TaggedStruct("OutcomeUnknown", { sandbox: SandboxRef, requestId: RequestId })
 ])
-export type ScenarioResult = typeof ScenarioResult.Type
-export const ResetCommand = Schema.Struct({ sandbox: SandboxRef, requestId: RequestId })
 export type ResetCommand = typeof ResetCommand.Type
+export const ResetCommand = Schema.Struct({ sandbox: SandboxRef, requestId: RequestId })
+export type ResetResult = typeof ResetResult.Type
 export const ResetResult = Schema.Union([
   Schema.TaggedStruct("Committed", {
     previous: SandboxRef,
@@ -53,7 +54,6 @@ export const ResetResult = Schema.Union([
     )
   )
 )
-export type ResetResult = typeof ResetResult.Type
 
-export const ReceiptRequest = Schema.Struct({ sandbox: SandboxRef, requestId: RequestId })
 export type ReceiptRequest = typeof ReceiptRequest.Type
+export const ReceiptRequest = Schema.Struct({ sandbox: SandboxRef, requestId: RequestId })

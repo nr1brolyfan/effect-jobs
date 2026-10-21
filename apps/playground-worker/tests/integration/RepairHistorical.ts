@@ -9,6 +9,11 @@ import { SqlClient } from "effect/sql/SqlClient"
 import * as Migrations from "../../src/persistence/MigrationRegistry.js"
 import * as Qualification from "../repairs/PostgreSqlQualification.js"
 
+class HistoricalPopulationFailure extends Schema.TaggedError<HistoricalPopulationFailure>()(
+  "HistoricalPopulationFailure",
+  {}
+) {}
+
 const directory = process.env.D6_RESOURCE_DIRECTORY!
 const cfg = JSON.parse(readFileSync(process.env.PLAYGROUND_PRIVATE_CONFIG!, "utf8"))
 const legacy = await import(`${directory}/LegacyPopulation.mjs`)
@@ -54,7 +59,7 @@ try {
         report.stage = "real historical enqueue/worker/operator receipt"
         const populated = yield* Effect.tryPromise({
           try: () => legacy.populate(config),
-          catch: () => new Error("Historical population failed")
+          catch: () => new HistoricalPopulationFailure()
         }).pipe(
           Effect.flatMap(
             Schema.decodeUnknownEffect(

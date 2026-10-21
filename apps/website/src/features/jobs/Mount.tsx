@@ -30,8 +30,10 @@ export const mount = (
       }
     }, [])
     return runtime ? (
+      // oxlint-disable-next-line effecttsgo/unstable-api-usage -- Pinned atom-react 4.0.5 exposes only unstable providers; this supplies the Scope-owned registry.
       <RegistryContext.Provider value={runtime.registry}>
         <Dashboard runtime={runtime} demo={options.demo === true} />
+        {/* oxlint-disable-next-line effecttsgo/unstable-api-usage -- Close the same pinned, Scope-owned Atom provider. */}
       </RegistryContext.Provider>
     ) : (
       <p role="status">Preparing dashboard…</p>

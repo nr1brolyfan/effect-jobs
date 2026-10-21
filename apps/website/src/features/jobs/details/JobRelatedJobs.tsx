@@ -5,13 +5,12 @@ import { Badge, Button, Panel } from "../../../ui/Primitives.js"
 import { styles as propertyStyles } from "./PropertyGrid.stylex.js"
 import { styles } from "./JobRelatedJobs.stylex.js"
 
-export function JobRelatedJobs({
-  detail,
-  onRelated
-}: {
+export function JobRelatedJobs(props: {
   readonly detail: JobDetail
   readonly onRelated: (jobId: JobId) => void
 }) {
+  const { detail, onRelated } = props
+
   return (
     <Panel aria-label="Related jobs" {...stylex.props(styles.panel)}>
       <h2 {...stylex.props(propertyStyles.heading)}>Related jobs</h2>

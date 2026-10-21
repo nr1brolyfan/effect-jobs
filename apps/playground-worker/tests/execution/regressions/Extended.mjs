@@ -3,16 +3,14 @@ import assert from "node:assert/strict"
 import { Cause, Effect, Exit, Semaphore } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import { ConnectionError, SqlError } from "effect/sql/SqlError"
-import {
-  Executor,
-  Provider,
-  Handlers,
-  FakeProvider,
-  WakeAlarm,
-  JobWorker,
-  JobWorkerUnavailable,
-  WorkerCapability
-} from "./Actual.mjs"
+import * as Executor from "../../../src/execution/Executor.js"
+import * as Provider from "../../../src/execution/PostgreSqlProvider.js"
+import * as Handlers from "../../../src/scenarios/Handlers.js"
+import { FakeProvider } from "../../../src/providers/FakeProvider.js"
+import { WakeAlarm } from "../../../src/cloudflare/WakeCycle.js"
+import { JobWorker } from "../../../../../src/JobWorker.js"
+import { JobWorkerUnavailable } from "../../../../../src/JobWorker.js"
+import { WorkerCapability } from "../../../../../src/internal/worker/Capability.js"
 
 const checks = []
 for (const field of ["due", "recovery", "generate"]) {
@@ -22,17 +20,21 @@ for (const field of ["due", "recovery", "generate"]) {
     const result = await Effect.runPromise(
       Executor.run("fixed", "playground-media").pipe(
         Effect.provideService(SqlClient, {
-          unsafe: () =>
-            Effect.succeed([
-              {
-                now: "100000",
-                active_until: "115000",
-                due: null,
-                recovery: null,
-                generate: null,
-                [field]: "99000"
-              }
-            ])
+          unsafe: (text) =>
+            Effect.succeed(
+              text.startsWith("WITH t AS MATERIALIZED")
+                ? [
+                    {
+                      now: "100000",
+                      active_until: "115000",
+                      due: null,
+                      recovery: null,
+                      generate: null,
+                      [field]: "99000"
+                    }
+                  ]
+                : []
+            )
         }),
         Effect.provideService(Executor.ExecutionHints, { reconcile: Effect.void }),
         Effect.provideService(JobWorker, {

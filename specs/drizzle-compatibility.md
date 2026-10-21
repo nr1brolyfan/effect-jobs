@@ -1,20 +1,42 @@
 # Effect-native Drizzle compatibility
 
-This qualification targets exactly `drizzle-orm@1.0.0-rc.5-169397b`,
-`effect@4.0.0` and the compatible native peer `@effect/sql-pg@4.0.0`, on
+This qualification targets exactly `drizzle-orm@1.0.0-rc.5-ab785fc` or
+`drizzle-orm@1.0.0-rc.5-169397b`,
+`effect@4.0.5` and the compatible native peer `@effect/sql-pg@4.0.5`, on
 Node 24.15.0, Bun 1.4.2 and PostgreSQL 16.15. The owner accepted this dependency
 direction in UPVE-1032; UPVE-1165 owns its isolated compatibility qualification.
 The coordinator's prepared package/lock changes are part of the tested inputs.
 The existing production schema and backend need no runtime changes for this pin.
 
+The local.2 matrix installs each exact snapshot independently with the normal npm
+peer resolver. Main development uses `ab785fc`; set `DRIZZLE_ORM_VERSION` to the
+other exact version for the separate native and index consumer gates. Qualifiers
+check the exact two-member peer set, actual resolved package versions and a single
+physical Effect 4.0.5, with the intended sql-pg/pg peers. No ordering of hash
+suffixes or wider compatibility range is implied.
+
+Alchemy 2.0.0-beta.83 and local.2 install together normally with `ab785fc`.
+This is a dependency-graph qualification only; no cloud operations or deployment
+are included. Runtime ownership remains public PgClient.withTransaction, with
+Drizzle schema/query building in the same Effect/Context.
+
+C remains FAIL for both snapshots. Owner approval in UPVE-2497 thread
+`01a15e56-25ce-7800-aa6e-e3e246ca237f` extends the nonblocking exception to
+`ab785fc` only for seven demonstrated byte-identical upstream diagnostics:
+three TS2307 imports of removed unstable/sql/SqlError and four TS2420 policy/role
+contracts. `UpstreamAudit.json` records that scope and the comparison evidence.
+No additional diagnostics are waived. Each snapshot independently requires our
+strict/exactOptional A+B contracts and all six unsuppressed negative controls.
+
 ## Actual driver and application bridge
 
 `drizzle-orm/effect-postgres.makeWithDefaults` requires the native `PgClient`
 service. It creates a session using that client; queries are Effects, executed
-through `client.unsafe(...).values`, `.withoutTransform` or `.raw`. The session
-wraps a transaction callback in `client.withTransaction`. A nested Drizzle
-transaction delegates to the session again: native Effect SQL emits a savepoint.
-The executable negative control confirms this on the real server.
+through `client.unsafe(...).values`, `.withoutTransform` or `.raw`. The qualified transaction owner is public `client.withTransaction(body)`;
+Drizzle queries remain in its Effect body. The former corrected `db.transaction`
+invocation and nested Drizzle negative control are historical evidence, not
+positive qualification. The current executable nesting negative control uses
+native transactions to demonstrate a real savepoint; a jobs join emits none.
 
 The qualification application registrar captures the exact connection published
 by **that client's** `transactionService`, inside its owning callback. A private
@@ -79,7 +101,7 @@ link for subsequent repository lint in a fresh checkout. All public exports are 
 Node and Bun. Existing installed qualification separately proves imports without
 pg/Drizzle peers and strict non-Drizzle backend declarations.
 
-The 17 native assertions per runtime cover:
+The historical 17 native assertions per runtime covered:
 
 - Native Drizzle domain + production enqueue/job/payload + receipt atomic commit.
 - Duplicate equality, original durable evidence and caught integrity conflict
@@ -105,17 +127,38 @@ their original snapshots and were not rerun for confirmation.
 
 ## Declaration limits and reproducibility
 
-Consumer declarations pass with `skipLibCheck: true`, matching the repository's
-existing Drizzle setting. The runner also executes the full upstream declaration
-check with `skipLibCheck: false` and retains its **failure**, rather than claiming
-complete declaration compatibility. In this version Drizzle still imports the
-removed `effect/unstable/sql/SqlError` path; policy/role declarations also fail
-exact optional property checks. The fixture restores only the transaction
-function's error declaration to the actual pinned native `SqlError` at its
-explicit typed invocation boundary. It does not patch installed dependencies or
-hide that full upstream checking failed. Intentionally version-pinned unstable
-SQL API warnings are documented and disabled only in these two qualification
-modules; any/unknown Effect-channel diagnostics remain enabled.
+Acceptance requires A+B: strict/exactOptional checks of our sources, with
+owner-approved dependency `skipLibCheck:true`. `ContractProbes.mts.txt` (compiled as `.mts` by the runner) checks typed
+select/insert/schema and inferred transaction/native join E/R. The runner removes
+six deliberate negative directives and requires actual input/output/query error,
+transaction error, join error and Caller requirement diagnostics. An any/error-type
+leak is not success.
+
+C, the full foreign d.ts audit with `skipLibCheck:false`, remains **known upstream
+FAIL**, separately reported and nonblocking. `UpstreamAudit.json` binds original
+command/config/log hashes and exact dependency pins. The runner checks those and
+reuses the unchanged foreign audit, without calling it C PASS. Drizzle still
+imports removed `effect/unstable/sql/SqlError`; policy/role declarations fail exact
+optional checks. `db.transaction` retains its upstream error-type limitation and
+is excluded from the positive route; no local type correction is used.
+
+Use public `client.withTransaction(body)` as the outer owner. Drizzle retains
+schema/query building inside that same client's Effect/Context. Pass that exact
+client to `PostgreSqlNative`, provide its producer as `JobEnqueue`, and await all
+business/receipt/enqueue writes in one Effect execution. Do not run an independent
+`runPromise` inside the transaction. Jobs join without extra transaction/savepoint;
+results stay provisional until the outer owner acknowledges COMMIT. Standalone
+owns its bounded transaction and rejects an active same-client transaction.
+
+Only ordinary outer transactions and jobs joining them are qualified. Nested
+transactions, options and isolation are not automatically Drizzle-equivalent;
+no new savepoint/manager API is introduced. The application owns pools, migrations,
+finite native control/release timeouts and sanitization of provider errors/defects
+while preserving caller failures and interruption. Unknown COMMIT remains Unknown;
+reconcile the exact receipt read-only. Missing receipts or lost responses never
+prove NotCommitted or authorize replay. Synthetic post-durable-COMMIT response
+loss is covered separately from real network/server crash guarantees, which are
+NotTested.
 
 The initial fresh-worktree `verify` failed lint before build because an existing
 portable codec smoke imports absent `dist` declarations. Building first resolves
@@ -123,8 +166,8 @@ that bootstrap issue; the subsequent complete `verify` passes. No shared test,
 manifest, root registrar or lint policy was changed to make it pass.
 
 The fixtures verify the exact task-owned container and deadline before use.
-Native objects use only the `drizzle_native` schema and `drizzle_native_runtime`
-role in `effect_jobs_d6`; application setup owns DDL and runtime uses its separate
+Native objects use fixture-owned `drizzle_native` / `ambient_native` schemas and runtime
+roles in `effect_jobs_d6`; application setup owns DDL and runtime uses its separate
 login. Native client scopes and observer/admin pools close in finally, and both
 runtime receipts confirm zero remaining fixture schemas and roles. Existing
 backend fixtures run serially. Container lifecycle stays with the coordinator.

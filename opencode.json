@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "traits": {
+        "type": "local",
+        "command": ["node", "node_modules/traits/dist/main.js"],
+        "cwd": ".",
+        "timeout": { "startup": 60000, "execution": 240000 }
+      }
+    }
+  }
+}

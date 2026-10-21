@@ -26,8 +26,8 @@ writeFileSync(
       type: "module",
       dependencies: {
         "effect-jobs": `file:${archive}`,
-        effect: "4.0.0",
-        "drizzle-orm": "1.0.0-rc.5-169397b",
+        effect: "4.0.5",
+        "drizzle-orm": process.env.DRIZZLE_ORM_VERSION ?? "1.0.0-rc.5-ab785fc",
         typescript: "7.0.2",
         "@types/node": "26.4.1"
       }

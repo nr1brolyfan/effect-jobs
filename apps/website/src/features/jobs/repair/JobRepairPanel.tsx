@@ -35,15 +35,17 @@ export const JobRepairPanel = (props: Props) => {
   const identity = `${props.detail.sandbox.sandboxId}:${props.detail.sandbox.generation}:${props.detail.job.jobId}`
   return <RepairForm key={identity} {...props} />
 }
-const RepairForm = ({
-  detail,
-  readOnly,
-  blocked = false,
-  pending,
-  onSubmit,
-  onReceipt,
-  onResolve
-}: Props) => {
+const RepairForm = (props: Props) => {
+  const {
+    detail,
+    readOnly,
+    blocked = false,
+    pending,
+    onSubmit,
+    onReceipt,
+    onResolve
+  } = props
+
   const session = useSyntheticDocumentSession()
   const synthetic =
     detail.payload._tag === "Available" &&

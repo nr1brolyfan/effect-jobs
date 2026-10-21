@@ -4,6 +4,7 @@
 import { Data, Effect, Schema } from "effect"
 import type { JobQueue } from "./JobQueue.js"
 
+type ConsumerOptions = typeof ConsumerOptions.Type
 const ConsumerOptions = Schema.Struct({
   /** Shared per-worker queue permits, acquired before claim; integer 1–64. */
   localConcurrency: Schema.Int.pipe(
@@ -27,7 +28,6 @@ const ConsumerOptions = Schema.Struct({
 export interface JobConsumer<Q extends JobQueue = JobQueue> extends ConsumerOptions {
   readonly queue: Q
 }
-type ConsumerOptions = typeof ConsumerOptions.Type
 
 /**
  * Typed configuration failure for invalid bounds or excess option keys.

@@ -144,7 +144,7 @@ export const make = (schema: string) =>
           }
         }),
       // Mock observation DTO has source="mock"; a durable ledger must not impersonate it.
-      inspect: () => Effect.succeed(undefined)
+      inspect: () => Effect.undefined
     })
   })
 export const layerNoDeps = (schema: string) => Layer.effect(FakeProvider, make(schema))

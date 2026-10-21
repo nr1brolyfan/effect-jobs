@@ -18,86 +18,90 @@ export type PositionerProps = BasePopover.Positioner.Props
 export type PopupProps = BasePopover.Popup.Props
 export type CloseProps = BasePopover.Close.Props
 
-export const Trigger = forwardRef<HTMLButtonElement, TriggerProps>(function Trigger(
-  { className, variant = "default", ...props },
-  ref
-) {
-  return (
-    <BasePopover.Trigger
-      {...props}
-      ref={ref}
-      className={(state) =>
-        [
-          // Timestamp callers supply one complete StyleX result, without button defaults.
-          variant === "default"
-            ? stylex.props(controls.button, controls.ghost).className
-            : undefined,
-          typeof className === "function" ? className(state) : className
-        ]
-          .filter(Boolean)
-          .join(" ")
-      }
-    />
-  )
-})
+export const Trigger = forwardRef<HTMLButtonElement, TriggerProps>(
+  function Trigger(inputProps, ref) {
+    const { className, variant = "default", ...props } = inputProps
 
-export const Positioner = forwardRef<HTMLDivElement, PositionerProps>(function Positioner(
-  { className, sideOffset = 8, ...props },
-  ref
-) {
-  return (
-    <BasePopover.Positioner
-      {...props}
-      ref={ref}
-      sideOffset={sideOffset}
-      className={(state) =>
-        [
-          stylex.props(styles.positioner).className,
-          typeof className === "function" ? className(state) : className
-        ]
-          .filter(Boolean)
-          .join(" ")
-      }
-    />
-  )
-})
+    return (
+      <BasePopover.Trigger
+        {...props}
+        ref={ref}
+        className={(state) =>
+          [
+            // Timestamp callers supply one complete StyleX result, without button defaults.
+            variant === "default"
+              ? stylex.props(controls.button, controls.ghost).className
+              : undefined,
+            typeof className === "function" ? className(state) : className
+          ]
+            .filter(Boolean)
+            .join(" ")
+        }
+      />
+    )
+  }
+)
 
-export const Popup = forwardRef<HTMLDivElement, PopupProps>(function Popup(
-  { className, ...props },
-  ref
-) {
-  return (
-    <BasePopover.Popup
-      {...props}
-      ref={ref}
-      className={(state) =>
-        [
-          stylex.props(styles.popup).className,
-          typeof className === "function" ? className(state) : className
-        ]
-          .filter(Boolean)
-          .join(" ")
-      }
-    />
-  )
-})
+export const Positioner = forwardRef<HTMLDivElement, PositionerProps>(
+  function Positioner(inputProps, ref) {
+    const { className, sideOffset = 8, ...props } = inputProps
 
-export const Close = forwardRef<HTMLButtonElement, CloseProps>(function Close(
-  { className, ...props },
-  ref
-) {
-  return (
-    <BasePopover.Close
-      {...props}
-      ref={ref}
-      className={(state) =>
-        [
-          stylex.props(controls.button, controls.secondary).className,
-          typeof className === "function" ? className(state) : className
-        ]
-          .filter(Boolean)
-          .join(" ")
-      }
-    />
-  )
-})
+    return (
+      <BasePopover.Positioner
+        {...props}
+        ref={ref}
+        sideOffset={sideOffset}
+        className={(state) =>
+          [
+            stylex.props(styles.positioner).className,
+            typeof className === "function" ? className(state) : className
+          ]
+            .filter(Boolean)
+            .join(" ")
+        }
+      />
+    )
+  }
+)
+
+export const Popup = forwardRef<HTMLDivElement, PopupProps>(
+  function Popup(inputProps, ref) {
+    const { className, ...props } = inputProps
+
+    return (
+      <BasePopover.Popup
+        {...props}
+        ref={ref}
+        className={(state) =>
+          [
+            stylex.props(styles.popup).className,
+            typeof className === "function" ? className(state) : className
+          ]
+            .filter(Boolean)
+            .join(" ")
+        }
+      />
+    )
+  }
+)
+
+export const Close = forwardRef<HTMLButtonElement, CloseProps>(
+  function Close(inputProps, ref) {
+    const { className, ...props } = inputProps
+
+    return (
+      <BasePopover.Close
+        {...props}
+        ref={ref}
+        className={(state) =>
+          [
+            stylex.props(controls.button, controls.secondary).className,
+            typeof className === "function" ? className(state) : className
+          ]
+            .filter(Boolean)
+            .join(" ")
+        }
+      />
+    )
+  }
+)

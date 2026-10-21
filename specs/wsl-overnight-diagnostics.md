@@ -31,11 +31,11 @@ wpisu oraz identyfikator uruchomienia monitora, żeby rozpoznać przerwę lub re
 
 ## Jak interpretujemy wynik
 
-| Obserwacja | Co sprawdzamy dalej |
-| --- | --- |
-| Przerwa w obu heartbeat | Host Windows, jego zasilanie albo zatrzymanie monitorów |
-| Windows zapisuje, WSL nie | WSL/VM albo monitor Linuksa |
-| Oba zapisują, agenci nie pracują | Multica/OpenCode, kolejki, sieć i zależności zadań |
+| Obserwacja                       | Co sprawdzamy dalej                                     |
+| -------------------------------- | ------------------------------------------------------- |
+| Przerwa w obu heartbeat          | Host Windows, jego zasilanie albo zatrzymanie monitorów |
+| Windows zapisuje, WSL nie        | WSL/VM albo monitor Linuksa                             |
+| Oba zapisują, agenci nie pracują | Multica/OpenCode, kolejki, sieć i zależności zadań      |
 
 Heartbeat zawęża czas i obszar problemu, ale sam nie dowodzi jego przyczyny.
 Przerwę należy zestawić z logami systemowymi i identyfikatorami uruchomień.

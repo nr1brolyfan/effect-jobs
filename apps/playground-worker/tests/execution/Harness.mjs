@@ -3,8 +3,7 @@ import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
 import { Effect } from "effect"
 import { Pool } from "pg"
-import * as Jobs from "effect-jobs/PostgreSqlSchema"
-import * as Authority from "./dist/src/persistence/authority/Schema.js"
+import * as Migrations from "../../src/persistence/MigrationRegistry.js"
 import { Miniflare, convertV4MiniflareOptions } from "miniflare"
 import { probe } from "./Probe.mjs"
 const cfg = JSON.parse(readFileSync(process.env.EXECUTOR_PRIVATE_CONFIG, "utf8"))
@@ -32,11 +31,9 @@ try {
   assert.match(report.serverVersion, /^16\.15/)
   for (const schema of schemas) {
     await admin.query(`CREATE SCHEMA ${schema}`)
-    await admin.query(Jobs.migration(Jobs.tables({ schema })))
-    await admin.query(Authority.proposal(schema))
-    await admin.query(
-      `ALTER TABLE "${schema}".sandboxes ADD COLUMN demo_owned boolean NOT NULL DEFAULT false`
-    )
+    for (const migration of Migrations.migrations(schema)) {
+      await admin.query(migration.sql)
+    }
   }
   let alarmAt = null
   report.local = await Effect.runPromise(
@@ -79,6 +76,8 @@ try {
 } catch (error) {
   report.status = "FAIL"
   report.failureClass = error?.constructor?.name ?? "Unknown"
+  report.sqlCode = error?.reason?.cause?.code
+  report.constraint = error?.reason?.cause?.constraint
   report.frames = String(error?.stack ?? "")
     .split("\n")
     .filter((line) => line.trim().startsWith("at "))
@@ -111,7 +110,15 @@ try {
   report.finishedAt = new Date().toISOString()
   writeFileSync(
     `${evidence}/${runtime}-receipt.json`,
-    JSON.stringify(report, null, 2) + "\n"
+    JSON.stringify(
+      report,
+      (_key, value) => (typeof value === "bigint" ? `${value}n` : value),
+      2
+    ) + "\n"
   )
-  console.log(JSON.stringify(report))
+  console.log(
+    JSON.stringify(report, (_key, value) =>
+      typeof value === "bigint" ? `${value}n` : value
+    )
+  )
 }

@@ -16,8 +16,10 @@ export interface FormattedDateTime {
 // millis for scheduling, eligibility, lease ownership, or countdown arithmetic.
 export function formatDateTime(
   value: number | null | undefined,
-  { locale, timeZone, seconds = true }: DateTimeFormatOptions = {}
+  options: DateTimeFormatOptions = {}
 ): FormattedDateTime | undefined {
+  const { locale, timeZone, seconds = true } = options
+
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return undefined
   }

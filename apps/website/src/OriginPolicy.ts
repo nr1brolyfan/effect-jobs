@@ -24,11 +24,11 @@ const parse = (origin: string): URL | undefined => {
   }
 }
 
-export const make = ({ configuredOrigin, localPreview }: Config): Policy => {
-  const configured = parse(configuredOrigin)
+export const make = (props: Config): Policy => {
+  const configured = parse(props.configuredOrigin)
   const allowed = new Set<string>()
   if (configured) {
-    if (localPreview) {
+    if (props.localPreview) {
       if (
         configured.protocol === "http:" &&
         configured.port !== "" &&
@@ -38,7 +38,7 @@ export const make = ({ configuredOrigin, localPreview }: Config): Policy => {
         allowed.add(`http://127.0.0.1:${configured.port}`)
       }
     } else if (configured.protocol === "https:") {
-      allowed.add(configuredOrigin)
+      allowed.add(props.configuredOrigin)
     }
   }
   const resolve = (requestOrigin: string) =>

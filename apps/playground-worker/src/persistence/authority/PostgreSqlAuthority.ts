@@ -1,8 +1,8 @@
 // The application supplies the exact PgClient's SqlClient service and native adapter.
 // @effect-diagnostics unstableApiUsage:off
-import { Cause, Effect, Layer, Option, Redacted, Schema } from "effect"
+import { Effect, Layer, Option, Redacted, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
-import { isSqlError, type SqlError } from "effect/sql/SqlError"
+import { controls } from "./TransactionControls.js"
 import {
   SandboxAuthority,
   PlaygroundError
@@ -21,26 +21,6 @@ import * as Traffic from "../../scenarios/PrivateTraffic.js"
 export const viewerMillis = 15_000
 const dbTime = "floor(extract(epoch FROM clock_timestamp())*1000)::bigint"
 const fail = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
-const controls = <A, E, R>(effect: Effect.Effect<A, E | SqlError, R>) =>
-  effect.pipe(
-    Effect.catchCause((cause) =>
-      Effect.failCause(
-        Cause.fromReasons<E | CommandTransactionFailure>(
-          cause.reasons.map((reason) => {
-            if (
-              (Cause.isFailReason(reason) && isSqlError(reason.error)) ||
-              (Cause.isDieReason(reason) && isSqlError(reason.defect))
-            ) {
-              return Cause.makeFailReason(
-                new CommandTransactionFailure({ commitKnowledge: "Unknown" })
-              )
-            }
-            return reason as Cause.Reason<E>
-          })
-        )
-      )
-    )
-  )
 const digest = (value: string) =>
   Effect.tryPromise({
     try: async () =>
@@ -143,9 +123,10 @@ export const make = (schema: string) =>
               yield* traffic
                 .ensure((yield* view(row, local)).ref, Number(row.db_now))
                 .pipe(
-                  Effect.catchTag("PlaygroundError", (error) =>
-                    error.code === "limit-reached" ? Effect.void : Effect.fail(error)
-                  )
+                  Effect.catchTags({
+                    PlaygroundError: (error) =>
+                      error.code === "limit-reached" ? Effect.void : Effect.fail(error)
+                  })
                 )
             }
             return yield* view((yield* described(String(row.sandbox_id)))[0]!, local)

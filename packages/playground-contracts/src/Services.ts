@@ -19,6 +19,7 @@ import type {
 } from "./Scenarios.js"
 import type { ChangeBatch, ChangeRequest } from "./Changes.js"
 
+export type PublicErrorCode = typeof PublicErrorCode.Type
 export const PublicErrorCode = Schema.Literals([
   "invalid-request",
   "not-found",
@@ -28,7 +29,6 @@ export const PublicErrorCode = Schema.Literals([
   "capability-unavailable",
   "unavailable"
 ])
-export type PublicErrorCode = typeof PublicErrorCode.Type
 export const PublicError = Schema.Struct({ code: PublicErrorCode })
 export class PlaygroundError extends Schema.TaggedError<PlaygroundError>()(
   "PlaygroundError",

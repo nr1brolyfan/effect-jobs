@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "effect": "4.0.0",
+    "effect": "4.0.5",
     "effect-jobs": "file:../..",
     "@effect-jobs/playground-contracts": "workspace:*",
-    "@effect/sql-pg": "4.0.0"
+    "@effect/sql-pg": "4.0.5"
   },
   "scripts": {
     "check": "tsc -p tsconfig.json",

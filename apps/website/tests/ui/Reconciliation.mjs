@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process"
 const require = createRequire(
   resolve(process.env.UI_PLAYWRIGHT_PACKAGE ?? "apps/playground-worker/package.json")
 )
-const { chromium } = require("@playwright/test")
+const { chromium, expect } = require("@playwright/test")
 const output = resolve(".multica/ui-fixes/dx-browser")
 await mkdir(output, { recursive: true })
 execFileSync("bun", ["apps/website/build.mjs", "--fixtures"], {
@@ -25,19 +25,22 @@ const scripts = {
   "/BrowserEntry.js": await readFile(resolve(output, "BrowserEntry.js"))
 }
 const server = createServer((req, res) => {
-  if (req.url === "/Jobs.css") {
+  const path = new URL(req.url, "http://localhost").pathname
+  if (path === "/Jobs.css") {
     res.setHeader("content-type", "text/css")
     res.end(css)
-  } else if (Object.hasOwn(scripts, req.url ?? "")) {
+  } else if (Object.hasOwn(scripts, path)) {
     res.setHeader("content-type", "text/javascript")
-    res.end(scripts[req.url])
-  } else if (req.url === "/docs/jobs") {
+    res.end(scripts[path])
+  } else if (path === "/docs/jobs") {
     res.setHeader("content-type", "text/html")
     res.end(guide)
-  } else if (["/jobs", "/commands", "/fixture", "/poll"].includes(req.url)) {
+  } else if (["/jobs", "/commands", "/fixture", "/poll"].includes(path)) {
     res.setHeader("content-type", "text/html")
     res.end(
-      req.url === "/fixture" ? html : html.replace("/FixtureEntry.js", "/BrowserEntry.js")
+      new URL(req.url, "http://localhost").searchParams.has("fixture")
+        ? html
+        : html.replace("/FixtureEntry.js", "/BrowserEntry.js")
     )
   } else {
     res.writeHead(404)
@@ -54,9 +57,11 @@ try {
     headless: true,
     executablePath: process.env.UI_CHROMIUM_PATH
   })
-  const page = await browser.newPage()
+  const page = await browser.newPage({
+    permissions: ["clipboard-write", "clipboard-read"]
+  })
   page.on("pageerror", (error) => errors.push(error.message))
-  await page.goto(`${url}/poll`)
+  await page.goto(`${url}/jobs?poll=1`)
   await page.waitForFunction(
     () => window.jobsBrowserTest.snapshot().connection === "connected"
   )
@@ -103,10 +108,7 @@ try {
     () => window.jobsBrowserTest.snapshot().connection === "connected"
   )
   await page.getByRole("button", { name: "demo-job-01", exact: true }).click()
-  const link = page.getByRole("link", {
-    name: "demo-order-a (synthetic example)",
-    exact: true
-  })
+  const link = page.getByText("Identity & execution policy", { exact: true })
   await link.waitFor()
   await link.focus()
   const before = await page.evaluate(() => ({
@@ -119,33 +121,35 @@ try {
     { timeout: 8000 }
   )
   await page.waitForFunction(
-    () => document.activeElement?.textContent === "demo-order-a (synthetic example)",
+    () => document.activeElement?.textContent === "Identity & execution policy",
     null,
     { timeout: 2000 }
   )
   const after = await page.evaluate(() => ({
-    activeTag: document.activeElement?.tagName,
-    linkPresent: !!document.querySelector('a[href="/docs/jobs#privacy"]')
+    activeTag: document.activeElement?.tagName
   }))
-  assert.equal(after.activeTag, "A")
+  assert.equal(after.activeTag, "SUMMARY")
   await page.keyboard.press("Enter")
-  await page.waitForURL((url) => url.pathname === "/docs/jobs" && url.hash === "#privacy")
+  assert(await link.evaluate((node) => node.parentElement.open))
   checks.push({
     id: "DX-2",
     before,
     after,
-    expected: "focused detail link retained after unchanged poll",
-    actual: "corresponding link retains focus and keyboard activation"
+    expected: "focused metadata summary retained after unchanged poll",
+    actual: "metadata summary retains focus and keyboard activation"
   })
-  await page.goto(`${url}/poll`)
+  await page.goto(`${url}/jobs?poll=1`)
   await page.locator('.connection-status[data-connection="connected"]').waitFor()
   await page.getByRole("button", { name: "demo-job-01", exact: true }).click()
   await link.waitFor()
+  await page.getByRole("button", { name: "Close job details", exact: true }).click()
   const refresh = page.getByRole("button", { name: "Refresh reads", exact: true })
   await refresh.focus()
   await page.evaluate(() => window.jobsBrowserTest.reconcile())
   assert(await refresh.evaluate((node) => document.activeElement === node))
   checks.push({ id: "outside-focus", result: "PASS" })
+  await page.getByRole("button", { name: "demo-job-01", exact: true }).click()
+  await link.waitFor()
   const descriptionsBefore = await page.evaluate(() => {
     const before = window.jobsBrowserTest.descriptions()
     window.jobsBrowserTest.delayDescribe(1500)
@@ -169,13 +173,13 @@ try {
     window.jobsBrowserTest.generation()
     return window.jobsBrowserTest.reconcile()
   })
-  assert.equal(await link.count(), 0)
+  await expect(link).toHaveCount(0)
   assert.equal(
     await page.evaluate(() => window.jobsBrowserTest.snapshot().selected),
     undefined
   )
   checks.push({ id: "generation-revocation", result: "PASS" })
-  await page.goto(`${url}/poll`)
+  await page.goto(`${url}/jobs?poll=1`)
   await page.waitForFunction(
     () => window.jobsBrowserTest.snapshot().connection === "connected"
   )
@@ -185,7 +189,7 @@ try {
     window.jobsBrowserTest.mode("expired")
     return window.jobsBrowserTest.reconcile()
   })
-  assert.equal(await link.count(), 0)
+  await expect(link).toHaveCount(0)
   assert.equal(
     await page.evaluate(() => window.jobsBrowserTest.snapshot().error),
     "sandbox-expired"

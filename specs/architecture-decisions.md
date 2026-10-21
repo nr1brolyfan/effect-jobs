@@ -570,7 +570,9 @@ The configured native adapter uses the exact application's `PgClient.transaction
 An active transaction of that SAME client is required; missing/foreign context
 fails before preparation. There is no implicit BEGIN, second connection, commit,
 savepoint or replay. Connection strings and a Drizzle `tx` object do not prove binding.
-Native Drizzle and the Effect client manager both establish the supported context.
+The qualified owner is public `PgClient.withTransaction(body)`; Drizzle retains
+schema/query building in that same Effect/Context. `db.transaction` retains an
+upstream error-type limitation and is excluded from the positive route.
 
 `PostgreSqlJobs.layerNoDeps` provides storage plus this producer service.
 `backend.withTransaction(() => definition.enqueue(input))` delegates explicit
@@ -588,8 +590,14 @@ connection/xid, concurrent isolation/deduplication, caller interruption, wrong s
 standalone failure/active rejection and synthetic response loss after durable COMMIT.
 This is not a network/server-crash guarantee.
 
-Only `PgClient@4.0.0` with native Drizzle `1.0.0-rc.5-169397b` is qualified by the
-native adapter. Its structural client type is an integration port, not a blanket
+Only `PgClient@4.0.5` with native Drizzle `1.0.0-rc.5-ab785fc` or
+`1.0.0-rc.5-169397b` is qualified by the
+native adapter within the scope of the current [release qualification](release-qualification.md).
+A+B strict/exactOptional source contracts remain required with approved dependency
+`skipLibCheck:true`. C remains separately reported known upstream FAIL and is
+nonblocking, never C PASS. Nested transactions/options/isolation are not
+automatically Drizzle-equivalent; no new savepoint/manager API is introduced.
+Its structural client type is an integration port, not a blanket
 guarantee for other drivers. The application owns pool lifetime, migrations and
 finite native acquisition/control/release timeouts. Retaining/forking transaction
 contexts past the owner's callback is unsupported; there is no invented `tx` identity proof.

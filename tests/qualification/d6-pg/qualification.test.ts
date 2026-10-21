@@ -139,7 +139,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
                 runtimeVersion: process.versions.bun ?? process.version,
                 serverVersion,
                 driver: "pg@8.23.0",
-                effect: "4.0.0",
+                effect: "4.0.5",
                 borrows: source.counters.borrows,
                 sqlStatements: source.counters.sql.length,
                 begins: source.counters.sql.filter((s) => s === "BEGIN").length,
@@ -213,7 +213,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
           "utf8"
         )
       ).version
-    ).toBe("4.0.0")
+    ).toBe("4.0.5")
     expect(serverVersion).toMatch(/^16\.15/)
   })
 

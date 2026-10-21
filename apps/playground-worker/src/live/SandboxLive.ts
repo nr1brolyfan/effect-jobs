@@ -67,151 +67,179 @@ export const makeDurableObject = <Env, State extends LiveState>(
       private readonly env: Env
     ) {
       super(ctx, env)
-      void ctx.blockConcurrencyWhile(async () => {
-        this.scope = await ctx.storage.get<SandboxRef>("scope")
-      })
+      void ctx.blockConcurrencyWhile(() =>
+        Effect.runPromise(
+          Effect.gen({ self: this }, function* () {
+            this.scope = yield* Effect.promise(() => ctx.storage.get<SandboxRef>("scope"))
+          })
+        )
+      )
     }
 
     // Cloudflare callbacks are Promise/throwing FFI; Effect authority is run here.
-    async fetch(request: Request): Promise<Response> {
-      const policy = OriginPolicy.make({
-        configuredOrigin: options.origin(this.env),
-        localPreview: options.localPreview?.(this.env) === true
-      })
-      if (
-        request.url.length > 4096 ||
-        request.method !== "GET" ||
-        request.headers.get("Upgrade")?.toLowerCase() !== "websocket" ||
-        !policy.matches(new URL(request.url).origin, request.headers.get("Origin"))
-      ) {
-        return Response.json({ code: "invalid-request" }, { status: 400 })
-      }
-      const authorized = await Effect.runPromise(
-        options.authorize(request, this.env).pipe(
-          Effect.timeout("2 seconds"),
-          Effect.flatMap((view) =>
-            Schema.decodeUnknownEffect(SandboxView)(view, { onExcessProperty: "error" })
-          ),
-          Effect.match({ onFailure: () => undefined, onSuccess: (view) => view })
-        )
-      ).catch(() => undefined)
-      if (!authorized || authorized.expiresAt <= Date.now()) {
-        return Response.json({ code: "sandbox-expired" }, { status: 403 })
-      }
-      // Admission and scope initialization stay serial across authorization awaits.
-      return this.ctx.blockConcurrencyWhile(async () => {
-        if (this.scope && !sameSandbox(this.scope, authorized.ref)) {
-          return Response.json({ code: "stale-generation" }, { status: 403 })
-        }
-        if (this.viewers().length >= liveLimits.viewers) {
-          return Response.json({ code: "limit-reached" }, { status: 429 })
-        }
-        if (!this.scope) {
-          await this.ctx.storage.put("scope", authorized.ref)
-          this.scope = authorized.ref
-        }
-        const pair = new WebSocketPair()
-        pair[1].serializeAttachment({
-          sandbox: authorized.ref,
-          expiresAt: authorized.expiresAt,
-          sequence: 1,
-          sentAt: Date.now(),
-          pending: true
-        })
-        this.ctx.acceptWebSocket(pair[1])
-        pair[1].send(
-          JSON.stringify({
-            kind: "ready",
-            sandbox: authorized.ref,
-            reason: "reconcile",
-            sequence: 1
+    fetch(request: Request): Promise<Response> {
+      return Effect.runPromise(
+        Effect.gen({ self: this }, function* () {
+          const policy = OriginPolicy.make({
+            configuredOrigin: options.origin(this.env),
+            localPreview: options.localPreview?.(this.env) === true
           })
-        )
-        await this.schedule(
-          Math.min(Date.now() + limits.reconciliationMillis, authorized.expiresAt)
-        )
-        return new Response(null, { status: 101, webSocket: pair[0] } as ResponseInit)
-      })
+          if (
+            request.url.length > 4096 ||
+            request.method !== "GET" ||
+            request.headers.get("Upgrade")?.toLowerCase() !== "websocket" ||
+            !policy.matches(new URL(request.url).origin, request.headers.get("Origin"))
+          ) {
+            return Response.json({ code: "invalid-request" }, { status: 400 })
+          }
+          const authorized = yield* options.authorize(request, this.env).pipe(
+            Effect.timeout("2 seconds"),
+            Effect.flatMap((view) =>
+              Schema.decodeUnknownEffect(SandboxView)(view, { onExcessProperty: "error" })
+            ),
+            Effect.match({ onFailure: () => undefined, onSuccess: (view) => view }),
+            Effect.catchCause(() => Effect.undefined)
+          )
+          if (!authorized || authorized.expiresAt <= Date.now()) {
+            return Response.json({ code: "sandbox-expired" }, { status: 403 })
+          }
+          // Admission and scope initialization stay serial across authorization awaits.
+          return yield* Effect.promise(() =>
+            this.ctx.blockConcurrencyWhile(() =>
+              Effect.runPromise(
+                Effect.gen({ self: this }, function* () {
+                  if (this.scope && !sameSandbox(this.scope, authorized.ref)) {
+                    return Response.json({ code: "stale-generation" }, { status: 403 })
+                  }
+                  if (this.viewers().length >= liveLimits.viewers) {
+                    return Response.json({ code: "limit-reached" }, { status: 429 })
+                  }
+                  if (!this.scope) {
+                    yield* Effect.promise(() =>
+                      this.ctx.storage.put("scope", authorized.ref)
+                    )
+                    this.scope = authorized.ref
+                  }
+                  const pair = new WebSocketPair()
+                  pair[1].serializeAttachment({
+                    sandbox: authorized.ref,
+                    expiresAt: authorized.expiresAt,
+                    sequence: 1,
+                    sentAt: Date.now(),
+                    pending: true
+                  })
+                  this.ctx.acceptWebSocket(pair[1])
+                  pair[1].send(
+                    JSON.stringify({
+                      kind: "ready",
+                      sandbox: authorized.ref,
+                      reason: "reconcile",
+                      sequence: 1
+                    })
+                  )
+                  yield* this.schedule(
+                    Math.min(
+                      Date.now() + limits.reconciliationMillis,
+                      authorized.expiresAt
+                    )
+                  )
+                  return new Response(null, {
+                    status: 101,
+                    webSocket: pair[0]
+                  } as ResponseInit)
+                })
+              )
+            )
+          )
+        })
+      )
     }
 
     // Trusted DO RPC only; not routed from public HTTP or WebSocket messages.
-    async notifyCommitted(sandbox: SandboxRef): Promise<void> {
-      if (
-        !this.scope ||
-        !sameSandbox(this.scope, sandbox) ||
-        this.viewers().length === 0
-      ) {
-        return
-      }
-      await this.ctx.storage.put("dirty", true)
-      await this.schedule(Date.now() + liveLimits.coalesceMillis)
+    notifyCommitted(sandbox: SandboxRef): Promise<void> {
+      return Effect.runPromise(
+        Effect.gen({ self: this }, function* () {
+          if (
+            !this.scope ||
+            !sameSandbox(this.scope, sandbox) ||
+            this.viewers().length === 0
+          ) {
+            return
+          }
+          yield* Effect.promise(() => this.ctx.storage.put("dirty", true))
+          yield* this.schedule(Date.now() + liveLimits.coalesceMillis)
+        })
+      )
     }
 
-    async alarm(): Promise<void> {
-      const now = Date.now()
-      const current =
-        this.scope &&
-        (await Effect.runPromise(
-          options
-            .isCurrent(this.scope, this.env)
-            .pipe(
+    alarm(): Promise<void> {
+      return Effect.runPromise(
+        Effect.gen({ self: this }, function* () {
+          const now = Date.now()
+          const current =
+            this.scope &&
+            (yield* options.isCurrent(this.scope, this.env).pipe(
               Effect.timeout("2 seconds"),
-              Effect.match({ onFailure: () => false, onSuccess: (value) => value })
-            )
-        ).catch(() => false))
-      const dirty = await this.ctx.storage.get<boolean>("dirty")
-      // Clear before sends: interleaved post-commit notifications schedule another alarm.
-      await this.ctx.storage.put("dirty", false)
-      let next = now + limits.reconciliationMillis
-      let viewers = 0
-      for (const socket of this.viewers()) {
-        try {
-          const attachment = decodeAttachment(socket.deserializeAttachment())
-          if (
-            !current ||
-            !this.scope ||
-            !sameSandbox(attachment.sandbox, this.scope) ||
-            attachment.expiresAt <= now
-          ) {
-            socket.close(4003, "sandbox unavailable")
-            continue
-          }
-          if (attachment.pending && now - attachment.sentAt >= liveLimits.ackMillis) {
-            socket.close(4008, "slow viewer")
-            continue
-          }
-          if (!attachment.pending) {
-            const sequence = attachment.sequence + 1
-            if (!Number.isSafeInteger(sequence)) {
-              socket.close(4008, "reconnect required")
-              continue
+              Effect.match({ onFailure: () => false, onSuccess: (value) => value }),
+              Effect.catchCause(() => Effect.succeed(false))
+            ))
+          const dirty = yield* Effect.promise(() =>
+            this.ctx.storage.get<boolean>("dirty")
+          )
+          // Clear before sends: interleaved post-commit notifications schedule another alarm.
+          yield* Effect.promise(() => this.ctx.storage.put("dirty", false))
+          let next = now + limits.reconciliationMillis
+          let viewers = 0
+          for (const socket of this.viewers()) {
+            try {
+              const attachment = decodeAttachment(socket.deserializeAttachment())
+              if (
+                !current ||
+                !this.scope ||
+                !sameSandbox(attachment.sandbox, this.scope) ||
+                attachment.expiresAt <= now
+              ) {
+                socket.close(4003, "sandbox unavailable")
+                continue
+              }
+              if (attachment.pending && now - attachment.sentAt >= liveLimits.ackMillis) {
+                socket.close(4008, "slow viewer")
+                continue
+              }
+              if (!attachment.pending) {
+                const sequence = attachment.sequence + 1
+                if (!Number.isSafeInteger(sequence)) {
+                  socket.close(4008, "reconnect required")
+                  continue
+                }
+                socket.send(
+                  JSON.stringify({
+                    kind: "invalidate",
+                    sandbox: attachment.sandbox,
+                    reason: dirty ? "jobs-changed" : "reconcile",
+                    sequence
+                  })
+                )
+                socket.serializeAttachment({
+                  ...attachment,
+                  sequence,
+                  sentAt: now,
+                  pending: true
+                })
+              }
+              next = Math.min(next, attachment.expiresAt)
+              viewers++
+            } catch {
+              socket.close(4008, "connection unavailable")
             }
-            socket.send(
-              JSON.stringify({
-                kind: "invalidate",
-                sandbox: attachment.sandbox,
-                reason: dirty ? "jobs-changed" : "reconcile",
-                sequence
-              })
-            )
-            socket.serializeAttachment({
-              ...attachment,
-              sequence,
-              sentAt: now,
-              pending: true
-            })
           }
-          next = Math.min(next, attachment.expiresAt)
-          viewers++
-        } catch {
-          socket.close(4008, "connection unavailable")
-        }
-      }
-      if (viewers > 0) {
-        await this.schedule(next)
-      } else {
-        await this.ctx.storage.deleteAlarm()
-      }
+          if (viewers > 0) {
+            yield* this.schedule(next)
+          } else {
+            yield* Effect.promise(() => this.ctx.storage.deleteAlarm())
+          }
+        })
+      )
     }
 
     async webSocketMessage(
@@ -243,24 +271,30 @@ export const makeDurableObject = <Env, State extends LiveState>(
       }
     }
 
-    async webSocketClose(socket: HibernatingSocket, code: number): Promise<void> {
-      socket.close(code, "closed")
-      if (this.viewers().length === 0) {
-        await this.ctx.storage.deleteAlarm()
-      }
+    webSocketClose(socket: HibernatingSocket, code: number): Promise<void> {
+      return Effect.runPromise(
+        Effect.gen({ self: this }, function* () {
+          socket.close(code, "closed")
+          if (this.viewers().length === 0) {
+            yield* Effect.promise(() => this.ctx.storage.deleteAlarm())
+          }
+        })
+      )
     }
-    async webSocketError(socket: HibernatingSocket): Promise<void> {
-      await this.webSocketClose(socket, 1011)
+    webSocketError(socket: HibernatingSocket): Promise<void> {
+      return this.webSocketClose(socket, 1011)
     }
 
     private viewers(): Array<HibernatingSocket> {
       return this.ctx.getWebSockets().filter((socket) => socket.readyState === 1)
     }
 
-    private async schedule(at: number): Promise<void> {
-      const existing = await this.ctx.storage.getAlarm()
-      if (existing === null || existing > at) {
-        await this.ctx.storage.setAlarm(at)
-      }
+    private schedule(at: number): Effect.Effect<void> {
+      return Effect.gen({ self: this }, function* () {
+        const existing = yield* Effect.promise(() => this.ctx.storage.getAlarm())
+        if (existing === null || existing > at) {
+          yield* Effect.promise(() => this.ctx.storage.setAlarm(at))
+        }
+      })
     }
   }

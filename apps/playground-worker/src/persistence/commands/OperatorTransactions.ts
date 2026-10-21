@@ -7,11 +7,11 @@ import {
 } from "@effect-jobs/playground-contracts/Operators"
 import type { StoreError } from "./Transactions.js"
 
+export type StoredOperatorReceipt = typeof StoredOperatorReceipt.Type
 export const StoredOperatorReceipt = Schema.Struct({
   command: JobOperatorCommand,
   result: Schema.Union([JobOperatorResult.members[0], JobOperatorResult.members[1]])
 })
-export type StoredOperatorReceipt = typeof StoredOperatorReceipt.Type
 export interface OperatorTransaction {
   readonly admission: "Fresh" | "Unresolved"
   readonly stored: StoredOperatorReceipt | null

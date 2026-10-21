@@ -2,14 +2,12 @@ import assert from "node:assert/strict"
 import { Cause, Context, Effect, Exit, Semaphore } from "effect"
 import { SqlClient, makeWithTransaction } from "effect/sql/SqlClient"
 import { ConnectionError, SqlError } from "effect/sql/SqlError"
-import {
-  Executor,
-  Provider,
-  WakeAlarm,
-  JobWorker,
-  JobWorkerUnavailable,
-  WorkerCapability
-} from "./Actual.mjs"
+import * as Executor from "../../../src/execution/Executor.js"
+import * as Provider from "../../../src/execution/PostgreSqlProvider.js"
+import { WakeAlarm } from "../../../src/cloudflare/WakeCycle.js"
+import { JobWorker } from "../../../../../src/JobWorker.js"
+import { JobWorkerUnavailable } from "../../../../../src/JobWorker.js"
+import { WorkerCapability } from "../../../../../src/internal/worker/Capability.js"
 const results = []
 for (const c of [
   { label: "MoreWork overdue", active: 15000, more: true, delay: 100 },
@@ -28,16 +26,20 @@ for (const c of [
   const r = await Effect.runPromise(
     Executor.run("triage", "playground-media").pipe(
       Effect.provideService(SqlClient, {
-        unsafe: () =>
-          Effect.succeed([
-            {
-              now: "100000",
-              active_until: String(100000 + c.active),
-              due: c.more ? "99000" : null,
-              recovery: null,
-              generate: null
-            }
-          ])
+        unsafe: (text) =>
+          Effect.succeed(
+            text.startsWith("WITH t AS MATERIALIZED")
+              ? [
+                  {
+                    now: "100000",
+                    active_until: String(100000 + c.active),
+                    due: c.more ? "99000" : null,
+                    recovery: null,
+                    generate: null
+                  }
+                ]
+              : []
+          )
       }),
       Effect.provideService(Executor.ExecutionHints, { reconcile: Effect.void }),
       Effect.provideService(JobWorker, { [WorkerCapability]: runtime }),

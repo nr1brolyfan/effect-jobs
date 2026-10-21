@@ -3,7 +3,9 @@
   "include": [
     "src/**/*.ts",
     "tests/integration/RepairPg.ts",
-    "tests/integration/RepairHistorical.ts"
+    "tests/integration/RepairHistorical.ts",
+    "tests/**/*.mjs",
+    "tests/repairs/PostgreSqlSetup.test.ts"
   ],
   "compilerOptions": {
     "plugins": [
@@ -31,9 +33,107 @@
                 "effect/reactivity/Reactivity#layer"
               ]
             }
+          },
+          {
+            "include": ["tests/cloudflare/RealPgProbe.mjs"],
+            "options": {
+              "allowedUnstableApis": [
+                "@effect/sql-pg/PgClient#make",
+                "effect/reactivity/Reactivity#layer"
+              ]
+            }
+          },
+          {
+            "include": ["tests/execution/AffectedProbe.mjs"],
+            "options": {
+              "allowedUnstableApis": [
+                "@effect/sql-pg/PgClient#make",
+                "effect/reactivity/Reactivity#layer",
+                "effect/sql/SqlClient#SqlClient"
+              ]
+            }
+          },
+          {
+            "include": ["tests/execution/Probe.mjs"],
+            "options": {
+              "allowedUnstableApis": [
+                "@effect/sql-pg/PgClient#make",
+                "effect/reactivity/Reactivity#layer",
+                "effect/sql/SqlClient#SqlClient"
+              ]
+            }
+          },
+          {
+            "include": ["tests/execution/regressions/Controls.mjs"],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/sql/SqlClient#SqlClient",
+                "effect/sql/SqlClient#makeWithTransaction",
+                "effect/sql/SqlError#ConnectionError",
+                "effect/sql/SqlError#SqlError"
+              ]
+            }
+          },
+          {
+            "include": ["tests/execution/regressions/Extended.mjs"],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/sql/SqlClient#SqlClient",
+                "effect/sql/SqlError#ConnectionError",
+                "effect/sql/SqlError#SqlError"
+              ]
+            }
+          },
+          {
+            "include": ["tests/execution/regressions/Focused.mjs"],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/sql/SqlClient#SqlClient",
+                "effect/sql/SqlError#ConnectionError",
+                "effect/sql/SqlError#SqlError"
+              ]
+            }
+          },
+          {
+            "include": ["tests/execution/regressions/ProviderCause.mjs"],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/sql/SqlClient#SqlClient",
+                "effect/sql/SqlClient#makeWithTransaction",
+                "effect/sql/SqlError#ConnectionError",
+                "effect/sql/SqlError#SqlError"
+              ]
+            }
+          },
+          {
+            "include": ["tests/integration/RepairHistorical.ts"],
+            "options": {
+              "allowedUnstableApis": [
+                "@effect/sql-pg/PgClient#make",
+                "effect/reactivity/Reactivity#layer",
+                "effect/sql/SqlClient#SqlClient"
+              ]
+            }
+          },
+          {
+            "include": ["tests/integration/RepairPg.ts"],
+            "options": {
+              "allowedUnstableApis": [
+                "@effect/sql-pg/PgClient#make",
+                "effect/reactivity/Reactivity#layer",
+                "effect/sql/SqlClient#SqlClient"
+              ]
+            }
+          },
+          {
+            "include": ["tests/repairs/PostgreSqlSetup.test.ts"],
+            "options": {
+              "allowedUnstableApis": ["@effect/sql-pg/PgClient#PgClient"]
+            }
           }
         ]
       }
-    ]
+    ],
+    "allowJs": true
   }
 }

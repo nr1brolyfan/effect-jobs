@@ -14,7 +14,7 @@ let requests: string[] = []
 let updated = false
 let describeDelay = 0
 let descriptions = 0
-const commands = window.location.pathname === "/commands"
+const commands = new URLSearchParams(window.location.search).has("commands")
 const sandbox = () => ({
   ...Fixtures.sandbox,
   ref: { ...Fixtures.sandbox.ref, generation },
@@ -61,29 +61,50 @@ const client: Client = {
         }
       })
     }
-    return FixtureClient.client.list(request).pipe(
-      Effect.map((page) => ({
-        ...page,
-        stats: updated
-          ? {
-              ...page.stats,
-              Pending: page.stats.Pending - 1,
-              Completed: page.stats.Completed + 1
-            }
-          : page.stats,
-        items: page.items.map((job) =>
-          updated && job.jobId === "demo-job-06"
-            ? {
-                ...job,
-                state: "Completed" as const,
-                completedAt: job.updatedAt,
-                attemptsMade: 1,
-                lifecycleVersion: job.lifecycleVersion + 1
-              }
-            : job
-        )
-      }))
+    const items = Array.from({ length: 43 }, (_, index) => {
+      const state = (["Pending", "Active", "Completed", "Dead", "Isolated"] as const)[
+        index % 5
+      ]!
+      return {
+        ...FixtureClient.page.items[0]!,
+        jobId:
+          `demo-job-${String(index + 1).padStart(2, "0")}` as typeof Fixtures.detail.job.jobId,
+        state: updated && index === 20 ? ("Completed" as const) : state,
+        attemptsMade: updated && index === 20 ? 1 : state === "Pending" ? 0 : 1,
+        completedAt:
+          state === "Completed" || state === "Dead" || (updated && index === 20)
+            ? 1_700_000_001_000
+            : null,
+        lifecycleVersion:
+          FixtureClient.page.items[0]!.lifecycleVersion +
+          (updated && index === 20 ? 1 : 0)
+      }
+    })
+    const filtered = items.filter(
+      (job) => request.filters.state === undefined || request.filters.state === job.state
     )
+    const start =
+      request.cursor === undefined
+        ? 0
+        : filtered.findIndex((job) => job.jobId === request.cursor) + 1
+    const visible = filtered.slice(start, start + request.limit)
+    return Effect.succeed({
+      ...FixtureClient.page,
+      items: visible,
+      sandbox: request.sandbox,
+      stats: {
+        total: 43,
+        Pending: updated ? 8 : 9,
+        Active: 9,
+        Completed: updated ? 10 : 9,
+        Dead: 8,
+        Isolated: 8,
+        Cancelled: 0,
+        RetryScheduled: 0
+      },
+      filteredTotal: filtered.length,
+      nextCursor: start + request.limit < filtered.length ? visible.at(-1)!.jobId : null
+    })
   },
   run: (command) => {
     ++runs
@@ -109,7 +130,7 @@ if (root === null) {
   throw new Error("Missing test mount")
 }
 const mounted = Mount.mount(root, client, sandbox(), {
-  poll: window.location.pathname === "/poll"
+  poll: new URLSearchParams(window.location.search).has("poll")
 })
 const browserTest = {
   mode: (next: typeof mode) => {
@@ -119,6 +140,7 @@ const browserTest = {
     Effect.runPromise(
       mounted.runtime.refresh.pipe(Effect.provideService(JobsClient, client))
     ),
+  next: () => mounted.runtime.run(mounted.runtime.next),
   generation: () => {
     ++generation
   },

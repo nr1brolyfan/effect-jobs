@@ -106,7 +106,7 @@ export const wrap = (name, code) => {
   }
   if (name === "native") {
     prefix +=
-      'import * as nativeDrizzle from "drizzle-orm/effect-postgres"\nimport { pgTable, text } from "drizzle-orm/pg-core"\nconst invoiceTable = pgTable("invoices", { id: text("id").primaryKey() })\n'
+      'import * as PgClient from "@effect/sql-pg/PgClient"\nimport * as nativeDrizzle from "drizzle-orm/effect-postgres"\nimport { pgTable, text } from "drizzle-orm/pg-core"\nconst invoiceTable = pgTable("invoices", { id: text("id").primaryKey() })\n'
   }
   if (name === "node-worker") {
     prefix +=

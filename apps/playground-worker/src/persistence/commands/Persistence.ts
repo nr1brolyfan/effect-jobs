@@ -170,21 +170,24 @@ export const make = Effect.gen(function* () {
             command.scenario === "delayed-success" ? tx.dbNow + 120_000 : undefined
           ).pipe(Effect.mapError(() => fail("invalid-request")))
           yield* tx.reserve(jobs.length)
-          const jobIds = []
-          for (const job of jobs) {
-            const produced = yield* enqueue(job)
-            if (command.scenario === "deduplication") {
-              const duplicate = yield* enqueue(job)
-              if (
-                duplicate.jobId !== produced.jobId ||
-                duplicate._tag !== "AlreadyPresent"
-              ) {
-                return yield* fail("unavailable")
+          const jobIds = yield* Effect.forEach(
+            jobs,
+            Effect.fnUntraced(function* (job) {
+              const produced = yield* enqueue(job)
+              if (command.scenario === "deduplication") {
+                const duplicate = yield* enqueue(job)
+                if (
+                  duplicate.jobId !== produced.jobId ||
+                  duplicate._tag !== "AlreadyPresent"
+                ) {
+                  return yield* fail("unavailable")
+                }
               }
-            }
-            yield* tx.associate(produced.jobId, job)
-            jobIds.push(produced.jobId)
-          }
+              yield* tx.associate(produced.jobId, job)
+              return produced.jobId
+            }),
+            { concurrency: 1 }
+          )
           const result = yield* decode(
             ScenarioResult.members[0],
             {

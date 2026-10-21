@@ -1,15 +1,15 @@
 import assert from "node:assert/strict"
-import { Cause, Context, Effect, Exit, Semaphore } from "effect"
+import { Cause, Context, Effect, Exit, Semaphore, Layer } from "effect"
+import { JobEnqueue } from "effect-jobs/JobEnqueue"
+import * as Documents from "../../../src/scenarios/PrivateDocument.js"
 import { SqlClient } from "effect/sql/SqlClient"
 import { SqlError, ConnectionError } from "effect/sql/SqlError"
-import {
-  Executor,
-  Authority,
-  WakeAlarm,
-  JobWorker,
-  JobWorkerUnavailable,
-  WorkerCapability
-} from "./Actual.mjs"
+import * as Executor from "../../../src/execution/Executor.js"
+import * as Authority from "../../../src/persistence/authority/PostgreSqlAuthority.js"
+import { WakeAlarm } from "../../../src/cloudflare/WakeCycle.js"
+import { JobWorker } from "../../../../../src/JobWorker.js"
+import { JobWorkerUnavailable } from "../../../../../src/JobWorker.js"
+import { WorkerCapability } from "../../../../../src/internal/worker/Capability.js"
 const checks = []
 const queryRow = {
   now: "100000",
@@ -18,7 +18,10 @@ const queryRow = {
   recovery: null,
   generate: null
 }
-const sql = { unsafe: () => Effect.succeed([queryRow]) }
+const sql = {
+  unsafe: (text) =>
+    Effect.succeed(text.startsWith("WITH t AS MATERIALIZED") ? [queryRow] : [])
+}
 const base = (effect) =>
   effect.pipe(
     Effect.provideService(SqlClient, sql),
@@ -29,7 +32,12 @@ for (const queue of Executor.queueNames) {
   const result = await Effect.runPromise(
     Executor.run("review", queue).pipe(
       Effect.provideService(SqlClient, {
-        unsafe: () => Effect.succeed([{ ...queryRow, active_until: null }])
+        unsafe: (text) =>
+          Effect.succeed(
+            text.startsWith("WITH t AS MATERIALIZED")
+              ? [{ ...queryRow, active_until: null }]
+              : []
+          )
       }),
       Effect.provideService(Executor.ExecutionHints, {
         reconcile: Effect.die("unexpected hint")
@@ -82,7 +90,10 @@ for (const c of cases) {
   const r = await Effect.runPromise(
     Executor.run("review", "playground-media").pipe(
       Effect.provideService(SqlClient, {
-        unsafe: () => Effect.succeed([{ ...queryRow, due: c.due }])
+        unsafe: (text) =>
+          Effect.succeed(
+            text.startsWith("WITH t AS MATERIALIZED") ? [{ ...queryRow, due: c.due }] : []
+          )
       }),
       Effect.provideService(Executor.ExecutionHints, { reconcile: Effect.void }),
       Effect.provideService(JobWorker, {
@@ -125,11 +136,15 @@ const mixed = Cause.fromReasons([
 const transactionService = Context.Service("review/transaction")
 const authoritySql = {
   transactionService,
-  unsafe: () => Effect.succeed([]),
+  unsafe: (text) => Effect.succeed(text.startsWith("WITH t AS MATERIALIZED") ? [] : []),
   withTransaction: () => Effect.failCause(mixed)
 }
 const services = await Effect.runPromise(
-  Authority.make("review").pipe(Effect.provideService(SqlClient, authoritySql))
+  Authority.make("review").pipe(
+    Effect.provideService(SqlClient, authoritySql),
+    Effect.provide(Layer.mock(JobEnqueue, {})),
+    Effect.provide(Documents.keysLayer)
+  )
 )
 const access = { sandbox: { ref: { sandboxId: "review", generation: 1 } } }
 const exit = await Effect.runPromiseExit(

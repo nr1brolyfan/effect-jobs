@@ -1,4 +1,4 @@
-// Native low-level SQL APIs are intentionally pinned to 4.0.0 by the consumer runner.
+// Native low-level SQL APIs are intentionally pinned to 4.0.5 by the consumer runner.
 // @effect-diagnostics unstableApiUsage:off
 // Qualification-only application registrar, never a shipped universal adapter.
 import { Cause, Context, Effect, Option } from "effect"

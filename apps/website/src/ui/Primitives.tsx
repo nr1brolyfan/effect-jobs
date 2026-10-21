@@ -18,24 +18,27 @@ export type ButtonProps = ComponentPropsWithoutRef<"button"> & {
   readonly variant?: "primary" | "secondary" | "ghost"
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = "secondary", type = "button", className, ...props },
-  ref
-) {
-  const styled = stylex.props(styles.button, styles[variant])
-  return (
-    <button
-      {...props}
-      {...styled}
-      className={[styled.className, className].filter(Boolean).join(" ")}
-      type={type}
-      ref={ref}
-    />
-  )
-})
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  function Button(inputProps, ref) {
+    const { variant = "secondary", type = "button", className, ...props } = inputProps
+
+    const styled = stylex.props(styles.button, styles[variant])
+    return (
+      <button
+        {...props}
+        {...styled}
+        className={[styled.className, className].filter(Boolean).join(" ")}
+        type={type}
+        ref={ref}
+      />
+    )
+  }
+)
 
 export const Panel = forwardRef<HTMLElement, ComponentPropsWithoutRef<"section">>(
-  function Panel({ className, ...props }, ref) {
+  function Panel(inputProps, ref) {
+    const { className, ...props } = inputProps
+
     const styled = stylex.props(styles.panel)
     return (
       <section
@@ -48,40 +51,34 @@ export const Panel = forwardRef<HTMLElement, ComponentPropsWithoutRef<"section">
   }
 )
 
-export function Badge({
-  state,
-  children
-}: {
+export function Badge(props: {
   readonly state: JobSummary["state"]
   readonly children?: ReactNode
 }) {
   return (
-    <span {...stylex.props(styles.badge, styles[state])}>
+    <span {...stylex.props(styles.badge, styles[props.state])}>
       <span {...stylex.props(styles.dot)} aria-hidden="true" />
-      <span>{stateLabels[state]}</span>
-      {children}
+      <span>{stateLabels[props.state]}</span>
+      {props.children}
     </span>
   )
 }
 
-export function Field({
-  label,
-  children
-}: {
+export function Field(inputProps: {
   readonly label: string
   readonly children: ReactElement<{ id?: string }>
 }) {
   const generatedId = useId()
-  const id = children.props.id || generatedId
+  const id = inputProps.children.props.id || generatedId
   // Custom controls receive only the association; they must forward id to their
   // labelable input. Native controls get the same compiled focus/control styles.
-  let control: ReactNode = cloneElement(children, { id })
+  let control: ReactNode = cloneElement(inputProps.children, { id })
   if (
-    children.type === "input" ||
-    children.type === "select" ||
-    children.type === "textarea"
+    inputProps.children.type === "input" ||
+    inputProps.children.type === "select" ||
+    inputProps.children.type === "textarea"
   ) {
-    const native = children as ReactElement<ComponentPropsWithoutRef<"input">>
+    const native = inputProps.children as ReactElement<ComponentPropsWithoutRef<"input">>
     const styled = stylex.props(
       styles.control,
       (native.props.type === "checkbox" || native.props.type === "radio") &&
@@ -96,7 +93,7 @@ export function Field({
   return (
     <div {...stylex.props(styles.field)}>
       <label {...stylex.props(styles.label)} htmlFor={id}>
-        {label}
+        {inputProps.label}
       </label>
       {control}
     </div>
@@ -135,13 +132,9 @@ const iconPaths = {
   globe: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M3 12h18 M12 3c5 5 5 13 0 18-5-5-5-13 0-18"
 } as const
 
-export function Icon({
-  name,
-  size = 18
-}: {
-  readonly name: IconName
-  readonly size?: number
-}) {
+export function Icon(inputProps: { readonly name: IconName; readonly size?: number }) {
+  const { name, size = 18 } = inputProps
+
   return (
     <svg
       {...stylex.props(styles.icon)}
@@ -165,78 +158,81 @@ export function Icon({
 export const TabsRoot = BaseTabs.Root
 export type TabsRootProps = BaseTabs.Root.Props
 export type TabsListProps = BaseTabs.List.Props & { readonly wrap?: boolean }
-export const TabsList = forwardRef<HTMLDivElement, TabsListProps>(function TabsList(
-  { className, activateOnFocus = false, wrap = true, ...props },
-  ref
-) {
-  return (
-    <BaseTabs.List
-      {...props}
-      ref={ref}
-      activateOnFocus={activateOnFocus}
-      className={(state) =>
-        [
-          stylex.props(
-            styles.tabsList,
-            !wrap && styles.tabsNoWrap,
-            state.orientation === "vertical" && styles.tabsVertical
-          ).className,
-          typeof className === "function" ? className(state) : className
-        ]
-          .filter(Boolean)
-          .join(" ")
-      }
-    />
-  )
-})
+export const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
+  function TabsList(inputProps, ref) {
+    const { className, activateOnFocus = false, wrap = true, ...props } = inputProps
+
+    return (
+      <BaseTabs.List
+        {...props}
+        ref={ref}
+        activateOnFocus={activateOnFocus}
+        className={(state) =>
+          [
+            stylex.props(
+              styles.tabsList,
+              !wrap && styles.tabsNoWrap,
+              state.orientation === "vertical" && styles.tabsVertical
+            ).className,
+            typeof className === "function" ? className(state) : className
+          ]
+            .filter(Boolean)
+            .join(" ")
+        }
+      />
+    )
+  }
+)
 
 export type TabsTabProps = BaseTabs.Tab.Props & { readonly count?: number }
-export const TabsTab = forwardRef<HTMLElement, TabsTabProps>(function TabsTab(
-  { className, children, count, ...props },
-  ref
-) {
-  return (
-    <BaseTabs.Tab
-      {...props}
-      ref={ref}
-      className={(state) =>
-        [
-          stylex.props(styles.button, styles.tab, state.active && styles.tabActive)
-            .className,
-          typeof className === "function" ? className(state) : className
-        ]
-          .filter(Boolean)
-          .join(" ")
-      }
-    >
-      {children}
-      {count === undefined ? null : (
-        <>
-          {" "}
-          <span {...stylex.props(styles.tabCount)}>{count.toLocaleString()}</span>
-        </>
-      )}
-    </BaseTabs.Tab>
-  )
-})
+export const TabsTab = forwardRef<HTMLElement, TabsTabProps>(
+  function TabsTab(inputProps, ref) {
+    const { className, children, count, ...props } = inputProps
+
+    return (
+      <BaseTabs.Tab
+        {...props}
+        ref={ref}
+        className={(state) =>
+          [
+            stylex.props(styles.button, styles.tab, state.active && styles.tabActive)
+              .className,
+            typeof className === "function" ? className(state) : className
+          ]
+            .filter(Boolean)
+            .join(" ")
+        }
+      >
+        {children}
+        {count === undefined ? null : (
+          <>
+            {" "}
+            <span {...stylex.props(styles.tabCount)}>{count.toLocaleString()}</span>
+          </>
+        )}
+      </BaseTabs.Tab>
+    )
+  }
+)
 
 export type TabsPanelProps = BaseTabs.Panel.Props
-export const TabsPanel = forwardRef<HTMLDivElement, TabsPanelProps>(function TabsPanel(
-  { className, ...props },
-  ref
-) {
-  return (
-    <BaseTabs.Panel
-      {...props}
-      ref={ref}
-      className={(state) =>
-        [
-          stylex.props(styles.tabsPanel).className,
-          typeof className === "function" ? className(state) : className
-        ]
-          .filter(Boolean)
-          .join(" ")
-      }
-    />
-  )
-})
+export const TabsPanel = forwardRef<HTMLDivElement, TabsPanelProps>(
+  function TabsPanel(inputProps, ref) {
+    const { className, ...props } = inputProps
+
+    return (
+      <BaseTabs.Panel
+        {...props}
+        ref={ref}
+        className={(state) =>
+          [
+            stylex.props(styles.tabsPanel).className,
+            typeof className === "function" ? className(state) : className
+          ]
+            .filter(Boolean)
+            .join(" ")
+        }
+      />
+    )
+  }
+)

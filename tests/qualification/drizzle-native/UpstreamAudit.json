@@ -1,0 +1,36 @@
+{
+  "status": "known upstream FAIL",
+  "exitCode": 1,
+  "blocking": false,
+  "scope": "C: historical foreign d.ts audit; not A+B acceptance",
+  "dependencies": {
+    "effect": "4.0.5",
+    "@effect/sql-pg": "4.0.5",
+    "drizzle-orm": "1.0.0-rc.5-169397b",
+    "typescript": "7.0.2",
+    "@types/node": "26.4.1",
+    "@types/pg": "8.20.0",
+    "pg": "8.23.0"
+  },
+  "command": [
+    "node",
+    "node_modules/typescript/bin/tsc",
+    "-p",
+    "tsconfig.json",
+    "--skipLibCheck",
+    "false",
+    "--noEmit"
+  ],
+  "origin": "UPVE-2367 qualification-evidence attachment 01a154ba-7bfc-789d-b7d1-f60c7af35dd0; native-ka8bTQ",
+  "historicalFiles": {
+    "Historical-upstream-declarations.log.txt": "1fbad0f7d12131f4042c848a7c345a3472b5bde4d6d4134984535975736d69c9",
+    "Historical-tsconfig.json.txt": "52045fe4eadfa6b2bd29a4c75fb4dc34d23023546346cf80f11ca656b5d272c6"
+  },
+  "reuse": "Historical command/config/log unchanged. Dual-snapshot minimal C comparison is byte-identical to the historical log; narrowly nonblocking per explicit owner approval. This is never C PASS.",
+  "ownerApprovedSnapshots": ["1.0.0-rc.5-ab785fc", "1.0.0-rc.5-169397b"],
+  "snapshotException": {
+    "approval": "UPVE-2497 thread 01a15e56-25ce-7800-aa6e-e3e246ca237f (2026-10-21)",
+    "scope": "Only seven byte-identical diagnostics: 3 TS2307 unstable/sql/SqlError and 4 TS2420 policy/role. C remains FAIL; own A+B required independently.",
+    "comparisonEvidenceSha256": "a7e4dde2c7ed93eb04d2c497dea7e0dd405d06f4a80900b9dddc926bc6b2dff9"
+  }
+}

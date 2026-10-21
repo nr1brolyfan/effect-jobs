@@ -72,47 +72,49 @@ export const make = (schema: string) =>
           `INSERT INTO ${t.admission}(sandbox_id,generation,operation,request_id) VALUES ($1,$2,'PrivateTraffic',$3)`,
           [ref.sandboxId, ref.generation, requestId]
         )
-        const jobIds = []
-        for (let index = 0; index < scenarios.length; index++) {
-          const scenario = scenarios[index]!
-          const [job] = yield* Plan.plan(
-            { sandbox: ref, requestId: `${requestId}-${index}`, scenario, count: 1 },
-            ref,
-            seed + index,
-            scenario === "delayed-success" ? now + interactionMillis : now,
-            "private-traffic-v1"
-          ).pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" })))
-          const planned = {
-            ...job!,
-            policy: Policy.make({ retryDelay: Duration.millis(interactionMillis) })
-          }
-          const enqueue = Plan.enqueue(planned).pipe(
-            Effect.provideService(JobEnqueue, producer),
-            Effect.provideService(DocumentKeys, keys),
-            Effect.mapError(() => new PlaygroundError({ code: "unavailable" }))
-          )
-          const produced = yield* enqueue
-          if (scenario === "deduplication") {
-            const duplicate = yield* enqueue
-            if (
-              duplicate._tag !== "AlreadyPresent" ||
-              duplicate.jobId !== produced.jobId
-            ) {
-              return yield* new PlaygroundError({ code: "unavailable" })
+        const jobIds = yield* Effect.forEach(
+          scenarios,
+          Effect.fnUntraced(function* (scenario, index) {
+            const [job] = yield* Plan.plan(
+              { sandbox: ref, requestId: `${requestId}-${index}`, scenario, count: 1 },
+              ref,
+              seed + index,
+              scenario === "delayed-success" ? now + interactionMillis : now,
+              "private-traffic-v1"
+            ).pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" })))
+            const planned = {
+              ...job!,
+              policy: Policy.make({ retryDelay: Duration.millis(interactionMillis) })
             }
-          }
-          yield* query(`INSERT INTO ${t.associations} VALUES ($1,$2,$3,$4::jsonb)`, [
-            ref.sandboxId,
-            ref.generation,
-            produced.jobId,
-            JSON.stringify({
-              syntheticActor: job!.payload.actor,
-              syntheticTenant: job!.payload.tenant,
-              syntheticOrderId: job!.payload.order
-            })
-          ])
-          jobIds.push(produced.jobId)
-        }
+            const enqueue = Plan.enqueue(planned).pipe(
+              Effect.provideService(JobEnqueue, producer),
+              Effect.provideService(DocumentKeys, keys),
+              Effect.mapError(() => new PlaygroundError({ code: "unavailable" }))
+            )
+            const produced = yield* enqueue
+            if (scenario === "deduplication") {
+              const duplicate = yield* enqueue
+              if (
+                duplicate._tag !== "AlreadyPresent" ||
+                duplicate.jobId !== produced.jobId
+              ) {
+                return yield* new PlaygroundError({ code: "unavailable" })
+              }
+            }
+            yield* query(`INSERT INTO ${t.associations} VALUES ($1,$2,$3,$4::jsonb)`, [
+              ref.sandboxId,
+              ref.generation,
+              produced.jobId,
+              JSON.stringify({
+                syntheticActor: job!.payload.actor,
+                syntheticTenant: job!.payload.tenant,
+                syntheticOrderId: job!.payload.order
+              })
+            ])
+            return produced.jobId
+          }),
+          { concurrency: 1 }
+        )
         yield* query(
           `INSERT INTO ${t.receipts} VALUES ($1,$2,'PrivateTraffic',$3,$4::jsonb)`,
           [

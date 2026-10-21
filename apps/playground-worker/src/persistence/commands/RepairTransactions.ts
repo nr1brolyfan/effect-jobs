@@ -10,9 +10,10 @@ import type {
   JobResolutionCommand,
   JobProblem
 } from "@effect-jobs/playground-contracts/Repairs"
-import type { StoreError } from "./Transactions.js"
+import type { CommandTransactionFailure, StoreError } from "./Transactions.js"
 
 // Durable receipt contains bounded metadata/digest, NEVER a second payload copy.
+export type StoredRepairReceipt = typeof StoredRepairReceipt.Type
 export const StoredRepairReceipt = Schema.Struct({
   commandDigest: Schema.String.pipe(Schema.check(Schema.isPattern(/^[a-f0-9]{64}$/u))),
   result: Schema.Union([
@@ -22,14 +23,13 @@ export const StoredRepairReceipt = Schema.Struct({
     JobResolutionResult.members[1]
   ])
 })
-export type StoredRepairReceipt = typeof StoredRepairReceipt.Type
 export type RepairCommand = JobRepairCommand | JobResolutionCommand
 export type RepairResult = JobRepairResult | JobResolutionResult
 export interface RepairTransaction {
   readonly admission: "Fresh" | "Unresolved" | "Conflict"
   readonly stored: StoredRepairReceipt | null
   readonly assertCurrent: Effect.Effect<void, StoreError>
-  readonly now: Effect.Effect<number, StoreError>
+  readonly now: Effect.Effect<number, CommandTransactionFailure>
   readonly source: () => Effect.Effect<
     Readonly<Record<string, unknown>> | null,
     StoreError

@@ -682,16 +682,17 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
           )
         }
       }).pipe(
-        Effect.catchTag("PlaygroundError", (error) =>
-          Effect.sync(() => {
-            update({
-              notice:
-                snapshot().pending === undefined
-                  ? `Command unavailable: ${error.code}.`
-                  : `Command not confirmed (${error.code}). Do not replay; reconcile the exact receipt.`
+        Effect.catchTags({
+          PlaygroundError: (error) =>
+            Effect.sync(() => {
+              update({
+                notice:
+                  snapshot().pending === undefined
+                    ? `Command unavailable: ${error.code}.`
+                    : `Command not confirmed (${error.code}). Do not replay; reconcile the exact receipt.`
+              })
             })
-          })
-        )
+        })
       )
     )
   const acceptOperator = (
@@ -805,22 +806,23 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
           )
         )
       }).pipe(
-        Effect.catchTag("PlaygroundError", (error) =>
-          Effect.sync(() => {
-            if (disposed) {
-              return
-            }
-            if (snapshot().pending?.kind === "operator") {
-              update({
-                notice: `Operator not confirmed (${error.code}). Do not replay; look up the exact receipt.`
-              })
-            } else {
-              update({
-                notice: `Operator unavailable: ${error.code}. No command was sent.`
-              })
-            }
-          })
-        )
+        Effect.catchTags({
+          PlaygroundError: (error) =>
+            Effect.sync(() => {
+              if (disposed) {
+                return
+              }
+              if (snapshot().pending?.kind === "operator") {
+                update({
+                  notice: `Operator not confirmed (${error.code}). Do not replay; look up the exact receipt.`
+                })
+              } else {
+                update({
+                  notice: `Operator unavailable: ${error.code}. No command was sent.`
+                })
+              }
+            })
+        })
       )
     )
   const acceptRepair = (
@@ -950,15 +952,16 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
           )
         }
       }).pipe(
-        Effect.catchTag("PlaygroundError", (error) =>
-          Effect.sync(() =>
-            update({
-              notice: snapshot().pending
-                ? `Request not confirmed (${error.code}). Check its exact receipt; do not replay.`
-                : `Request unavailable: ${error.code}.`
-            })
-          )
-        )
+        Effect.catchTags({
+          PlaygroundError: (error) =>
+            Effect.sync(() =>
+              update({
+                notice: snapshot().pending
+                  ? `Request not confirmed (${error.code}). Check its exact receipt; do not replay.`
+                  : `Request unavailable: ${error.code}.`
+              })
+            )
+        })
       )
     )
   const receipt = exclusive(
@@ -1002,13 +1005,14 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         )
       }
     }).pipe(
-      Effect.catchTag("PlaygroundError", (error) =>
-        Effect.sync(() =>
-          update({
-            notice: `Receipt lookup: ${error.code}. Absence does not authorize replay.`
-          })
-        )
-      )
+      Effect.catchTags({
+        PlaygroundError: (error) =>
+          Effect.sync(() =>
+            update({
+              notice: `Receipt lookup: ${error.code}. Absence does not authorize replay.`
+            })
+          )
+      })
     )
   )
   return {

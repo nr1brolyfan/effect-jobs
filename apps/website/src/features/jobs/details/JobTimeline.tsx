@@ -5,7 +5,7 @@ import { PropertyGrid, Absent, DetailTime } from "./PropertyGrid.js"
 import { styles as propertyStyles } from "./PropertyGrid.stylex.js"
 import { styles } from "./JobTimeline.stylex.js"
 
-export function JobTimeline({ detail }: { readonly detail: JobDetail }) {
+export function JobTimeline(props: { readonly detail: JobDetail }) {
   return (
     <Panel aria-label="Retained evidence" {...stylex.props(styles.panel)}>
       <h2 {...stylex.props(propertyStyles.heading)}>Evidence</h2>
@@ -13,14 +13,14 @@ export function JobTimeline({ detail }: { readonly detail: JobDetail }) {
         items={[
           {
             label: "Provider invocations",
-            value: detail.provider?.invocations ?? (
+            value: props.detail.provider?.invocations ?? (
               <Absent reason="Provider evidence unavailable" />
             )
           },
           {
             label: "Provider accepted",
-            value: detail.provider ? (
-              detail.provider.accepted ? (
+            value: props.detail.provider ? (
+              props.detail.provider.accepted ? (
                 "Yes"
               ) : (
                 "No"
@@ -35,12 +35,12 @@ export function JobTimeline({ detail }: { readonly detail: JobDetail }) {
           }
         ]}
       />
-      {detail.history.items.length === 0 && (
+      {props.detail.history.items.length === 0 && (
         <span {...stylex.props(styles.empty)}>No retained facts</span>
       )}
       {/* Preserve each server-ordered resolution fact: the DTO has no audit key. */}
       <ol {...stylex.props(styles.list)}>
-        {detail.history.items.map((item, index) => {
+        {props.detail.history.items.map((item, index) => {
           switch (item._tag) {
             case "Snapshot":
               return (
@@ -124,7 +124,7 @@ export function JobTimeline({ detail }: { readonly detail: JobDetail }) {
           }
         })}
       </ol>
-      {detail.history.nextCursor !== null && (
+      {props.detail.history.nextCursor !== null && (
         <span {...stylex.props(styles.empty)}>More retained facts available</span>
       )}
     </Panel>

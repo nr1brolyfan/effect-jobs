@@ -7,6 +7,7 @@ import * as Fixture from "@effect-jobs/playground-contracts/SyntheticCryptoFixtu
 import * as JobPayload from "effect-jobs/JobPayload"
 import { EncryptedDocument } from "./PrivateDocument.js"
 
+export type Workload = typeof Workload.Type
 export const Workload = Schema.Literals([
   "welcome-email",
   "image-processing",
@@ -15,13 +16,13 @@ export const Workload = Schema.Literals([
   "catalog-sync",
   "simulated-payment"
 ])
-export type Workload = typeof Workload.Type
 // Trusted fixture is a provider catalog, not an additional public scenario slot.
+export type ProviderWorkload = typeof ProviderWorkload.Type
 export const ProviderWorkload = Schema.Literals([
   ...Workload.literals,
   "synthetic-document-export"
 ])
-export type ProviderWorkload = typeof ProviderWorkload.Type
+export type Behavior = typeof Behavior.Type
 export const Behavior = Schema.Literals([
   "success",
   "retry-then-success",
@@ -29,7 +30,7 @@ export const Behavior = Schema.Literals([
   "isolated",
   "accepted-response-lost"
 ])
-export type Behavior = typeof Behavior.Type
+export type Payload = typeof Payload.Type
 export const Payload = Schema.Struct({
   sandbox: SandboxRef,
   version: Schema.Literal(1),
@@ -42,20 +43,20 @@ export const Payload = Schema.Struct({
   tenant: Schema.Literals(["demo-tenant-a", "demo-tenant-b"]),
   order: Schema.Literals(["demo-order-a", "demo-order-b"])
 })
-export type Payload = typeof Payload.Type
+export type ExportPayload = typeof ExportPayload.Type
 export const ExportPayload = Schema.Struct({
   ...Payload.fields,
   document: EncryptedDocument
 })
-export type ExportPayload = typeof ExportPayload.Type
 
 // Readable synthetic editor shape; never accepted as a repair command payload.
+export type SyntheticReadablePayload = typeof SyntheticReadablePayload.Type
 export const SyntheticReadablePayload = Schema.Struct({
   ...Payload.fields,
   document: Fixture.Document
 })
-export type SyntheticReadablePayload = typeof SyntheticReadablePayload.Type
 
+export type SyntheticExportPayload = typeof SyntheticExportPayload.Type
 export const SyntheticExportPayload = Schema.Struct({
   ...Payload.fields,
   document: JobPayload.encrypted({
@@ -73,7 +74,6 @@ export const SyntheticExportPayload = Schema.Struct({
     }
   })
 })
-export type SyntheticExportPayload = typeof SyntheticExportPayload.Type
 const communications = JobQueue.make("playground-communications")
 const media = JobQueue.make("playground-media")
 const commerce = JobQueue.make("playground-commerce")

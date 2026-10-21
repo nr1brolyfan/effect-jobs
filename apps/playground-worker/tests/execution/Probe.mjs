@@ -12,21 +12,27 @@ import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import * as Policy from "effect-jobs/JobPolicy"
 import * as Codec from "effect-jobs/JobPayloadCodec"
-import * as Authority from "./dist/src/persistence/authority/PostgreSqlAuthority.js"
-import * as Persistence from "./dist/src/persistence/commands/Persistence.js"
+import * as Authority from "../../src/persistence/authority/PostgreSqlAuthority.js"
+import * as Persistence from "../../src/persistence/commands/Persistence.js"
 import {
   CommandPersistence,
   CommandTransactions,
   CommandTransactionFailure
-} from "./dist/src/persistence/commands/Transactions.js"
-import * as Provider from "./dist/src/execution/PostgreSqlProvider.js"
-import * as Executor from "./dist/src/execution/Executor.js"
-import * as Application from "./dist/src/execution/Application.js"
-import * as Definitions from "./dist/src/scenarios/Definitions.js"
-import * as Plan from "./dist/src/scenarios/Plan.js"
-import * as Documents from "./dist/src/scenarios/PrivateDocument.js"
-import { WakeAlarm } from "./dist/src/cloudflare/WakeCycle.js"
+} from "../../src/persistence/commands/Transactions.js"
+import * as Provider from "../../src/execution/PostgreSqlProvider.js"
+import * as Executor from "../../src/execution/Executor.js"
+import * as Application from "../../src/execution/Application.js"
+import * as Definitions from "../../src/scenarios/Definitions.js"
+import * as Plan from "../../src/scenarios/Plan.js"
+import * as Documents from "../../src/scenarios/PrivateDocument.js"
+import { WakeAlarm } from "../../src/cloudflare/WakeCycle.js"
 
+/**
+ * @param {string} url
+ * @param {string} schema
+ * @param {import("../../src/cloudflare/WakeCycle.js").WakeAlarm["Service"]} alarm
+ * @param {string[]} checks
+ */
 export const probe = (url, schema, alarm, checks = []) =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -46,6 +52,7 @@ export const probe = (url, schema, alarm, checks = []) =>
       yield* backend.ready
       const sql = (text, params = []) => client.unsafe(text, params)
       const services = yield* Authority.make(schema).pipe(
+        Effect.provideService(JobEnqueue, backend.producer),
         Effect.provideService(SqlClient, client)
       )
       const command = yield* Persistence.make.pipe(
@@ -121,6 +128,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         Executor.run(schema, queue).pipe(
           Effect.provide(workerLayer),
           Effect.provideService(CommandPersistence, command),
+          Effect.provideService(Backend.PostgreSqlJobs, backend),
           Effect.provideService(SqlClient, client),
           Effect.provideService(WakeAlarm, alarm),
           Effect.provideService(Executor.ExecutionHints, {
@@ -150,7 +158,7 @@ export const probe = (url, schema, alarm, checks = []) =>
           count: 1
         })
       )
-      assert.equal(foreign.code, "invalid-request")
+      assert.equal(foreign.code, "not-found")
       checks.push("random credential hash custody; authenticated sandbox isolation")
 
       const nested = yield* Effect.exit(client.withTransaction(run("nested")))
@@ -161,6 +169,9 @@ export const probe = (url, schema, alarm, checks = []) =>
         ))[0].n,
         0
       )
+      const beforeInitial = (yield* sql(
+        `SELECT count(*)::int AS n FROM ${schema}.jobs`
+      ))[0].n
       const initial = yield* run("dedup", "deduplication", 6)
       assert.equal(initial._tag, "Committed")
       for (const row of yield* sql(`SELECT relations FROM ${schema}.associations`)) {
@@ -191,7 +202,10 @@ export const probe = (url, schema, alarm, checks = []) =>
         "application composition, strict relation DTOs and mixed transaction Cause retained"
       )
       assert.deepEqual(yield* run("dedup", "deduplication", 6), initial)
-      assert.equal((yield* sql(`SELECT count(*)::int AS n FROM ${schema}.jobs`))[0].n, 6)
+      assert.equal(
+        (yield* sql(`SELECT count(*)::int AS n FROM ${schema}.jobs`))[0].n,
+        beforeInitial + 6
+      )
       const queues = yield* Executor.consumers
       assert.deepEqual(
         queues.map((q) => q.queue.name),
@@ -201,13 +215,14 @@ export const probe = (url, schema, alarm, checks = []) =>
         yield* wake(queue)
       }
       assert(
-        (yield* sql(`SELECT state FROM ${schema}.jobs`)).every(
-          (r) => r.state === "Completed"
-        )
+        (yield* sql(`SELECT state FROM ${schema}.jobs WHERE id=ANY($1::text[])`, [
+          initial.jobIds
+        ])).every((r) => r.state === "Completed")
       )
       assert.equal(
         (yield* sql(
-          `SELECT count(*)::int AS n FROM ${schema}.provider_ledger WHERE accepted=true`
+          `SELECT count(*)::int AS n FROM ${schema}.provider_ledger WHERE accepted=true AND job_id=ANY($1::text[])`,
+          [initial.jobIds]
         ))[0].n,
         6
       )
@@ -333,7 +348,7 @@ export const probe = (url, schema, alarm, checks = []) =>
             count: 1
           })
         )).code,
-        "invalid-request"
+        "stale-generation"
       )
       checks.push(
         "concurrent reset CAS, exact old receipt, pending preserved, late provider write fenced"
@@ -383,9 +398,12 @@ export const probe = (url, schema, alarm, checks = []) =>
       )
       assert.equal(quota.filter(Exit.isSuccess).length, 1)
       assert.equal(
-        (yield* sql(`SELECT retained_jobs FROM ${schema}.sandboxes WHERE sandbox_id=$1`, [
-          current().sandboxId
-        ]))[0].retained_jobs,
+        Number(
+          (yield* sql(
+            `SELECT retained_jobs FROM ${schema}.sandboxes WHERE sandbox_id=$1`,
+            [current().sandboxId]
+          ))[0].retained_jobs
+        ),
         100
       )
       const unknownRequest = { sandbox: current(), requestId: "unresolved" }
@@ -433,7 +451,7 @@ export const probe = (url, schema, alarm, checks = []) =>
       const exit = yield* Fiber.await(fiber)
       assert(Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause))
       assert.equal(Number((yield* sql("SELECT 1 AS n"))[0].n), 1)
-      yield* sql(`UPDATE ${schema}.sandboxes SET expires_at=0 WHERE sandbox_id=$1`, [
+      yield* sql(`UPDATE ${schema}.sandboxes SET expires_at=1 WHERE sandbox_id=$1`, [
         current().sandboxId
       ])
       assert.equal(

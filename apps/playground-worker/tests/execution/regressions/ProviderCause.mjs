@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { Cause, Context, Effect, Exit } from "effect"
 import { SqlClient, makeWithTransaction } from "effect/sql/SqlClient"
 import { ConnectionError, SqlError } from "effect/sql/SqlError"
-import { Provider } from "./Actual.mjs"
+import * as Provider from "../../../src/execution/PostgreSqlProvider.js"
 const queryError = new SqlError({
   reason: new ConnectionError({ cause: "synthetic query connection loss" })
 })

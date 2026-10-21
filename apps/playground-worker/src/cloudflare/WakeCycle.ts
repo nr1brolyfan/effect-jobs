@@ -9,12 +9,12 @@ const Delay = Schema.Int.pipe(
 /** Relative delays calculated from one PostgreSQL-time snapshot, never host-time leases.
  * The application adapter must scope reads to the authorized queue/shard and generation.
  */
+export type WakeSnapshot = typeof WakeSnapshot.Type
 export const WakeSnapshot = Schema.Struct({
   expiresInMillis: Delay,
-  dueInMillis: Schema.NullOr(Delay),
-  recoveryInMillis: Schema.NullOr(Delay)
+  dueInMillis: Delay.pipe(Schema.NullOr),
+  recoveryInMillis: Delay.pipe(Schema.NullOr)
 })
-export type WakeSnapshot = typeof WakeSnapshot.Type
 
 export class WakeUnavailable extends Schema.TaggedError<WakeUnavailable>()(
   "WakeUnavailable",

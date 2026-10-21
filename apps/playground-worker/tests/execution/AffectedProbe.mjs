@@ -11,20 +11,26 @@ import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import * as Policy from "effect-jobs/JobPolicy"
 import * as Codec from "effect-jobs/JobPayloadCodec"
-import * as Authority from "./dist/src/persistence/authority/PostgreSqlAuthority.js"
-import * as Persistence from "./dist/src/persistence/commands/Persistence.js"
+import * as Authority from "../../src/persistence/authority/PostgreSqlAuthority.js"
+import * as Persistence from "../../src/persistence/commands/Persistence.js"
 import {
   CommandPersistence,
   CommandTransactions
-} from "./dist/src/persistence/commands/Transactions.js"
-import * as Provider from "./dist/src/execution/PostgreSqlProvider.js"
-import * as Executor from "./dist/src/execution/Executor.js"
-import * as Application from "./dist/src/execution/Application.js"
-import * as Definitions from "./dist/src/scenarios/Definitions.js"
-import * as Plan from "./dist/src/scenarios/Plan.js"
-import * as Documents from "./dist/src/scenarios/PrivateDocument.js"
-import { WakeAlarm } from "./dist/src/cloudflare/WakeCycle.js"
+} from "../../src/persistence/commands/Transactions.js"
+import * as Provider from "../../src/execution/PostgreSqlProvider.js"
+import * as Executor from "../../src/execution/Executor.js"
+import * as Application from "../../src/execution/Application.js"
+import * as Definitions from "../../src/scenarios/Definitions.js"
+import * as Plan from "../../src/scenarios/Plan.js"
+import * as Documents from "../../src/scenarios/PrivateDocument.js"
+import { WakeAlarm } from "../../src/cloudflare/WakeCycle.js"
 
+/**
+ * @param {string} url
+ * @param {string} schema
+ * @param {import("../../src/cloudflare/WakeCycle.js").WakeAlarm["Service"]} alarm
+ * @param {string[]} checks
+ */
 export const probe = (url, schema, alarm, checks = []) =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -44,6 +50,7 @@ export const probe = (url, schema, alarm, checks = []) =>
       yield* backend.ready
       const sql = (text, params = []) => client.unsafe(text, params)
       const services = yield* Authority.make(schema).pipe(
+        Effect.provideService(JobEnqueue, backend.producer),
         Effect.provideService(SqlClient, client)
       )
       const command = yield* Persistence.make.pipe(
@@ -117,6 +124,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         Executor.run(schema, queue).pipe(
           Effect.provide(workerLayer),
           Effect.provideService(CommandPersistence, command),
+          Effect.provideService(Backend.PostgreSqlJobs, backend),
           Effect.provideService(SqlClient, client),
           Effect.provideService(WakeAlarm, alarm),
           Effect.provideService(Executor.ExecutionHints, {
@@ -126,10 +134,16 @@ export const probe = (url, schema, alarm, checks = []) =>
           })
         )
 
+      const beforeInitial = (yield* sql(
+        `SELECT count(*)::int AS n FROM ${schema}.jobs`
+      ))[0].n
       const initial = yield* run("dedup", "deduplication", 6)
       assert.equal(initial._tag, "Committed")
       assert.deepEqual(yield* run("dedup", "deduplication", 6), initial)
-      assert.equal((yield* sql(`SELECT count(*)::int AS n FROM ${schema}.jobs`))[0].n, 6)
+      assert.equal(
+        (yield* sql(`SELECT count(*)::int AS n FROM ${schema}.jobs`))[0].n,
+        beforeInitial + 6
+      )
       const queues = yield* Executor.consumers
       assert.deepEqual(
         queues.map((q) => q.queue.name),
@@ -139,13 +153,14 @@ export const probe = (url, schema, alarm, checks = []) =>
         yield* wake(queue)
       }
       assert(
-        (yield* sql(`SELECT state FROM ${schema}.jobs`)).every(
-          (r) => r.state === "Completed"
-        )
+        (yield* sql(`SELECT state FROM ${schema}.jobs WHERE id=ANY($1::text[])`, [
+          initial.jobIds
+        ])).every((r) => r.state === "Completed")
       )
       assert.equal(
         (yield* sql(
-          `SELECT count(*)::int AS n FROM ${schema}.provider_ledger WHERE accepted=true`
+          `SELECT count(*)::int AS n FROM ${schema}.provider_ledger WHERE accepted=true AND job_id=ANY($1::text[])`,
+          [initial.jobIds]
         ))[0].n,
         6
       )

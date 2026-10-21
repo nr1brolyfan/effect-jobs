@@ -177,11 +177,12 @@ export const run = (schema: string, queue: QueueName) =>
     yield* alarm.set(now + Math.min(before.activeMillis, limits.repairMillis))
     if (queue === "playground-communications") {
       yield* generate(schema).pipe(
-        Effect.catchTag("PlaygroundError", (error) =>
-          ["sandbox-expired", "stale-generation", "limit-reached"].includes(error.code)
-            ? Effect.void
-            : Effect.fail(error)
-        )
+        Effect.catchTags({
+          PlaygroundError: (error) =>
+            ["sandbox-expired", "stale-generation", "limit-reached"].includes(error.code)
+              ? Effect.void
+              : Effect.fail(error)
+        })
       )
     }
     const plans = yield* consumers

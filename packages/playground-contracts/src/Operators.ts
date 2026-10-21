@@ -6,8 +6,8 @@ import { SandboxRef, type SandboxAccess } from "./Sandbox.js"
 import { RequestId } from "./Scenarios.js"
 import { PlaygroundError } from "./Services.js"
 
-export const JobOperatorAction = Schema.Literals(["retry-now", "cancel", "redrive"])
 export type JobOperatorAction = typeof JobOperatorAction.Type
+export const JobOperatorAction = Schema.Literals(["retry-now", "cancel", "redrive"])
 const guard = {
   sandbox: SandboxRef,
   requestId: RequestId,
@@ -15,6 +15,7 @@ const guard = {
   expectedState: JobState,
   expectedLifecycleVersion: Counter
 }
+export type JobOperatorCommand = typeof JobOperatorCommand.Type
 export const JobOperatorCommand = Schema.Union([
   Schema.Struct({ ...guard, action: Schema.Literals(["retry-now", "cancel"]) }),
   Schema.Struct({
@@ -23,7 +24,7 @@ export const JobOperatorCommand = Schema.Union([
     confirmDuplicateEffects: Schema.Literal(true)
   })
 ])
-export type JobOperatorCommand = typeof JobOperatorCommand.Type
+export type JobOperatorReason = typeof JobOperatorReason.Type
 export const JobOperatorReason = Schema.Literals([
   "invalid-input",
   "not-found",
@@ -41,7 +42,7 @@ export const JobOperatorReason = Schema.Literals([
   "unavailable",
   "limit-reached"
 ])
-export type JobOperatorReason = typeof JobOperatorReason.Type
+export type JobOperatorResult = typeof JobOperatorResult.Type
 export const JobOperatorResult = Schema.Union([
   Schema.TaggedStruct("Committed", {
     sandbox: SandboxRef,
@@ -64,7 +65,6 @@ export const JobOperatorResult = Schema.Union([
   }),
   Schema.TaggedStruct("OutcomeUnknown", { sandbox: SandboxRef, requestId: RequestId })
 ])
-export type JobOperatorResult = typeof JobOperatorResult.Type
 export const matchesCommandResult = (
   command: JobOperatorCommand,
   result: JobOperatorResult
@@ -79,21 +79,21 @@ export const matchesCommandResult = (
         : result.sourceJobId === command.jobId &&
           result.sourceState === command.expectedState &&
           result.sourceLifecycleVersion === command.expectedLifecycleVersion)))
+export type JobOperatorReceiptRequest = typeof JobOperatorReceiptRequest.Type
 export const JobOperatorReceiptRequest = Schema.Struct({
   sandbox: SandboxRef,
   requestId: RequestId
 })
-export type JobOperatorReceiptRequest = typeof JobOperatorReceiptRequest.Type
 const eligibility = Schema.Struct({
   enabled: Schema.Boolean,
-  reason: Schema.NullOr(JobOperatorReason)
+  reason: JobOperatorReason.pipe(Schema.NullOr)
 })
+export type JobOperatorEligibility = typeof JobOperatorEligibility.Type
 export const JobOperatorEligibility = Schema.Struct({
   retryNow: eligibility,
   cancel: eligibility,
   redrive: eligibility
 })
-export type JobOperatorEligibility = typeof JobOperatorEligibility.Type
 
 // Explicit fields produce a stable, complete immutable admission identity.
 // The caller must decode strictly first. Never include client-selected producer data.

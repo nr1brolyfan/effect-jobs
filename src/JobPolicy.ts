@@ -26,6 +26,12 @@ export const PositiveMillis = Schema.Int.pipe(
 export const EpochMillis = PositiveMillis
 
 /**
+ * Decoded value of the JobRetention Schema.
+ *
+ * @category models
+ */
+export type JobRetention = typeof JobRetention.Type
+/**
  * Persisted Forever or finite Duration retention, measured from terminal completion.
  *
  * @category schemas
@@ -34,12 +40,6 @@ export const JobRetention = Schema.Union([
   Schema.TaggedStruct("Forever", {}),
   Schema.TaggedStruct("Duration", { millis: PositiveMillis })
 ])
-/**
- * Decoded value of the JobRetention Schema.
- *
- * @category models
- */
-export type JobRetention = typeof JobRetention.Type
 
 /**
  * Versioned persisted fixed-delay retry schedule; no exponential backoff.
@@ -63,6 +63,12 @@ const PolicyStruct = Schema.Struct({
   deadRetention: JobRetention
 })
 /**
+ * Complete immutable policy resolved by make and validated by PersistedJobPolicy.
+ *
+ * @category models
+ */
+export type JobPolicy = typeof PersistedJobPolicy.Type
+/**
  * Complete V1 policy Schema, requiring attemptTimeoutMillis < leaseDurationMillis.
  * Decoding stored policy never applies current deployment defaults.
  *
@@ -71,12 +77,6 @@ const PolicyStruct = Schema.Struct({
 export const PersistedJobPolicy = PolicyStruct.pipe(
   Schema.check(Schema.makeFilter((p) => p.attemptTimeoutMillis < p.leaseDurationMillis))
 )
-/**
- * Complete immutable policy resolved by make and validated by PersistedJobPolicy.
- *
- * @category models
- */
-export type JobPolicy = typeof PersistedJobPolicy.Type
 
 /**
  * Optional Duration-based configuration. Finite durations must be positive integer

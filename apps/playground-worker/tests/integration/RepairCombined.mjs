@@ -90,12 +90,12 @@ try {
       await page.getByLabel("Demo unlock code").waitFor({ timeout: 15000 })
       await page.getByLabel("Demo unlock code").fill("wrong")
       await page.getByRole("button", { name: "Unlock locally" }).click()
-      assert.equal(await page.getByLabel("Locally decrypted document").count(), 0)
+      assert.equal(await page.getByLabel("Readable payload").count(), 0)
       await page.getByLabel("Demo unlock code").fill("123")
       await page.getByRole("button", { name: "Unlock locally" }).click()
-      await page.getByLabel("Locally decrypted document").waitFor()
+      await page.getByLabel("Readable payload").waitFor()
       await page.getByRole("button", { name: "Relock" }).click()
-      assert.equal(await page.getByLabel("Locally decrypted document").count(), 0)
+      assert.equal(await page.getByLabel("Readable payload").count(), 0)
       assert.deepEqual(
         await page.evaluate(() => [localStorage.length, sessionStorage.length]),
         [0, 0]
@@ -207,14 +207,11 @@ try {
         await page.getByLabel("Demo unlock code").fill("123")
         await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
         await expect(
-          page.getByText(
-            "Locked; demo code or document authentication failed. Use demo code 123.",
-            {
-              exact: true
-            }
-          )
+          page.getByText("Locked · authentication failed. Demo code: 123.", {
+            exact: true
+          })
         ).toBeVisible()
-        await expect(page.getByLabel("Locally decrypted document")).toHaveCount(0)
+        await expect(page.getByLabel("Readable payload")).toHaveCount(0)
       } finally {
         await query(
           `UPDATE "${cfg.schema}".job_payloads SET payload=$2 WHERE job_id=$1`,
@@ -224,9 +221,9 @@ try {
       await page.reload()
       await page.getByLabel("Demo unlock code").fill("123")
       await page.getByRole("button", { name: "Unlock locally", exact: true }).click()
-      await expect(page.getByLabel("Locally decrypted document")).toBeVisible()
+      await expect(page.getByLabel("Readable payload")).toBeVisible()
       await page.getByRole("button", { name: "Back to jobs", exact: true }).click()
-      await expect(page.getByLabel("Locally decrypted document")).toHaveCount(0)
+      await expect(page.getByLabel("Readable payload")).toHaveCount(0)
       await page.goto(
         `${origin}/demo/jobs/${encrypted.id}?generation=${sandbox.ref.generation + 1}`
       )
@@ -438,14 +435,14 @@ try {
         await expect
           .poll(() => page.evaluate(() => window.__repairDecrypt.finished))
           .toBe(true)
-        await expect(page.getByLabel("Locally decrypted document")).toHaveCount(0)
+        await expect(page.getByLabel("Readable payload")).toHaveCount(0)
         await page.keyboard.press("Escape")
         // Reopen original identity without full document reload; old completion stays revoked.
         await page.getByLabel("Search job ID on this page").fill(encrypted.id)
         if (await page.getByRole("button", { name: encrypted.id, exact: true }).count()) {
           await page.getByRole("button", { name: encrypted.id, exact: true }).click()
           await expect(page.getByLabel("Demo unlock code")).toHaveValue("")
-          await expect(page.getByLabel("Locally decrypted document")).toHaveCount(0)
+          await expect(page.getByLabel("Readable payload")).toHaveCount(0)
         } else {
           throw new Error("Original encrypted identity not retained on this page")
         }
@@ -471,17 +468,17 @@ try {
           )
           await tab.getByLabel("Demo unlock code").fill("123")
           await tab.getByRole("button", { name: "Unlock locally", exact: true }).click()
-          await expect(tab.getByLabel("Locally decrypted document")).toBeVisible()
+          await expect(tab.getByLabel("Readable payload")).toBeVisible()
           // Advance only browser time beyond the actual stored admission expiry.
           // DB time, authority, history and production bundle remain unchanged.
           const advance =
             sandbox.expiresAt - (await tab.evaluate(() => Date.now())) + 2000
           assert.ok(advance > 0)
           await tab.clock.fastForward(advance)
-          await expect(tab.getByLabel("Locally decrypted document")).toHaveCount(0)
+          await expect(tab.getByLabel("Readable payload")).toHaveCount(0)
           await expect(tab.getByLabel("Demo unlock code")).toHaveCount(0)
           await tab.getByRole("button", { name: "Back to jobs", exact: true }).click()
-          await expect(tab.getByLabel("Locally decrypted document")).toHaveCount(0)
+          await expect(tab.getByLabel("Readable payload")).toHaveCount(0)
           assert.deepEqual(
             await tab.evaluate(() => [localStorage.length, sessionStorage.length]),
             [0, 0]
@@ -563,9 +560,14 @@ try {
     await runtime.drainRecorded()
     await runtime.drainRecorded()
     await privatePage.reload()
-    await expect(privatePage.getByLabel("Repair and resolution")).toContainText(
-      "Resolved"
-    )
+    report.privateRepairObservation = {
+      regions: await privatePage.getByLabel("Repair and resolution").count(),
+      stored: await query(
+        `SELECT j.state,p.problem->>'state' AS problem_state FROM "${cfg.schema}".jobs j JOIN "${cfg.schema}".job_problems p ON p.root_job_id=j.id WHERE j.id=$1`,
+        [known.id]
+      )
+    }
+    await expect(privatePage.getByLabel("Job overview")).toContainText("Resolved")
     const [resolved] = await query(
       `SELECT j.state,p.problem FROM "${cfg.schema}".jobs j JOIN "${cfg.schema}".job_problems p ON p.root_job_id=j.id WHERE j.id=$1`,
       [known.id]
@@ -608,9 +610,7 @@ try {
       .click()
     await expect(privatePage.getByRole("dialog")).toHaveCount(0)
     await privatePage.reload()
-    await expect(privatePage.getByLabel("Repair and resolution")).toContainText(
-      "Resolved"
-    )
+    await expect(privatePage.getByLabel("Job overview")).toContainText("Resolved")
     const [manual] = await query(
       `SELECT j.state,p.problem FROM "${cfg.schema}".jobs j JOIN "${cfg.schema}".job_problems p ON p.root_job_id=j.id WHERE j.id=$1`,
       [unknown.id]
@@ -696,6 +696,8 @@ try {
   }
 } catch (error) {
   report.failureClass = error instanceof Error ? error.name : "Unknown"
+  report.failureSummary =
+    error instanceof Error ? error.message.split("\n").slice(0, 5).join("\n") : undefined
   report.failureSite =
     error instanceof Error
       ? error.stack

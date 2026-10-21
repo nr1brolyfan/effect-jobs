@@ -6,6 +6,7 @@ import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 const After = Schema.String.pipe(
   Schema.check(Schema.isMinLength(1), Schema.isMaxLength(128))
 )
+export type Position = typeof Position.Type
 const Position = Schema.Union([
   Schema.Struct({
     version: Schema.Literal(1),
@@ -37,7 +38,6 @@ const Position = Schema.Union([
     )
   })
 ])
-export type Position = typeof Position.Type
 export class CursorCodec extends Context.Service<
   CursorCodec,
   {

@@ -19,7 +19,7 @@ const PreparedMetadata = Schema.Struct({
   catalog: CatalogIdentity,
   producer: ProducerIdentity,
   policy: PersistedJobPolicy,
-  availableAt: Schema.optional(EpochMillis),
+  availableAt: EpochMillis.pipe(Schema.optional),
   encoded: Schema.Struct({
     formatVersion: Schema.Literal(1),
     payloadBytes: Schema.declare(

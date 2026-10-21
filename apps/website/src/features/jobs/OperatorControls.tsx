@@ -13,13 +13,7 @@ const labels = {
   cancel: "Cancel job",
   redrive: "Redrive as new job"
 } as const
-export const OperatorControls = ({
-  runtime,
-  detail,
-  sandbox,
-  now,
-  blocked
-}: {
+export const OperatorControls = (props: {
   readonly runtime: Runtime
   readonly detail: JobDetail
   readonly sandbox: SandboxView
@@ -29,7 +23,7 @@ export const OperatorControls = ({
   const [action, setAction] = useState<JobOperatorAction | undefined>(undefined)
   const dialog = useRef<HTMLDialogElement>(null)
   const trigger = useRef<HTMLButtonElement | null>(null)
-  const available = Eligibility.eligibility(detail, sandbox, now)
+  const available = Eligibility.eligibility(props.detail, props.sandbox, props.now)
   const actionApplicable =
     action === "cancel"
       ? available.cancel.enabled
@@ -57,20 +51,22 @@ export const OperatorControls = ({
     trigger.current?.focus({ preventScroll: true })
   }
   const confirm = () => {
-    if (action === undefined || blocked) {
+    if (action === undefined || props.blocked) {
       return
     }
-    const state = runtime.snapshot()
+    const state = props.runtime.snapshot()
     if (
-      state.detail?.job.jobId !== detail.job.jobId ||
-      state.detail.job.lifecycleVersion !== detail.job.lifecycleVersion ||
-      state.sandbox.ref.sandboxId !== sandbox.ref.sandboxId ||
-      state.sandbox.ref.generation !== sandbox.ref.generation
+      state.detail?.job.jobId !== props.detail.job.jobId ||
+      state.detail.job.lifecycleVersion !== props.detail.job.lifecycleVersion ||
+      state.sandbox.ref.sandboxId !== props.sandbox.ref.sandboxId ||
+      state.sandbox.ref.generation !== props.sandbox.ref.generation
     ) {
       dismiss()
       return
     }
-    void runtime.run(runtime.operate(action, crypto.randomUUID(), action === "redrive"))
+    void props.runtime.run(
+      props.runtime.operate(action, crypto.randomUUID(), action === "redrive")
+    )
     dismiss()
   }
   if (!available.retryNow.enabled && !available.cancel.enabled) {
@@ -89,7 +85,7 @@ export const OperatorControls = ({
           return entry.enabled ? (
             <Button
               key={value}
-              disabled={blocked || !entry.enabled}
+              disabled={props.blocked || !entry.enabled}
               onClick={(event) => {
                 trigger.current = event.currentTarget
                 setAction(value)
@@ -129,7 +125,7 @@ export const OperatorControls = ({
           <Button autoFocus onClick={dismiss}>
             Keep current job
           </Button>
-          <Button disabled={blocked} onClick={confirm}>
+          <Button disabled={props.blocked} onClick={confirm}>
             {action === "redrive"
               ? "Confirm possible duplicate effects"
               : "Confirm action"}

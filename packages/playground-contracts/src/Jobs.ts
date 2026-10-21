@@ -14,36 +14,37 @@ import {
 import { RequestId } from "./Scenarios.js"
 import { SandboxRef } from "./Sandbox.js"
 
+export type Cursor = typeof Cursor.Type
 export const Cursor = Schema.String.pipe(
   Schema.check(Schema.isMinLength(1), Schema.isMaxLength(1024))
 )
-export type Cursor = typeof Cursor.Type
-export const JobFilters = Schema.Struct({
-  state: Schema.optional(JobState),
-  kind: Schema.optional(CatalogIdentity.fields.kind),
-  resolution: Schema.optional(JobResolutionState),
-  needsAttention: Schema.optional(Schema.Literal(true))
-})
 export type JobFilters = typeof JobFilters.Type
+export const JobFilters = Schema.Struct({
+  state: JobState.pipe(Schema.optional),
+  kind: CatalogIdentity.fields.kind.pipe(Schema.optional),
+  resolution: JobResolutionState.pipe(Schema.optional),
+  needsAttention: Schema.Literal(true).pipe(Schema.optional)
+})
+export type ListJobs = typeof ListJobs.Type
 export const ListJobs = Schema.Struct({
   sandbox: SandboxRef,
   filters: JobFilters,
-  cursor: Schema.optional(Cursor),
+  cursor: Cursor.pipe(Schema.optional),
   limit: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 1, maximum: 50 })))
 })
-export type ListJobs = typeof ListJobs.Type
 // Explicit allowlist. No payload, ciphertext, fingerprint, lease token, user data or raw errors.
+export type JobSummary = typeof JobSummary.Type
 export const JobSummary = Schema.Struct({
   jobId: JobId,
   catalog: CatalogIdentity,
   state: JobState,
   availableAt: EpochMillis,
   updatedAt: EpochMillis,
-  completedAt: Schema.NullOr(EpochMillis),
+  completedAt: EpochMillis.pipe(Schema.NullOr),
   attemptsMade: Counter,
   stalledCount: Counter,
   lifecycleVersion: Counter,
-  lastFailureCode: Schema.NullOr(FailureCode)
+  lastFailureCode: FailureCode.pipe(Schema.NullOr)
 }).pipe(
   Schema.check(
     Schema.makeFilter(
@@ -55,7 +56,7 @@ export const JobSummary = Schema.Struct({
     )
   )
 )
-export type JobSummary = typeof JobSummary.Type
+export type JobStats = typeof JobStats.Type
 export const JobStats = Schema.Struct({
   total: Counter,
   Pending: Counter,
@@ -80,7 +81,7 @@ export const JobStats = Schema.Struct({
     )
   )
 )
-export type JobStats = typeof JobStats.Type
+export type JobAttentionStats = typeof JobAttentionStats.Type
 export const JobAttentionStats = Schema.Struct({
   Open: Counter,
   InProgress: Counter,
@@ -89,38 +90,42 @@ export const JobAttentionStats = Schema.Struct({
 }).pipe(
   Schema.check(Schema.makeFilter((s) => s.needsAttention === s.Open + s.InProgress))
 )
-export type JobAttentionStats = typeof JobAttentionStats.Type
+export type JobPage = typeof JobPage.Type
 export const JobPage = Schema.Struct({
   sandbox: SandboxRef,
   items: Schema.Array(JobSummary).pipe(Schema.check(Schema.isMaxLength(50))),
-  nextCursor: Schema.NullOr(Cursor),
+  nextCursor: Cursor.pipe(Schema.NullOr),
   // Matching rows before the cursor predicate, from the same scoped SQL snapshot.
   filteredTotal: Counter,
   stats: JobStats,
   attentionStats: JobAttentionStats
 })
-export type JobPage = typeof JobPage.Type
-export const JobDetailRequest = Schema.Struct({ sandbox: SandboxRef, jobId: JobId })
 export type JobDetailRequest = typeof JobDetailRequest.Type
+export const JobDetailRequest = Schema.Struct({ sandbox: SandboxRef, jobId: JobId })
 // Relations belong to the application, never generic jobs storage.
 export const ApplicationRelations = Schema.Struct({
-  syntheticOrderId: Schema.optional(Schema.Literals(["demo-order-a", "demo-order-b"])),
-  syntheticActor: Schema.optional(Schema.Literal("demo-customer")),
-  syntheticTenant: Schema.optional(Schema.Literals(["demo-tenant-a", "demo-tenant-b"]))
+  syntheticOrderId: Schema.Literals(["demo-order-a", "demo-order-b"]).pipe(
+    Schema.optional
+  ),
+  syntheticActor: Schema.Literal("demo-customer").pipe(Schema.optional),
+  syntheticTenant: Schema.Literals(["demo-tenant-a", "demo-tenant-b"]).pipe(
+    Schema.optional
+  )
 })
 export const Observation = Schema.Struct({
   source: Schema.Literals(["mock", "local", "workerd", "hosted"]),
   observedAt: EpochMillis,
   outcome: Schema.Literals(["success", "retry", "dead", "isolated", "unknown"])
 })
-export const JobRedriveKind = Schema.Literals(["Redrive", "CorrectedRedrive"])
 export type JobRedriveKind = typeof JobRedriveKind.Type
+export const JobRedriveKind = Schema.Literals(["Redrive", "CorrectedRedrive"])
+export type JobLineage = typeof JobLineage.Type
 export const JobLineage = Schema.Struct({
   originalSourceJobId: JobId,
-  sourceJobId: Schema.NullOr(JobId),
+  sourceJobId: JobId.pipe(Schema.NullOr),
   kind: JobRedriveKind
 })
-export type JobLineage = typeof JobLineage.Type
+export type JobPayloadView = typeof JobPayloadView.Type
 export const JobPayloadView = Schema.Union([
   Schema.TaggedStruct("Available", {
     formatVersion: Schema.Literal(1),
@@ -133,7 +138,7 @@ export const JobPayloadView = Schema.Union([
     reason: Schema.Literals(["not-stored", "invalid-artifact", "unsupported-catalog"])
   })
 ])
-export type JobPayloadView = typeof JobPayloadView.Type
+export type JobHistoryItem = typeof JobHistoryItem.Type
 export const JobHistoryItem = Schema.Union([
   Schema.TaggedStruct("Snapshot", { job: JobSummary, observedAt: EpochMillis }),
   Schema.TaggedStruct("Operator", {
@@ -152,80 +157,77 @@ export const JobHistoryItem = Schema.Union([
       "ManualClose",
       "Reopened"
     ]),
-    reason: Schema.NullOr(Reason),
+    reason: Reason.pipe(Schema.NullOr),
     observedAt: EpochMillis
   })
 ])
-export type JobHistoryItem = typeof JobHistoryItem.Type
+export type JobHistory = typeof JobHistory.Type
 export const JobHistory = Schema.Struct({
   coverage: Schema.Literal("RetainedFacts"),
   attempts: Schema.Null,
   items: Schema.Array(JobHistoryItem).pipe(Schema.check(Schema.isMaxLength(50))),
-  nextCursor: Schema.NullOr(Cursor)
-})
-export type JobHistory = typeof JobHistory.Type
-export const JobRelatedItem = Schema.Struct({
-  jobId: JobId,
-  state: Schema.NullOr(JobState),
-  kind: Schema.NullOr(JobRedriveKind),
-  sourceAvailable: Schema.Boolean
+  nextCursor: Cursor.pipe(Schema.NullOr)
 })
 export type JobRelatedItem = typeof JobRelatedItem.Type
-export const JobRelatedPage = Schema.Struct({
-  items: Schema.Array(JobRelatedItem).pipe(Schema.check(Schema.isMaxLength(50))),
-  nextCursor: Schema.NullOr(Cursor)
+export const JobRelatedItem = Schema.Struct({
+  jobId: JobId,
+  state: JobState.pipe(Schema.NullOr),
+  kind: JobRedriveKind.pipe(Schema.NullOr),
+  sourceAvailable: Schema.Boolean
 })
 export type JobRelatedPage = typeof JobRelatedPage.Type
+export const JobRelatedPage = Schema.Struct({
+  items: Schema.Array(JobRelatedItem).pipe(Schema.check(Schema.isMaxLength(50))),
+  nextCursor: Cursor.pipe(Schema.NullOr)
+})
+export type JobDetailPageRequest = typeof JobDetailPageRequest.Type
 export const JobDetailPageRequest = Schema.Struct({
   sandbox: SandboxRef,
   jobId: JobId,
-  cursor: Schema.optional(Cursor),
+  cursor: Cursor.pipe(Schema.optional),
   limit: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 1, maximum: 50 })))
 })
-export type JobDetailPageRequest = typeof JobDetailPageRequest.Type
+export type JobProblemRow = typeof JobProblemRow.Type
 export const JobProblemRow = Schema.Struct({
   problem: JobProblem,
-  representative: Schema.NullOr(JobSummary)
+  representative: JobSummary.pipe(Schema.NullOr)
 })
-export type JobProblemRow = typeof JobProblemRow.Type
+export type JobProblemPage = typeof JobProblemPage.Type
 export const JobProblemPage = Schema.Struct({
   sandbox: SandboxRef,
   items: Schema.Array(JobProblemRow).pipe(Schema.check(Schema.isMaxLength(50))),
-  nextCursor: Schema.NullOr(Cursor),
+  nextCursor: Cursor.pipe(Schema.NullOr),
   filteredTotal: Counter,
   stats: JobStats,
   attentionStats: JobAttentionStats
 })
-export type JobProblemPage = typeof JobProblemPage.Type
 const repairEligibility = Schema.Struct({
   enabled: Schema.Boolean,
-  reason: Schema.NullOr(JobRepairReason)
+  reason: JobRepairReason.pipe(Schema.NullOr)
 })
+export type JobDetail = typeof JobDetail.Type
 export const JobDetail = Schema.Struct({
   sandbox: SandboxRef,
   job: JobSummary,
   producer: ProducerIdentity,
   policy: PersistedJobPolicy,
   relations: ApplicationRelations,
-  observation: Schema.optional(Observation),
+  observation: Observation.pipe(Schema.optional),
   createdAt: Schema.Null,
   payload: JobPayloadView,
   result: Schema.TaggedStruct("Unavailable", { reason: Schema.Literal("not-stored") }),
   history: JobHistory,
-  provider: Schema.NullOr(
-    Schema.Struct({
-      source: Schema.Literal("synthetic-postgresql"),
-      accepted: Schema.Boolean,
-      invocations: Counter,
-      observedAt: Schema.Null
-    })
-  ),
-  lineage: Schema.NullOr(JobLineage),
-  problem: Schema.NullOr(JobProblem),
+  provider: Schema.Struct({
+    source: Schema.Literal("synthetic-postgresql"),
+    accepted: Schema.Boolean,
+    invocations: Counter,
+    observedAt: Schema.Null
+  }).pipe(Schema.NullOr),
+  lineage: JobLineage.pipe(Schema.NullOr),
+  problem: JobProblem.pipe(Schema.NullOr),
   related: JobRelatedPage,
   eligibility: Schema.Struct({
     redrive: repairEligibility,
     correctedRedrive: repairEligibility
   })
 })
-export type JobDetail = typeof JobDetail.Type

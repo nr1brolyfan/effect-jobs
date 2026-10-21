@@ -1,3 +1,4 @@
+import * as Atom from "effect/reactivity/Atom"
 import * as Navigation from "./details/Navigation.js"
 /* oxlint-disable effecttsgo/unstable-api-usage -- Owner-selected Atom API is pinned to Effect 4.0.0. */
 import { Effect, Exit, Fiber, Scope } from "effect"
@@ -255,7 +256,6 @@ export const make = (client: Client, sandbox: SandboxView, options: Options = {}
   }
 }
 
-import * as Atom from "effect/reactivity/Atom"
 // Shared atom definition, independent values in each dashboard registry.
 export const now = Atom.make(Date.now()).pipe(Atom.keepAlive)
 export type Runtime = ReturnType<typeof make>

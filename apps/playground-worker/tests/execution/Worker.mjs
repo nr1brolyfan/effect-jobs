@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers"
 import { Effect } from "effect"
 import { probe } from "./Probe.mjs"
-import { WakeUnavailable } from "./dist/src/cloudflare/WakeCycle.js"
+import { WakeUnavailable } from "../../src/cloudflare/WakeCycle.js"
 export class Probe extends DurableObject {
   async fetch() {
     return this.ctx.blockConcurrencyWhile(async () => {

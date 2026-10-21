@@ -1,3 +1,4 @@
+import { PlaygroundError as HttpError } from "@effect-jobs/playground-contracts/Services"
 import * as RepairShowcase from "./demo/RepairShowcase.js"
 import * as OriginPolicy from "../../website/src/OriginPolicy.js"
 // Cloudflare callbacks are the Promise FFI. All database work is scoped Effect.
@@ -61,16 +62,19 @@ const yieldRef = (row: { sandbox_id: string; generation: string }) =>
   })
 const queues = (env: Env) => [env.COMMUNICATIONS, env.MEDIA, env.COMMERCE, env.PRIVATE]
 const kick = (env: Env) =>
-  Effect.tryPromise({
-    try: () =>
-      Promise.all(
-        queues(env).map((namespace) => namespace.getByName("shared").activate())
-      ),
-    catch: () => undefined
-  }).pipe(Effect.timeout("1 second"), Effect.ignore)
+  Effect.forEach(
+    queues(env),
+    (namespace) =>
+      Effect.tryPromise({
+        try: () => namespace.getByName("shared").activate(),
+        catch: () => undefined
+      }),
+    { concurrency: "unbounded", discard: true }
+  ).pipe(Effect.timeout("1 second"), Effect.ignore)
 const safe = <E>(effect: Effect.Effect<Response, E>) =>
-  Effect.runPromise(effect.pipe(Effect.timeout("8 seconds"))).catch(() =>
-    Http.response({ code: "unavailable" }, 503)
+  effect.pipe(
+    Effect.timeout("8 seconds"),
+    Effect.catchCause(() => Effect.succeed(Http.response({ code: "unavailable" }, 503)))
   )
 
 export class Gateway extends DurableObject {
@@ -81,71 +85,78 @@ export class Gateway extends DurableObject {
     super(ctx, env)
   }
   fetch(request: Request): Promise<Response> {
-    return this.ctx.blockConcurrencyWhile(async () => {
-      const minute = Math.floor(Date.now() / 60000)
-      const previous = await this.ctx.storage.get<{
-        minute: number
-        total: number
-        counts: Record<string, number>
-      }>("rates")
-      const budget =
-        previous?.minute === minute ? previous : { minute, total: 0, counts: {} }
-      const admit = (key: string) => {
-        if (
-          budget.total >= 600 ||
-          (budget.counts[key] ?? 0) >=
-            (key === "issue" ? 5 : key === "request" ? 600 : 120) ||
-          (budget.counts[key] === undefined && Object.keys(budget.counts).length >= 256)
-        ) {
-          return false
-        }
-        budget.total++
-        budget.counts[key] = (budget.counts[key] ?? 0) + 1
-        return true
-      }
-      if (!admit("request")) {
-        await this.ctx.storage.put("rates", budget)
-        return Http.response({ code: "limit-reached" }, 429)
-      }
-      const env = this.env
-      const originConfig = {
-        configuredOrigin: env.ORIGIN,
-        localPreview: env.LOCAL_PREVIEW === "true"
-      }
-      const policy = OriginPolicy.make(originConfig)
-      if (policy.resolve(new URL(request.url).origin) === undefined) {
-        await this.ctx.storage.put("rates", budget)
-        return Http.response({ code: "invalid-request" }, 400)
-      }
-      if (
-        !new URL(request.url).pathname.startsWith("/api/demo") &&
-        env.LOCAL_PRIVATE !== "true"
-      ) {
-        return Http.response({ code: "not-found" }, 404)
-      }
-      const operation = new URL(request.url).pathname.startsWith("/api/demo")
-        ? DemoHttp.handle(request, env)
-        : new URL(request.url).pathname === "/api/changes"
-          ? Effect.gen(function* () {
-              const app = yield* Application
-              return yield* Upgrade.upgrade(request, policy, env.LIVE, (req) =>
-                Http.authenticate(req, originConfig).pipe(
-                  Effect.provideService(Application, app),
-                  Effect.map((access) => access.sandbox)
-                )
-              )
-            })
-          : Http.handle(request, env.ORIGIN, admit, originConfig.localPreview)
-      const response = await safe(
-        Event.run(
-          config(this.env),
-          kick(this.env),
-          operation.pipe(Effect.provide(PostCommit.layer(env.LIVE)))
-        )
+    return this.ctx.blockConcurrencyWhile(() =>
+      Effect.runPromise(
+        Effect.gen({ self: this }, function* () {
+          const minute = Math.floor(Date.now() / 60000)
+          const previous = yield* Effect.promise(() =>
+            this.ctx.storage.get<{
+              minute: number
+              total: number
+              counts: Record<string, number>
+            }>("rates")
+          )
+          const budget =
+            previous?.minute === minute ? previous : { minute, total: 0, counts: {} }
+          const admit = (key: string) => {
+            if (
+              budget.total >= 600 ||
+              (budget.counts[key] ?? 0) >=
+                (key === "issue" ? 5 : key === "request" ? 600 : 120) ||
+              (budget.counts[key] === undefined &&
+                Object.keys(budget.counts).length >= 256)
+            ) {
+              return false
+            }
+            budget.total++
+            budget.counts[key] = (budget.counts[key] ?? 0) + 1
+            return true
+          }
+          if (!admit("request")) {
+            yield* Effect.promise(() => this.ctx.storage.put("rates", budget))
+            return Http.response({ code: "limit-reached" }, 429)
+          }
+          const env = this.env
+          const originConfig = {
+            configuredOrigin: env.ORIGIN,
+            localPreview: env.LOCAL_PREVIEW === "true"
+          }
+          const policy = OriginPolicy.make(originConfig)
+          if (policy.resolve(new URL(request.url).origin) === undefined) {
+            yield* Effect.promise(() => this.ctx.storage.put("rates", budget))
+            return Http.response({ code: "invalid-request" }, 400)
+          }
+          if (
+            !new URL(request.url).pathname.startsWith("/api/demo") &&
+            env.LOCAL_PRIVATE !== "true"
+          ) {
+            return Http.response({ code: "not-found" }, 404)
+          }
+          const operation = new URL(request.url).pathname.startsWith("/api/demo")
+            ? DemoHttp.handle(request, env)
+            : new URL(request.url).pathname === "/api/changes"
+              ? Effect.gen(function* () {
+                  const app = yield* Application
+                  return yield* Upgrade.upgrade(request, policy, env.LIVE, (req) =>
+                    Http.authenticate(req, originConfig).pipe(
+                      Effect.provideService(Application, app),
+                      Effect.map((access) => access.sandbox)
+                    )
+                  )
+                })
+              : Http.handle(request, env.ORIGIN, admit, originConfig.localPreview)
+          const response = yield* safe(
+            Event.run(
+              config(this.env),
+              kick(this.env),
+              operation.pipe(Effect.provide(PostCommit.layer(env.LIVE)))
+            )
+          )
+          yield* Effect.promise(() => this.ctx.storage.put("rates", budget))
+          return response
+        })
       )
-      await this.ctx.storage.put("rates", budget)
-      return response
-    })
+    )
   }
 }
 
@@ -158,37 +169,43 @@ class Queue extends DurableObject {
     super(ctx, env)
   }
   activate(): Promise<void> {
-    return this.ctx.blockConcurrencyWhile(async () => {
-      const at = Date.now() + 400
-      const previous = await this.ctx.storage.getAlarm()
-      if (previous === null || previous > at) {
-        await this.ctx.storage.setAlarm(at)
-      }
-    })
+    return this.ctx.blockConcurrencyWhile(() =>
+      Effect.runPromise(
+        Effect.gen({ self: this }, function* () {
+          const at = Date.now() + 400
+          const previous = yield* Effect.promise(() => this.ctx.storage.getAlarm())
+          if (previous === null || previous > at) {
+            yield* Effect.promise(() => this.ctx.storage.setAlarm(at))
+          }
+        })
+      )
+    )
   }
   alarm(): Promise<void> {
-    return this.ctx.blockConcurrencyWhile(async () => {
-      const alarm = {
-        set: (at: number) =>
-          Effect.tryPromise({
-            try: () => this.ctx.storage.setAlarm(at),
-            catch: () => new WakeUnavailable()
-          }),
-        clear: Effect.tryPromise({
-          try: () => this.ctx.storage.deleteAlarm(),
-          catch: () => new WakeUnavailable()
-        })
-      }
-      const env = this.env
-      const storage = this.ctx.storage
-      const reconcile = Effect.gen(function* () {
-        const sql = yield* SqlClient
-        const rows = yield* sql.unsafe<{
-          sandbox_id: string
-          generation: string
-          signature: string
-        }>(
-          `WITH viewers AS MATERIALIZED (
+    return this.ctx.blockConcurrencyWhile(() =>
+      Effect.runPromise(
+        Effect.gen({ self: this }, function* () {
+          const alarm = {
+            set: (at: number) =>
+              Effect.tryPromise({
+                try: () => this.ctx.storage.setAlarm(at),
+                catch: () => new WakeUnavailable()
+              }),
+            clear: Effect.tryPromise({
+              try: () => this.ctx.storage.deleteAlarm(),
+              catch: () => new WakeUnavailable()
+            })
+          }
+          const env = this.env
+          const storage = this.ctx.storage
+          const reconcile = Effect.gen(function* () {
+            const sql = yield* SqlClient
+            const rows = yield* sql.unsafe<{
+              sandbox_id: string
+              generation: string
+              signature: string
+            }>(
+              `WITH viewers AS MATERIALIZED (
             SELECT sandbox_id,generation FROM "${env.SCHEMA}"."sandboxes"
             WHERE viewer_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint
               AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint
@@ -199,44 +216,46 @@ class Queue extends DurableObject {
             ON a.sandbox_id=v.sandbox_id AND a.generation=v.generation
           LEFT JOIN "${env.SCHEMA}"."jobs" j ON j.id=a.job_id
           GROUP BY v.sandbox_id,v.generation ORDER BY v.sandbox_id`
-        )
-        // No terminal deletion exists: count + monotone lifecycle versions detect
-        // changes without payload reads. Persist a bounded hint cache, not authority.
-        const previous = yield* Effect.promise(() =>
-          storage.get<Record<string, string>>("hints")
-        )
-        const current = Object.fromEntries(
-          rows.map((row) => [objectName(yieldRef(row)), row.signature])
-        )
-        yield* Effect.forEach(
-          rows.filter((row) => previous?.[objectName(yieldRef(row))] !== row.signature),
-          (row) =>
-            Effect.tryPromise({
-              try: () => {
-                const ref = yieldRef(row)
-                return env.LIVE.getByName(objectName(ref)).notifyCommitted(ref)
-              },
-              catch: () => undefined
-            }),
-          { concurrency: 4, discard: true }
-        ).pipe(Effect.timeout("1 second"), Effect.ignore)
-        yield* Effect.promise(() => storage.put("hints", current))
-      }).pipe(Effect.ignore)
-      await Effect.runPromise(
-        Event.run(
-          config(this.env),
-          Effect.void,
-          Executor.run(this.env.SCHEMA, this.queue).pipe(
-            Effect.provideService(WakeAlarm, alarm),
-            Effect.provideService(Executor.ExecutionHints, { reconcile })
+            )
+            // No terminal deletion exists: count + monotone lifecycle versions detect
+            // changes without payload reads. Persist a bounded hint cache, not authority.
+            const previous = yield* Effect.promise(() =>
+              storage.get<Record<string, string>>("hints")
+            )
+            const current = Object.fromEntries(
+              rows.map((row) => [objectName(yieldRef(row)), row.signature])
+            )
+            yield* Effect.forEach(
+              rows.filter(
+                (row) => previous?.[objectName(yieldRef(row))] !== row.signature
+              ),
+              (row) =>
+                Effect.tryPromise({
+                  try: () => {
+                    const ref = yieldRef(row)
+                    return env.LIVE.getByName(objectName(ref)).notifyCommitted(ref)
+                  },
+                  catch: () => undefined
+                }),
+              { concurrency: 4, discard: true }
+            ).pipe(Effect.timeout("1 second"), Effect.ignore)
+            yield* Effect.promise(() => storage.put("hints", current))
+          }).pipe(Effect.ignore)
+          yield* Event.run(
+            config(this.env),
+            Effect.void,
+            Executor.run(this.env.SCHEMA, this.queue).pipe(
+              Effect.provideService(WakeAlarm, alarm),
+              Effect.provideService(Executor.ExecutionHints, { reconcile })
+            )
           )
-        )
+        })
       ).catch(() => {
         // Reject at the native callback boundary so finite alarm retries apply.
         // Never attach the internal Cause or PostgreSQL configuration.
         throw new Error("Queue alarm unavailable")
       })
-    })
+    )
   }
 }
 export class Communications extends Queue {
@@ -267,48 +286,56 @@ export class DemoGenerator extends DurableObject {
     super(ctx, env)
   }
   activate(): Promise<void> {
-    return this.ctx.blockConcurrencyWhile(async () => {
-      if ((await this.ctx.storage.getAlarm()) === null) {
-        await this.ctx.storage.setAlarm(Date.now() + 100)
-      }
-    })
+    return this.ctx.blockConcurrencyWhile(() =>
+      Effect.runPromise(
+        Effect.gen({ self: this }, function* () {
+          if ((yield* Effect.promise(() => this.ctx.storage.getAlarm())) === null) {
+            yield* Effect.promise(() => this.ctx.storage.setAlarm(Date.now() + 100))
+          }
+        })
+      )
+    )
   }
   alarm(): Promise<void> {
-    return this.ctx.blockConcurrencyWhile(async () => {
-      // Prearm repairs failures/restarts without depending on page traffic.
-      await this.ctx.storage.setAlarm(Date.now() + 5000)
-      const rotation = Number(this.env.DEMO_ROTATION_MS ?? Demo.limits.rotationMillis)
-      if (
-        !Number.isInteger(rotation) ||
-        rotation < 10_000 ||
-        rotation > Demo.limits.rotationMillis
-      ) {
-        throw new Error("Invalid demo rotation interval")
-      }
-      const schema = this.env.SCHEMA
-      const result = await Effect.runPromise(
-        Event.run(
-          config(this.env),
-          Effect.void,
-          Effect.gen(function* () {
-            const result = yield* Demo.tick(schema, rotation)
-            if (
-              result.phase === "published" ||
-              result.phase === "running" ||
-              result.phase === "waiting"
-            ) {
-              const sandbox = yield* Demo.current(schema)
-              yield* RepairShowcase.run(schema, sandbox)
-            }
-            return result
-          })
-        )
+    return this.ctx.blockConcurrencyWhile(() =>
+      Effect.runPromise(
+        Effect.gen({ self: this }, function* () {
+          // Prearm repairs failures/restarts without depending on page traffic.
+          yield* Effect.promise(() => this.ctx.storage.setAlarm(Date.now() + 5000))
+          const rotation = Number(this.env.DEMO_ROTATION_MS ?? Demo.limits.rotationMillis)
+          if (
+            !Number.isInteger(rotation) ||
+            rotation < 10_000 ||
+            rotation > Demo.limits.rotationMillis
+          ) {
+            throw new Error("Invalid demo rotation interval")
+          }
+          const schema = this.env.SCHEMA
+          const result = yield* Event.run(
+            config(this.env),
+            Effect.void,
+            Effect.gen(function* () {
+              const result = yield* Demo.tick(schema, rotation)
+              if (
+                result.phase === "published" ||
+                result.phase === "running" ||
+                result.phase === "waiting"
+              ) {
+                const sandbox = yield* Demo.current(schema)
+                yield* RepairShowcase.run(schema, sandbox)
+              }
+              return result
+            })
+          )
+          yield* kick(this.env)
+          yield* Effect.promise(() =>
+            this.ctx.storage.setAlarm(
+              Date.now() + (result.phase === "preparing" ? 1000 : 5000)
+            )
+          )
+        })
       )
-      await Effect.runPromise(kick(this.env))
-      await this.ctx.storage.setAlarm(
-        Date.now() + (result.phase === "preparing" ? 1000 : 5000)
-      )
-    })
+    )
   }
 }
 export class SandboxLive extends Live.makeDurableObject<Env, State>(
@@ -344,7 +371,6 @@ export class SandboxLive extends Live.makeDurableObject<Env, State>(
   },
   DurableObject
 ) {}
-import { PlaygroundError as HttpError } from "@effect-jobs/playground-contracts/Services"
 export default {
   fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
@@ -377,14 +403,20 @@ export default {
       url.pathname.startsWith("/api/demo/")
     ) {
       // Native RPC cannot be invoked by an untrusted HTTP caller.
-      return env.DEMO.getByName("shared")
-        .activate()
-        .then(() =>
-          url.pathname === "/demo" || url.pathname.startsWith("/demo/jobs/")
-            ? env.ASSETS.fetch(new Request(new URL("/demo", url), request))
-            : env.GATEWAY.getByName("shared").fetch(request)
+      return Effect.runPromise(
+        Effect.gen(function* () {
+          yield* Effect.promise(() => env.DEMO.getByName("shared").activate())
+          return yield* Effect.promise(() =>
+            url.pathname === "/demo" || url.pathname.startsWith("/demo/jobs/")
+              ? env.ASSETS.fetch(new Request(new URL("/demo", url), request))
+              : env.GATEWAY.getByName("shared").fetch(request)
+          )
+        }).pipe(
+          Effect.catchCause(() =>
+            Effect.succeed(Http.response({ code: "unavailable" }, 503))
+          )
         )
-        .catch(() => Http.response({ code: "unavailable" }, 503))
+      )
     }
     if (
       (url.pathname === "/jobs" ||
@@ -395,9 +427,13 @@ export default {
       return Promise.resolve(Http.response({ code: "not-found" }, 404))
     }
     if (url.pathname.startsWith("/api/")) {
-      return env.GATEWAY.getByName("shared")
-        .fetch(request)
-        .catch(() => Http.response({ code: "unavailable" }, 503))
+      return Effect.runPromise(
+        Effect.promise(() => env.GATEWAY.getByName("shared").fetch(request)).pipe(
+          Effect.catchCause(() =>
+            Effect.succeed(Http.response({ code: "unavailable" }, 503))
+          )
+        )
+      )
     }
     return env.ASSETS.fetch(
       url.pathname.startsWith("/jobs/")

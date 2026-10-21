@@ -75,10 +75,11 @@ useful for already-protected envelopes and custom codecs.
 ## Native transactions
 
 `PostgreSqlNative.layer({ client, operationTimeoutMillis })` supplies the adapter
-for the application's SAME native `PgClient@4.0.0`. `PostgreSqlJobs.layerNoDeps`
-provides `PostgreSqlJobs` and generic `JobEnqueue`. Native Drizzle
-`db.transaction(tx => Effect.gen(...))` and native client transactions both establish
-that client's context. `job.enqueue(input)` requires it; it has no transaction
+for the application's SAME native `PgClient@4.0.5`. `PostgreSqlJobs.layerNoDeps`
+provides `PostgreSqlJobs` and generic `JobEnqueue`. Public
+`client.withTransaction(body)` owns the transaction; Drizzle schema/queries run
+in that same client/Context. `db.transaction` retains its upstream type limitation
+and is excluded from positive qualification, without a local type correction. `job.enqueue(input)` requires it; it has no transaction
 argument or implicit fallback. Jobs/domain/receipts must share the same source.
 
 `backend.withTransaction(() => job.enqueue(input))` delegates explicit manager
@@ -89,6 +90,9 @@ outcomes remain unknown, without replay. The application owns pool, migrations,
 and finite native control/release timeouts. The library body/query deadlines do not
 promise a network timeout for an uninterruptible native transaction finalizer.
 Escaping the owning callback with retained/forked context is unsupported.
+Nested transactions/options/isolation are not automatically Drizzle-equivalent.
+A+B strict/exactOptional source checks use approved dependency skipLibCheck:true;
+C remains separately recorded known upstream FAIL and is nonblocking.
 
 Generic producer errors are bounded `JobBackendError` values with transaction
 misuse reason and `NotCommitted | Unknown` knowledge. Schema services remain in

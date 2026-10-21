@@ -9,8 +9,8 @@ import * as BrowserDocumentCrypto from "./BrowserDocumentCrypto.js"
 import { styles } from "./JobPayloadPanel.stylex.js"
 import { styles as primitiveStyles } from "../../../ui/Primitives.stylex.js"
 
-const HighlightedJson = ({ value }: { readonly value: unknown }) => {
-  const text = JSON.stringify(value, null, 2)
+const HighlightedJson = (props: { readonly value: unknown }) => {
+  const text = JSON.stringify(props.value, null, 2)
   // Static JSON token grammar; React escapes every token, including markup strings.
   const tokens = text.split(
     /("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\btrue\b|\bfalse\b|\bnull\b)/g
@@ -35,18 +35,15 @@ const HighlightedJson = ({ value }: { readonly value: unknown }) => {
   )
 }
 
-const PayloadContent = ({
-  detail,
-  canCopyEncoded
-}: {
+const PayloadContent = (inputProps: {
   readonly detail: JobDetail
   readonly canCopyEncoded: boolean
 }) => {
   const session = useSyntheticDocumentSession()
   const lockedStatus =
-    detail.payload._tag === "Unavailable"
+    inputProps.detail.payload._tag === "Unavailable"
       ? "Payload unavailable."
-      : detail.payload.encryption === "None"
+      : inputProps.detail.payload.encryption === "None"
         ? "Encoded payload."
         : "Locked."
   const [plaintext, setPlaintext] = useState<Document | null>(null)
@@ -93,7 +90,7 @@ const PayloadContent = ({
       window.removeEventListener("popstate", relock)
     }
   }, [])
-  const payload = detail.payload
+  const payload = inputProps.detail.payload
   const synthetic =
     payload._tag === "Available" &&
     payload.encryption === "SyntheticDocumentV1" &&
@@ -171,7 +168,7 @@ const PayloadContent = ({
       : payload._tag === "Available"
         ? payload.encoded
         : null
-  const canCopy = synthetic || canCopyEncoded
+  const canCopy = synthetic || inputProps.canCopyEncoded
   const copyPayload = () => {
     if (payload._tag !== "Available" || !canCopy || copyBusy || busy) {
       return
@@ -318,18 +315,22 @@ const PayloadContent = ({
 
 // Integration must unmount this panel on close/expiry. identityKey includes mode,
 // selected detail identity and generation; no plaintext belongs in return context.
-export const JobPayloadPanel = ({
-  detail,
-  identityKey,
-  allowCopyEncoded = false
-}: {
+export const JobPayloadPanel = (inputProps: {
   readonly detail: JobDetail
   readonly identityKey: string
   readonly allowCopyEncoded?: boolean
-}) => (
-  <PayloadContent
-    key={JSON.stringify([identityKey, detail.sandbox, detail.job.jobId, detail.payload])}
-    detail={detail}
-    canCopyEncoded={allowCopyEncoded}
-  />
-)
+}) => {
+  const { detail, identityKey, allowCopyEncoded = false } = inputProps
+  return (
+    <PayloadContent
+      key={JSON.stringify([
+        identityKey,
+        detail.sandbox,
+        detail.job.jobId,
+        detail.payload
+      ])}
+      detail={detail}
+      canCopyEncoded={allowCopyEncoded}
+    />
+  )
+}

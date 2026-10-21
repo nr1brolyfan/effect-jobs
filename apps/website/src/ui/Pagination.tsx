@@ -17,18 +17,20 @@ export interface PaginationProps {
   readonly onNext: () => void
 }
 
-export function Pagination({
-  current,
-  pages,
-  hasPrevious,
-  hasNext,
-  disabled = false,
-  busy = false,
-  onPage,
-  onFirst,
-  onPrevious,
-  onNext
-}: PaginationProps) {
+export function Pagination(props: PaginationProps) {
+  const {
+    current,
+    pages,
+    hasPrevious,
+    hasNext,
+    disabled = false,
+    busy = false,
+    onPage,
+    onFirst,
+    onPrevious,
+    onNext
+  } = props
+
   const known = [...new Set(pages)].sort((a, b) => a - b)
   const index = known.indexOf(current)
   // Omit only entries that actually exist in known cursor history. Numeric gaps
@@ -72,32 +74,34 @@ export function Pagination({
             Previous
           </Button>
         </li>
-        {visible.map(({ page, index: i }, v) => (
-          <Fragment key={page}>
-            {v > 0 && i > visible[v - 1]!.index + 1 ? (
+        {visible.map((item, v) => {
+          return (
+            <Fragment key={item.page}>
+              {v > 0 && item.index > visible[v - 1]!.index + 1 ? (
+                <li>
+                  <span {...stylex.props(styles.ellipsis)} aria-label="More pages">
+                    …
+                  </span>
+                </li>
+              ) : null}
               <li>
-                <span {...stylex.props(styles.ellipsis)} aria-label="More pages">
-                  …
-                </span>
+                <Button
+                  variant={item.page === current ? "primary" : "ghost"}
+                  disabled={disabled}
+                  aria-current={item.page === current ? "page" : undefined}
+                  aria-label={`Page ${item.page}`}
+                  onClick={() => {
+                    if (!disabled) {
+                      onPage(item.page)
+                    }
+                  }}
+                >
+                  {item.page}
+                </Button>
               </li>
-            ) : null}
-            <li>
-              <Button
-                variant={page === current ? "primary" : "ghost"}
-                disabled={disabled}
-                aria-current={page === current ? "page" : undefined}
-                aria-label={`Page ${page}`}
-                onClick={() => {
-                  if (!disabled) {
-                    onPage(page)
-                  }
-                }}
-              >
-                {page}
-              </Button>
-            </li>
-          </Fragment>
-        ))}
+            </Fragment>
+          )
+        })}
         <li>
           <Button
             disabled={disabled || !hasNext}

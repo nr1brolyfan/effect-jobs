@@ -37,3 +37,34 @@ export { WorkerCapability } from '${root}/src/internal/worker/Capability.ts';`,
     }
   ]
 })
+
+// Bundle real source-resolved fixtures so lint/type analysis and execution use the same API.
+for (const name of ["Controls", "Extended", "Focused", "ProviderCause"]) {
+  await build({
+    entryPoints: [
+      resolve(root, "apps/playground-worker/tests/execution/regressions", `${name}.mjs`)
+    ],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    outfile: `${name}.mjs`,
+    external: ["effect", "effect/*"],
+    plugins: [
+      {
+        name: "frozen-fixture-source",
+        setup(b) {
+          b.onResolve({ filter: /^effect-jobs\// }, (a) => ({
+            path: resolve(root, "src", a.path.slice("effect-jobs/".length) + ".ts")
+          }))
+          b.onResolve({ filter: /^@effect-jobs\/playground-contracts\// }, (a) => ({
+            path: resolve(
+              root,
+              "packages/playground-contracts/src",
+              a.path.slice("@effect-jobs/playground-contracts/".length) + ".ts"
+            )
+          }))
+        }
+      }
+    ]
+  })
+}

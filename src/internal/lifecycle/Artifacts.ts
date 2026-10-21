@@ -15,7 +15,7 @@ export const PreparedArtifact = Schema.Struct({
   catalog: CatalogIdentity,
   producer: ProducerIdentity,
   policy: PersistedJobPolicy,
-  availableAt: Schema.optional(EpochMillis),
+  availableAt: EpochMillis.pipe(Schema.optional),
   encoded: Schema.Struct({
     formatVersion: Schema.Literal(Contract.jobPayloadFormatVersion),
     payloadBytes: bytes(Contract.maximumJobPayloadBytes),

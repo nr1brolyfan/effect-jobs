@@ -28,7 +28,7 @@ writeFileSync(
     type: "module",
     dependencies: {
       "effect-jobs": `file:${archive}`,
-      effect: "4.0.0",
+      effect: "4.0.5",
       typescript: "7.0.2",
       "@types/node": "26.4.1"
     }

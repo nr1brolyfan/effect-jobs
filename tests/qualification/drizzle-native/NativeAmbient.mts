@@ -4,17 +4,21 @@ import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto"
 import { Pool } from "pg"
-import { Deferred, Effect, Exit, Fiber, Option, Redacted, Schema } from "effect"
+import { Cause, Deferred, Effect, Exit, Fiber, Option, Redacted, Schema } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import * as Pg from "@effect/sql-pg/PgClient"
 import * as Drizzle from "drizzle-orm/effect-postgres"
+import { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 import { pgSchema, text } from "drizzle-orm/pg-core"
-import type { SqlError as SqlErrorType } from "effect/sql/SqlError"
 import { ConnectionError, SqlError } from "effect/sql/SqlError"
 import { readQualificationResource } from "../Resource.mjs"
 import * as Jobs from "effect-jobs/PostgreSqlJobs"
 import * as Native from "effect-jobs/PostgreSqlNative"
-import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
+import { sanitizeControls } from "./NativeApplication.mjs"
+import {
+  PostgreSqlFailure,
+  PostgreSqlApplication
+} from "effect-jobs/PostgreSqlTransaction"
 import { JobEnqueue, JobBackendError } from "effect-jobs/JobEnqueue"
 import * as Tables from "effect-jobs/PostgreSqlSchema"
 import * as Job from "effect-jobs/Job"
@@ -47,6 +51,8 @@ const config = {
 const schema = "ambient_native"
 const mapping = Tables.tables({ schema })
 const domain = pgSchema(schema).table("invoices", { id: text("id").primaryKey() })
+const receipts = pgSchema(schema).table("receipts", { id: text("id").primaryKey() })
+const traceReceipts: Array<{ id: string; pid: number; xid: string }> = []
 const definition = Job.make({
   queue: Queue.make("billing"),
   kind: "receipt",
@@ -72,23 +78,32 @@ try {
   schemaCreated = true
   await admin.query(Tables.migration(mapping))
   await admin.query(
-    `CREATE TABLE ${schema}.invoices (id text PRIMARY KEY); ALTER TABLE ${schema}.jobs ADD CHECK(operation_id <> 'fail-job'); GRANT USAGE ON SCHEMA ${schema} TO ${role}; GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA ${schema} TO ${role}`
+    `CREATE TABLE ${schema}.invoices (id text PRIMARY KEY);
+       CREATE TABLE ${schema}.receipts (id text PRIMARY KEY REFERENCES ${schema}.invoices(id));
+       CREATE TABLE ${schema}.trace (relation text NOT NULL,pid int NOT NULL,xid text NOT NULL);
+       CREATE FUNCTION ${schema}.record_write() RETURNS trigger LANGUAGE plpgsql AS $$
+       BEGIN INSERT INTO ${schema}.trace VALUES(TG_TABLE_NAME,pg_backend_pid(),txid_current()::text); RETURN NEW; END $$;
+       CREATE TRIGGER trace_business AFTER INSERT ON ${schema}.invoices FOR EACH ROW EXECUTE FUNCTION ${schema}.record_write();
+       CREATE TRIGGER trace_receipt AFTER INSERT ON ${schema}.receipts FOR EACH ROW EXECUTE FUNCTION ${schema}.record_write();
+       CREATE TRIGGER trace_job AFTER INSERT ON ${schema}.jobs FOR EACH ROW EXECUTE FUNCTION ${schema}.record_write();
+       CREATE TRIGGER trace_payload AFTER INSERT ON ${schema}.job_payloads FOR EACH ROW EXECUTE FUNCTION ${schema}.record_write(); ALTER TABLE ${schema}.jobs ADD CHECK(operation_id <> 'fail-job'); GRANT USAGE ON SCHEMA ${schema} TO ${role}; GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA ${schema} TO ${role}`
   )
   const count = (id: string) =>
     Effect.promise(
       async () =>
         (
           await admin.query(
-            `SELECT (SELECT count(*)::int FROM ${schema}.invoices WHERE id=$1) AS domain,(SELECT count(*)::int FROM ${schema}.jobs WHERE operation_id=$1) AS jobs,(SELECT count(*)::int FROM ${schema}.job_payloads p JOIN ${schema}.jobs j ON j.id=p.job_id WHERE j.operation_id=$1) AS payload`,
+            `SELECT (SELECT count(*)::int FROM ${schema}.invoices WHERE id=$1) AS domain,(SELECT count(*)::int FROM ${schema}.receipts WHERE id=$1) AS receipt,(SELECT count(*)::int FROM ${schema}.jobs WHERE operation_id=$1) AS jobs,(SELECT count(*)::int FROM ${schema}.job_payloads p JOIN ${schema}.jobs j ON j.id=p.job_id WHERE j.operation_id=$1) AS payload`,
             [id]
           )
         ).rows[0]
     )
-  const none = { domain: 0, jobs: 0, payload: 0 }
-  const all = { domain: 1, jobs: 1, payload: 1 }
+  const none = { domain: 0, receipt: 0, jobs: 0, payload: 0 }
+  const all = { domain: 1, receipt: 1, jobs: 1, payload: 1 }
   const program = Effect.gen(function* () {
     const client = yield* Pg.PgClient
     const db = yield* Drizzle.makeWithDefaults()
+    assert.strictEqual(db.$client, client)
     const adapter = Native.make({ client, operationTimeoutMillis: 2000 })
     const backend = yield* Jobs.make({
       ...mapping,
@@ -96,29 +111,85 @@ try {
     }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
     yield* backend.ready
     return yield* Effect.gen(function* () {
-      type Db = typeof db
-      type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0]
-      const transact = <A, E, R>(
-        body: (tx: Tx) => Effect.Effect<A, E, R>
-      ): Effect.Effect<A, E | SqlErrorType, R> => {
-        const invoke: (
-          body: (tx: Tx) => Effect.Effect<A, E, R>
-        ) => Effect.Effect<A, E | SqlErrorType, R> = db.transaction.bind(db)
-        return invoke(body)
-      }
-      const produce = (id: string, fail = false) =>
-        transact((tx) =>
+      const produce = (
+        id: string,
+        fail: boolean | "sql-error" | "query-error" | "lost-commit" = false
+      ) =>
+        client.withTransaction(
           Effect.gen(function* () {
-            yield* tx.insert(domain).values({ id })
+            const active = yield* Effect.serviceOption(client.transactionService)
+            assert(Option.isSome(active))
+            assert.equal(active.value[1], 0)
+            yield* db.insert(domain).values({ id })
             const before = yield* client.unsafe(
               "SELECT pg_backend_pid() AS pid,txid_current()::text AS xid"
             )
-            const result = yield* definition.enqueue(input(id))
+            const result = yield* backend.withTransaction(() =>
+              Effect.gen(function* () {
+                const joined = yield* Effect.serviceOption(client.transactionService)
+                assert(Option.isSome(joined))
+                assert.strictEqual(joined.value[0], active.value[0])
+                assert.equal(joined.value[1], 0)
+                return yield* definition.enqueue(input(id))
+              })
+            )
+            yield* db.insert(receipts).values({ id })
+            const trace = yield* client.unsafe(
+              "SELECT relation,pid,xid FROM ambient_native.trace WHERE xid=txid_current()::text ORDER BY relation"
+            )
+            const rows = yield* Schema.decodeUnknownEffect(
+              Schema.Array(
+                Schema.Struct({
+                  relation: Schema.String,
+                  pid: Schema.Int,
+                  xid: Schema.String
+                })
+              )
+            )(trace)
+            assert.deepEqual(
+              rows.map((row) => row.relation),
+              ["invoices", "job_payloads", "jobs", "receipts"]
+            )
+            for (const row of rows) {
+              assert.deepEqual({ pid: row.pid, xid: row.xid }, before[0])
+            }
+            traceReceipts.push({ id, pid: rows[0]!.pid, xid: rows[0]!.xid })
+            assert.deepEqual(yield* count(id), none)
             const after = yield* client.unsafe(
               "SELECT pg_backend_pid() AS pid,txid_current()::text AS xid"
             )
             assert.deepEqual(before, after)
-            if (fail) {
+            if (fail === "sql-error") {
+              yield* client.unsafe("SELECT 1/0")
+            }
+            if (fail === "query-error") {
+              yield* db.insert(domain).values({ id })
+            }
+            if (fail === "lost-commit") {
+              // Deterministic response loss AFTER actual durable COMMIT, not a network fault.
+              const connection = active.value[0]
+              const executeRaw = connection.executeRaw.bind(connection)
+              Object.assign(connection, {
+                executeRaw: (...args: Parameters<typeof executeRaw>) => {
+                  if (args[0] !== "COMMIT") {
+                    return executeRaw(...args)
+                  }
+                  Object.assign(connection, { executeRaw })
+                  return executeRaw(...args).pipe(
+                    Effect.andThen(
+                      Effect.fail(
+                        new SqlError({
+                          reason: new ConnectionError({
+                            cause: "synthetic outer post-commit response loss"
+                          })
+                        })
+                      )
+                    )
+                  )
+                }
+              })
+            }
+            if (fail === true) {
               return yield* Effect.fail("caller-rollback" as const)
             }
             return result
@@ -131,7 +202,43 @@ try {
       const rolled = yield* Effect.exit(produce("rollback", true))
       assert(Exit.isFailure(rolled))
       assert.deepEqual(yield* count("rollback"), none)
-      checks.push("native Drizzle same connection/xid atomic commit and caller rollback")
+      checks.push(
+        "public native owner: same client/Context/PID/xid, four atomic writes, provisional join and caller rollback"
+      )
+      for (const mode of ["sql-error", "query-error"] as const) {
+        const failed = yield* Effect.exit(produce(mode, mode))
+        assert(Exit.isFailure(failed))
+        assert(
+          failed.cause.reasons.some(
+            (reason) =>
+              Cause.isFailReason(reason) &&
+              (mode === "sql-error"
+                ? reason.error instanceof SqlError
+                : reason.error instanceof EffectDrizzleQueryError)
+          )
+        )
+        assert.deepEqual(yield* count(mode), none)
+      }
+      checks.push(
+        "native SQL and Drizzle query errors retain typed channels and roll back four writes"
+      )
+      const outerLost = yield* Effect.exit(
+        sanitizeControls(produce("outer-lost", "lost-commit"))
+      )
+      assert(Exit.isFailure(outerLost))
+      assert(
+        outerLost.cause.reasons.some(
+          (reason) =>
+            Cause.isFailReason(reason) &&
+            reason.error instanceof PostgreSqlFailure &&
+            reason.error.commitKnowledge === "Unknown"
+        )
+      )
+      // Receipt read is reconciliation evidence, not permission to replay the mutation.
+      assert.deepEqual(yield* count("outer-lost"), all)
+      checks.push(
+        "outer synthetic post-durable-COMMIT response loss; exact receipt present, no replay, no NotCommitted inference"
+      )
       yield* Effect.all([produce("parallel-a"), produce("parallel-b")], {
         concurrency: 2
       })
@@ -165,10 +272,11 @@ try {
       checks.push("no active / foreign client rejection with no implicit transaction")
       const entered = yield* Deferred.make<void>()
       const fiber = yield* Effect.forkScoped(
-        transact((tx) =>
+        client.withTransaction(
           Effect.gen(function* () {
-            yield* tx.insert(domain).values({ id: "interrupted" })
+            yield* db.insert(domain).values({ id: "interrupted" })
             yield* definition.enqueue(input("interrupted"))
+            yield* db.insert(receipts).values({ id: "interrupted" })
             yield* Deferred.succeed(entered, undefined)
             return yield* Effect.never
           })
@@ -176,12 +284,19 @@ try {
       )
       yield* Deferred.await(entered)
       yield* Fiber.interrupt(fiber)
+      const interrupted = yield* Fiber.await(fiber)
+      assert(Exit.isFailure(interrupted) && Cause.hasInterrupts(interrupted.cause))
       assert.deepEqual(yield* count("interrupted"), none)
       checks.push("caller interruption rolls back domain/job/payload")
       const standalone = yield* definition.enqueueStandalone(input("standalone"))
       assert.equal(standalone._tag, "Inserted")
-      assert.deepEqual(yield* count("standalone"), { domain: 0, jobs: 1, payload: 1 })
-      const active = yield* transact(() =>
+      assert.deepEqual(yield* count("standalone"), {
+        domain: 0,
+        receipt: 0,
+        jobs: 1,
+        payload: 1
+      })
+      const active = yield* client.withTransaction(
         Effect.flip(definition.enqueueStandalone(input("active")))
       )
       assert(active instanceof JobBackendError)
@@ -230,7 +345,12 @@ try {
       const unknown = yield* Effect.flip(lost.enqueueStandalone(input("lost-commit")))
       assert(unknown instanceof JobBackendError)
       assert.equal(unknown.commitKnowledge, "Unknown")
-      assert.deepEqual(yield* count("lost-commit"), { domain: 0, jobs: 1, payload: 1 })
+      assert.deepEqual(yield* count("lost-commit"), {
+        domain: 0,
+        receipt: 0,
+        jobs: 1,
+        payload: 1
+      })
       checks.push(
         "standalone post-durable-COMMIT synthetic response loss preserves Unknown without replay"
       )
@@ -343,6 +463,7 @@ try {
       {
         runtime: process.versions.bun ? "bun" : "node",
         checks: result,
+        traces: traceReceipts,
         success: true,
         limits:
           "Pinned native clients only; synthetic response fault, no server/network crash qualification; local AES-GCM/HMAC test keys only, application crypto remains application-owned"

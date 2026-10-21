@@ -147,7 +147,7 @@ const receipt = {
   bun: execFileSync("bun", ["--version"], { encoding: "utf8" }).trim(),
   base: "46ad75d8297838703bd49b95eb4370e97080603d",
   versions: {
-    effect: "4.0.0",
+    effect: "4.0.5",
     typescript: "7.0.2",
     oxfmt: "0.71.0",
     oxlint: "1.86.0",

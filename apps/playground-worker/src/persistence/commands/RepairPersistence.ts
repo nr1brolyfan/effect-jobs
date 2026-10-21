@@ -293,22 +293,23 @@ const makeService = (transactions: typeof RepairTransactions.Service) =>
                 yield* tx.save(result, changes)
                 return result
               }).pipe(
-                Effect.catchTag("RepairSourceRejected", (error) =>
-                  Effect.succeed(reject(error.reason))
-                ),
-                Effect.catchTag("OperatorSourceRejected", (error) =>
-                  Effect.succeed(reject(error.reason))
-                ),
-                Effect.catchTag("JobPayloadCodecError", () =>
-                  Effect.succeed(reject("invalid-payload"))
-                ),
+                Effect.catchTags({
+                  RepairSourceRejected: (error) => Effect.succeed(reject(error.reason))
+                }),
+                Effect.catchTags({
+                  OperatorSourceRejected: (error) => Effect.succeed(reject(error.reason))
+                }),
+                Effect.catchTags({
+                  JobPayloadCodecError: () => Effect.succeed(reject("invalid-payload"))
+                }),
                 // lineage-conflict poisons the transaction and MUST NOT be saved as a
                 // safe refusal after a partial core insert.
-                Effect.catchTag("JobOperatorRejected", (error) =>
-                  String(error.reason) === "lineage-conflict"
-                    ? Effect.fail(error)
-                    : Effect.succeed(reject(error.reason))
-                )
+                Effect.catchTags({
+                  JobOperatorRejected: (error) =>
+                    String(error.reason) === "lineage-conflict"
+                      ? Effect.fail(error)
+                      : Effect.succeed(reject(error.reason))
+                })
               )
               const result = yield* operate
               if (

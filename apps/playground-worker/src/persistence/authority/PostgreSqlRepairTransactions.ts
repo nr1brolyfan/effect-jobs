@@ -1,7 +1,7 @@
 // @effect-diagnostics unstableApiUsage:off
 import { Cause, Effect, Layer, Option, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
-import { isSqlError, type SqlError } from "effect/sql/SqlError"
+import { controls } from "./TransactionControls.js"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import { SandboxRef, type SandboxAccess } from "@effect-jobs/playground-contracts/Sandbox"
 import {
@@ -27,26 +27,6 @@ const fail = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
 const sameRef = (a: SandboxRef, b: SandboxRef) =>
   a.sandboxId === b.sandboxId && a.generation === b.generation
 const clock = "floor(extract(epoch FROM clock_timestamp())*1000)::bigint"
-const controls = <A, E, R>(effect: Effect.Effect<A, E | SqlError, R>) =>
-  effect.pipe(
-    Effect.catchCause((cause) =>
-      Effect.failCause(
-        Cause.fromReasons<E | CommandTransactionFailure>(
-          cause.reasons.map((reason) => {
-            if (
-              (Cause.isFailReason(reason) && isSqlError(reason.error)) ||
-              (Cause.isDieReason(reason) && isSqlError(reason.defect))
-            ) {
-              return Cause.makeFailReason(
-                new CommandTransactionFailure({ commitKnowledge: "Unknown" })
-              )
-            }
-            return reason as Cause.Reason<E>
-          })
-        )
-      )
-    )
-  )
 const decode = <S extends Schema.Top & { readonly DecodingServices: never }>(
   schema: S,
   input: unknown

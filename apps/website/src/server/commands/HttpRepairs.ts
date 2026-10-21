@@ -37,51 +37,47 @@ export const body = (request: Request) =>
     (reader) =>
       reader === undefined
         ? Effect.fail(invalid())
-        : Effect.tryPromise({
-            // Fetch stream FFI. Ignore Content-Length and bound actual streamed bytes.
-            try: async () => {
-              const chunks: Uint8Array[] = []
-              let length = 0
-              for (;;) {
-                const next = await reader.read()
-                if (next.done) {
-                  break
-                }
-                length += next.value.byteLength
-                if (length > maximumBodyBytes) {
-                  throw invalid()
-                }
-                chunks.push(next.value)
+        : Effect.gen(function* () {
+            const chunks: Uint8Array[] = []
+            let size = 0
+            for (;;) {
+              const chunk = yield* Effect.tryPromise({
+                try: () => reader.read(),
+                catch: invalid
+              })
+              if (chunk.done) {
+                break
               }
-              const bytes = new Uint8Array(length)
-              let offset = 0
-              for (const chunk of chunks) {
-                bytes.set(chunk, offset)
-                offset += chunk.byteLength
+              size += chunk.value.byteLength
+              if (size > maximumBodyBytes) {
+                return yield* invalid()
               }
-              return JSON.parse(
-                new TextDecoder("utf-8", { fatal: true }).decode(bytes)
-              ) as unknown
-            },
-            catch: invalid
+              chunks.push(chunk.value)
+            }
+            return yield* Effect.try({
+              try: () => {
+                const bytes = new Uint8Array(size)
+                let offset = 0
+                for (const chunk of chunks) {
+                  bytes.set(chunk, offset)
+                  offset += chunk.byteLength
+                }
+                return JSON.parse(
+                  new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+                ) as unknown
+              },
+              catch: invalid
+            })
           }),
     (reader) =>
       reader === undefined
         ? Effect.void
-        : Effect.promise(async () => {
-            let timer: ReturnType<typeof setTimeout> | undefined
-            try {
-              await Promise.race([
-                reader.cancel().catch(() => undefined),
-                new Promise<void>((resolve) => {
-                  timer = setTimeout(resolve, 100)
-                })
-              ])
-            } finally {
-              clearTimeout(timer)
-              reader.releaseLock()
-            }
-          })
+        : Effect.tryPromise({ try: () => reader.cancel(), catch: () => undefined }).pipe(
+            Effect.ignore,
+            Effect.interruptible,
+            Effect.timeoutOption(100),
+            Effect.ensuring(Effect.sync(() => reader.releaseLock()))
+          )
   ).pipe(Effect.timeout("2 seconds"), Effect.mapError(invalid))
 
 // Serial route owner authenticates, enforces LOCAL_PRIVATE and rate limits

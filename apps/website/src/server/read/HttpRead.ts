@@ -77,7 +77,7 @@ export const handle = (
         Schema.Struct({
           ...JobDetailRequest.fields,
           limit: ListJobs.fields.limit,
-          cursor: Schema.optional(Cursor)
+          cursor: Cursor.pipe(Schema.optional)
         })
       )(
         {

@@ -128,9 +128,9 @@ export const makeStore = (
               ? result
               : Store.ClaimResults.Unknown()
           ),
-          Effect.catchTag("PostgreSqlFailure", () =>
-            Effect.succeed(Store.ClaimResults.Unknown())
-          )
+          Effect.catchTags({
+            PostgreSqlFailure: () => Effect.succeed(Store.ClaimResults.Unknown())
+          })
         )
     })
   const reconcileClaim: Store.JobStoreService<PostgreSqlError>["reconcileClaim"] = (
