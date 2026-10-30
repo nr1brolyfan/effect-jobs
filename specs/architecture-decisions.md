@@ -376,10 +376,12 @@ exceeding the stored limit ends the job as Dead. Unknown outcomes can repeat an
 attempt number and lead to additional handler invocations. An attempt timeout
 does not prove that external effects did not occur.
 
-The owner reaffirmed fixed-delay retry for this extraction. Exponential backoff
-with jitter is recorded as a future strategy, not activated implementation scope.
-Its multiplier, cap, jitter distribution and persisted/versioned representation
-must be specified and qualified separately before adding it.
+Fixed-delay-only retry was the extraction baseline. On 2026-10-30 the owner
+accepted the composable `JobRetryPolicy` API with `maxAttempts` and explicit
+`Policy.make({ retry })` assembly, and authorized direct local implementation.
+The API, full-jitter arithmetic, versioned persistence, compatibility and rollout
+contract are specified in [retry policy](retry-policy.md). This extends retries,
+not unknown-outcome recovery, and does not authorize publication or deployment.
 
 ## D5 — explicit application-owned protection and codec boundaries
 

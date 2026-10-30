@@ -75,9 +75,25 @@ export function JobMetadata(inputProps: { readonly detail: JobDetail }) {
                   value: formatDuration(policy.leaseDurationMillis)
                 },
                 {
-                  label: "Retry delay",
+                  label:
+                    policy.retrySchedule._tag === "FixedDelayV1"
+                      ? "Retry delay"
+                      : "Retry base delay",
                   value: formatDuration(policy.retrySchedule.delayMillis)
                 },
+                ...(policy.retrySchedule._tag === "FixedDelayV1"
+                  ? []
+                  : [
+                      { label: "Retry factor", value: policy.retrySchedule.factor },
+                      {
+                        label: "Retry cap",
+                        value: formatDuration(policy.retrySchedule.maxDelayMillis)
+                      },
+                      {
+                        label: "Retry jitter",
+                        value: policy.retrySchedule.jitter === "Full" ? "Full" : "None"
+                      }
+                    ]),
                 {
                   label: "Completed retention",
                   value:

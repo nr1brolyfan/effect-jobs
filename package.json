@@ -1,6 +1,6 @@
 {
   "name": "effect-jobs",
-  "version": "0.1.0-alpha.1-effect.4.1.0.local.1",
+  "version": "0.1.0-alpha.1-effect.4.1.0.local.2",
   "private": false,
   "description": "Effect-native durable, transaction-bound background jobs.",
   "license": "MIT",
@@ -88,6 +88,10 @@
       "types": "./dist/JobPolicy.d.ts",
       "import": "./dist/JobPolicy.js"
     },
+    "./JobRetryPolicy": {
+      "types": "./dist/JobRetryPolicy.d.ts",
+      "import": "./dist/JobRetryPolicy.js"
+    },
     "./JobFailure": {
       "types": "./dist/JobFailure.d.ts",
       "import": "./dist/JobFailure.js"
@@ -128,7 +132,8 @@
     "specs/drizzle-compatibility.md",
     "specs/release-qualification.md",
     "specs/api-refinements.md",
-    "specs/operator-contract.md"
+    "specs/operator-contract.md",
+    "specs/retry-policy.md"
   ],
   "scripts": {
     "toolchain:setup": "effect-tsgo patch --typescript --oxlint",

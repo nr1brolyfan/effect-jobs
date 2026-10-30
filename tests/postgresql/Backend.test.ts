@@ -9,6 +9,8 @@ import * as Job from "../../src/Job.js"
 import * as Queue from "../../src/JobQueue.js"
 import * as Producer from "../../src/JobProducer.js"
 import * as Policy from "../../src/JobPolicy.js"
+import * as Retry from "../../src/JobRetryPolicy.js"
+import * as Lifecycle from "../../src/JobLifecycle.js"
 import * as Jobs from "../../src/PostgreSqlJobs.js"
 import * as Tables from "../../src/PostgreSqlSchema.js"
 import {
@@ -568,7 +570,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
               )
               yield* definition
                 .enqueueInTransaction(tx, input("duplicate", "different"))
-                .pipe(Effect.catchTag("JobIntegrityConflict", () => Effect.void))
+                .pipe(Effect.catchTags({ JobIntegrityConflict: () => Effect.void }))
             })
           )
         )
@@ -973,6 +975,69 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     })
     expect(await row("retry")).toMatchObject({ state: "Dead" })
     expect(Number((await row("retry")).attempts_made)).toBe(2)
+  })
+  test("exponential jitter persists the selected time across backend recreation and uncertain COMMIT", async () => {
+    await clear()
+    const configured = Policy.make({
+      retry: Retry.exponential(Duration.seconds(10)).pipe(
+        Retry.capped(Duration.minutes(1)),
+        Retry.jittered(),
+        Retry.maxAttempts(5)
+      )
+    })
+    await enqueue("backoff", "backoff", configured)
+    // Matching production replay keeps the first policy, not new deployment defaults.
+    await enqueue("backoff", "backoff", Policy.defaultPolicy)
+    let claimed = await claim()
+    expect(claimed.snapshot.policy).toEqual(configured)
+    for (const expectedDelay of [5000, 10000, 20000, 30000]) {
+      const command = Lifecycle.JobFinalizations.Retry({
+        code: FailureCodes.define({ temporary: "temporary" }).temporary,
+        jitterSample: 0.5
+      })
+      const finalizationRequest = {
+        ownership: claimed.ownership,
+        before: claimed.snapshot,
+        finalization: command
+      }
+      // Inject only a lost response after the real owned transaction committed.
+      const responseLost = await make({
+        ...adapter,
+        ownedTransaction: (body) =>
+          adapter
+            .ownedTransaction(body)
+            .pipe(
+              Effect.flatMap(() =>
+                Effect.fail(new PostgreSqlFailure({ commitKnowledge: "Unknown" }))
+              )
+            )
+      })
+      expect(
+        (await Effect.runPromise(responseLost.store.finalize(finalizationRequest)))._tag
+      ).toBe("Unknown")
+      const stored = await row("backoff")
+      expect(stored.state).toBe("RetryScheduled")
+      expect(Number(stored.available_at) - Number(stored.updated_at)).toBe(expectedDelay)
+      const restarted = await make(adapter)
+      expect(
+        (
+          await Effect.runPromise(
+            restarted.store.reconcileFinalization(finalizationRequest)
+          )
+        )._tag
+      ).toBe("Applied")
+      expect((await row("backoff")).available_at).toBe(stored.available_at)
+      expect((await Effect.runPromise(restarted.store.claim(request())))._tag).toBe(
+        "Empty"
+      )
+      // Advance only this owned fixture's due time; don't wait minutes in real time.
+      await observer.query(
+        "UPDATE backend_fixture.tasks SET available_at=1 WHERE operation_id='backoff'"
+      )
+      claimed = await claim()
+    }
+    await finish(claimed)
+    expect((await row("backoff")).state).toBe("Completed")
   })
   test("PostgreSQL rejects duplicate schema-wide custom index names; library owns no automatic migration", async () => {
     const name = `${Tables.indexPrefix(mapping)}_due`

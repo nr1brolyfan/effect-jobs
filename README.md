@@ -56,11 +56,11 @@ const ReceiptHandler = SendReceipt.handlerLayer(
 
 ## Install
 
-Examples target the local-only `0.1.0-alpha.1-effect.4.1.0.local.1` candidate, which is not an npm release. Its exact peers are Effect `4.1.0` and optional Drizzle `1.0.0-rc.5`. This prerelease changes the alpha.0 enqueue,
+Examples target the local-only `0.1.0-alpha.1-effect.4.1.0.local.2` candidate, which is not an npm release. Its exact peers are Effect `4.1.0` and optional Drizzle `1.0.0-rc.5`. This prerelease changes the alpha.0 enqueue,
 policy, failure-code and encrypted-payload APIs; update callers before upgrading.
 
 ```sh
-npm install ./effect-jobs-0.1.0-alpha.1-effect.4.1.0.local.1.tgz effect@4.1.0
+npm install ./effect-jobs-0.1.0-alpha.1-effect.4.1.0.local.2.tgz effect@4.1.0
 ```
 
 Imports are omitted below. Use package subpaths (`effect-jobs/Job`, `effect-jobs/JobPolicy`, …); the root export is empty. `Codec` refers to `JobPayloadCodec`; `Consumer`, `Worker`, `Runtime`, `Polling` and `Registry` refer to the corresponding `JobConsumer`, `JobWorker`, `JobWorkerRuntime`, `PollingJobWorker` and `JobRegistry` modules.
@@ -344,12 +344,19 @@ A timeout is not proof that no email was sent. Unknown outcomes use bounded leas
 
 ## Policy belongs to the job
 
+Compose retry settings with `effect-jobs/JobRetryPolicy`, imported as `Retry`.
+
 ```ts
+const retry = Retry.exponential(Duration.seconds(1)).pipe(
+  Retry.capped(Duration.minutes(1)),
+  Retry.jittered(),
+  Retry.maxAttempts(4)
+)
+
 const receiptPolicy = JobPolicy.make({
   attemptTimeout: Duration.seconds(20), // Time budget for one handler execution.
   leaseDuration: Duration.seconds(60), // Fixed, nonrenewing; must exceed timeout.
-  retryDelay: Duration.seconds(10), // Fixed delay, not exponential backoff.
-  maxAttempts: 4, // Includes the first finalized attempt.
+  retry, // Attempt limit includes the first finalized attempt.
   maxStalledCount: 1, // Separate bound for stalled recovery.
   completedRetention: Duration.days(30), // Completed jobs become cleanup-eligible after 30 days.
   deadRetention: Duration.infinity // Retain failures for investigation.
@@ -364,6 +371,12 @@ yield* SendReceipt.enqueue({
 ```
 
 Policy is persisted at enqueue. Changing this constant affects new jobs, not existing ones; a matching duplicate keeps its first policy. Retention makes terminal jobs eligible for explicit cleanup—it does not start a cleanup worker. Removing identity evidence ends deduplication.
+
+Use `Retry.fixed(Duration.seconds(5))` for a constant delay. Exponential retries
+start at the base delay, grow by a factor of two, and stop growing at the cap.
+Full jitter selects an integer delay from zero through that capped value. The
+worker persists the resulting availability; restarting does not redraw it.
+See [retry policy](specs/retry-policy.md) for compatibility and worker rollout.
 
 ## Encrypt only what needs to travel
 

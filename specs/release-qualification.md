@@ -1,5 +1,17 @@
 # Local Effect 4.1.0 / Drizzle rc.5 candidate
 
+## Isolated retry API candidate
+
+`0.1.0-alpha.1-effect.4.1.0.local.2` adds the owner-approved
+[composable retry policy](retry-policy.md) on the local.1 dependency baseline.
+It remains isolated from the owner checkout and the separate API/docs redesign.
+Core Node/Bun, source PostgreSQL persistence and installed-consumer checks must
+be tied to these new bytes, not borrowed from local.1. Original full-verification
+and foreign-declaration limits remain unwaived. Independent review and owner
+integration are not claimed by local tests or artifact creation.
+
+## Historical Effect 4.1.0 local.1 dependency candidate
+
 `0.1.0-alpha.1-effect.4.1.0.local.1` targets exact `effect@4.1.0` and optional
 `drizzle-orm@1.0.0-rc.5`. Active native/platform/Atom companions and qualification
 consumers use `4.1.0` as well. Node, Bun and compiler pins are unchanged.

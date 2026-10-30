@@ -2,21 +2,21 @@
  * Resolves immutable execution and retention policy for durable storage.
  */
 import { Data, Duration, Schema } from "effect"
+import type { JobRetryPolicy } from "./JobRetryPolicy.js"
+import * as Retry from "./internal/policy/Retry.js"
 
 /**
  * Upper bound for persisted durations and positive epoch-millisecond timestamps.
  *
  * @category constants
  */
-export const maximumMillis = 253_402_300_799_999
+export const maximumMillis = Retry.maximumMillis
 /**
  * Integer milliseconds in 1–253,402,300,799,999; no rounding or clamping.
  *
  * @category schemas
  */
-export const PositiveMillis = Schema.Int.pipe(
-  Schema.check(Schema.isBetween({ minimum: 1, maximum: maximumMillis }))
-)
+export const PositiveMillis = Retry.PositiveMillis
 /**
  * Positive bounded epoch-millisecond Schema. Epoch zero is rejected; past positive
  * timestamps are valid and availability is not an execution deadline.
@@ -46,19 +46,15 @@ export const JobRetention = Schema.Union([
  *
  * @category schemas
  */
-export const FixedDelayV1 = Schema.TaggedStruct("FixedDelayV1", {
-  delayMillis: PositiveMillis
-})
+export const FixedDelayV1 = Retry.FixedDelayV1
 const PolicyStruct = Schema.Struct({
   leaseDurationMillis: PositiveMillis,
   attemptTimeoutMillis: PositiveMillis,
-  maxAttempts: Schema.Int.pipe(
-    Schema.check(Schema.isBetween({ minimum: 1, maximum: 100 }))
-  ),
+  maxAttempts: Retry.AttemptLimit,
   maxStalledCount: Schema.Int.pipe(
     Schema.check(Schema.isBetween({ minimum: 0, maximum: 100 }))
   ),
-  retrySchedule: FixedDelayV1,
+  retrySchedule: Retry.RetrySchedule,
   completedRetention: JobRetention,
   deadRetention: JobRetention
 })
@@ -69,7 +65,7 @@ const PolicyStruct = Schema.Struct({
  */
 export type JobPolicy = typeof PersistedJobPolicy.Type
 /**
- * Complete V1 policy Schema, requiring attemptTimeoutMillis < leaseDurationMillis.
+ * Complete persisted policy Schema, requiring attemptTimeoutMillis < leaseDurationMillis.
  * Decoding stored policy never applies current deployment defaults.
  *
  * @category schemas
@@ -85,13 +81,15 @@ export const PersistedJobPolicy = PolicyStruct.pipe(
  * @category models
  */
 export interface JobPolicyOptions {
+  /** Composable retry policy; omit for a fixed 5-second delay and three attempts. */
+  readonly retry?: JobRetryPolicy
   /** Fixed non-renewable lease; defaults to 90 seconds. */
   readonly leaseDuration?: Duration.Duration
   /** Includes payload decoding and handler execution; defaults to 30 seconds, below leaseDuration. */
   readonly attemptTimeout?: Duration.Duration
-  /** Persisted fixed delay after a finalized Retry; defaults to 5 seconds. */
+  /** @deprecated Use retry: Retry.fixed(duration). Cannot be combined with retry. */
   readonly retryDelay?: Duration.Duration
-  /** Finalized attempts including the first: 1–100, default 3. */
+  /** @deprecated Use Retry.maxAttempts(n). Cannot be combined with retry. */
   readonly maxAttempts?: number
   /** Permitted uncertain lease recoveries: 0–100, default 1. */
   readonly maxStalledCount?: number
@@ -114,17 +112,7 @@ export class JobPolicyConfigurationError extends Data.TaggedError(
 }> {}
 
 const millis = (value: Duration.Duration, field: keyof JobPolicyOptions): number => {
-  const n = Duration.match(value, {
-    onMillis: (n) => n,
-    onNanos: (nanos) =>
-      nanos % 1_000_000n === 0n &&
-      nanos > 0n &&
-      nanos <= BigInt(maximumMillis) * 1_000_000n
-        ? Number(nanos / 1_000_000n)
-        : NaN,
-    onInfinity: () => Infinity,
-    onNegativeInfinity: () => -Infinity
-  })
+  const n = Retry.durationMillis(value)
   if (!Schema.is(PositiveMillis)(n)) {
     throw new JobPolicyConfigurationError({
       field,
@@ -154,10 +142,14 @@ const retention = (
  * ```ts
  * import { Duration } from "effect"
  * import * as Policy from "effect-jobs/JobPolicy"
+ * import * as Retry from "effect-jobs/JobRetryPolicy"
  *
  * const policy = Policy.make({
- *   maxAttempts: 3,
- *   retryDelay: Duration.seconds(5),
+ *   retry: Retry.exponential(Duration.seconds(1)).pipe(
+ *     Retry.capped(Duration.minutes(1)),
+ *     Retry.jittered(),
+ *     Retry.maxAttempts(5)
+ *   ),
  *   completedRetention: Duration.days(90),
  *   deadRetention: Duration.infinity
  * })
@@ -167,6 +159,22 @@ const retention = (
  * @category constructors
  */
 export const make = (options: JobPolicyOptions = {}): JobPolicy => {
+  if (
+    options.retry !== undefined &&
+    (options.retryDelay !== undefined || options.maxAttempts !== undefined)
+  ) {
+    throw new JobPolicyConfigurationError({
+      field: "retry",
+      expected: "retry without legacy retryDelay or maxAttempts"
+    })
+  }
+  const retry = options.retry
+  if (retry !== undefined && !Schema.is(Retry.RetrySchedule)(retry.schedule)) {
+    throw new JobPolicyConfigurationError({
+      field: "retry",
+      expected: "a complete valid JobRetryPolicy"
+    })
+  }
   const leaseDurationMillis = millis(
     options.leaseDuration ?? Duration.seconds(90),
     "leaseDuration"
@@ -181,9 +189,9 @@ export const make = (options: JobPolicyOptions = {}): JobPolicy => {
       expected: "strictly less than leaseDuration"
     })
   }
-  const maxAttempts = options.maxAttempts ?? 3
+  const maxAttempts = retry?.maxAttempts ?? options.maxAttempts ?? 3
   const maxStalledCount = options.maxStalledCount ?? 1
-  if (!Schema.is(PolicyStruct.fields.maxAttempts)(maxAttempts)) {
+  if (!Schema.is(Retry.AttemptLimit)(maxAttempts)) {
     throw new JobPolicyConfigurationError({
       field: "maxAttempts",
       expected: "integer in 1–100"
@@ -200,10 +208,14 @@ export const make = (options: JobPolicyOptions = {}): JobPolicy => {
     attemptTimeoutMillis,
     maxAttempts,
     maxStalledCount,
-    retrySchedule: Object.freeze({
-      _tag: "FixedDelayV1",
-      delayMillis: millis(options.retryDelay ?? Duration.seconds(5), "retryDelay")
-    }),
+    retrySchedule: Object.freeze(
+      retry === undefined
+        ? {
+            _tag: "FixedDelayV1",
+            delayMillis: millis(options.retryDelay ?? Duration.seconds(5), "retryDelay")
+          }
+        : { ...retry.schedule }
+    ),
     completedRetention: retention(
       options.completedRetention ?? Duration.days(90),
       "completedRetention"

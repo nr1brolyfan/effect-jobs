@@ -6,6 +6,7 @@ import { Data, Result, Schema } from "effect"
 import { JobId } from "./JobId.js"
 import { FailureCode, JobFailure } from "./JobFailure.js"
 import { EpochMillis, PersistedJobPolicy, maximumMillis } from "./JobPolicy.js"
+import * as Retry from "./internal/policy/Retry.js"
 
 /**
  * Nonnegative safe integer Schema for durable counters, not a policy limit.
@@ -116,6 +117,8 @@ export const JobFinalization = Schema.Union([
   Schema.TaggedStruct("Complete", {}),
   Schema.TaggedStruct("Retry", {
     code: FailureCode,
+    /** Worker-selected sample retained across uncertain finalization/reconciliation. */
+    jitterSample: Retry.JitterSample.pipe(Schema.optional),
     notAfter: EpochMillis.pipe(Schema.optional)
   }),
   Schema.TaggedStruct("Dead", { code: FailureCode }),
@@ -327,7 +330,7 @@ export const release = (
 
 /**
  * Plans one fenced Complete/Retry/Dead/Isolate transition and increments attempts once.
- * Uses first stored fixed delay; next availability >= notAfter or exhausted attempts
+ * Uses the first stored retry policy; next availability >= notAfter or exhausted attempts
  * becomes Dead. notAfter limits retry scheduling, not handler execution.
  *
  * @category operations
@@ -352,10 +355,27 @@ export const finalize = (
     }
     const lifecycleVersion = yield* increment(row.lifecycleVersion)
     const attemptsMade = yield* increment(row.attemptsMade)
+    const shouldSchedule =
+      finalization._tag === "Retry" && attemptsMade < row.policy.maxAttempts
+    if (
+      shouldSchedule &&
+      finalization._tag === "Retry" &&
+      row.policy.retrySchedule._tag === "BackoffV1" &&
+      row.policy.retrySchedule.jitter === "Full" &&
+      finalization.jitterSample === undefined
+    ) {
+      return yield* Result.fail(invalid("invalid-command"))
+    }
+    const delay =
+      shouldSchedule && finalization._tag === "Retry"
+        ? Retry.delay(row.policy.retrySchedule, attemptsMade, finalization.jitterSample)
+        : undefined
     const nextAvailableAt =
-      finalization._tag === "Retry"
-        ? yield* addTimestamp(dbNow, row.policy.retrySchedule.delayMillis)
-        : row.availableAt
+      delay === undefined
+        ? row.availableAt
+        : delay === 0
+          ? dbNow
+          : yield* addTimestamp(dbNow, delay)
     const state =
       finalization._tag === "Complete"
         ? "Completed"

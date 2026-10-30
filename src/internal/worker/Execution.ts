@@ -1,5 +1,5 @@
 import { define as defineFailureCodes } from "../../FailureCode.js"
-import { Cause, Effect, Exit, Result, Schema } from "effect"
+import { Cause, Effect, Exit, Random, Result, Schema } from "effect"
 import { JobPayloadCodecError } from "../../JobContract.js"
 import { CatalogIdentity, ProducerIdentity } from "../../JobIdentity.js"
 import {
@@ -82,7 +82,14 @@ export const executionFor = <E>(
       return Effect.void
     }
 
-    const finalize = (finalization: JobFinalization) => {
+    const finalize = Effect.fnUntraced(function* (finalization: JobFinalization) {
+      const command =
+        finalization._tag === "Retry" &&
+        before.attemptsMade + 1 < before.policy.maxAttempts &&
+        before.policy.retrySchedule._tag === "BackoffV1" &&
+        before.policy.retrySchedule.jitter === "Full"
+          ? JobFinalizations.Retry({ ...finalization, jitterSample: yield* Random.next })
+          : finalization
       const request: FinalizationRequest = Object.freeze({
         ownership: Object.freeze(ownership),
         before: Object.freeze({
@@ -94,7 +101,7 @@ export const executionFor = <E>(
             deadRetention: Object.freeze({ ...before.policy.deadRetention })
           })
         }),
-        finalization: Object.freeze(finalization)
+        finalization: Object.freeze(command)
       })
       const write = () =>
         Effect.suspend(() => store.finalize(request)).pipe(
@@ -104,7 +111,7 @@ export const executionFor = <E>(
           }),
           observe("finalize", "finalization")
         )
-      return Effect.gen(function* () {
+      return yield* Effect.gen(function* () {
         const result = yield* write()
         if (result._tag === "Applied") {
           return result
@@ -124,7 +131,7 @@ export const executionFor = <E>(
           ? { _tag: "Applied" as const }
           : { _tag: "Unknown" as const }
       }).pipe(observe("finalize", "protocol"), Effect.ignore)
-    }
+    })
     return Effect.gen(function* () {
       const prepared = yield* Schema.decodeUnknownEffect(PreparedMetadata)(
         claim.prepared,

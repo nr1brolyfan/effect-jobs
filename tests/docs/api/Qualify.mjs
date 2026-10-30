@@ -145,7 +145,9 @@ import { ClaimResults, ClaimReconciliations, FinalizationResults, FinalizationRe
 import type { JobStoreService } from "effect-jobs/JobStore"
 assert.equal(Definition.definition.queue.name, "billing")
 assert.equal(Producer.identity.operationId, "request-123")
-assert.equal(Policy.policy.retrySchedule.delayMillis, 5000)
+assert.equal(Policy.policy.retrySchedule.delayMillis, 1000)
+assert.equal(Policy.policy.retrySchedule._tag, "BackoffV1")
+assert.equal(Policy.policy.maxAttempts, 5)
 assert.equal(Policy.policy.completedRetention._tag, "Duration")
 assert(Storage.ddl.includes('CREATE TABLE "app_jobs"."jobs"'))
 assert(Payload.protectedValue)
