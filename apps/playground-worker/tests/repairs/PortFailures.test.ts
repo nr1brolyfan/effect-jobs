@@ -71,6 +71,7 @@ const fixture = Effect.gen(function* () {
     executeValuesUnprepared: () => Effect.die("Unexpected values")
   }
   const client = yield* SqlClient.make({
+    driver: "test",
     acquirer: Effect.succeed(connection),
     compiler: PgClient.makeCompiler(),
     spanAttributes: []

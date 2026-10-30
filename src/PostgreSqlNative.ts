@@ -1,5 +1,5 @@
 /** Effect SQL native PostgreSQL integration. No pool or migration ownership. */
-// The native SQL contract is intentionally pinned to Effect 4.0.5.
+// The native SQL contract is intentionally pinned to Effect 4.1.0.
 // @effect-diagnostics unstableApiUsage:off
 import { Cause, Effect, Layer, Option, Schema } from "effect"
 import type { SqlClient } from "effect/sql/SqlClient"
@@ -17,8 +17,8 @@ import type {
   TransactionQuery
 } from "./PostgreSqlTransaction.js"
 
-/** Only native PgClient@4.0.5 is qualified. Pass the exact application-owned client
- * used by Effect-native Drizzle@1.0.0-rc.5-169397b. Other SQL drivers/clients require
+/** Only native PgClient@4.1.0 is qualified. Pass the exact application-owned client
+ * used by Effect-native Drizzle@1.0.0-rc.5. Other SQL drivers/clients require
  * separate qualification; structural type compatibility is not a driver guarantee.
  * @category models
  */
@@ -82,9 +82,9 @@ export const make = (options: Options): ApplicationAdapter => {
               Effect.map((rows) =>
                 rows.map((row) =>
                   Object.fromEntries(
-                    Object.entries(row).map(([key, value]) => [
-                      key,
-                      typeof value === "bigint" ? value.toString() : value
+                    Object.entries(row).map((entry) => [
+                      entry[0],
+                      typeof entry[1] === "bigint" ? entry[1].toString() : entry[1]
                     ])
                   )
                 )

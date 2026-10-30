@@ -46,7 +46,9 @@ const pack = JSON.parse(
     root
   )
 )[0]
-assert(pack.files.every(({ path }) => !/^(apps|packages|node_modules|src)\//.test(path)))
+assert(
+  pack.files.every((entry) => !/^(apps|packages|node_modules|src)\//.test(entry.path))
+)
 const archive = join(evidence, pack.filename)
 writeFileSync(
   join(consumer, "package.json"),
@@ -56,9 +58,9 @@ writeFileSync(
       type: "module",
       dependencies: {
         "effect-jobs": `file:${archive}`,
-        effect: "4.0.5",
-        "@effect/sql-pg": "4.0.5",
-        "drizzle-orm": "1.0.0-rc.5-169397b",
+        effect: "4.1.0",
+        "@effect/sql-pg": "4.1.0",
+        "drizzle-orm": "1.0.0-rc.5",
         pg: "8.23.0",
         "@types/pg": "8.20.0",
         miniflare: "5.20261006.1-alpha",

@@ -12,6 +12,7 @@ import * as Worker from "../../../src/JobWorker.js"
 import * as Consumer from "../../../src/JobConsumer.js"
 import * as Runtime from "../../../src/JobWorkerRuntime.js"
 import { JobPayloadCodecError } from "../../../src/JobContract.js"
+import type { EncodedJobPayload } from "../../../src/JobContract.js"
 import { harness } from "../worker/Harness.js"
 
 const providerDetail = "PRIVATE_PROVIDER_DETAIL"
@@ -25,6 +26,65 @@ const failureWithRelease = <E>(error: E, kind: ReleaseKind) =>
     () => Effect.fail(error),
     () => (kind === "defect" ? Effect.die(releaseDefect) : Effect.interrupt)
   )
+
+// Effect 4.1 elects Fail to Die when a finalizer dies. Construct an explicit
+// mixed cause to test codec preservation independently; real finalizers are
+// exercised separately below, without changing these original assertions.
+const mixedFailure = <E>(error: E, kind: ReleaseKind) =>
+  Effect.failCause(
+    Cause.fromReasons<E>([
+      ...Cause.fail(error).reasons,
+      ...(kind === "defect" ? Cause.die(releaseDefect) : Cause.interrupt()).reasons
+    ])
+  )
+
+const assertUnfinalized = async (
+  schema: Schema.Codec<unknown, unknown>,
+  encoded: EncodedJobPayload
+) => {
+  const definition = Job.make({
+    queue: Queue.make("mixed-codec"),
+    kind: "receipt",
+    payload: schema
+  })
+  const store = harness([
+    {
+      catalog: definition.catalog,
+      producer: { operation: "fixture", operationId: "one", slot: "receipt" },
+      policy: Policy.defaultPolicy,
+      encoded
+    }
+  ])
+  let handlerCalls = 0
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      yield* Layer.build(
+        definition.handlerLayer(
+          () =>
+            Effect.sync(() => {
+              handlerCalls++
+            }),
+          Codec.decodeJobPayload
+        )
+      )
+      const worker = yield* Worker.make(store.store, {
+        catalog: [definition],
+        operationResponseBudgetMillis: 100
+      })
+      const consumer = yield* Consumer.make(definition.queue, {
+        localConcurrency: 1,
+        claimLimitPerRun: 1,
+        recoveryLimitPerRun: 1
+      })
+      yield* Runtime.drain(consumer).pipe(Effect.provideService(Worker.JobWorker, worker))
+    }).pipe(Effect.provide(Layer.merge(Registry.layer, TestClock.layer())), Effect.scoped)
+  )
+  assert.equal(handlerCalls, 0)
+  assert.equal(store.calls.finalizations.length, 0)
+  assert.equal(store.calls.finalizationReconciliations.length, 0)
+  assert.equal(store.rows[0]!.snapshot.state, "Active")
+  assert.equal(store.rows[0]!.snapshot.attemptsMade, 0)
+}
 
 const assertMixed = (exit: Exit.Exit<unknown, unknown>, kind: ReleaseKind) => {
   assert(Exit.isFailure(exit))
@@ -51,14 +111,14 @@ for (const kind of ["defect", "interrupt"] as const) {
         envelope: Envelope,
         open: () =>
           direction === "open"
-            ? failureWithRelease(
+            ? mixedFailure(
                 Object.assign(new Payload.JobEncryptionError(), { providerDetail }),
                 kind
               )
             : Effect.succeed("fixture"),
         seal: () =>
           direction === "seal"
-            ? failureWithRelease(
+            ? mixedFailure(
                 Object.assign(new Payload.JobEncryptionError(), { providerDetail }),
                 kind
               )
@@ -71,18 +131,12 @@ for (const kind of ["defect", "interrupt"] as const) {
       Schema.decodeTo(Schema.String, {
         decode: SchemaGetter.transformEffect((value) =>
           direction === "decode"
-            ? failureWithRelease(
-                new SchemaIssue.Forbidden({ message: providerDetail }),
-                kind
-              )
+            ? mixedFailure(new SchemaIssue.Forbidden({ message: providerDetail }), kind)
             : Effect.succeed(value)
         ),
         encode: SchemaGetter.transformEffect((value) =>
           direction === "encode"
-            ? failureWithRelease(
-                new SchemaIssue.Forbidden({ message: providerDetail }),
-                kind
-              )
+            ? mixedFailure(new SchemaIssue.Forbidden({ message: providerDetail }), kind)
             : Effect.succeed(value)
         )
       })
@@ -102,53 +156,7 @@ for (const kind of ["defect", "interrupt"] as const) {
     assert(Cause.isFailReason(cause.reasons[0]!))
     assert(cause.reasons[0].error instanceof JobPayloadCodecError)
 
-    const definition = Job.make({
-      queue: Queue.make("mixed-codec"),
-      kind: "receipt",
-      payload: schema
-    })
-    const store = harness([
-      {
-        catalog: definition.catalog,
-        producer: { operation: "fixture", operationId: "one", slot: "receipt" },
-        policy: Policy.defaultPolicy,
-        encoded
-      }
-    ])
-    let handlerCalls = 0
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        yield* Layer.build(
-          definition.handlerLayer(
-            () =>
-              Effect.sync(() => {
-                handlerCalls++
-              }),
-            Codec.decodeJobPayload
-          )
-        )
-        const worker = yield* Worker.make(store.store, {
-          catalog: [definition],
-          operationResponseBudgetMillis: 100
-        })
-        const consumer = yield* Consumer.make(definition.queue, {
-          localConcurrency: 1,
-          claimLimitPerRun: 1,
-          recoveryLimitPerRun: 1
-        })
-        yield* Runtime.drain(consumer).pipe(
-          Effect.provideService(Worker.JobWorker, worker)
-        )
-      }).pipe(
-        Effect.provide(Layer.merge(Registry.layer, TestClock.layer())),
-        Effect.scoped
-      )
-    )
-    assert.equal(handlerCalls, 0)
-    assert.equal(store.calls.finalizations.length, 0)
-    assert.equal(store.calls.finalizationReconciliations.length, 0)
-    assert.equal(store.rows[0]!.snapshot.state, "Active")
-    assert.equal(store.rows[0]!.snapshot.attemptsMade, 0)
+    await assertUnfinalized(schema, encoded)
   })
 
   it(`preserves Fail plus ${kind} through encrypted seal and standard encode`, async () => {
@@ -187,5 +195,87 @@ for (const kind of ["defect", "interrupt"] as const) {
     )
     assert(Cause.isFailReason(cause.reasons[0]!))
     assert(cause.reasons[0].error instanceof JobPayloadCodecError)
+  })
+
+  it(`preserves native finalizer ${kind} normalization without finalizing a job`, async () => {
+    const verify = (exit: Exit.Exit<unknown, unknown>, original: unknown) => {
+      assert(Exit.isFailure(exit))
+      assert.equal(exit.cause.reasons.length, 2)
+      assert.equal(Cause.hasFails(exit.cause), kind === "interrupt")
+      assert.equal(Cause.hasDies(exit.cause), kind === "defect")
+      assert.equal(Cause.hasInterrupts(exit.cause), kind === "interrupt")
+      if (kind === "defect") {
+        const first = exit.cause.reasons[0]!
+        const second = exit.cause.reasons[1]!
+        assert(Cause.isDieReason(first))
+        assert.equal(first.defect, original)
+        assert(Cause.isDieReason(second))
+        assert.equal(second.defect, releaseDefect)
+      } else {
+        const first = exit.cause.reasons[0]!
+        assert(Cause.isFailReason(first))
+        assert(first.error instanceof JobPayloadCodecError)
+      }
+    }
+    for (const direction of ["open", "seal"] as const) {
+      const error = new Payload.JobEncryptionError()
+      const schema = Payload.encrypted({
+        schema: Schema.String,
+        codec: {
+          envelope: Envelope,
+          open: () =>
+            direction === "open"
+              ? failureWithRelease(error, kind)
+              : Effect.succeed("fixture"),
+          seal: () =>
+            direction === "seal"
+              ? failureWithRelease(error, kind)
+              : Effect.succeed(envelope)
+        }
+      })
+      if (direction === "open") {
+        const encoded = await Effect.runPromise(Codec.encodeJobPayload(schema, "fixture"))
+        verify(
+          await Effect.runPromiseExit(Codec.decodeJobPayload(schema, encoded)),
+          error
+        )
+        await assertUnfinalized(schema, encoded)
+      } else {
+        verify(
+          await Effect.runPromiseExit(Codec.encodeJobPayload(schema, "fixture")),
+          error
+        )
+      }
+    }
+    for (const direction of ["decode", "encode"] as const) {
+      const error = new SchemaIssue.Forbidden({ message: "finalizer fixture" })
+      const schema = Schema.String.pipe(
+        Schema.decodeTo(Schema.String, {
+          decode: SchemaGetter.transformEffect((value) =>
+            direction === "decode"
+              ? failureWithRelease(error, kind)
+              : Effect.succeed(value)
+          ),
+          encode: SchemaGetter.transformEffect((value) =>
+            direction === "encode"
+              ? failureWithRelease(error, kind)
+              : Effect.succeed(value)
+          )
+        })
+      )
+      if (direction === "decode") {
+        const encoded = await Effect.runPromise(Codec.encodeJobPayload(schema, "fixture"))
+        verify(
+          await Effect.runPromiseExit(Codec.decodeJobPayload(schema, encoded)),
+          error
+        )
+        await assertUnfinalized(schema, encoded)
+      } else {
+        verify(
+          await Effect.runPromiseExit(Codec.encodeJobPayload(schema, "fixture")),
+          error
+        )
+      }
+    }
   })
 }

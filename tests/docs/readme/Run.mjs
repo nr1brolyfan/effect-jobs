@@ -18,7 +18,7 @@ assert.equal(fences.filter((m) => m[1] === "sh").length, 1)
 assert.equal(fences.filter((m) => m[1] === "text").length, 1)
 assert.equal(
   fences.find((m) => m[1] === "sh")[2].trim(),
-  `npm install ./effect-jobs-${manifest.version}.tgz effect@4.0.5`
+  `npm install ./effect-jobs-${manifest.version}.tgz effect@4.1.0`
 )
 const hash = (value) => createHash("sha256").update(value).digest("hex")
 mkdirSync(join(root, ".toolchain/readme"), { recursive: true })
@@ -47,9 +47,9 @@ if (!process.env.EFFECT_JOBS_ALCHEMY_DIRECTORY) {
       type: "module",
       dependencies: {
         alchemy: "2.0.0-beta.83",
-        effect: "4.0.5",
-        "@effect/sql-d1": "4.0.5",
-        "@effect/sql-sqlite-do": "4.0.5"
+        effect: "4.1.0",
+        "@effect/sql-d1": "4.1.0",
+        "@effect/sql-sqlite-do": "4.1.0"
       }
     }) + "\n"
   )
@@ -108,11 +108,11 @@ try {
       type: "module",
       dependencies: {
         "effect-jobs": `file:${archive}`,
-        effect: "4.0.5",
-        "drizzle-orm": process.env.DRIZZLE_ORM_VERSION ?? "1.0.0-rc.5-ab785fc",
-        "@effect/sql-pg": "4.0.5",
-        "@effect/platform-node": "4.0.5",
-        "@effect/platform-node-shared": "4.0.5",
+        effect: "4.1.0",
+        "drizzle-orm": process.env.DRIZZLE_ORM_VERSION ?? "1.0.0-rc.5",
+        "@effect/sql-pg": "4.1.0",
+        "@effect/platform-node": "4.1.0",
+        "@effect/platform-node-shared": "4.1.0",
         typescript: "7.0.2",
         "@types/node": "26.4.1"
       }
@@ -182,7 +182,7 @@ try {
             ...options.paths,
             "effect/Schema": [join(root, "node_modules/effect/dist/Schema.d.ts")],
             "drizzle-orm": [join(root, "node_modules/drizzle-orm/index.d.ts")],
-            "drizzle-orm/*": [join(root, "node_modules/drizzle-orm/*/index.d.ts")]
+            "drizzle-orm/*": [join(root, "node_modules/drizzle-orm/*.d.ts")]
           }
         : options.paths
     const config = {

@@ -72,9 +72,9 @@ writeFileSync(
       type: "module",
       dependencies: {
         "effect-jobs": `file:${archive}`,
-        effect: "4.0.5",
+        effect: "4.1.0",
         "drizzle-orm": drizzleVersion,
-        "@effect/sql-pg": "4.0.5",
+        "@effect/sql-pg": "4.1.0",
         pg: "8.23.0",
         "@types/pg": "8.20.0",
         "@types/node": "26.4.1",
@@ -89,7 +89,7 @@ writeFileSync(
 run("npm-install", "npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"])
 run("npm-tree", "npm", ["ls", "--all"])
 const resolvedGraph = checkInstalledGraph(consumer, drizzleVersion, {
-  "@effect/sql-pg": "4.0.5",
+  "@effect/sql-pg": "4.1.0",
   pg: "8.23.0",
   typescript: "7.0.2",
   "@types/node": "26.4.1",
@@ -173,25 +173,32 @@ writeFileSync(
 )
 run("consumer-types", "node", ["node_modules/typescript/bin/tsc", "-p", "tsconfig.json"])
 copyFileSync(join(consumer, "Resource.mjs"), join(consumer, "compiled/Resource.mjs"))
-// C is a separate, retained known upstream FAIL. Never make it global A+B acceptance.
-const upstreamAudit = JSON.parse(
-  readFileSync(
-    join(root, "tests/qualification/drizzle-native/UpstreamAudit.json"),
-    "utf8"
-  )
+// Audit the actual current declarations. Historical snapshot exceptions do not
+// transfer to a different release; retain A+B/runtime results independently.
+const upstreamExit = run(
+  "foreign-declarations-current",
+  "node",
+  [
+    "node_modules/typescript/bin/tsc",
+    "-p",
+    "tsconfig.json",
+    "--skipLibCheck",
+    "false",
+    "--noEmit"
+  ],
+  consumer,
+  {},
+  true
 )
-for (const [file, hash] of Object.entries(upstreamAudit.historicalFiles)) {
-  assert.equal(sha256(join(root, "tests/qualification/drizzle-native", file)), hash)
+assert.notEqual(upstreamExit, null, "Foreign declaration audit must execute")
+const upstreamAudit = {
+  status: upstreamExit === 0 ? "PASS" : "FAIL (unwaived)",
+  exitCode: upstreamExit,
+  blocking: upstreamExit !== 0,
+  scope: "Current packed native consumer with skipLibCheck:false",
+  drizzle: drizzleVersion,
+  logSha256: sha256(join(consumer, "foreign-declarations-current.log"))
 }
-for (const [name, version] of Object.entries(upstreamAudit.dependencies)) {
-  assert.equal(
-    JSON.parse(readFileSync(join(consumer, "node_modules", name, "package.json"), "utf8"))
-      .version,
-    name === "drizzle-orm" ? drizzleVersion : version
-  )
-}
-assert.equal(upstreamAudit.status, "known upstream FAIL")
-assert(upstreamAudit.ownerApprovedSnapshots.includes(drizzleVersion))
 // Unsuppress ONLY the deliberate negative source probes and verify each actual diagnostic.
 const probes = readFileSync(join(consumer, "ContractProbes.mts"), "utf8")
 const negative = probes
@@ -283,5 +290,8 @@ const receipt = {
   receipts
 }
 writeFileSync(join(consumer, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n")
-console.log(`Packed native qualification PASS; artifact sha256=${receipt.archiveSha256}`)
-console.log(`C: known upstream FAIL (historical); A+B PASS; consumer=${consumer}`)
+console.log(`Packed native A+B/runtime PASS; artifact sha256=${receipt.archiveSha256}`)
+console.log(`Current foreign declarations: ${upstreamAudit.status}; consumer=${consumer}`)
+if (upstreamAudit.blocking) {
+  process.exitCode = 1
+}

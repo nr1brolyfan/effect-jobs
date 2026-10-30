@@ -5,12 +5,8 @@ export default defineConfig({
   resolve: {
     alias: {
       pg: fileURLToPath(new URL("../../node_modules/pg/lib/index.js", import.meta.url)),
-      "drizzle-orm/pg-core": fileURLToPath(
-        new URL("./node_modules/drizzle-orm/pg-core/index.js", import.meta.url)
-      ),
-      "drizzle-orm": fileURLToPath(
-        new URL("./node_modules/drizzle-orm/index.js", import.meta.url)
-      )
+      "drizzle-orm/pg-core": fileURLToPath(import.meta.resolve("drizzle-orm/pg-core")),
+      "drizzle-orm": fileURLToPath(import.meta.resolve("drizzle-orm"))
     }
   },
   test: { include: ["tests/postgresql/**/*.test.ts"] }

@@ -1,4 +1,38 @@
-# Local Effect 4.0.5 candidate
+# Local Effect 4.1.0 / Drizzle rc.5 candidate
+
+`0.1.0-alpha.1-effect.4.1.0.local.1` targets exact `effect@4.1.0` and optional
+`drizzle-orm@1.0.0-rc.5`. Active native/platform/Atom companions and qualification
+consumers use `4.1.0` as well. Node, Bun and compiler pins are unchanged.
+
+This is a local-only dependency update. It neither publishes a release nor
+integrates the separate documentation/API candidate. Existing encryption codecs,
+key ownership, ciphertext envelopes, fingerprints and UUID generation remain
+unchanged; adopting the unstable `effect/crypto` modules is a separate decision.
+
+Previous local artifacts remain immutable. Source, packed-consumer and native
+PostgreSQL results must be recorded against these new bytes. Foreign declaration
+audits run on the actual new graph without inheriting older snapshot exceptions.
+
+Effect 4.1 promotes typed failures to defects when combining them with a dying
+finalizer. Codec tests independently retain the explicit mixed-Cause preservation
+and redaction oracles, and exercise native finalizer normalization through both
+encrypted and standard schemas. Neither case permits worker finalization after
+defects or interruption. Test-only SQL clients now supply the required `driver`.
+
+## Historical Effect 4.0.5 local.3 candidate
+
+`0.1.0-alpha.1-effect.4.0.5.local.3` is a local-only dependency update with exact
+peers `effect@4.0.5` and optional `drizzle-orm@1.0.0-rc.5`. Development and
+qualification consumers use the same ORM release. It does not integrate the
+separate documentation/API redesign candidate or authorize publication.
+
+The previous local.2 artifact remains immutable. Its snapshot-specific foreign
+declaration exceptions do not apply to rc.5: the native consumer runner performs
+a fresh `skipLibCheck:false` audit and reports failures as unwaived. Current
+commands, exact archive hashes and results belong to the local.3 delivery receipt;
+the historical counts below are not evidence for these new bytes.
+
+## Historical local.2 candidate
 
 `0.1.0-alpha.1-effect.4.0.5.local.2` identifies local migration bytes based on
 published alpha.1/main `eb25dfa6272f0e2c807af6b3dbb57392e4c4a103`.
