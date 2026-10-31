@@ -42,6 +42,17 @@ const fixture = (change: string) => {
     query: (sql) =>
       Effect.sync(() => {
         calls.push(sql)
+        if (sql.includes("attname='created_at'")) {
+          return change === "missing-created-at"
+            ? []
+            : [
+                {
+                  required: change === "required-created-at",
+                  bigint: change !== "wrong-created-at-type",
+                  has_default: change === "default-created-at"
+                }
+              ]
+        }
         if (sql.includes("FROM pg_catalog.pg_attribute WHERE")) {
           return ["original_source_job_id", "source_job_id", "redrive_kind"]
             .filter((name) => change !== "missing-column" || name !== "source_job_id")
@@ -97,10 +108,14 @@ const fixture = (change: string) => {
 test("mapped readiness is bounded introspection without DDL", async () => {
   const { calls, program } = fixture("valid")
   await Effect.runPromise(program)
-  expect(calls).toHaveLength(5)
+  expect(calls).toHaveLength(6)
   expect(calls.every((sql) => sql.startsWith("SELECT"))).toBe(true)
 })
 test.each([
+  "missing-created-at",
+  "required-created-at",
+  "wrong-created-at-type",
+  "default-created-at",
   "missing-column",
   "not-null",
   "non-text",

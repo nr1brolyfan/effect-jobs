@@ -1,6 +1,6 @@
 {
   "name": "effect-jobs",
-  "version": "0.1.0-alpha.1-effect.4.1.0.local.4",
+  "version": "0.1.0-alpha.1-effect.4.1.0.local.5",
   "private": false,
   "description": "Effect-native durable, transaction-bound background jobs.",
   "license": "MIT",

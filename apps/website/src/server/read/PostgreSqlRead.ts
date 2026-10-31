@@ -44,6 +44,7 @@ const ProblemRows = listRows(JobProblemRow)
 const BaseDetail = Schema.Struct({
   sandbox: JobDetail.fields.sandbox,
   job: JobDetail.fields.job,
+  createdAt: JobDetail.fields.createdAt,
   producer: JobDetail.fields.producer,
   policy: JobDetail.fields.policy,
   relations: JobDetail.fields.relations

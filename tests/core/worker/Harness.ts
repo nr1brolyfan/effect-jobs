@@ -29,6 +29,7 @@ export const harness = (prepared: ReadonlyArray<PreparedJob> = []) => {
       state: "Pending" as const,
       availableAt: job.availableAt ?? epoch,
       updatedAt: epoch,
+      createdAt: epoch,
       attemptsMade: 0,
       stalledCount: 0,
       lifecycleVersion: 0,

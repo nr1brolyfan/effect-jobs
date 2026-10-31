@@ -32,6 +32,7 @@ const row = () => ({
   policy: defaultPolicy,
   available_at: 100,
   updated_at: 100,
+  created_at: null,
   attempts_made: 3,
   stalled_count: 0,
   lease_token: null,

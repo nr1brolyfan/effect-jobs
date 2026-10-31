@@ -166,7 +166,7 @@ export const make = (mapping: Mapping) => {
       text: `${authority}${roots}${facts}, related_page AS (${related} ORDER BY m.job_id COLLATE "C" LIMIT 51), history_page AS (SELECT * FROM facts ORDER BY id COLLATE "C" LIMIT 51)
       SELECT (SELECT code FROM status) AS status,(
         SELECT jsonb_build_object('sandbox',jsonb_build_object('sandboxId',$1::text,'generation',$2::bigint),'job',${summary},
-          'producer',jsonb_build_object('operation',j.operation,'operationId',j.operation_id,'slot',j.slot),'policy',j.policy,'relations',j.relations)
+          'createdAt',j.created_at,'producer',jsonb_build_object('operation',j.operation,'operationId',j.operation_id,'slot',j.slot),'policy',j.policy,'relations',j.relations)
         FROM retained j WHERE j.id=$3) AS detail,
         (SELECT jsonb_build_object('rootJobId',e.root_job_id,'problem',e.problem) FROM effective e WHERE e.root_job_id=coalesce((SELECT root_job_id FROM ${members} WHERE sandbox_id=$1 AND generation=$2 AND job_id=$3),$3)) AS problem,
         (SELECT jsonb_build_object('accepted',l.accepted,'invocations',l.invocations) FROM ${ledger} l WHERE l.sandbox_id=$1 AND l.generation=$2 AND l.job_id=$3 AND EXISTS(SELECT 1 FROM retained WHERE id=$3)) AS provider,

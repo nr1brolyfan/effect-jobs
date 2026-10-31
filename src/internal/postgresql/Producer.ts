@@ -42,8 +42,8 @@ export const insertOrCompareAt = (
     const id =
       generatedId ?? (yield* Effect.sync(() => globalThis.crypto.randomUUID() as JobId))
     const rows = yield* query.query(
-      `INSERT INTO ${jobs} (id,operation,operation_id,slot,queue,kind,version,policy,initial_available_at,state,available_at,updated_at,original_source_job_id,source_job_id,redrive_kind)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Pending',$10,$11,$12,$13,$14)
+      `INSERT INTO ${jobs} (id,operation,operation_id,slot,queue,kind,version,policy,initial_available_at,state,available_at,updated_at,original_source_job_id,source_job_id,redrive_kind,created_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Pending',$10,$11,$12,$13,$14,$11)
       ON CONFLICT (operation,operation_id,slot) DO NOTHING RETURNING id`,
       [
         id,

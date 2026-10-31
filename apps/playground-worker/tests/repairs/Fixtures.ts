@@ -100,6 +100,7 @@ export const sourceRow = {
   state: "Dead",
   available_at: 100,
   updated_at: 900,
+  created_at: null,
   completed_at: 900,
   lifecycle_version: 2,
   attempts_made: 2,

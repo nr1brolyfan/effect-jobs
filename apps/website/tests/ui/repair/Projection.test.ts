@@ -75,9 +75,8 @@ describe("truthful allowlisted detail projection", () => {
         .reason
     ).toBe("encrypted-correction-unavailable")
   })
-  it("reports absent attempts, creation and result rather than synthesizing them", () => {
+  it("reports absent attempts and result without overriding persisted creation time", () => {
     expect(Projection.retainedFields).toEqual({
-      createdAt: null,
       result: { _tag: "Unavailable", reason: "not-stored" }
     })
     expect(Fixture.detail.history.attempts).toBeNull()

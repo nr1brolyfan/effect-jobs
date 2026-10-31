@@ -18,11 +18,25 @@ export const ready = (adapter: ApplicationAdapter, jobs: string, payloads: strin
   adapter.ownedTransaction((query) =>
     Effect.gen(function* () {
       yield* query.query(`SELECT id,operation,operation_id,slot,queue,kind,version,policy,initial_available_at,
-    state,available_at,updated_at,attempts_made,stalled_count,lifecycle_version,lease_token,lease_expires_at,
+    state,available_at,updated_at,created_at,attempts_made,stalled_count,lifecycle_version,lease_token,lease_expires_at,
     completed_at,last_failure_code,cleanup_at,original_source_job_id,source_job_id,redrive_kind FROM ${jobs} LIMIT 0`)
       yield* query.query(
         `SELECT job_id,format_version,payload,projection FROM ${payloads} LIMIT 0`
       )
+      const creationColumns = yield* query.query(
+        `SELECT attnotnull AS required,atttypid='bigint'::regtype AS bigint,atthasdef AS has_default
+         FROM pg_catalog.pg_attribute WHERE attrelid=$1::regclass AND NOT attisdropped
+         AND attname='created_at'`,
+        [jobs]
+      )
+      if (
+        creationColumns.length !== 1 ||
+        creationColumns[0]?.required !== false ||
+        creationColumns[0]?.bigint !== true ||
+        creationColumns[0]?.has_default !== false
+      ) {
+        return yield* new PostgreSqlFailure({ commitKnowledge: "NotCommitted" })
+      }
       const lineageColumns = yield* query.query(
         `SELECT attname AS name,attnotnull AS required,atttypid='text'::regtype AS text
          FROM pg_catalog.pg_attribute WHERE attrelid=$1::regclass AND NOT attisdropped

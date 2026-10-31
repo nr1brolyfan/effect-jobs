@@ -63,3 +63,9 @@ export const incomplete: FinalizationRequest = {
   ownership: finalization.ownership,
   finalization: finalization.finalization
 }
+
+// Additive metadata: older custom snapshot producers may omit it, PG always fills it.
+declare const snapshot: import("../../src/JobLifecycle.js").JobSnapshot
+export const creationTime: number | null | undefined = snapshot.createdAt
+// @ts-expect-error Creation metadata is read-only.
+snapshot.createdAt = 123

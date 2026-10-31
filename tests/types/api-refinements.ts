@@ -71,6 +71,7 @@ const domain: typeof Document.Type = {} as typeof EncryptedDocument.Type
 void domain
 makeJobTables({
   extraIndexes: (jobs) => [
+    index("by_creation").on(jobs.createdAt),
     index("by_state")
       .on(jobs.state.asc(), jobs.id.desc())
       .where(sql`${jobs.state} = 'Pending'`)
@@ -79,7 +80,7 @@ makeJobTables({
 makeJobTables({
   extraIndexes: (jobs) => {
     // @ts-expect-error No application-owned columns are fabricated.
-    return [index("unknown").on(jobs.createdAt)]
+    return [index("unknown").on(jobs.applicationOwnedColumn)]
   }
 })
 // @ts-expect-error Only index builders, not arbitrary checks/constraints.
