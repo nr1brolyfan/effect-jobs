@@ -103,6 +103,15 @@ const invalidReason = invalidExit.cause.reasons[0]!
 assert(Cause.isFailReason(invalidReason))
 assert(invalidReason.error instanceof Policy.JobPolicyConfigurationError)
 assert.equal(invalidReason.error.field, "retry.factor")
+for (const removed of [{ retryDelay: Duration.seconds(5) }, { maxAttempts: 3 }]) {
+  const exit = await Effect.runPromiseExit(Policy.make(removed as unknown as Policy.JobPolicyOptions))
+  assert(Exit.isFailure(exit))
+  assert.equal(exit.cause.reasons.length, 1)
+  const reason = exit.cause.reasons[0]!
+  assert(Cause.isFailReason(reason))
+  assert(reason.error instanceof Policy.JobPolicyConfigurationError)
+  assert.equal(reason.error.field, "options")
+}
 const definition = Job.make({ queue: Queue.make("billing"), kind: "receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: EncryptedDocument }) })
 assert.equal(definition.version, 1)
 const input = { producer: { operation: "billing.issue", operationId: "id", slot: "receipt" }, policy: Policy.defaultPolicy,

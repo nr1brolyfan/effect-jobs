@@ -1,7 +1,7 @@
 /**
  * Resolves immutable execution and retention policy for durable storage.
  */
-import { Data, Duration, Effect, Schema } from "effect"
+import { Data, Duration, Effect, Result, Schema } from "effect"
 import type { JobRetryPolicy } from "./JobRetryPolicy.js"
 import * as Retry from "./internal/policy/Retry.js"
 
@@ -90,10 +90,6 @@ export interface JobPolicyOptions {
   readonly leaseDuration?: Duration.Duration
   /** Includes payload decoding and handler execution; defaults to 30 seconds, below leaseDuration. */
   readonly attemptTimeout?: Duration.Duration
-  /** @deprecated Use retry: Retry.fixed(duration). Cannot be combined with retry. */
-  readonly retryDelay?: Duration.Duration
-  /** @deprecated Use Retry.maxAttempts(n). Cannot be combined with retry. */
-  readonly maxAttempts?: number
   /** Permitted uncertain lease recoveries: 0–100, default 1. */
   readonly maxStalledCount?: number
   /** From Completed timestamp; defaults to 90 days. Deletion removes deduplication evidence. */
@@ -101,6 +97,16 @@ export interface JobPolicyOptions {
   /** From Dead timestamp; defaults to Duration.infinity. Isolated jobs are never auto-purged. */
   readonly deadRetention?: Duration.Duration
 }
+
+const OptionalInput = Schema.Unknown.pipe(Schema.optional)
+const OptionsFields = Schema.Struct({
+  retry: OptionalInput,
+  leaseDuration: OptionalInput,
+  attemptTimeout: OptionalInput,
+  maxStalledCount: OptionalInput,
+  completedRetention: OptionalInput,
+  deadRetention: OptionalInput
+} satisfies Record<keyof JobPolicyOptions, typeof OptionalInput>)
 
 /**
  * Expected validation failure in make's typed error channel; supplied values are not echoed.
@@ -214,19 +220,15 @@ const retrySchedule = Effect.fnUntraced(function* (
 export const make = Effect.fnUntraced(function* (
   options: JobPolicyOptions = {}
 ): Effect.fn.Return<JobPolicy, JobPolicyConfigurationError> {
-  if (!Schema.is(OptionsObject)(options)) {
-    return yield* new JobPolicyConfigurationError({
-      field: "options",
-      expected: "an options object"
-    })
-  }
   if (
-    options.retry !== undefined &&
-    (options.retryDelay !== undefined || options.maxAttempts !== undefined)
+    !Schema.is(OptionsObject)(options) ||
+    Result.isFailure(
+      Schema.decodeUnknownResult(OptionsFields, { onExcessProperty: "error" })(options)
+    )
   ) {
     return yield* new JobPolicyConfigurationError({
-      field: "retry",
-      expected: "retry without legacy retryDelay or maxAttempts"
+      field: "options",
+      expected: "an options object containing only supported policy fields"
     })
   }
   const retry = options.retry
@@ -250,11 +252,11 @@ export const make = Effect.fnUntraced(function* (
       expected: "strictly less than leaseDuration"
     })
   }
-  const maxAttempts = retry === undefined ? (options.maxAttempts ?? 3) : retry.maxAttempts
+  const maxAttempts = retry === undefined ? defaultPolicy.maxAttempts : retry.maxAttempts
   const maxStalledCount = options.maxStalledCount ?? 1
   if (!Schema.is(Retry.AttemptLimit)(maxAttempts)) {
     return yield* new JobPolicyConfigurationError({
-      field: retry === undefined ? "maxAttempts" : "retry.maxAttempts",
+      field: "retry.maxAttempts",
       expected: "integer in 1–100"
     })
   }
@@ -270,16 +272,7 @@ export const make = Effect.fnUntraced(function* (
     maxAttempts,
     maxStalledCount,
     retrySchedule:
-      retry === undefined
-        ? Object.freeze(
-            Retry.FixedDelayV1.make({
-              delayMillis: yield* millis(
-                options.retryDelay ?? Duration.seconds(5),
-                "retryDelay"
-              )
-            })
-          )
-        : yield* retrySchedule(retry),
+      retry === undefined ? defaultPolicy.retrySchedule : yield* retrySchedule(retry),
     completedRetention: yield* retention(
       options.completedRetention ?? Duration.days(90),
       "completedRetention"

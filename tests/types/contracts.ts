@@ -12,6 +12,7 @@ import { JobFailures, type JobFailure } from "../../src/JobFailure.js"
 import { JobId } from "../../src/JobId.js"
 import type { CatalogIdentity, ProducerIdentity } from "../../src/JobIdentity.js"
 import * as JobPolicy from "../../src/JobPolicy.js"
+import * as Retry from "../../src/JobRetryPolicy.js"
 import type { JobsTransaction, JobTransactionsService } from "../../src/JobTransaction.js"
 import {
   insertPrepared,
@@ -41,9 +42,11 @@ export const wrongCatalog: CatalogIdentity<"billing", "email", 1> = {
   // @ts-expect-error Wrong catalog version literal.
   version: 2
 }
-export const policy = Effect.runSync(JobPolicy.make({ retryDelay: Duration.seconds(5) }))
+export const policy = Effect.runSync(
+  JobPolicy.make({ retry: Retry.fixed(Duration.seconds(5)) })
+)
 // @ts-expect-error Public duration inputs are not raw milliseconds.
-export const rawDuration = Effect.runSync(JobPolicy.make({ retryDelay: 5000 }))
+export const rawDuration = Retry.fixed(5000)
 // @ts-expect-error Resolved durable policy cannot omit retention.
 export const incompletePolicy: JobPolicy.JobPolicy = {
   leaseDurationMillis: 90000,

@@ -18,6 +18,7 @@ import * as OperatorAuthority from "../../src/persistence/authority/PostgreSqlOp
 import * as OperatorPersistence from "../../src/persistence/commands/OperatorPersistence.js"
 import { OperatorTransactions } from "../../src/persistence/commands/OperatorTransactions.js"
 import { CommandTransactionFailure } from "../../src/persistence/commands/Transactions.js"
+import * as Retry from "effect-jobs/JobRetryPolicy"
 export const seed = (
   config: Event.Config,
   ref: SandboxRef,
@@ -48,7 +49,7 @@ export const seed = (
           )
           const result = yield* Plan.enqueue({
             ...job!,
-            policy: yield* Policy.make({ retryDelay: Duration.seconds(600) })
+            policy: yield* Policy.make({ retry: Retry.fixed(Duration.seconds(600)) })
           })
           yield* sql.unsafe(
             `INSERT INTO "${config.schema}".associations VALUES ($1,$2,$3,'{}'::jsonb)`,

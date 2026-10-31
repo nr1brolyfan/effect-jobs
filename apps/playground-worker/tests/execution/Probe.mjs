@@ -26,6 +26,7 @@ import * as Definitions from "../../src/scenarios/Definitions.js"
 import * as Plan from "../../src/scenarios/Plan.js"
 import * as Documents from "../../src/scenarios/PrivateDocument.js"
 import { WakeAlarm } from "../../src/cloudflare/WakeCycle.js"
+import * as Retry from "effect-jobs/JobRetryPolicy"
 
 /**
  * @param {string} url
@@ -79,8 +80,7 @@ export const probe = (url, schema, alarm, checks = []) =>
       const shortPolicy = yield* Policy.make({
         leaseDuration: Duration.millis(1800),
         attemptTimeout: Duration.millis(200),
-        retryDelay: Duration.millis(500),
-        maxAttempts: 3
+        retry: Retry.fixed(Duration.millis(500)).pipe(Retry.maxAttempts(3))
       })
       const produce = (id, behavior = "success", availableAt) =>
         backend.withTransaction(() =>

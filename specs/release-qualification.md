@@ -2,10 +2,11 @@
 
 ## Isolated retry API candidate
 
-`0.1.0-alpha.1-effect.4.1.0.local.3` adds the owner-approved typed configuration
+`0.1.0-alpha.1-effect.4.1.0.local.4` removes superseded configuration inputs and
+retains the owner-approved typed configuration
 and bounded proportional-jitter revision to the
 [composable retry policy](retry-policy.md) on the local.1 dependency baseline.
-Previous local.1/local.2 archives remain immutable. New checks must be rerun on
+Previous local.1/local.2/local.3 archives remain immutable. New checks must be rerun on
 these revision bytes; previous review/test receipts are not evidence for changed APIs.
 It remains isolated from the owner checkout and the separate API/docs redesign.
 Core Node/Bun, source PostgreSQL persistence and installed-consumer checks must

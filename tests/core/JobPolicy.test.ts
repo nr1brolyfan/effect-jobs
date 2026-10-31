@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { Cause, Duration, Effect, Exit, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as JobPolicy from "../../src/JobPolicy.js"
+import * as Retry from "../../src/JobRetryPolicy.js"
 
 const configurationFailure = async (options: JobPolicy.JobPolicyOptions) => {
   // Neither constructing nor running invalid configuration may turn it into a defect.
@@ -29,7 +30,6 @@ describe("complete immutable policy with typed validation", () => {
     for (const field of [
       "leaseDuration",
       "attemptTimeout",
-      "retryDelay",
       "completedRetention",
       "deadRetention"
     ] as const) {
@@ -44,7 +44,7 @@ describe("complete immutable policy with typed validation", () => {
       JobPolicy.make({
         leaseDuration: maximum,
         attemptTimeout: Duration.nanos(1_000_000n),
-        retryDelay: maximum,
+        retry: Retry.fixed(maximum),
         completedRetention: maximum,
         deadRetention: maximum
       })
@@ -98,8 +98,9 @@ describe("complete immutable policy with typed validation", () => {
       JobPolicy.make({
         leaseDuration: Duration.millis(JobPolicy.maximumMillis),
         attemptTimeout: Duration.millis(1),
-        retryDelay: Duration.millis(JobPolicy.maximumMillis),
-        maxAttempts: 100,
+        retry: Retry.fixed(Duration.millis(JobPolicy.maximumMillis)).pipe(
+          Retry.maxAttempts(100)
+        ),
         maxStalledCount: 0,
         completedRetention: Duration.infinity,
         deadRetention: Duration.millis(1)
@@ -109,8 +110,14 @@ describe("complete immutable policy with typed validation", () => {
     expect(policy.deadRetention).toEqual({ _tag: "Duration", millis: 1 })
     expect(Schema.is(JobPolicy.PersistedJobPolicy)(policy)).toBe(true)
     expect(
-      (await Effect.runPromise(JobPolicy.make({ maxAttempts: 1, maxStalledCount: 100 })))
-        .maxAttempts
+      (
+        await Effect.runPromise(
+          JobPolicy.make({
+            retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(1)),
+            maxStalledCount: 100
+          })
+        )
+      ).maxAttempts
     ).toBe(1)
   })
   it.each([0, -1, 0.5, JobPolicy.maximumMillis + 1, Infinity, -Infinity])(
@@ -119,7 +126,6 @@ describe("complete immutable policy with typed validation", () => {
       for (const field of [
         "leaseDuration",
         "attemptTimeout",
-        "retryDelay",
         "completedRetention",
         "deadRetention"
       ] as const) {
@@ -138,7 +144,13 @@ describe("complete immutable policy with typed validation", () => {
   it.each([0, -1, 101, 1.5, NaN, Infinity])(
     "rejects attempt limits through Fail",
     async (maxAttempts) => {
-      expect((await configurationFailure({ maxAttempts })).field).toBe("maxAttempts")
+      expect(
+        (
+          await configurationFailure({
+            retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(maxAttempts))
+          })
+        ).field
+      ).toBe("retry.maxAttempts")
     }
   )
   it.each([-1, 101, 0.5, NaN, Infinity])(
@@ -188,19 +200,20 @@ describe("complete immutable policy with typed validation", () => {
   })
   it("supports ordinary catchTags recovery from expected configuration failure", async () => {
     const field = await Effect.runPromise(
-      JobPolicy.make({ maxAttempts: 0 }).pipe(
+      JobPolicy.make({
+        retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(0))
+      }).pipe(
         Effect.catchTags({
           JobPolicyConfigurationError: (error) => Effect.succeed(error.field)
         })
       )
     )
-    expect(field).toBe("maxAttempts")
+    expect(field).toBe("retry.maxAttempts")
   })
   it("reports malformed JavaScript duration inputs through Fail rather than throwing", async () => {
     for (const field of [
       "leaseDuration",
       "attemptTimeout",
-      "retryDelay",
       "completedRetention",
       "deadRetention"
     ] as const) {
@@ -212,6 +225,17 @@ describe("complete immutable policy with typed validation", () => {
   })
   it("rejects malformed JavaScript options objects through the typed channel", async () => {
     for (const input of [null, 5000, "invalid", []]) {
+      expect(
+        (await configurationFailure(input as unknown as JobPolicy.JobPolicyOptions)).field
+      ).toBe("options")
+    }
+  })
+  it("rejects unsupported option names instead of silently treating them as defaults", async () => {
+    for (const input of [
+      { retryDelay: Duration.seconds(5) },
+      { maxAttempts: 3 },
+      { typo: true }
+    ]) {
       expect(
         (await configurationFailure(input as unknown as JobPolicy.JobPolicyOptions)).field
       ).toBe("options")

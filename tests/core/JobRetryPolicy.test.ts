@@ -323,7 +323,7 @@ describe("pure retry descriptions and typed policy assembly", () => {
     }
   )
 
-  it("checks nanosecond precision and rejects conflicting legacy/new input via Fail", async () => {
+  it("checks exact nanosecond precision through typed assembly", async () => {
     expect(
       (await configurationFailure({ retry: Retry.fixed(Duration.nanos(1000001n)) })).field
     ).toBe("retry.delay")
@@ -331,11 +331,6 @@ describe("pure retry descriptions and typed policy assembly", () => {
       resolved(Retry.fixed(Duration.nanos(253402300799999000000n))).retrySchedule
         .delayMillis
     ).toBe(Policy.maximumMillis)
-    const retry = Retry.fixed(Duration.seconds(1))
-    expect((await configurationFailure({ retry, maxAttempts: 3 })).field).toBe("retry")
-    expect(
-      (await configurationFailure({ retry, retryDelay: Duration.seconds(1) })).field
-    ).toBe("retry")
   })
 
   it("keeps malformed JavaScript descriptions and durations in the typed error channel", async () => {

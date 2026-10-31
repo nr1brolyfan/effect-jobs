@@ -102,15 +102,14 @@ Use `import * as JobPolicy from "effect-jobs/JobPolicy"` and
 `JobPolicy.make(options?: JobPolicyOptions): Effect<JobPolicy.JobPolicy, JobPolicy.JobPolicyConfigurationError>`.
 Every public input field is optional:
 
-| Field              | Input                                | Default         |
-| ------------------ | ------------------------------------ | --------------- |
-| leaseDuration      | Effect Duration                      | 90 seconds      |
-| attemptTimeout     | Effect Duration                      | 30 seconds      |
-| retryDelay         | Effect Duration                      | fixed 5 seconds |
-| maxAttempts        | integer                              | 3               |
-| maxStalledCount    | integer                              | 1               |
-| completedRetention | Effect Duration or Duration.infinity | 90 days         |
-| deadRetention      | Effect Duration or Duration.infinity | infinity        |
+| Field              | Input                                | Default                     |
+| ------------------ | ------------------------------------ | --------------------------- |
+| leaseDuration      | Effect Duration                      | 90 seconds                  |
+| attemptTimeout     | Effect Duration                      | 30 seconds                  |
+| retry              | JobRetryPolicy description           | fixed 5 seconds, 3 attempts |
+| maxStalledCount    | integer                              | 1                           |
+| completedRetention | Effect Duration or Duration.infinity | 90 days                     |
+| deadRetention      | Effect Duration or Duration.infinity | infinity                    |
 
 No raw millisecond input or hand-written `_tag` is required publicly. `make`
 validates when its Effect is evaluated and fails through `JobPolicyConfigurationError`
@@ -120,6 +119,10 @@ maxAttempts 1–100, maxStalledCount 0–100. Finite durations must resolve to i
 milliseconds 1–253,402,300,799,999; no rounding, truncation or clamping. Zero,
 negative, fractional-millisecond and negative-infinity retention are rejected.
 Only positive infinity is Forever, and only for retention.
+
+`Retry.fixed`/`Retry.exponential` describe delays and `Retry.maxAttempts` sets the
+attempt limit. There is no `retryDelay` or top-level `maxAttempts` configuration
+option and no deprecated compatibility path. Unknown option names are rejected.
 
 `attemptTimeoutMillis < leaseDurationMillis` is mandatory. Response budget is
 backend configuration, not a policy field; later backend qualification must

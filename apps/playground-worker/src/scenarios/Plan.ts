@@ -5,6 +5,7 @@ import {
 } from "@effect-jobs/playground-contracts/Scenarios"
 import type { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import * as JobPolicy from "effect-jobs/JobPolicy"
+import * as Retry from "effect-jobs/JobRetryPolicy"
 import * as Definitions from "./Definitions.js"
 
 export class InvalidScenario extends Data.TaggedError("InvalidScenario")<{}> {}
@@ -70,7 +71,9 @@ export const plan = Effect.fn("Playground.plan")(function* (
   })
   const operationId = `sandbox-request-${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`
   const policy = yield* JobPolicy.make(
-    command.scenario === "retry-then-success" ? { retryDelay: Duration.seconds(120) } : {}
+    command.scenario === "retry-then-success"
+      ? { retry: Retry.fixed(Duration.seconds(120)) }
+      : {}
   )
   const jobs: PlannedJob[] = []
   for (let index = 0; index < command.count; index++) {

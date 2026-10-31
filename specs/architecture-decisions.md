@@ -349,8 +349,7 @@ Illustrative public input:
 const policy =
   yield *
   JobPolicy.make({
-    maxAttempts: 3,
-    retryDelay: Duration.seconds(5),
+    retry: JobRetryPolicy.fixed(Duration.seconds(5)).pipe(JobRetryPolicy.maxAttempts(3)),
     completedRetention: Duration.days(90),
     deadRetention: Duration.infinity
   })
@@ -366,8 +365,7 @@ The owner accepted these execution defaults (public names remain illustrative):
 {
   leaseDuration: Duration.seconds(90),
   attemptTimeout: Duration.seconds(30),
-  retryDelay: Duration.seconds(5),
-  maxAttempts: 3,
+  retry: JobRetryPolicy.fixed(Duration.seconds(5)).pipe(JobRetryPolicy.maxAttempts(3)),
   maxStalledCount: 1
 }
 ```
@@ -385,7 +383,9 @@ The API, full-jitter arithmetic, versioned persistence, compatibility and rollou
 contract are specified in [retry policy](retry-policy.md). The 2026-10-31 refinement
 keeps builders pure/unvalidated, validates complete policy in the typed Effect
 channel, and selects 80–120% proportional jitter with a hard bounded sampling
-interval. Existing stored Full jitter is not reinterpreted. This extends retries,
+interval. Superseded configuration inputs are removed rather than deprecated:
+retry delays and limits are expressed only through `JobRetryPolicy` combinators.
+Existing stored Full jitter and persisted counters are not reinterpreted. This extends retries,
 not unknown-outcome recovery, and does not authorize publication or deployment.
 
 ## D5 — explicit application-owned protection and codec boundaries

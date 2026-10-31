@@ -39,9 +39,10 @@ const policy = yield * Policy.make({ retry })
   failures as Fail, not throw/Die. Retry diagnostics identify `retry.delay`,
   `retry.factor`, `retry.maxDelay` or `retry.maxAttempts`. There is no implicit
   conversion to a full job policy, `Retry.toPolicy`, or shortcut on a job definition.
-- Existing `retryDelay`/top-level `maxAttempts` inputs remain deprecated compatibility
-  inputs. Combining either with `retry` fails in the Effect channel rather than silently choosing precedence.
-  A new retry description owns its attempt limit.
+- Retry configuration has one input path: `retry`. The former `retryDelay` and
+  top-level `maxAttempts` options are removed, without deprecated aliases or
+  compatibility branches. Use `fixed`/`exponential` and `Retry.maxAttempts`.
+  Unsupported option names fail validation instead of silently selecting defaults.
 
 ## Persistence and evaluation
 
@@ -94,6 +95,8 @@ the exponential finalized-attempt counter or prove the external action did not r
 
 `Policy.make` now returns an Effect rather than resolved data. Callers must evaluate
 it explicitly; `defaultPolicy` remains trusted, deeply immutable resolved data.
+Removing obsolete configuration inputs is a source API change, separate from
+preserving the formats of already stored job policies. Stored counters remain data.
 Do not add Effect.sync around old throwing builders or silently run effects in
 production constructors. Test-only synchronous evaluation of valid fixtures is
 not a new public unsafe constructor.

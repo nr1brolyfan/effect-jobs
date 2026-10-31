@@ -40,6 +40,7 @@ import { harness, policy } from "./Harness.js"
 import type { PreparedJob, HandlerInput } from "../../../src/JobContract.js"
 import type { JobFailure } from "../../../src/JobFailure.js"
 import type { JobStoreService } from "../../../src/JobStore.js"
+import * as Retry from "../../../src/JobRetryPolicy.js"
 
 const queue = Queue.make("worker-tests")
 const definition = Job.make({
@@ -268,7 +269,12 @@ for (const corruption of [
                 }
               }
             : corruption === "policy"
-              ? { ...prepared, policy: yield* Policy.make({ maxAttempts: 4 }) }
+              ? {
+                  ...prepared,
+                  policy: yield* Policy.make({
+                    retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(4))
+                  })
+                }
               : {
                   ...prepared,
                   encoded: {

@@ -557,7 +557,11 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
   test("duplicate returns ID, preserves first payload/policy/availability; conflict aborts parent even when caught", async () => {
     await clear()
     const first = await enqueue("duplicate", "same", policy, 1)
-    const changed = await Effect.runPromise(Policy.make({ maxAttempts: 10 }))
+    const changed = await Effect.runPromise(
+      Policy.make({
+        retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(10))
+      })
+    )
     const before = await row("duplicate")
     const again = await enqueue("duplicate", "same", changed, 2)
     expect(again).toMatchObject({ _tag: "AlreadyPresent", jobId: first.jobId })
@@ -955,7 +959,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       "retry",
       "retry",
       await Effect.runPromise(
-        Policy.make({ retryDelay: Duration.millis(10000), maxAttempts: 2 })
+        Policy.make({
+          retry: Retry.fixed(Duration.millis(10000)).pipe(Retry.maxAttempts(2))
+        })
       )
     )
     const first = await claim()

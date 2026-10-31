@@ -10,6 +10,7 @@ import * as Plan from "./Plan.js"
 import { DocumentKeys } from "./PrivateDocument.js"
 import * as Mode from "../persistence/authority/PrivateMode.js"
 import * as Tables from "../persistence/authority/Schema.js"
+import * as Retry from "effect-jobs/JobRetryPolicy"
 
 export const interactionMillis = 120_000
 export const starterScenarios: ReadonlyArray<ScenarioId> = [
@@ -73,7 +74,7 @@ export const make = (schema: string) =>
           [ref.sandboxId, ref.generation, requestId]
         )
         const trafficPolicy = yield* Policy.make({
-          retryDelay: Duration.millis(interactionMillis)
+          retry: Retry.fixed(Duration.millis(interactionMillis))
         }).pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" })))
         const jobIds = yield* Effect.forEach(
           scenarios,

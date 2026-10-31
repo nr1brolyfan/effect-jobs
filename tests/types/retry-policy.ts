@@ -11,6 +11,10 @@ export const policy = Policy.make({ retry })
 const typed: Effect.Effect<Policy.JobPolicy, Policy.JobPolicyConfigurationError> = policy
 void typed
 export const fixed = Policy.make({ retry: Retry.fixed(Duration.seconds(5)) })
+// @ts-expect-error Removed shorthand is not a policy option.
+export const removedDelay = Policy.make({ retryDelay: Duration.seconds(5) })
+// @ts-expect-error The attempt limit belongs to the retry description only.
+export const removedAttempts = Policy.make({ maxAttempts: 3 })
 // @ts-expect-error In-memory schedules are not durable retry descriptions.
 const invalidSchedule = Policy.make({ retry: Schedule.exponential(Duration.seconds(1)) })
 void invalidSchedule
