@@ -1,7 +1,7 @@
 import * as FailureCodes from "../../src/FailureCode.js"
 import assert from "node:assert/strict"
 import { createHmac, randomUUID } from "node:crypto"
-import { Context, Effect, Layer, Logger, Schema, SchemaAST } from "effect"
+import { Context, Duration, Effect, Layer, Logger, Schema, SchemaAST } from "effect"
 import { TestClock } from "effect/testing"
 import { it } from "vitest"
 import * as Job from "../../src/Job.js"
@@ -23,18 +23,19 @@ import {
 } from "./EncryptedPayload.js"
 import type { EncryptionCodec } from "./EncryptedPayload.js"
 import type { EncodedJobPayload, PreparedJob } from "../../src/JobContract.js"
+import * as Retry from "../../src/JobRetryPolicy.js"
 
+type EnvelopeValue = typeof Envelope.Type
 const Envelope = Schema.Struct({
   keyId: Schema.String,
   ciphertext: Schema.String,
   fingerprint: Schema.String
 })
+type DocumentEncoded = typeof Document.Encoded
 const Document = Schema.Struct({
   recipient: Schema.NonEmptyString,
   amount: Schema.FiniteFromString.pipe(Schema.check(Schema.isGreaterThan(0)))
 })
-type DocumentEncoded = typeof Document.Encoded
-type EnvelopeValue = typeof Envelope.Type
 interface Keys {
   readonly seal: (
     value: DocumentEncoded
@@ -181,7 +182,7 @@ it("native structs, optional fields, arrays and discriminated unions retain inde
     Schema.Struct({ document: PrivateDocument, personal }),
     Schema.Struct({
       nested: Schema.Struct({ document: PrivateDocument }),
-      absent: Schema.optional(personal)
+      absent: personal.pipe(Schema.optional)
     }),
     Schema.Array(PrivateDocument),
     Schema.Union([
@@ -361,16 +362,16 @@ for (const mode of [
             operationId: "synthetic-operation",
             slot: "document"
           },
-          policy: Policy.make(),
+          policy: Policy.defaultPolicy,
           encoded
         }
         const test = harness([prepared])
         yield* Layer.build(
           definition.handlerLayer(
-            ({ payload }) =>
+            (received) =>
               Effect.sync(() => {
                 handlerCalls++
-                assert.deepEqual(payload, input)
+                assert.deepEqual(received.payload, input)
               }),
             Codec.decodeJobPayload
           )
@@ -446,7 +447,9 @@ for (const maxAttempts of [1, 3]) {
               operationId: "synthetic-operation",
               slot: "document"
             },
-            policy: Policy.make({ maxAttempts }),
+            policy: yield* Policy.make({
+              retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(maxAttempts))
+            }),
             encoded
           }
         ])
@@ -572,7 +575,7 @@ export const enqueueTypeProbe = (
       operationId: "synthetic-operation",
       slot: "document"
     },
-    policy: Policy.make()
+    policy: Policy.defaultPolicy
   })
 export type EnqueueServices = True<
   Equal<Effect.Services<ReturnType<typeof enqueueTypeProbe>>, ReceiptKeys>

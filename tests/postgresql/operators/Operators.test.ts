@@ -536,7 +536,7 @@ describe.skipIf(!configPath)(
             // Catching the typed integrity error must not permit committing partial domain writes.
             yield* operators
               .redrive(definition, { expected: second, producer: tuple })
-              .pipe(Effect.catchTag("JobIntegrityConflict", () => Effect.void))
+              .pipe(Effect.catchTags({ JobIntegrityConflict: () => Effect.void }))
           })
         )
       ).rejects.toThrow()
@@ -617,9 +617,11 @@ describe.skipIf(!configPath)(
                 [first.jobId]
               )
               yield* operation().pipe(
-                Effect.catchTag("JobOperatorRejected", (error) => {
-                  expect(error.reason).toBe("lineage-conflict")
-                  return Effect.void
+                Effect.catchTags({
+                  JobOperatorRejected: (error) => {
+                    expect(error.reason).toBe("lineage-conflict")
+                    return Effect.void
+                  }
                 })
               )
             })
@@ -705,7 +707,7 @@ describe.skipIf(!configPath)(
       const expected = await seed(
         "Dead",
         false,
-        Policy.make({ deadRetention: Duration.millis(1) })
+        await Effect.runPromise(Policy.make({ deadRetention: Duration.millis(1) }))
       )
       const forever = await seed("Dead")
       // Age both sources without waiting. The cleanup hint alone must not override Forever.

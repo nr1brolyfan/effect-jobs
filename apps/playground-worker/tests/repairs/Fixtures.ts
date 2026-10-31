@@ -64,7 +64,7 @@ export const detail = Schema.decodeUnknownSync(JobDetail)({
     operationId: "test",
     slot: "welcome-email"
   },
-  policy: Policy.make(),
+  policy: Policy.defaultPolicy,
   relations: { syntheticActor: payload.actor, syntheticOrderId: payload.order },
   createdAt: null,
   payload: {

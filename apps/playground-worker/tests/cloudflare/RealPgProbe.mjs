@@ -25,6 +25,7 @@ import * as Registry from "effect-jobs/JobRegistry"
 import * as Worker from "effect-jobs/JobWorker"
 import * as Consumer from "effect-jobs/JobConsumer"
 import * as Wake from "../../src/cloudflare/WakeCycle.js"
+import * as Retry from "effect-jobs/JobRetryPolicy"
 
 /**
  * @param {string} url
@@ -55,11 +56,10 @@ export const probe = (url, schema, alarm, checks = []) =>
         kind: "synthetic",
         payload: Schema.String
       })
-      const policy = Policy.make({
+      const policy = yield* Policy.make({
         leaseDuration: Duration.millis(1800),
         attemptTimeout: Duration.millis(200),
-        retryDelay: Duration.millis(500),
-        maxAttempts: 2
+        retry: Retry.fixed(Duration.millis(500)).pipe(Retry.maxAttempts(2))
       })
       const input = (id, payload = id, availableAt) => ({
         producer: { operation: "cf.real", operationId: id, slot: "one" },

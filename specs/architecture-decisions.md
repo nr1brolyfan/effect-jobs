@@ -346,15 +346,16 @@ internal tagged retry/retention objects or use choice callbacks.
 Illustrative public input:
 
 ```ts
-const policy = JobPolicy.make({
-  maxAttempts: 3,
-  retryDelay: Duration.seconds(5),
-  completedRetention: Duration.days(90),
-  deadRetention: Duration.infinity
-})
+const policy =
+  yield *
+  JobPolicy.make({
+    retry: JobRetryPolicy.fixed(Duration.seconds(5)).pipe(JobRetryPolicy.maxAttempts(3)),
+    completedRetention: Duration.days(90),
+    deadRetention: Duration.infinity
+  })
 ```
 
-`JobPolicy.make()` also resolves the documented defaults. This decision changes
+Evaluating `JobPolicy.make()` also resolves the documented defaults. This decision changes
 the earlier proposal requiring explicit retention; it does not introduce
 exponential retry, automatic Isolated cleanup, or unlimited Pending/Active cleanup.
 
@@ -364,8 +365,7 @@ The owner accepted these execution defaults (public names remain illustrative):
 {
   leaseDuration: Duration.seconds(90),
   attemptTimeout: Duration.seconds(30),
-  retryDelay: Duration.seconds(5),
-  maxAttempts: 3,
+  retry: JobRetryPolicy.fixed(Duration.seconds(5)).pipe(JobRetryPolicy.maxAttempts(3)),
   maxStalledCount: 1
 }
 ```
@@ -376,10 +376,17 @@ exceeding the stored limit ends the job as Dead. Unknown outcomes can repeat an
 attempt number and lead to additional handler invocations. An attempt timeout
 does not prove that external effects did not occur.
 
-The owner reaffirmed fixed-delay retry for this extraction. Exponential backoff
-with jitter is recorded as a future strategy, not activated implementation scope.
-Its multiplier, cap, jitter distribution and persisted/versioned representation
-must be specified and qualified separately before adding it.
+Fixed-delay-only retry was the extraction baseline. On 2026-10-30 the owner
+accepted the composable `JobRetryPolicy` API with `maxAttempts` and explicit
+`Policy.make({ retry })` assembly, and authorized direct local implementation.
+The API, full-jitter arithmetic, versioned persistence, compatibility and rollout
+contract are specified in [retry policy](retry-policy.md). The 2026-10-31 refinement
+keeps builders pure/unvalidated, validates complete policy in the typed Effect
+channel, and selects 80–120% proportional jitter with a hard bounded sampling
+interval. Superseded configuration inputs are removed rather than deprecated:
+retry delays and limits are expressed only through `JobRetryPolicy` combinators.
+Existing stored Full jitter and persisted counters are not reinterpreted. This extends retries,
+not unknown-outcome recovery, and does not authorize publication or deployment.
 
 ## D5 — explicit application-owned protection and codec boundaries
 

@@ -48,6 +48,10 @@ const types = publicImports(
 ).replace('"../core/codec/EncryptedFixture.js"', '"./EncryptedFixture.mjs"')
 writeFileSync(join(work, "Types.mts"), types)
 writeFileSync(
+  join(work, "Retry.mts"),
+  publicImports(readFileSync(join(root, "tests/types/retry-policy.ts"), "utf8"))
+)
+writeFileSync(
   join(work, "Operators.mts"),
   publicImports(readFileSync(join(root, "tests/types/operators.ts"), "utf8"))
 )
@@ -65,10 +69,11 @@ writeFileSync(
   join(work, "Runtime.mts"),
   `
 import assert from "node:assert/strict"
-import { Effect, Layer, Result, Schema } from "effect"
+import { Cause, Duration, Effect, Exit, Layer, Result, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Policy from "effect-jobs/JobPolicy"
+import * as Retry from "effect-jobs/JobRetryPolicy"
 import * as Codes from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
@@ -84,6 +89,29 @@ const code = Codes.define({ boundary: "a".repeat(128) }).boundary
 assert.equal(JobFailures.Retry({ code }).code.length, 128)
 assert(Result.isFailure(Codes.parse("a".repeat(129))))
 assert(Object.isFrozen(Policy.defaultPolicy.retrySchedule))
+const retry = Retry.exponential(Duration.seconds(1)).pipe(Retry.capped(Duration.minutes(1)), Retry.jittered(), Retry.maxAttempts(5))
+const retryPolicy = await Effect.runPromise(Policy.make({ retry }))
+assert.equal(retryPolicy.maxAttempts, 5)
+assert.equal(retryPolicy.retrySchedule._tag, "BackoffV1")
+assert.equal(retryPolicy.retrySchedule.jitter, "ProportionalV1")
+assert.deepEqual(Schema.decodeUnknownSync(Policy.PersistedJobPolicy)(JSON.parse(JSON.stringify(retryPolicy))), retryPolicy)
+const invalidRetry = Retry.exponential(Duration.seconds(1), { factor: 0 })
+const invalidExit = await Effect.runPromiseExit(Policy.make({ retry: invalidRetry }))
+assert(Exit.isFailure(invalidExit))
+assert.equal(invalidExit.cause.reasons.length, 1)
+const invalidReason = invalidExit.cause.reasons[0]!
+assert(Cause.isFailReason(invalidReason))
+assert(invalidReason.error instanceof Policy.JobPolicyConfigurationError)
+assert.equal(invalidReason.error.field, "retry.factor")
+for (const removed of [{ retryDelay: Duration.seconds(5) }, { maxAttempts: 3 }]) {
+  const exit = await Effect.runPromiseExit(Policy.make(removed as unknown as Policy.JobPolicyOptions))
+  assert(Exit.isFailure(exit))
+  assert.equal(exit.cause.reasons.length, 1)
+  const reason = exit.cause.reasons[0]!
+  assert(Cause.isFailReason(reason))
+  assert(reason.error instanceof Policy.JobPolicyConfigurationError)
+  assert.equal(reason.error.field, "options")
+}
 const definition = Job.make({ queue: Queue.make("billing"), kind: "receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: EncryptedDocument }) })
 assert.equal(definition.version, 1)
 const input = { producer: { operation: "billing.issue", operationId: "id", slot: "receipt" }, policy: Policy.defaultPolicy,
@@ -136,6 +164,7 @@ writeFileSync(
       compilerOptions: { ...compilerOptions, skipLibCheck: false, noEmit: true },
       include: [
         "Strict.mts",
+        "Retry.mts",
         "EncryptedFixture.mts",
         "Runtime.mts",
         "Operators.mts",

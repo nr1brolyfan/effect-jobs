@@ -54,7 +54,7 @@ const nativeProbe = Effect.scoped(
       .enqueue({
         producer: producer.identity({ operationId: "synthetic-1", slot: "synthetic" }),
         payload: "synthetic",
-        policy: Policy.make()
+        policy: Policy.defaultPolicy
       })
       .pipe(Effect.provideService(JobEnqueue, backend.producer), Effect.result)
     return result._tag === "Failure" && result.failure._tag === "JobBackendError"

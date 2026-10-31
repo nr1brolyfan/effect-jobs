@@ -12,6 +12,7 @@ import * as Definitions from "../scenarios/Definitions.js"
 import { relations } from "../persistence/authority/Schema.js"
 import * as RepairSchema from "../persistence/commands/RepairSchema.js"
 import * as Traffic from "./Traffic.js"
+import * as Retry from "effect-jobs/JobRetryPolicy"
 
 export const limits = Object.freeze({
   rotationMillis: 86_400_000,
@@ -84,8 +85,8 @@ const seedBatch = (
         ...job,
         payload: { ...job.payload, behavior: profile?.behavior ?? behavior },
         availableAt: availableAt + (profile?.waitMillis ?? 0),
-        policy: JobPolicy.make({
-          retryDelay: Duration.millis(profile?.retryMillis ?? 60_000)
+        policy: yield* JobPolicy.make({
+          retry: Retry.fixed(Duration.millis(profile?.retryMillis ?? 60_000))
         })
       }
       const result = yield* Plan.enqueue(planned).pipe(

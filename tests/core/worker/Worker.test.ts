@@ -40,6 +40,7 @@ import { harness, policy } from "./Harness.js"
 import type { PreparedJob, HandlerInput } from "../../../src/JobContract.js"
 import type { JobFailure } from "../../../src/JobFailure.js"
 import type { JobStoreService } from "../../../src/JobStore.js"
+import * as Retry from "../../../src/JobRetryPolicy.js"
 
 const queue = Queue.make("worker-tests")
 const definition = Job.make({
@@ -53,15 +54,16 @@ const consumer = (claimLimitPerRun = 5, localConcurrency = 1, recoveryLimitPerRu
   Effect.runSync(
     Consumer.make(queue, { claimLimitPerRun, localConcurrency, recoveryLimitPerRun })
   )
-const seed = (count = 1, jobPolicy = policy) =>
-  Effect.gen(function* () {
-    const prepared: Array<PreparedJob> = []
-    for (let index = 0; index < count; index++) {
+const seed = Effect.fnUntraced(function* (count = 1, jobPolicy = policy) {
+  const prepared = yield* Effect.forEach(
+    Array.from({ length: count }, (_, index) => index),
+    Effect.fnUntraced(function* (index) {
+      let captured: PreparedJob | undefined
       const jobId = yield* Schema.decodeEffect(JobId)(`seed-${index}`)
       yield* withJoinedTransaction(
         (job) =>
           Effect.sync(() => {
-            prepared.push(job)
+            captured = job
             return EnqueueResults.Inserted({ jobId })
           }),
         (tx) =>
@@ -75,9 +77,13 @@ const seed = (count = 1, jobPolicy = policy) =>
             policy: jobPolicy
           })
       )
-    }
-    return harness(prepared)
-  })
+      assert(captured !== undefined)
+      return captured
+    }),
+    { concurrency: 1 }
+  )
+  return harness(prepared)
+})
 const make = <E>(
   store: JobStoreService<E>,
   execute: (
@@ -263,7 +269,12 @@ for (const corruption of [
                 }
               }
             : corruption === "policy"
-              ? { ...prepared, policy: Policy.make({ maxAttempts: 4 }) }
+              ? {
+                  ...prepared,
+                  policy: yield* Policy.make({
+                    retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(4))
+                  })
+                }
               : {
                   ...prepared,
                   encoded: {
@@ -485,7 +496,10 @@ for (const phase of [
   it(`bounds suspended ${phase} and returns permits`, async () => {
     await run(
       Effect.gen(function* () {
-        const test = yield* seed(1, Policy.make({ attemptTimeout: Duration.millis(250) }))
+        const test = yield* seed(
+          1,
+          yield* Policy.make({ attemptTimeout: Duration.millis(250) })
+        )
         const store = {
           ...test.store,
           ...(phase === "finalize" ? { finalize: () => Effect.never } : {}),
@@ -735,22 +749,22 @@ it("runs notification and protected OTP-style adapters on the SAME generic engin
       const events: Array<string> = []
       yield* Layer.build(
         notification.handlerLayer(
-          ({ payload }) =>
+          (input) =>
             Effect.sync(() => {
               assert.equal(test.isLocked(), false)
-              events.push(payload.event)
+              events.push(input.payload.event)
             }),
           Codec.decodeJobPayload
         )
       )
       yield* Layer.build(
         otp.handlerLayer(
-          ({ payload }) =>
+          (input) =>
             Effect.sync(() => {
               assert.equal(test.isLocked(), false)
               // Application-owned authority/protection belongs in this adapter, not worker.
-              assert.equal(payload.challengeId, "challenge")
-              assert.equal(payload.code.envelope, "ciphertext")
+              assert.equal(input.payload.challengeId, "challenge")
+              assert.equal(input.payload.code.envelope, "ciphertext")
               events.push("delivered")
             }),
           Codec.decodeJobPayload
@@ -881,7 +895,10 @@ for (const phase of ["claim", "recovery"] as const) {
 it("keeps one attempt deadline across handler, write and reconciliation", async () => {
   await run(
     Effect.gen(function* () {
-      const test = yield* seed(1, Policy.make({ attemptTimeout: Duration.millis(250) }))
+      const test = yield* seed(
+        1,
+        yield* Policy.make({ attemptTimeout: Duration.millis(250) })
+      )
       let writes = 0
       let reconciles = 0
       const worker = yield* make(
@@ -1046,9 +1063,9 @@ it("recovery repeats attemptNumber but consumes only the independent stalled bud
     Effect.gen(function* () {
       const test = yield* seed()
       const attempts: Array<number> = []
-      const worker = yield* make(test.store, ({ context }) =>
+      const worker = yield* make(test.store, (input) =>
         Effect.sync(() => {
-          attempts.push(context.attemptNumber)
+          attempts.push(input.context.attemptNumber)
         }).pipe(
           Effect.andThen(
             Effect.fail(
@@ -1082,9 +1099,9 @@ it("limits finalized retries to three attempts using the fixed persisted delay",
     Effect.gen(function* () {
       const test = yield* seed()
       const attempts: Array<number> = []
-      const worker = yield* make(test.store, ({ context }) =>
+      const worker = yield* make(test.store, (input) =>
         Effect.sync(() => {
-          attempts.push(context.attemptNumber)
+          attempts.push(input.context.attemptNumber)
         }).pipe(
           Effect.andThen(
             Effect.fail(

@@ -69,7 +69,7 @@ export const catalogLiteral: {
 export const input = {
   producer: identity,
   payload: { amount: 1.5 },
-  policy: JobPolicy.make()
+  policy: JobPolicy.defaultPolicy
 }
 export const enqueue = job.enqueueInTransaction(tx, input)
 export const explicitChannels: Effect.Effect<
@@ -88,11 +88,11 @@ export const arbitrary = job.enqueueInTransaction<never, never>(
 export const encodedInput = job.enqueueInTransaction(tx, { ...input, payload: "encoded" })
 
 export const handler = job.handlerLayer(
-  ({ payload, context }) =>
+  (input) =>
     Effect.gen(function* () {
       yield* HandlerService
-      const amount: number = payload.amount
-      const attempt: number = context.attemptNumber
+      const amount: number = input.payload.amount
+      const attempt: number = input.context.attemptNumber
       if (amount < attempt) {
         return yield* Effect.fail(
           JobFailures.Dead({ code: FailureCodes.define({ value: "rejected" }).value })

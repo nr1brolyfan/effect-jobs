@@ -7,6 +7,7 @@ import * as Policy from "effect-jobs/JobPolicy"
 import * as Event from "../../src/execution/Event.js"
 import * as Plan from "../../src/scenarios/Plan.js"
 import { Application } from "../../../website/src/server/Services.js"
+import * as Retry from "effect-jobs/JobRetryPolicy"
 export const delayed = (config: Event.Config, credential: string, requestId: string) =>
   Event.run(
     config,
@@ -31,11 +32,10 @@ export const delayed = (config: Event.Config, credential: string, requestId: str
             0,
             Number(rows[0]!.now) + 2000
           )
-          const policy = Policy.make({
+          const policy = yield* Policy.make({
             leaseDuration: Duration.millis(1800),
             attemptTimeout: Duration.millis(200),
-            retryDelay: Duration.millis(500),
-            maxAttempts: 3
+            retry: Retry.fixed(Duration.millis(500)).pipe(Retry.maxAttempts(3))
           })
           const result = yield* Plan.enqueue({ ...job!, policy })
           const reserved = yield* sql.unsafe(

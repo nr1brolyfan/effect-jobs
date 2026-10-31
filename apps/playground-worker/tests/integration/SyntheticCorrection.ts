@@ -45,7 +45,7 @@ export const seed = (
                 slot: "document"
               },
               payload,
-              policy: Policy.make()
+              policy: Policy.defaultPolicy
             }).pipe(Effect.provideService(JobEnqueue, backend.producer))
             yield* sql.unsafe(
               `INSERT INTO "${config.schema}".associations(sandbox_id,generation,job_id,relations) VALUES($1,$2,$3,$4::jsonb)`,

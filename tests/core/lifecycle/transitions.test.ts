@@ -1,10 +1,11 @@
 import * as FailureCodes from "../../../src/FailureCode.js"
-import { Cause, Duration, Result, Schema } from "effect"
+import { Cause, Duration, Effect, Result, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as L from "../../../src/JobLifecycle.js"
 import * as Policy from "../../../src/JobPolicy.js"
 import { JobId } from "../../../src/JobId.js"
 import { active, now, ownership, pending, policy, token } from "./fixtures.js"
+import * as Retry from "../../../src/JobRetryPolicy.js"
 
 const value = Result.getOrThrow
 const reason = <A>(result: Result.Result<A, L.JobLifecycleError>) => {
@@ -200,7 +201,13 @@ describe("portable lifecycle (not database qualification)", () => {
     expect(row.completedAt).toBe(offset <= 0 ? now + 1 : null)
   })
   it.each([1, 3, 100])("maxAttempts %i includes first finalization", (maxAttempts) => {
-    let row = pending({ policy: Policy.make({ maxAttempts }) })
+    let row = pending({
+      policy: Effect.runSync(
+        Policy.make({
+          retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(maxAttempts))
+        })
+      )
+    })
     for (let n = 1; n <= maxAttempts; n++) {
       row = value(L.claim(row, token, row.availableAt, 1))
       expect(L.attemptNumber(row)).toBe(n)
@@ -237,7 +244,7 @@ describe("portable lifecycle (not database qualification)", () => {
   it.each([0, 1, 100])(
     "stall budget %i, unknown leaves attempts unchanged",
     (maxStalledCount) => {
-      let row = pending({ policy: Policy.make({ maxStalledCount }) })
+      let row = pending({ policy: Effect.runSync(Policy.make({ maxStalledCount })) })
       for (let n = 1; n <= maxStalledCount + 1; n++) {
         row = value(L.claim(row, token, Math.max(now, row.updatedAt), 1))
         expect(L.attemptNumber(row)).toBe(1)
@@ -374,10 +381,12 @@ describe("portable lifecycle (not database qualification)", () => {
   it("policy remains immutable and strict timeout preserved", () => {
     expect(Object.isFrozen(policy)).toBe(true)
     expect(() =>
-      Policy.make({
-        leaseDuration: Duration.millis(30),
-        attemptTimeout: Duration.millis(30)
-      })
+      Effect.runSync(
+        Policy.make({
+          leaseDuration: Duration.millis(30),
+          attemptTimeout: Duration.millis(30)
+        })
+      )
     ).toThrow()
     expect(value(L.finalize(active(), ownership(), commands[1]!, now)).policy).toEqual(
       policy

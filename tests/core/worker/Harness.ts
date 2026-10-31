@@ -179,4 +179,4 @@ export const harness = (prepared: ReadonlyArray<PreparedJob> = []) => {
   return { rows, calls, store, isLocked: () => locked }
 }
 
-export const policy = Policy.make()
+export const policy = Policy.defaultPolicy

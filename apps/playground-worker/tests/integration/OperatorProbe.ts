@@ -14,6 +14,11 @@ import { Application } from "../../../website/src/server/Services.js"
 import * as Event from "../../src/execution/Event.js"
 import * as Plan from "../../src/scenarios/Plan.js"
 import * as Definitions from "../../src/scenarios/Definitions.js"
+import * as OperatorAuthority from "../../src/persistence/authority/PostgreSqlOperatorTransactions.js"
+import * as OperatorPersistence from "../../src/persistence/commands/OperatorPersistence.js"
+import { OperatorTransactions } from "../../src/persistence/commands/OperatorTransactions.js"
+import { CommandTransactionFailure } from "../../src/persistence/commands/Transactions.js"
+import * as Retry from "effect-jobs/JobRetryPolicy"
 export const seed = (
   config: Event.Config,
   ref: SandboxRef,
@@ -44,7 +49,7 @@ export const seed = (
           )
           const result = yield* Plan.enqueue({
             ...job!,
-            policy: Policy.make({ retryDelay: Duration.seconds(600) })
+            policy: yield* Policy.make({ retry: Retry.fixed(Duration.seconds(600)) })
           })
           yield* sql.unsafe(
             `INSERT INTO "${config.schema}".associations VALUES ($1,$2,$3,'{}'::jsonb)`,
@@ -156,7 +161,3 @@ export const lostCommit = (
       return yield* service.execute(access, command)
     })
   )
-import * as OperatorAuthority from "../../src/persistence/authority/PostgreSqlOperatorTransactions.js"
-import * as OperatorPersistence from "../../src/persistence/commands/OperatorPersistence.js"
-import { OperatorTransactions } from "../../src/persistence/commands/OperatorTransactions.js"
-import { CommandTransactionFailure } from "../../src/persistence/commands/Transactions.js"

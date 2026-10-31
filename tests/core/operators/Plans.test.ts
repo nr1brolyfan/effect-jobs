@@ -1,4 +1,4 @@
-import { Duration, Result, Schema } from "effect"
+import { Duration, Effect, Result, Schema } from "effect"
 import { describe, expect, test } from "vitest"
 import * as Lifecycle from "../../../src/JobLifecycle.js"
 import * as Policy from "../../../src/JobPolicy.js"
@@ -108,10 +108,12 @@ describe("operator plans", () => {
       state: "RetryScheduled",
       attemptsMade: 1,
       stalledCount: 1,
-      policy: Policy.make({
-        deadRetention: Duration.millis(1),
-        completedRetention: Duration.millis(1)
-      })
+      policy: Effect.runSync(
+        Policy.make({
+          deadRetention: Duration.millis(1),
+          completedRetention: Duration.millis(1)
+        })
+      )
     })
     const cancelled = Result.getOrThrow(Lifecycle.cancel(row, guard(row), now))
     expect(cancelled).toEqual({

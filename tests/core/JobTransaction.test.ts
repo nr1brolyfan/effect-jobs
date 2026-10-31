@@ -16,7 +16,7 @@ import {
 const prepared: PreparedJob = {
   catalog: { queue: "billing", kind: "email", version: 1 },
   producer: { operation: "billing.issue", operationId: "request-1", slot: "email" },
-  policy: JobPolicy.make(),
+  policy: JobPolicy.defaultPolicy,
   encoded: {
     formatVersion: 1,
     payloadBytes: new Uint8Array(),

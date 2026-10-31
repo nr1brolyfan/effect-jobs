@@ -1,5 +1,21 @@
 # Local Effect 4.1.0 / Drizzle rc.5 candidate
 
+## Isolated retry API candidate
+
+`0.1.0-alpha.1-effect.4.1.0.local.4` removes superseded configuration inputs and
+retains the owner-approved typed configuration
+and bounded proportional-jitter revision to the
+[composable retry policy](retry-policy.md) on the local.1 dependency baseline.
+Previous local.1/local.2/local.3 archives remain immutable. New checks must be rerun on
+these revision bytes; previous review/test receipts are not evidence for changed APIs.
+It remains isolated from the owner checkout and the separate API/docs redesign.
+Core Node/Bun, source PostgreSQL persistence and installed-consumer checks must
+be tied to these new bytes, not borrowed from local.1. Original full-verification
+and foreign-declaration limits remain unwaived. Independent review and owner
+integration are not claimed by local tests or artifact creation.
+
+## Historical Effect 4.1.0 local.1 dependency candidate
+
 `0.1.0-alpha.1-effect.4.1.0.local.1` targets exact `effect@4.1.0` and optional
 `drizzle-orm@1.0.0-rc.5`. Active native/platform/Atom companions and qualification
 consumers use `4.1.0` as well. Node, Bun and compiler pins are unchanged.

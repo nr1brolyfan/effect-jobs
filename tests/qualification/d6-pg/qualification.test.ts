@@ -1,6 +1,16 @@
 import { readFileSync, writeFileSync } from "node:fs"
 import { randomBytes } from "node:crypto"
-import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Schema } from "effect"
+import {
+  Cause,
+  Context,
+  Deferred,
+  Duration,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  Schema
+} from "effect"
 import { Pool, type PoolConfig } from "pg"
 import { readQualificationResource } from "../Resource.mjs"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
@@ -12,6 +22,7 @@ import { encodeJobPayload } from "../../../src/JobPayloadCodec.js"
 import type { JobsTransaction } from "../../../src/JobTransaction.js"
 import * as App from "./ApplicationTransactions.js"
 import * as Bridge from "./PgBridge.js"
+import * as Retry from "../../../src/JobRetryPolicy.js"
 
 // Credentials are read in-process, never printed or passed through argv.
 const resourceDirectory = process.env.D6_RESOURCE_DIRECTORY
@@ -30,7 +41,7 @@ class CallerValue extends Context.Service<CallerValue, { readonly value: number 
 const input = (id: string, payload = id) => ({
   producer: producer.identity({ operationId: id, slot: "generate" }),
   payload: { invoiceId: payload },
-  policy: Policy.make()
+  policy: Policy.defaultPolicy
 })
 
 describe.skipIf(!enabled)("D6 real pg qualification", () => {
@@ -323,7 +334,11 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
       integration.withTransaction((tx) =>
         definition.enqueueInTransaction(tx, {
           ...input("commit"),
-          policy: Policy.make({ maxAttempts: 7 })
+          policy: Effect.runSync(
+            Policy.make({
+              retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(7))
+            })
+          )
         })
       )
     )

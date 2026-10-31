@@ -71,7 +71,7 @@ export const detail = Schema.decodeUnknownSync(JobDetail)(
       operationId: "demo-request-a",
       slot: "execute"
     },
-    policy: JobPolicy.make(),
+    policy: JobPolicy.defaultPolicy,
     relations: { syntheticOrderId: "demo-order-a", syntheticActor: "demo-customer" },
     observation: { source: "mock", observedAt: 1_800_000_001_000, outcome: "success" }
   },

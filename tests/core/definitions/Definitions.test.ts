@@ -25,7 +25,7 @@ import { withJoinedTransaction } from "../../../src/internal/JobTransaction.js"
 const queue = JobQueue.make("billing")
 const producer = JobProducer.make({ operation: "billing.issue", slots: ["pdf", "email"] })
 const identity = producer.identity({ operationId: "operation", slot: "pdf" })
-const policy = JobPolicy.make()
+const policy = JobPolicy.defaultPolicy
 const jobId = Schema.decodeSync(JobId)("generated-id")
 // Deliberately opaque test fixtures: only forwarding is qualified here, not codec bytes.
 const encoded: EncodedJobPayload = {
@@ -337,10 +337,10 @@ describe("local registry and Layer dependencies", () => {
     const schema = Schema.String.pipe(
       Schema.decodeTo(Schema.String, {
         encode: SchemaGetter.transformEffect((value: string) =>
-          Effect.map(Encoding, ({ prefix }) => prefix + value)
+          Effect.map(Encoding, (encoding) => encoding.prefix + value)
         ),
         decode: SchemaGetter.transformEffect((value: string) =>
-          Effect.map(Decoding, ({ suffix }) => value + suffix)
+          Effect.map(Decoding, (decoding) => value + decoding.suffix)
         )
       })
     )
@@ -374,9 +374,9 @@ describe("local registry and Layer dependencies", () => {
     let received: string | undefined
     const installation = definition
       .handlerLayer(
-        ({ payload }) =>
+        (input) =>
           Effect.sync(() => {
-            received = payload
+            received = input.payload
           }),
         serviceDecode
       )

@@ -3,6 +3,7 @@ import { it, expect } from "vitest"
 import * as Job from "../../../src/Job.js"
 import * as Queue from "../../../src/JobQueue.js"
 import * as Policy from "../../../src/JobPolicy.js"
+import * as Retry from "../../../src/JobRetryPolicy.js"
 import * as Codes from "../../../src/FailureCode.js"
 import { JobFailures } from "../../../src/JobFailure.js"
 import { encodeJobPayload } from "../../../src/JobPayloadCodec.js"
@@ -11,7 +12,7 @@ import { EnqueueResults, type EncodedJobPayload } from "../../../src/JobContract
 import { JobId } from "../../../src/JobId.js"
 
 it("deeply immutable defaults do not freeze or alter caller options", () => {
-  expect(Policy.defaultPolicy).toEqual(Policy.make())
+  expect(Policy.defaultPolicy).toEqual(Effect.runSync(Policy.make()))
   for (const part of [
     Policy.defaultPolicy,
     Policy.defaultPolicy.retrySchedule,
@@ -24,11 +25,11 @@ it("deeply immutable defaults do not freeze or alter caller options", () => {
     Object.assign(Policy.defaultPolicy.retrySchedule, { delayMillis: 1 })
   ).toThrow(TypeError)
   const duration = Duration.seconds(8)
-  const options = { maxAttempts: 5, retryDelay: duration }
-  expect(Policy.make(options).maxAttempts).toBe(5)
+  const options = { retry: Retry.fixed(duration).pipe(Retry.maxAttempts(5)) }
+  expect(Effect.runSync(Policy.make(options)).maxAttempts).toBe(5)
   expect(Object.isFrozen(options)).toBe(false)
   expect(Object.isFrozen(duration)).toBe(false)
-  options.maxAttempts = 6
+  options.retry = options.retry.pipe(Retry.maxAttempts(6))
   expect(Policy.defaultPolicy.maxAttempts).toBe(3)
 })
 it("validated catalogs and nonthrowing parser share 128-character storage boundaries", () => {
