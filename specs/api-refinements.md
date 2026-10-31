@@ -75,7 +75,7 @@ useful for already-protected envelopes and custom codecs.
 ## Native transactions
 
 `PostgreSqlNative.layer({ client, operationTimeoutMillis })` supplies the adapter
-for the application's SAME native `PgClient@4.0.5`. `PostgreSqlJobs.layerNoDeps`
+for the application's SAME native `PgClient@4.1.0`. `PostgreSqlJobs.layerNoDeps`
 provides `PostgreSqlJobs` and generic `JobEnqueue`. Public
 `client.withTransaction(body)` owns the transaction; Drizzle schema/queries run
 in that same client/Context. `db.transaction` retains its upstream type limitation
@@ -113,7 +113,7 @@ validation. Drizzle/application migration generation owns these extra indexes.
 `PostgreSqlSchema.migration` remains baseline-only and readiness does not require
 application indexes. No dashboard/query/index performance recommendation is implied.
 
-Qualification uses pinned ORM `1.0.0-rc.5-169397b` and migration tool
+The earlier index qualification used ORM `1.0.0-rc.5-169397b` and migration tool
 `drizzle-kit@1.0.0-rc.5-5935859`: generated DDL/snapshot contains custom and mandatory
 indexes; unchanged repeated generation proposes no drop. Upstream full strict
 Drizzle declaration failure remains separately reported, not declared fixed.

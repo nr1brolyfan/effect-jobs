@@ -590,12 +590,14 @@ connection/xid, concurrent isolation/deduplication, caller interruption, wrong s
 standalone failure/active rejection and synthetic response loss after durable COMMIT.
 This is not a network/server-crash guarantee.
 
-Only `PgClient@4.0.5` with native Drizzle `1.0.0-rc.5-ab785fc` or
-`1.0.0-rc.5-169397b` is qualified by the
-native adapter within the scope of the current [release qualification](release-qualification.md).
+The current local Effect 4.1 dependency target is `PgClient@4.1.0` with native Drizzle
+`1.0.0-rc.5`; its exact source/packed qualification is recorded in
+[release qualification](release-qualification.md). The earlier hash-suffixed
+snapshot evidence remains historical and does not qualify this release by itself.
 A+B strict/exactOptional source contracts remain required with approved dependency
-`skipLibCheck:true`. C remains separately reported known upstream FAIL and is
-nonblocking, never C PASS. Nested transactions/options/isolation are not
+`skipLibCheck:true`. Full foreign declaration audits are reported separately for
+the actual dependency graph; old snapshot exceptions do not automatically apply.
+Nested transactions/options/isolation are not
 automatically Drizzle-equivalent; no new savepoint/manager API is introduced.
 Its structural client type is an integration port, not a blanket
 guarantee for other drivers. The application owns pool lifetime, migrations and

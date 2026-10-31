@@ -1,5 +1,16 @@
 # Effect-native Drizzle compatibility
 
+## Current local dependency target
+
+The current Effect 4.1 local candidate targets exact `drizzle-orm@1.0.0-rc.5`,
+`effect@4.1.0` and native companion `@effect/sql-pg@4.1.0`. The application-owned same-client
+`PgClient.withTransaction` contract is unchanged. Current source, packed consumer
+and runtime checks are recorded against the Effect 4.1 archive, not borrowed from
+the snapshot results below. The native runner performs a new full foreign
+declaration audit; previous snapshot-specific exceptions are not inherited.
+
+## Historical two-snapshot qualification
+
 This qualification targets exactly `drizzle-orm@1.0.0-rc.5-ab785fc` or
 `drizzle-orm@1.0.0-rc.5-169397b`,
 `effect@4.0.5` and the compatible native peer `@effect/sql-pg@4.0.5`, on

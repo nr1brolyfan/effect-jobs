@@ -70,9 +70,9 @@ export interface Options extends TableOptions {
 
 /**
  * Creates fixed-column Drizzle declarations for the configured namespace/table names.
- * Requires optional drizzle-orm@1.0.0-rc.5-169397b. Applications generate/run migrations;
+ * Requires optional drizzle-orm@1.0.0-rc.5. Applications generate/run migrations;
  * these declarations neither open a connection nor qualify a transaction adapter.
- * Full upstream strict declaration checking remains an alpha limitation.
+ * Dependency qualification scope is documented in specs/drizzle-compatibility.md.
  *
  * @category constructors
  */

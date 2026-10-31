@@ -1,5 +1,5 @@
 import { readQualificationResource } from "../Resource.mjs"
-// Native low-level SQL APIs are intentionally pinned to 4.0.5 by the consumer runner.
+// Native low-level SQL APIs are intentionally pinned to 4.1.0 by the consumer runner.
 // @effect-diagnostics unstableApiUsage:off
 import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
@@ -10,7 +10,6 @@ import type { Handle } from "./NativeApplication.mjs"
 import type { PostgreSqlError } from "effect-jobs/PostgreSqlTransaction"
 import type { EnqueueResult } from "effect-jobs/JobContract"
 import type { JobEnqueueError } from "effect-jobs/JobTransaction"
-type NativeDb = Effect.Success<ReturnType<typeof Drizzle.makeWithDefaults>>
 import { Cause, Context, Deferred, Effect, Exit, Fiber, Redacted, Schema } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import * as Drizzle from "drizzle-orm/effect-postgres"
@@ -29,6 +28,8 @@ import * as Producer from "effect-jobs/JobProducer"
 import * as Policy from "effect-jobs/JobPolicy"
 import { encodeJobPayload } from "effect-jobs/JobPayloadCodec"
 import * as Application from "./NativeApplication.mjs"
+
+type NativeDb = Effect.Success<ReturnType<typeof Drizzle.makeWithDefaults>>
 
 const resource = process.env.D6_RESOURCE_DIRECTORY
 assert(resource, "private resource directory required")
@@ -198,7 +199,9 @@ try {
                           yield* definition
                             .enqueueInTransaction(jobsTx, input("commit", "changed"))
                             .pipe(
-                              Effect.catchTag("JobIntegrityConflict", () => Effect.void)
+                              Effect.catchTags({
+                                JobIntegrityConflict: () => Effect.void
+                              })
                             )
                         })
                       )
@@ -494,8 +497,8 @@ try {
     drizzle: JSON.parse(
       readFileSync(new URL("./package.json", import.meta.resolve("drizzle-orm")), "utf8")
     ).version,
-    nativeDriver: "@effect/sql-pg@4.0.5",
-    effect: "4.0.5",
+    nativeDriver: "@effect/sql-pg@4.1.0",
+    effect: "4.1.0",
     passed,
     stage,
     cleanup,

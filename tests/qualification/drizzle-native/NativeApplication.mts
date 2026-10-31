@@ -1,4 +1,4 @@
-// Native low-level SQL APIs are intentionally pinned to 4.0.5 by the consumer runner.
+// Native low-level SQL APIs are intentionally pinned to 4.1.0 by the consumer runner.
 // @effect-diagnostics unstableApiUsage:off
 // Qualification-only application registrar, never a shipped universal adapter.
 import { Cause, Context, Effect, Option } from "effect"
@@ -101,9 +101,9 @@ export const make = (client: PgClient): NativeApplication => {
             Effect.map((rows) =>
               rows.map((row: Record<string, unknown>) =>
                 Object.fromEntries(
-                  Object.entries(row).map(([key, value]) => [
-                    key,
-                    typeof value === "bigint" ? value.toString() : value
+                  Object.entries(row).map((entry) => [
+                    entry[0],
+                    typeof entry[1] === "bigint" ? entry[1].toString() : entry[1]
                   ])
                 )
               )

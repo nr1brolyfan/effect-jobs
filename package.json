@@ -1,6 +1,6 @@
 {
   "name": "effect-jobs",
-  "version": "0.1.0-alpha.1-effect.4.0.5.local.2",
+  "version": "0.1.0-alpha.1-effect.4.1.0.local.1",
   "private": false,
   "description": "Effect-native durable, transaction-bound background jobs.",
   "license": "MIT",
@@ -161,8 +161,8 @@
     "playground:test:primitives": "bun apps/website/tests/ui/Primitives.mjs"
   },
   "peerDependencies": {
-    "drizzle-orm": "1.0.0-rc.5-ab785fc || 1.0.0-rc.5-169397b",
-    "effect": "4.0.5"
+    "drizzle-orm": "1.0.0-rc.5",
+    "effect": "4.1.0"
   },
   "peerDependenciesMeta": {
     "drizzle-orm": {
@@ -170,15 +170,15 @@
     }
   },
   "devDependencies": {
-    "@effect/ai-openrouter": "4.0.5",
-    "@effect/platform-node": "4.0.5",
-    "@effect/platform-node-shared": "4.0.5",
+    "@effect/ai-openrouter": "4.1.0",
+    "@effect/platform-node": "4.1.0",
+    "@effect/platform-node-shared": "4.1.0",
     "@effect/tsgo": "0.48.0",
     "@types/node": "26.4.1",
     "@types/pg": "8.20.0",
     "axe-core": "4.11.0",
-    "drizzle-orm": "1.0.0-rc.5-ab785fc",
-    "effect": "4.0.5",
+    "drizzle-orm": "1.0.0-rc.5",
+    "effect": "4.1.0",
     "oxfmt": "0.71.0",
     "oxlint": "1.86.0",
     "oxlint-tsgolint": "7.0.2003",

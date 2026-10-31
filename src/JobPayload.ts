@@ -162,8 +162,8 @@ export const encrypted = <
   ) {
     throw new InvalidEncryptedSchema({ reason: "invalid-envelope" })
   }
-  // No typed provider details are retained in Schema issues. Defects/interruption
-  // remain in the complete Cause; pinned Effect.mapError drops mixed reasons.
+  // Redact typed provider failures while preserving every other Cause reason
+  // and its channel, including explicitly supplied mixed causes.
   const issue = () => new SchemaIssue.Forbidden({ message: "payload encryption failed" })
   const result = protectedPayload(codec.envelope).pipe(
     Schema.decodeTo(schema, {

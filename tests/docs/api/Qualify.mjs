@@ -168,7 +168,7 @@ assert.equal(claims, 1)
 console.log("JSDoc constructor/codec/finite empty-store drain examples PASS")
 `
 // Fixed extraction order makes checks fail visibly if the example inventory changes.
-assert.deepEqual(examples.map(({ name }) => name).sort(), [
+assert.deepEqual(examples.map((example) => example.name).sort(), [
   "Job.ts",
   "JobConsumer.ts",
   "JobPayload.ts",
@@ -247,7 +247,7 @@ writeFileSync(
       private: true,
       dependencies: {
         "effect-jobs": `file:${process.env.EFFECT_JOBS_ARCHIVE ?? join(work, `effect-jobs-${manifest.version}.tgz`)}`,
-        effect: "4.0.5",
+        effect: "4.1.0",
         typescript: "7.0.2",
         "@types/node": "26.4.1"
       }
@@ -261,11 +261,8 @@ const packedManifest = JSON.parse(
   readFileSync(join(installed, "node_modules/effect-jobs/package.json"), "utf8")
 )
 assert.equal(packedManifest.version, manifest.version)
-assert.equal(packedManifest.peerDependencies.effect, "4.0.5")
-assert.equal(
-  packedManifest.peerDependencies["drizzle-orm"],
-  "1.0.0-rc.5-ab785fc || 1.0.0-rc.5-169397b"
-)
+assert.equal(packedManifest.peerDependencies.effect, "4.1.0")
+assert.equal(packedManifest.peerDependencies["drizzle-orm"], "1.0.0-rc.5")
 assert(
   !readdirSync(join(installed, "node_modules")).includes("drizzle-orm"),
   "Core examples must retain absent optional peer"
