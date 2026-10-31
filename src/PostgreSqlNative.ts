@@ -1,7 +1,7 @@
 /** Effect SQL native PostgreSQL integration. No pool or migration ownership. */
 // The native SQL contract is intentionally pinned to Effect 4.1.0.
 // @effect-diagnostics unstableApiUsage:off
-import { Cause, Effect, Layer, Option, Schema } from "effect"
+import { Cause, Effect, Exit, Layer, Option, Schema, Tracer } from "effect"
 import type { SqlClient } from "effect/sql/SqlClient"
 import { isSqlError, type SqlError } from "effect/sql/SqlError"
 import { EpochMillis } from "./JobPolicy.js"
@@ -64,6 +64,60 @@ export const make = (options: Options): ApplicationAdapter => {
     throw new PostgreSqlConfigurationError({ field: "operationTimeoutMillis" })
   }
   const { client, operationTimeoutMillis } = options
+  // Protect only the native transaction span we create. Restore the host tracer
+  // inside the callback: application spans retain their own failure semantics.
+  // Controls still see the original Exit, including rollback/release failures.
+  const ownedNative = <A, E, R>(body: Effect.Effect<A, E, R>) =>
+    Effect.gen(function* () {
+      const host = yield* Tracer.Tracer
+      let selected = false
+      const tracer = Tracer.make({
+        context: host.context,
+        span(options) {
+          const span = host.span(options)
+          if (selected || options.name !== "sql.transaction") {
+            return span
+          }
+          selected = true
+          return {
+            _tag: span._tag,
+            name: span.name,
+            get spanId() {
+              return span.spanId
+            },
+            get traceId() {
+              return span.traceId
+            },
+            parent: span.parent,
+            annotations: span.annotations,
+            get attributes() {
+              return span.attributes
+            },
+            get links() {
+              return span.links
+            },
+            sampled: span.sampled,
+            kind: span.kind,
+            get status() {
+              return span.status
+            },
+            end(time, exit) {
+              span.attribute(
+                "jobs.native.outcome",
+                Exit.isSuccess(exit) ? "success" : "unknown"
+              )
+              span.end(time, Exit.succeed(undefined))
+            },
+            attribute: (key, value) => span.attribute(key, value),
+            event: (name, time, attributes) => span.event(name, time, attributes),
+            addLinks: (links) => span.addLinks(links)
+          }
+        }
+      })
+      return yield* client
+        .withTransaction(body.pipe(Effect.withTracer(host)))
+        .pipe(Effect.withTracer(tracer))
+    })
   const ambient: Effect.Effect<TransactionQuery, PostgreSqlError> = Effect.gen(
     function* () {
       const active = yield* Effect.serviceOption(client.transactionService)
@@ -106,7 +160,7 @@ export const make = (options: Options): ApplicationAdapter => {
     Effect.gen(function* () {
       const active = yield* Effect.serviceOption(client.transactionService)
       const run = Effect.flatMap(ambient, (query) => Effect.suspend(() => body(query)))
-      return yield* Option.isSome(active) ? run : controls(client.withTransaction(run))
+      return yield* Option.isSome(active) ? run : controls(ownedNative(run))
     })
   return {
     ambient,
@@ -121,7 +175,7 @@ export const make = (options: Options): ApplicationAdapter => {
           return yield* new PostgreSqlInvalidHandle({ reason: "active-transaction" })
         }
         return yield* controls(
-          client.withTransaction(
+          ownedNative(
             Effect.flatMap(ambient, (query) =>
               Effect.suspend(() => body(query)).pipe(
                 Effect.timeoutOrElse({

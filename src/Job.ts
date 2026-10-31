@@ -1,3 +1,4 @@
+import { observe } from "./JobTelemetry.js"
 /**
  * Defines versioned jobs with transaction-bound production and Layer-installed handlers.
  */
@@ -104,7 +105,7 @@ export interface JobDefinition<
  * // Provide JobRegistry when building this Layer. Add application services as needed.
  * // Replace this no-op with an idempotent application handler.
  * const HandlerLayer = definition.handlerLayer(
- *   ({ payload, context }) => Effect.void,
+ *   () => Effect.void,
  *   Codec.decodeJobPayload
  * )
  * ```
@@ -207,19 +208,25 @@ export function make<
     enqueue: Effect.fnUntraced(function* (input: EnqueueInput<Payload["Type"]>) {
       const backend = yield* JobEnqueue
       // Check transaction presence before potentially asynchronous encryption.
-      return yield* backend.enqueue(prepare(input))
+      return yield* backend
+        .enqueue(prepare(input))
+        .pipe(observe("enqueue", "provisional"))
     }),
     enqueueStandalone: Effect.fnUntraced(function* (
       input: EnqueueInput<Payload["Type"]>
     ) {
       const backend = yield* JobEnqueue
-      return yield* backend.enqueueStandalone(prepare(input))
+      return yield* backend
+        .enqueueStandalone(prepare(input))
+        .pipe(observe("enqueue-standalone", "committed"))
     }),
     enqueueInTransaction: Effect.fnUntraced(function* <E, R>(
       tx: JobsTransaction<E, R>,
       input: EnqueueInput<Payload["Type"]>
     ) {
-      return yield* insertPrepared(tx, yield* prepare(input))
+      return yield* Effect.flatMap(prepare(input), (prepared) =>
+        insertPrepared(tx, prepared)
+      ).pipe(observe("enqueue", "provisional"))
     }),
     handlerLayer: <R>(
       execute: (
@@ -235,7 +242,9 @@ export function make<
             catalog,
             execute: (encoded, context) =>
               Effect.flatMap(decodePayload(payload, encoded), (decoded) =>
-                Effect.suspend(() => execute({ payload: decoded, context }))
+                Effect.suspend(() => execute({ payload: decoded, context })).pipe(
+                  observe("invoke", "handler")
+                )
               ).pipe(Effect.provide(services))
           })
         })

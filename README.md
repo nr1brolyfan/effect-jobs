@@ -270,6 +270,10 @@ yield* SendReceipt.enqueueStandalone({
 }).pipe(Effect.provideService(JobEnqueue, jobsStorage.producer))
 ```
 
+For operation signals, privacy boundaries, health sampling and query recipes, see the
+[jobs observability guide](docs/observability.md) and its
+[per-file checklist](docs/observability-checklist.md).
+
 ## Choose what a failure means
 
 A receipt provider can reject a request, accept it, or leave you unable to tell which happened.

@@ -12,7 +12,7 @@ const run = (command, args) =>
 const entries = run("tar", ["-tzf", archive]).trim().split("\n")
 assert(
   entries.every((entry) =>
-    /^package\/(dist\/|specs\/|package.json$|README.md$|CHANGELOG.md$|LICENSE$)/.test(
+    /^package\/(dist\/|specs\/|docs\/observability(?:-checklist)?\.md$|package.json$|README.md$|CHANGELOG.md$|LICENSE$)/.test(
       entry
     )
   )

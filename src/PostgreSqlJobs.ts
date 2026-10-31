@@ -1,3 +1,4 @@
+import { makeHealth } from "./internal/postgresql/Health.js"
 /**
  * PostgreSQL storage and transaction bridge using application-owned connections.
  */
@@ -128,6 +129,8 @@ export interface Backend {
   readonly store: JobStoreService<PostgreSqlError>
   /** Optional, separately selected. Never installed implicitly or run by imports. */
   readonly cleanup: JobCleanupService<PostgreSqlError>
+  /** Opt-in read-only bounded health sample; app selects ONE reporter per queue/storage. */
+  readonly health: ReturnType<typeof makeHealth>
   /** Joins the adapter-registered exact active source/connection. No BEGIN/savepoint,
    * independent commit or replay. Sequence enqueue inside this callback; its capability
    * closes on exit and success remains provisional until outer commit.
@@ -243,6 +246,7 @@ export const make = (options: Options) =>
       tables: mapping,
       store: makeStore(adapter, jobs, payloads, budget),
       cleanup: makeCleanup(adapter, jobs),
+      health: makeHealth(adapter, jobs),
       joinTransaction,
       withTransaction: (body) =>
         adapter.withTransaction((handle) =>
