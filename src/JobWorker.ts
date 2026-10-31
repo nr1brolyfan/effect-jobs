@@ -237,9 +237,7 @@ export const make = <E, R>(store: JobStoreService<E, R>, options: JobWorkerOptio
           let recovered = 0
           for (let remaining = limit; remaining > 0;) {
             const batch = Math.min(500, remaining)
-            const count = yield* bound
-              .recoverExpired(batch)
-              .pipe(Effect.timeout(budget), observe("recover-expired", "maintenance"))
+            const count = yield* bound.recoverExpired(batch).pipe(Effect.timeout(budget))
             if (!Number.isInteger(count) || count < 0 || count > batch) {
               return yield* new JobWorkerUnavailable()
             }
@@ -250,7 +248,7 @@ export const make = <E, R>(store: JobStoreService<E, R>, options: JobWorkerOptio
             }
           }
           return recovered
-        }).pipe(unavailable)
+        }).pipe(observe("recover-expired", "maintenance"), unavailable)
     }
     return JobWorker.of(Object.freeze({ [WorkerCapability]: capability }))
   })

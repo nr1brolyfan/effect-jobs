@@ -1,3 +1,4 @@
+import { observe, trackExecution } from "../../JobTelemetry.js"
 import { Effect, Fiber, Semaphore } from "effect"
 import { JobWorker } from "../../JobWorker.js"
 import { WorkerCapability } from "./Capability.js"
@@ -38,6 +39,7 @@ export const drainWithOptions = (consumer: JobConsumer, options: DrainOptions = 
               Effect.onInterrupt(() => started.release)
             )
             const fiber = yield* restore(started.execution).pipe(
+              trackExecution,
               Effect.ensuring(Semaphore.release(permits, 1)),
               Effect.forkScoped
             )
@@ -47,7 +49,9 @@ export const drainWithOptions = (consumer: JobConsumer, options: DrainOptions = 
         for (; claimed < consumer.claimLimitPerRun; claimed++) {
           const result = yield* Effect.uninterruptibleMask((restore) =>
             Effect.gen(function* () {
-              yield* restore(Semaphore.take(permits, 1))
+              yield* restore(Semaphore.take(permits, 1)).pipe(
+                observe("permit-wait", "dispatch")
+              )
               let transferred = false
               return yield* restore(runtime.claim(consumer.queue.name)).pipe(
                 Effect.flatMap((dispatch) => {
@@ -92,4 +96,4 @@ export const drainWithOptions = (consumer: JobConsumer, options: DrainOptions = 
           : DrainResults.MoreWork({ claimed, recovered: recovery.success })
       })
     )
-  })
+  }).pipe(observe("drain", "dispatch"))

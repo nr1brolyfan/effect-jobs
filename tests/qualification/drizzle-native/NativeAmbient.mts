@@ -435,6 +435,29 @@ try {
       checks.push(
         "real PostgreSQL AES-GCM nonce/key rotation preserves semantic HMAC dedup and old-key decoding; changed content conflicts"
       )
+      const health = yield* backend.health.sample({
+        queue: "billing",
+        supportedCatalog: [definition.catalog],
+        limit: 1
+      })
+      assert.equal(health.supported.count, 1)
+      assert.equal(health.supported.saturated, true)
+      assert.equal(health.unsupported.count, 1)
+      assert.equal(health.unsupported.saturated, false)
+      assert(health.sampledAt > 0)
+      const ambientHealth = yield* Effect.exit(
+        client.withTransaction(
+          backend.health.sample({
+            queue: "billing",
+            supportedCatalog: [definition.catalog],
+            limit: 1
+          })
+        )
+      )
+      assert(Exit.isFailure(ambientHealth))
+      checks.push(
+        "bounded opt-in health distinguishes supported work and rejects ambient ownership"
+      )
       return checks
     }).pipe(Effect.provideService(JobEnqueue, backend.producer))
   })

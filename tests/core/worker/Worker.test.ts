@@ -819,6 +819,9 @@ it("emits bounded logs, metrics attributes and spans without raw errors or durab
         "jobs.operation",
         "jobs.phase",
         "jobs.outcome",
+        "jobs.result",
+        "jobs.requested",
+        "jobs.attempt_phase",
         "jobs.cause_kind",
         "jobs.reason_count_bucket"
       ])
@@ -1129,3 +1132,62 @@ it("limits finalized retries to three attempts using the fixed persisted delay",
     })
   )
 })
+
+for (const boundary of ["validation", "handler", "finalization"] as const) {
+  it(`reports owning deadline and actual invocation at ${boundary}`, async () => {
+    const spans: Tracer.NativeSpan[] = []
+    const tracer = Tracer.make({
+      span(options) {
+        const span = new Tracer.NativeSpan(options)
+        spans.push(span)
+        return span
+      }
+    })
+    await run(
+      Effect.gen(function* () {
+        const test = yield* seed(
+          1,
+          yield* Policy.make({ attemptTimeout: Duration.millis(50) })
+        )
+        let invoked = 0
+        yield* Layer.build(
+          definition.handlerLayer(
+            () =>
+              Effect.sync(() => {
+                invoked++
+              }).pipe(
+                Effect.andThen(boundary === "handler" ? Effect.never : Effect.void)
+              ),
+            boundary === "validation" ? () => Effect.never : Codec.decodeJobPayload
+          )
+        )
+        const worker = yield* Worker.make(
+          {
+            ...test.store,
+            ...(boundary === "finalization" ? { finalize: () => Effect.never } : {})
+          },
+          { catalog: [definition], operationResponseBudgetMillis: 100 }
+        )
+        const fiber = yield* drain(consumer(1)).pipe(
+          Effect.provideService(Worker.JobWorker, worker),
+          Effect.forkChild
+        )
+        yield* Effect.yieldNow
+        yield* TestClock.adjust(50)
+        yield* Fiber.join(fiber)
+        assert.equal(invoked, boundary === "validation" ? 0 : 1)
+        assert.equal(
+          spans.filter((span) => span.name === "effect-jobs.invoke").length,
+          invoked
+        )
+        const attempt = spans.find((span) => span.name === "effect-jobs.attempt")!
+        assert.equal(attempt.attributes.get("jobs.outcome"), "timeout")
+        assert.equal(
+          attempt.attributes.get("jobs.attempt_phase"),
+          boundary === "finalization" ? "finalization" : "decode-and-handler"
+        )
+        assert.equal(test.rows[0]!.snapshot.state, "Active")
+      }).pipe(Effect.withTracer(tracer))
+    )
+  })
+}

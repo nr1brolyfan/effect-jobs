@@ -1,3 +1,4 @@
+import { confirmedTransition, observe } from "../../JobTelemetry.js"
 import { Effect, Result, Schema } from "effect"
 import * as Lifecycle from "../../JobLifecycle.js"
 import * as Store from "../../JobStore.js"
@@ -197,6 +198,7 @@ export const makeStore = (
       ) {
         return yield* inputError()
       }
+      let confirmed: "Completed" | "RetryScheduled" | "Dead" | "Isolated" | undefined
       return yield* unknownResult(
         adapter.ownedTransaction((query) =>
           Effect.gen(function* () {
@@ -216,10 +218,24 @@ export const makeStore = (
               Lifecycle.finalize(before, request.ownership, request.finalization, now)
             )
             yield* writeSnapshot(query, jobs, after)
+            if (
+              after.state === "Completed" ||
+              after.state === "RetryScheduled" ||
+              after.state === "Dead" ||
+              after.state === "Isolated"
+            ) {
+              confirmed = after.state
+            }
             return Store.FinalizationResults.Applied()
           })
         ),
         Store.FinalizationResults.Unknown
+      ).pipe(
+        Effect.tap((result) =>
+          result._tag === "Applied" && confirmed !== undefined
+            ? confirmedTransition(confirmed)
+            : Effect.void
+        )
       )
     })
   const reconcileFinalization: Store.JobStoreService<PostgreSqlError>["reconcileFinalization"] =
@@ -319,5 +335,5 @@ export const makeCleanup = (
           return removed
         })
       )
-    })
+    }).pipe(observe("cleanup", "committed"))
 })

@@ -133,7 +133,9 @@
     "specs/release-qualification.md",
     "specs/api-refinements.md",
     "specs/operator-contract.md",
-    "specs/retry-policy.md"
+    "specs/retry-policy.md",
+    "docs/observability.md",
+    "docs/observability-checklist.md"
   ],
   "scripts": {
     "toolchain:setup": "effect-tsgo patch --typescript --oxlint",
@@ -151,7 +153,7 @@
     "qualify:docs:readme": "node tests/docs/readme/Run.mjs",
     "check:docs:api": "node tests/docs/api/Qualify.mjs",
     "test:release-imports": "node --test tests/qualification/ReleaseImports.mjs",
-    "verify": "bun run check && bun run lint && bun run format:check && bun run build && bun run test && bun run test:release-imports && bun run check:docs:api",
+    "verify": "bun run check && bun run lint && bun run format:check && bun run build && bun run test && bun run test:release-imports && bun run check:docs:api && bun run check:docs:observability",
     "release:pack": "node scripts/pack-release.mjs",
     "release:check": "node scripts/check-release.mjs",
     "qualify:release": "node scripts/qualify-release.mjs",
@@ -163,7 +165,9 @@
     "playground:build": "bun run --filter @effect-jobs/playground-contracts build && bun run --filter @effect-jobs/playground-website --filter @effect-jobs/playground-worker build",
     "playground:qualify": "node packages/playground-contracts/qualification/Run.mjs",
     "playground:preview": "python3 apps/playground-worker/tests/integration/RunOwned.py --preview",
-    "playground:test:primitives": "bun apps/website/tests/ui/Primitives.mjs"
+    "playground:test:primitives": "bun apps/website/tests/ui/Primitives.mjs",
+    "check:docs:observability": "tsc --project ai-docs/tsconfig.observability.json --noEmit",
+    "qualify:observability": "node tests/qualification/observability/Run.mjs"
   },
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.5",

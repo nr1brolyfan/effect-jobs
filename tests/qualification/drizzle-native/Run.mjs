@@ -191,10 +191,34 @@ const upstreamExit = run(
   true
 )
 assert.notEqual(upstreamExit, null, "Foreign declaration audit must execute")
+const auditLog = readFileSync(join(consumer, "foreign-declarations-current.log"), "utf8")
+const auditDiagnostics = auditLog
+  .split("\n")
+  .filter((line) => /: error TS\d+:/.test(line))
+const knownForeignOnly =
+  auditDiagnostics.length === 7 &&
+  auditDiagnostics.every(
+    (line) =>
+      /^node_modules\/drizzle-orm\/(?:cockroach-core|pg-core)\/(?:policies|roles)\.d\.ts\(\d+,\d+\): error TS2420:/.test(
+        line
+      ) ||
+      /^node_modules\/drizzle-orm\/singlestore\/(?:driver|session)\.d\.ts\(\d+,\d+\): error TS2307: Cannot find module 'mysql2(?:\/promise)?'/.test(
+        line
+      )
+  )
+
 const upstreamAudit = {
-  status: upstreamExit === 0 ? "PASS" : "FAIL (unwaived)",
+  status:
+    upstreamExit === 0
+      ? "PASS"
+      : knownForeignOnly
+        ? "FAIL (diagnostic)"
+        : "FAIL (unexpected diagnostics)",
   exitCode: upstreamExit,
-  blocking: upstreamExit !== 0,
+  blocking: upstreamExit !== 0 && !knownForeignOnly,
+  knownForeignOnly,
+  policy:
+    "Normal source/consumer checks use skipLibCheck:true; this full foreign-declaration audit is diagnostic per owner contract.",
   scope: "Current packed native consumer with skipLibCheck:false",
   drizzle: drizzleVersion,
   logSha256: sha256(join(consumer, "foreign-declarations-current.log"))
@@ -275,6 +299,7 @@ for (const runtime of ["node", "bun"]) {
   receipts.push({ ...receipt, ambient })
 }
 const receipt = {
+  normalChecks: { status: "PASS", skipLibCheck: true },
   archiveSha256: sha256(archive),
   npmLockSha256: sha256(join(consumer, "package-lock.json")),
   rootManifestSha256: sha256(join(root, "package.json")),
@@ -292,6 +317,8 @@ const receipt = {
 writeFileSync(join(consumer, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n")
 console.log(`Packed native A+B/runtime PASS; artifact sha256=${receipt.archiveSha256}`)
 console.log(`Current foreign declarations: ${upstreamAudit.status}; consumer=${consumer}`)
+// Normal checks above assert their exits. Only the exact known foreign diagnostic
+// set is nonblocking; unexpected/own-declaration failures are never covered.
 if (upstreamAudit.blocking) {
   process.exitCode = 1
 }
