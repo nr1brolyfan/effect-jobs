@@ -67,8 +67,8 @@ export const client: Client = {
       const filtered = page.items.filter(
         (job) =>
           (request.filters.state === undefined || job.state === request.filters.state) &&
-          (request.filters.kind === undefined ||
-            job.catalog.kind === request.filters.kind)
+          (request.filters.name === undefined ||
+            job.catalog.name === request.filters.name)
       )
       const start =
         request.cursor === undefined

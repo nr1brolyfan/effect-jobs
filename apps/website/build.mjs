@@ -12,13 +12,19 @@ const root = import.meta.dirname
 const repository = resolve(root, "../..")
 const source = resolve(root, "src")
 const scratch = resolve(root, ".stylex-build")
+// Astro owns these trees; dashboard receipts and StyleX inputs stay independent.
+const siteDirectories = new Set(
+  ["components", "content", "pages"].map((name) => resolve(source, name))
+)
 const walk = async (directory) => {
   const paths = []
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = resolve(directory, entry.name)
     if (entry.isDirectory()) {
-      paths.push(...(await walk(path)))
-    } else if (/\.tsx?$/.test(entry.name)) {
+      if (!siteDirectories.has(path)) {
+        paths.push(...(await walk(path)))
+      }
+    } else if (/\.tsx?$/.test(entry.name) && entry.name !== "content.config.ts") {
       paths.push(path)
     }
   }

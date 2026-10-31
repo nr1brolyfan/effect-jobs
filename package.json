@@ -158,7 +158,16 @@
     "playground:build": "bun run --filter @effect-jobs/playground-contracts build && bun run --filter @effect-jobs/playground-website --filter @effect-jobs/playground-worker build",
     "playground:qualify": "node packages/playground-contracts/qualification/Run.mjs",
     "playground:preview": "python3 apps/playground-worker/tests/integration/RunOwned.py --preview",
-    "playground:test:primitives": "bun apps/website/tests/ui/Primitives.mjs"
+    "playground:test:primitives": "bun apps/website/tests/ui/Primitives.mjs",
+    "site:build": "bun run --cwd apps/website site:build",
+    "site:check": "bun run --cwd apps/website site:check",
+    "site:test": "bun run --cwd apps/website site:test",
+    "site:browser": "node apps/website/tests/site/Browser.mjs",
+    "qualify:docs:orders": "node apps/website/tests/order-tutorial/Qualify.mjs",
+    "qualify:docs:examples": "node apps/website/tests/docs-reference/Qualify.mjs",
+    "check:docs:reference": "node apps/website/tests/docs-reference/Reference.mjs --check",
+    "site:routes": "node apps/website/tests/site/Routes.mjs",
+    "check:docs:snippets": "node apps/website/tests/docs-reference/Snippets.mjs"
   },
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.5-ab785fc || 1.0.0-rc.5-169397b",

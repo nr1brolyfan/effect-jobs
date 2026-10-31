@@ -277,13 +277,13 @@ describe("jobs atom authority", () => {
     expect(controller.snapshot().pageNumber).toBe(2)
     expect(controller.snapshot().selected).toBe(job.jobId)
     await execute(
-      controller.filter({ state: "Pending", kind: "playground.scenario" }),
+      controller.filter({ state: "Pending", name: "playground.scenario" }),
       server.client
     )
     expect(controller.snapshot().cursor).toBeUndefined()
     expect(controller.snapshot().page?.items).toHaveLength(20)
     expect(controller.snapshot().selected).toBe(job.jobId)
-    await execute(controller.filter({ state: "Pending", kind: "absent" }), server.client)
+    await execute(controller.filter({ state: "Pending", name: "absent" }), server.client)
     expect(controller.snapshot().page?.items).toHaveLength(0)
   })
 

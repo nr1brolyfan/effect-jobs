@@ -1,0 +1,51 @@
+---
+title: The job model
+description: Separate the shared job contract from production, handling and execution.
+sidebar:
+  order: 1
+---
+
+A report API and a report worker need to agree on what work means. They do not
+need to share an HTTP server, a renderer or provider credentials.
+
+| Part       | Report example                                   | Responsibility                                                                  |
+| ---------- | ------------------------------------------------ | ------------------------------------------------------------------------------- |
+| Queue      | `reports`                                        | A logical lane selected by a consumer.                                          |
+| Definition | A versioned report-generation name               | Catalog identity: queue, name and version, plus the payload Schema.             |
+| Payload    | A synthetic report ID                            | Validated data needed by the handler; prefer references over private documents. |
+| Producer   | A report-request operation and a generation slot | Stable identity of one business consequence.                                    |
+| Handler    | Load inputs, render and store the report         | Application work installed through an explicit Layer.                           |
+| Consumer   | Reports, local concurrency 2                     | Per-instance concurrency and finite claim/recovery limits.                      |
+| Worker     | Store + catalog + handlers                       | Validates and executes claimed work under durable ownership.                    |
+
+```text
+Shared definition ──→ API: enqueue in an application transaction
+        │
+        └───────────→ Worker: install handler + store + explicit runtime
+```
+
+## Two identities answer different questions
+
+**Catalog identity** is `(queue, name, version)`: which contract decodes and handles
+this payload? `Job.make` defaults an omitted version to `1`. An incompatible
+payload change needs a new version and a matching decoder.
+
+**Producer identity** is `(operation, operationId, slot)`: which consequence of
+which business operation is this? Reuse the operation ID and slot on request
+retries. Matching catalog and semantic payload return the original job ID;
+changed content conflicts. Policy and availability keep their first values.
+
+Two slots may enqueue the same name. Two slots do not create ordering or a flow.
+Use separate consequences for generation and delivery, with an explicit
+application-owned handoff. See [deduplication](/docs/persistence/deduplication).
+
+## Layers make execution explicit
+
+A definition describes a contract; it does not install a handler. A handler Layer
+does not start polling. The application supplies persistence, handler services and
+the registry, constructs the worker, then explicitly runs a finite drain or scoped
+polling runtime.
+
+`localConcurrency` limits handlers in one consumer instance. It is not a global
+queue-wide replica limit. See [workers](/docs/execution/workers) for lifetime and
+shutdown, or [first job](/docs/start/first-job) for a concrete composition.

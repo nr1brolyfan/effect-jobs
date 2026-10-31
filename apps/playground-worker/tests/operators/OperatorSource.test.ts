@@ -21,7 +21,7 @@ const payload = {
 }
 const row = (encoded: EncodedJobPayload, definition = Definitions.WelcomeEmail) => ({
   queue: definition.catalog.queue,
-  kind: definition.catalog.kind,
+  kind: definition.catalog.name,
   version: definition.catalog.version,
   format_version: encoded.formatVersion,
   payload: encoded.payloadBytes,
@@ -76,7 +76,7 @@ describe("private redrive source authority", () => {
             const input = {
               ...row(encoded),
               queue: definition.catalog.queue,
-              kind: definition.catalog.kind,
+              kind: definition.catalog.name,
               version: definition.catalog.version
             }
             const result = yield* Effect.exit(Source.validate(input, ref))

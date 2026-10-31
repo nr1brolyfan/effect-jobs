@@ -21,7 +21,7 @@ export const Cursor = Schema.String.pipe(
 export type JobFilters = typeof JobFilters.Type
 export const JobFilters = Schema.Struct({
   state: JobState.pipe(Schema.optional),
-  kind: CatalogIdentity.fields.kind.pipe(Schema.optional),
+  name: CatalogIdentity.fields.name.pipe(Schema.optional),
   resolution: JobResolutionState.pipe(Schema.optional),
   needsAttention: Schema.Literal(true).pipe(Schema.optional)
 })

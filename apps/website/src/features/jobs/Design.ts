@@ -45,30 +45,30 @@ export const icon = (name: IconName) => {
   return svg
 }
 
-export const jobIcon = (kind: string): IconName => {
-  if (kind.includes("email") || kind.includes("welcome")) {
+export const jobIcon = (name: string): IconName => {
+  if (name.includes("email") || name.includes("welcome")) {
     return "mail"
   }
-  if (kind.includes("image")) {
+  if (name.includes("image")) {
     return "image"
   }
-  if (kind.includes("webhook")) {
+  if (name.includes("webhook")) {
     return "webhook"
   }
-  if (kind.includes("export")) {
+  if (name.includes("export")) {
     return "upload"
   }
-  if (kind.includes("catalog")) {
+  if (name.includes("catalog")) {
     return "layers"
   }
-  if (kind.includes("payment")) {
+  if (name.includes("payment")) {
     return "shield"
   }
   return "terminal"
 }
 
-export const jobName = (kind: string) =>
-  kind.split(".").at(-1)?.replaceAll(/[-_]/g, " ") ?? kind
+export const jobName = (name: string) =>
+  name.split(".").at(-1)?.replaceAll(/[-_]/g, " ") ?? name
 
 export const compactTime = (millis: number) =>
   new Intl.DateTimeFormat("en", {

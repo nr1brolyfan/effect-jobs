@@ -55,7 +55,7 @@ const receipts = pgSchema(schema).table("receipts", { id: text("id").primaryKey(
 const traceReceipts: Array<{ id: string; pid: number; xid: string }> = []
 const definition = Job.make({
   queue: Queue.make("billing"),
-  kind: "receipt",
+  name: "receipt",
   payload: Schema.Struct({ invoiceId: Schema.String })
 })
 const input = (id: string, value = id) => ({
@@ -312,7 +312,7 @@ try {
       // This is not a real lost-network / server-crash claim.
       const lost = Job.make({
         queue: definition.queue,
-        kind: definition.kind,
+        name: definition.name,
         payload: definition.payload,
         encodePayload: (schema, value) =>
           Effect.gen(function* () {
@@ -367,7 +367,7 @@ try {
       let keyId: "old" | "current" = "old"
       const protectedJob = Job.make({
         queue: definition.queue,
-        kind: "private.receipt",
+        name: "private.receipt",
         payload: Payload.encrypted({
           schema: Schema.String,
           codec: {

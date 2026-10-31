@@ -112,7 +112,7 @@ const Harness = () => {
             payload: {
               _tag: "Available",
               formatVersion: 1,
-              catalog: { ...Crypto.syntheticDocumentCatalog, kind: "unsupported" },
+              catalog: { ...Crypto.syntheticDocumentCatalog, name: "unsupported" },
               encoded: { document: encrypted },
               validation: "Valid",
               encryption: "SyntheticDocumentV1"
@@ -141,7 +141,7 @@ const Harness = () => {
               formatVersion: 1,
               catalog: {
                 queue: "playground-private",
-                kind: "playground.private-data-export",
+                name: "playground.private-data-export",
                 version: 1
               },
               encoded: { document: encrypted },

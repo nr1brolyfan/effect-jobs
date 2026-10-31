@@ -17,13 +17,16 @@ import * as Bridge from "./PgBridge.js"
 const resourceDirectory = process.env.D6_RESOURCE_DIRECTORY
 const enabled = resourceDirectory !== undefined
 const definition = Job.make({
-  kind: "invoice.generate",
+  name: "invoice.generate",
   version: 1,
   queue: Queue.make("billing"),
   payload: Schema.Struct({ invoiceId: Schema.String }),
   encodePayload: encodeJobPayload
 })
-const producer = Producer.make({ operation: "billing.issue", slots: ["generate"] })
+const producer = Producer.make({
+  operation: "billing.issue",
+  slots: { generate: definition }
+})
 class CallerValue extends Context.Service<CallerValue, { readonly value: number }>()(
   "d6/CallerValue"
 ) {}

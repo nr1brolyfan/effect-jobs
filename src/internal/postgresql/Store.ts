@@ -73,7 +73,7 @@ export const makeStore = (
         ...validated.success,
         supportedCatalog: validated.success.supportedCatalog.map((catalog) => ({
           queue: catalog.queue,
-          kind: catalog.kind,
+          name: catalog.name,
           version: catalog.version
         }))
       }
@@ -84,7 +84,7 @@ export const makeStore = (
             const params: Array<unknown> = [request.queue, now]
             const supported = request.supportedCatalog
               .map((entry) => {
-                params.push(entry.kind, entry.version)
+                params.push(entry.name, entry.version)
                 return `(j.kind=$${params.length - 1} AND j.version=$${params.length})`
               })
               .join(" OR ")

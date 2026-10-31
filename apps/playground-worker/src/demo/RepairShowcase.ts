@@ -19,7 +19,7 @@ import { maxRetainedJobs } from "./Traffic.js"
 
 const producer = Producer.make({
   operation: "playground.synthetic-showcase",
-  slots: ["encrypted-document"]
+  slots: { "encrypted-document": Definitions.SyntheticDocumentExport }
 })
 // Trusted maintenance only. No route accepts this capability or caller-selected flags.
 // All state/attempt changes belong to producer + real worker + repair reconciliation.

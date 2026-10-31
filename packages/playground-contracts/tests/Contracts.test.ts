@@ -113,7 +113,7 @@ describe("frozen playground boundaries", () => {
   it("uses current library definitions without inventing user/job identity", () => {
     expect(ScenarioJob.catalog).toEqual({
       queue: "playground",
-      kind: "playground.scenario",
+      name: "playground.scenario",
       version: 1
     })
     expect(

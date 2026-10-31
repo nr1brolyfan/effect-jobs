@@ -195,7 +195,7 @@ function Fixture() {
       <p role="status">{explanation}</p>
       <p id="return-context">
         {saved
-          ? `Page ${saved.pageNumber}; ${saved.filters.state}; ${saved.filters.kind}; ${saved.cursors[2]}`
+          ? `Page ${saved.pageNumber}; ${saved.filters.state}; ${saved.filters.name}; ${saved.cursors[2]}`
           : "Page 3; Dead; synthetic.kind"}
       </p>
       <div style={{ height: 700 }} aria-hidden="true" />

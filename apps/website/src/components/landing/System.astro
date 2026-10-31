@@ -1,0 +1,113 @@
+---
+import { root } from "astro:config/server";
+import { extractExample } from "../docs/ExtractExample.mjs";
+const examplesDirectory = new URL("./examples/docs/", root);
+const enqueueSource = await extractExample("ReportWorkflow.ts", "enqueue", examplesDirectory);
+const handlerSource = await extractExample("ReportWorkflow.ts", "handler", examplesDirectory);
+const reports = [
+  "Monthly revenue",
+  "Usage summary",
+  "Invoice export",
+  "Audit archive",
+];
+---
+
+<ej-job-system class="system" aria-label="Illustrated report jobs lifecycle">
+  <div class="system-heading">
+    <div>
+      <span class="tiny-mark" aria-hidden="true"></span><strong>reports</strong
+      ><span class="system-subtitle"> / execution map</span>
+    </div><span class="simulation">DETERMINISTIC ILLUSTRATION</span>
+  </div>
+  <div class="system-body">
+    <div class="flow-header" aria-hidden="true">
+      <span>01 / REQUESTS</span><span>02 / DURABLE QUEUE</span><span
+        >03 / WORKERS × 2</span
+      ><span>04 / RESULT</span>
+    </div>
+    <div class="flow-map" aria-hidden="true">
+      <div class="request-node">
+        API<br /><small>report requests</small>
+      </div><div class="wire"><span>→</span></div><div class="queue-node">
+        <span>PostgreSQL</span><small>reports queue</small><div
+          class="queue-lines"
+        >
+          <i></i><i></i><i></i><i></i>
+        </div>
+      </div><div class="wire"><span>→</span></div><div class="worker-pair">
+        <div data-worker="0">W1 <span>ready</span></div><div data-worker="1">
+          W2 <span>ready</span>
+        </div>
+      </div><div class="wire"><span>→</span></div><div class="result-node">
+        ✓<small>Completed</small>
+      </div><div class="retry-wire">
+        ↶ <span>RetryScheduled · wait until available</span>
+      </div>
+    </div>
+    <div class="job-and-code">
+      <div class="jobs">
+        <div class="panel-label">
+          <span>SELECT A REPORT</span><span data-capacity>0 / 2 active</span>
+        </div>{
+          reports.map((report, i) => (
+            <button
+              type="button"
+              class="job"
+              data-job={i}
+              aria-pressed={i === 0 ? "true" : "false"}
+              disabled
+            >
+              <>
+                <span class="job-number">0{i + 1}</span>
+                <span class="job-title">
+                  {report}
+                  <small data-detail>Waiting for a worker</small>
+                </span>
+                <span class="state" data-state="Pending">
+                  Pending
+                </span>
+              </>
+            </button>
+          ))
+        }
+      </div>
+      <div class="code-panel">
+        <div class="panel-label">
+          <span data-code-title>01 / Monthly revenue</span><span
+            >PARTIAL · ReportWorkflow.ts</span
+          >
+        </div><pre
+          tabindex="0"
+          aria-label="Partial enqueue source for the selected report"><code data-code>{enqueueSource}</code></pre><p
+          data-explanation
+        >
+          The request and job have committed. A worker may claim the job when it
+          is due.
+        </p><a href="/docs/start/tutorial"
+          >Build the checked report workflow →</a
+        >
+      </div>
+    </div>
+    <div class="playback" hidden>
+      <div class="playback-buttons">
+        <button type="button" data-toggle>Pause</button><button
+          type="button"
+          data-next>Next step <span aria-hidden="true">→</span></button
+        ><button type="button" data-restart>Restart</button>
+      </div><span data-step>Step 1 / 12</span>
+    </div>
+    <p class="sr-only" data-announcement aria-live="polite" aria-atomic="true">
+    </p>
+  </div>
+  <template data-source="enqueue"><code>{enqueueSource}</code></template>
+  <template data-source="handler"><code>{handlerSource}</code></template>
+  <div class="system-footnote">
+    <span>●</span> Four synthetic jobs. Two worker slots. Select a report to inspect
+    its current operation.
+  </div>
+  <p class="no-script">
+    Pending → Active → Completed. A confirmed retry waits in RetryScheduled
+    until due, then can be claimed as Active again.
+  </p>
+</ej-job-system>
+<script src="./System.mjs"></script>

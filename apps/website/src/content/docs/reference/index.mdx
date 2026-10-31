@@ -1,0 +1,23 @@
+---
+title: API reference
+description: Focused public modules and complete checked examples.
+---
+
+Use focused imports such as `effect-jobs/Job`. The root entrypoint exports nothing.
+Imports do not create pools, run migrations or start workers.
+
+| Build the application                                      | Reference                                                  |
+| ---------------------------------------------------------- | ---------------------------------------------------------- |
+| Declare jobs and identify business consequences            | [Definitions and production](/docs/reference/definitions/) |
+| Encode data and choose persisted retry/retention policy    | [Payloads and policy](/docs/reference/payloads/)           |
+| Install handlers and explicitly run consumers              | [Handlers and workers](/docs/reference/workers/)           |
+| Implement durable ownership or controlled operator actions | [Lifecycle and operator ports](/docs/reference/lifecycle/) |
+| Bind the application's PostgreSQL transactions             | [PostgreSQL integration](/docs/reference/postgresql/)      |
+| Follow a complete order workflow                           | [Checked examples](/docs/reference/examples/)              |
+
+The module tables are generated from the current export map and TypeScript compiler
+symbols, including aliases and re-exports. They name every exported symbol without
+maintaining duplicate declarations. Installed package declarations provide full
+signatures and inferred Effect requirements in your editor.
+
+For a guided introduction, start with [your first job](/docs/start/first-job/).

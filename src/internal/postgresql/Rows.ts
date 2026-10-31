@@ -32,7 +32,7 @@ export const claimArtifact = (
     ownership,
     snapshot: stored,
     prepared: {
-      catalog: { queue: row.queue, kind: row.kind, version: row.version },
+      catalog: { queue: row.queue, name: row.kind, version: row.version },
       producer: {
         operation: row.operation,
         operationId: row.operation_id,

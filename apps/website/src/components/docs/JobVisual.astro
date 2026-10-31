@@ -1,0 +1,64 @@
+---
+import Icon from "./JobVisualIcon.astro"
+import "./JobVisual.css"
+interface Props { variant: "overview" | "transaction" | "handoff" }
+const { variant } = Astro.props
+const descriptions = {
+  overview: "Illustration: the API commits an order and a confirmation job together, responds to the customer, and a worker sends the email afterward. Completed job evidence remains stored.",
+  transaction: "Illustration: an order and a job are staged inside one transaction. Commit persists both; confirmed rollback persists neither. Only a committed, due job can be claimed by a worker. This does not depict an unknown commit outcome.",
+  handoff: "Illustration: order placement produces independent confirmation and invoice jobs. Creating the invoice explicitly enqueues its delivery. Confirmation is not a prerequisite for invoice creation or delivery."
+}
+---
+<job-visual data-job-visual={variant} data-step="final">
+  <figure class="jv" aria-label={descriptions[variant]}>
+    {variant === "transaction" && <div class="jv-modes" role="group" aria-label="Transaction outcome" hidden>
+      <button type="button" data-mode="commit" aria-pressed="true">Commit</button>
+      <button type="button" data-mode="rollback" aria-pressed="false">Roll back</button>
+    </div>}
+    <div class:list={["jv-stage", `jv-${variant}`]}>
+      <svg class="jv-wires" aria-hidden="true"><defs><marker markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0 7 3.5 0 7" fill="none" stroke="context-stroke" stroke-width="1"/></marker></defs></svg>
+      {variant === "overview" && <>
+        <div class="jv-node jv-api jv-blue" data-node="api">
+          <Icon name="api"/><strong>API</strong><code>POST /orders</code>
+          <span class="jv-status" data-label="response">201 Created</span>
+        </div>
+        <div class="jv-database" data-node="database">
+          <div class="jv-db-title"><Icon name="database"/><strong>PostgreSQL</strong></div>
+          <div class="jv-table"><span>orders</span><div class="jv-row" data-node="order"><span data-label="order">#041</span><span class="jv-check" data-label="orderState">✓</span></div></div>
+          <div class="jv-table"><span>jobs</span><div class="jv-row jv-amber" data-node="job"><span>Confirmation</span><span class="jv-status" data-label="jobState">Completed</span></div></div>
+        </div>
+        <div class="jv-node jv-worker jv-purple" data-node="worker"><Icon name="worker"/><strong>Worker</strong><span class="jv-status" data-label="workerState">Done</span></div>
+        <div class="jv-node jv-email jv-green" data-node="email"><Icon name="email"/><strong>Email</strong><span class="jv-status" data-label="emailState">Sent</span></div>
+      </>}
+      {variant === "transaction" && <>
+        <div class="jv-database jv-transaction-box" data-node="transaction">
+          <div class="jv-db-title"><Icon name="database"/><strong>PostgreSQL</strong></div>
+          <div class="jv-boundary" data-node="boundary">
+            <div class="jv-boundary-title"><span>Transaction</span><span data-label="decision">COMMIT</span></div>
+            <div class="jv-row" data-node="order"><code>orders</code><span data-label="order">#041</span><span class="jv-check" data-label="orderState">✓</span></div>
+            <div class="jv-row jv-amber" data-node="job"><code>jobs</code><span data-label="job">Confirmation</span><span class="jv-check" data-label="jobState">✓</span></div>
+          </div>
+        </div>
+        <div class="jv-node jv-purple jv-transaction-worker" data-node="worker"><Icon name="worker"/><strong>Worker</strong><span class="jv-status" data-label="workerState">Claimed</span></div>
+      </>}
+      {variant === "handoff" && <>
+        <div class="jv-node jv-origin jv-blue" data-node="origin"><Icon name="order"/><strong>Order #041</strong><code>order.place</code></div>
+        <div class="jv-node jv-confirmation jv-purple" data-node="confirmation"><Icon name="email"/><strong>Confirmation</strong><span class="jv-status" data-label="confirmationState">Completed</span></div>
+        <div class="jv-node jv-invoice jv-amber" data-node="invoice"><Icon name="invoice"/><strong>Create invoice</strong><span class="jv-status" data-label="invoiceState">Completed</span></div>
+        <div class="jv-node jv-delivery jv-green" data-node="delivery"><Icon name="email"/><strong>Send invoice</strong><span class="jv-status" data-label="deliveryState">Completed</span></div>
+      </>}
+    </div>
+    <div class="jv-controls" hidden>
+      <span class="jv-progress" role="status" aria-live="polite" data-label="progress">Ready</span>
+      <div class="jv-buttons">
+        <button type="button" class="jv-step" data-action="step">Step <span aria-hidden="true">→</span></button>
+        <button type="button" class="jv-play" data-action="play" aria-pressed="false">Play</button>
+        <button type="button" class="jv-reset" data-action="reset" aria-label="Reset illustration" title="Reset">↺</button>
+      </div>
+    </div>
+    <noscript><p class="jv-static">{variant === "overview" ? "Order + job commit → API responds → worker sends email." : variant === "transaction" ? "Commit saves both records. Confirmed rollback saves neither." : "Confirmation and invoice creation are independent. Invoice creation enqueues delivery."}</p></noscript>
+  </figure>
+</job-visual>
+<script>
+  import "./JobVisualController"
+</script>

@@ -19,11 +19,11 @@ export const documentEnvelope = (encoded: unknown) =>
 
 export const isSyntheticCatalog = (catalog: {
   readonly queue: string
-  readonly kind: string
+  readonly name: string
   readonly version: number
 }) =>
   catalog.queue === syntheticDocumentCatalog.queue &&
-  catalog.kind === syntheticDocumentCatalog.kind &&
+  catalog.name === syntheticDocumentCatalog.name &&
   catalog.version === syntheticDocumentCatalog.version
 
 export const unlockSyntheticDocument = (encoded: unknown, code: string) =>

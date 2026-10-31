@@ -105,7 +105,7 @@ Do not invent controls from the total. Preserve focus using operation guards.
 Use C's one disposable integrated PG16.15 session, loopback isolated port and fresh
 schema/credentials; do not touch preview8787. For sandbox A/generation 1, seed 50
 matching `Pending`/`playground.scenario` associations and nonmatching state/kind rows
-in A plus rows in sandbox B. Request `{filters:{state:"Pending",kind:
+in A plus rows in sandbox B. Request `{filters:{state:"Pending",name:
 "playground.scenario"},limit:20}`: assert `filteredTotal=50`, 20 items, pageCount=3;
 follow signed next cursors for 20 then 10 distinct scoped items, all totals 50.
 Repeat no-filter count against A's actual association count and limit50 (one matching

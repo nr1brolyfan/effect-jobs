@@ -44,7 +44,7 @@ export const handle = (
             "sandboxId",
             "generation",
             "state",
-            "kind",
+            "name",
             "resolution",
             "needsAttention",
             "limit",
@@ -102,14 +102,14 @@ export const handle = (
       return yield* new PlaygroundError({ code: "invalid-request" })
     }
     const state = url.searchParams.get("state")
-    const kind = url.searchParams.get("kind")
+    const name = url.searchParams.get("name")
     const cursor = url.searchParams.get("cursor")
     const input = yield* Schema.decodeUnknownEffect(ListJobs)(
       {
         sandbox,
         filters: {
           ...(state === null ? {} : { state }),
-          ...(kind === null ? {} : { kind }),
+          ...(name === null ? {} : { name }),
           ...(resolution === null ? {} : { resolution }),
           ...(needsAttention === null ? {} : { needsAttention: true })
         },

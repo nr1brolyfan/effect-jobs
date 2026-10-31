@@ -54,7 +54,7 @@ and its inferred type share the name. IDs are library-assigned; their generation
 and uniqueness are backend obligations. No UUID algorithm or caller ID override
 is selected here. Schema decoding brands persisted IDs; it is not production.
 
-`JobIdentity` exports Schemas `QueueName`, `JobKind`, `JobVersion`, `OperationName`,
+`JobIdentity` exports Schemas `QueueName`, `JobName`, `JobVersion`, `OperationName`,
 `SlotName`, `OperationId`, `CatalogIdentity` and `ProducerIdentity`. The last two
 also have literal-preserving structural interfaces:
 
@@ -65,7 +65,7 @@ interface CatalogIdentity<
   V extends number = number
 > {
   readonly queue: Q
-  readonly kind: K
+  readonly name: K
   readonly version: V
 }
 interface ProducerIdentity<O extends string = string, S extends string = string> {
@@ -75,7 +75,7 @@ interface ProducerIdentity<O extends string = string, S extends string = string>
 }
 ```
 
-Queue names are 1–64 characters; kind/operation/slot names 1–128, all ASCII
+Queue names are 1–64 characters; name/operation/slot names 1–128, all ASCII
 `^[a-z][a-z0-9.-]*$`. Version is integer 1–32,767. These preserve source bounds.
 Operation IDs are valid scalar strings without NUL, 1–256 UTF-8 bytes, with exact
 equality: no trimming, normalization or case folding. Application-branded strings
@@ -93,7 +93,10 @@ void` validates names, nonempty slots and uniqueness synchronously. It throws
 the invalid declaration `value` where applicable, and actionable `expected` text.
 The producer unit **must call this before returning its immutable declaration**;
 there is no producer implementation here. It must preserve inferred operation and
-slot literals, reject undeclared slots, and copy/freeze its slot array. No global
+slot literals, reject undeclared slots, and snapshot/freeze its slot record.
+The validator takes the record keys; `JobProducer.make` accepts bindings to jobs,
+not an array of names. Bound enqueue derives the identity and enforces the
+selected contract; low-level structural identity alone is not binding proof. No global
 registry or mutable builder is needed.
 
 ## Complete immutable policy
@@ -184,8 +187,10 @@ Effect composition. Unknown is not a seventh lifecycle state; mixed causes,
 defects, interruption or timeout never imply known-safe Retry. Runtime boundaries
 must validate even structurally constructed failure values with `JobFailure`.
 
-`EnqueueInput<Payload>` has required producer, decoded payload, resolved policy
-and optional availableAt. No job ID is supplied. `EnqueueResults` is a
+`EnqueueInput<Payload, Default>` has required producer and decoded payload,
+optional availableAt, and a complete policy required unless the definition has a
+definitely provided default. `EnqueueOptions` contains the same fields without
+the producer identity. No job ID is supplied. `EnqueueResults` is a
 `Data.taggedEnum` factory for `Inserted { jobId } | AlreadyPresent { jobId }`.
 Results remain provisional until application commit.
 

@@ -1,0 +1,33 @@
+---
+title: Durable jobs, explicit ownership
+description: Move slow work out of a request without losing its connection to your application transaction.
+---
+
+Placing an order should return quickly. Sending its confirmation can take longer,
+fail or finish after the requester leaves. effect-jobs keeps that work durable while
+your application owns the database, handlers and worker lifetime.
+
+## Build an order workflow
+
+1. [Understand the problem](/docs/start/why-background-jobs) — what durable work solves.
+2. [Install the supported stack](/docs/start/installation) and [run your first job](/docs/start/first-job).
+3. [Build an order workflow](/docs/start/tutorial), then make its [application write and enqueue atomic](/docs/persistence/transactions).
+4. [Run scoped workers](/docs/execution/workers) and distinguish [retries](/docs/execution/retries) from [uncertain outcomes](/docs/execution/recovery).
+
+## Find a specific contract
+
+| Question                             | Read                                                                                          |
+| ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| What moves through the queue?        | [Model](/docs/concepts/model) · [Lifecycle](/docs/concepts/lifecycle)                         |
+| How is work stored?                  | [PostgreSQL](/docs/persistence/postgresql) · [Drizzle](/docs/persistence/drizzle)             |
+| What happens when a request repeats? | [Deduplication](/docs/persistence/deduplication)                                              |
+| How do I investigate a failure?      | [Telemetry](/docs/operations/telemetry) · [Troubleshooting](/docs/operations/troubleshooting) |
+| Which public module do I need?       | [API reference](/docs/reference)                                                              |
+
+## Current alpha
+
+This alpha targets Effect 4.0.5, PostgreSQL, and explicitly scoped Node/Bun workers.
+Applications own migrations, pools and external-effect idempotency. Durable retries
+and fencing do not promise exactly-once external delivery.
+See [installation](/docs/start/installation) for exact supported versions and
+qualification boundaries. [Explore the read-only demo](/demo) or [return home](/).

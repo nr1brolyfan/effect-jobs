@@ -43,6 +43,10 @@ writeFileSync(
   join(work, "EncryptedFixture.mts"),
   publicImports(readFileSync(join(root, "tests/core/codec/EncryptedFixture.ts"), "utf8"))
 )
+writeFileSync(
+  join(work, "ProducerBindings.mts"),
+  publicImports(readFileSync(join(root, "tests/types/producer-bindings.ts"), "utf8"))
+)
 const types = publicImports(
   readFileSync(join(root, "tests/types/api-refinements.ts"), "utf8")
 ).replace('"../core/codec/EncryptedFixture.js"', '"./EncryptedFixture.mjs"')
@@ -84,7 +88,7 @@ const code = Codes.define({ boundary: "a".repeat(128) }).boundary
 assert.equal(JobFailures.Retry({ code }).code.length, 128)
 assert(Result.isFailure(Codes.parse("a".repeat(129))))
 assert(Object.isFrozen(Policy.defaultPolicy.retrySchedule))
-const definition = Job.make({ queue: Queue.make("billing"), kind: "receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: EncryptedDocument }) })
+const definition = Job.make({ queue: Queue.make("billing"), name: "receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: EncryptedDocument }) })
 assert.equal(definition.version, 1)
 const input = { producer: { operation: "billing.issue", operationId: "id", slot: "receipt" }, policy: Policy.defaultPolicy,
   payload: { invoiceId: "public", document: { recipient: "PRIVATE fixture", total: 12n } } }
@@ -136,6 +140,7 @@ writeFileSync(
       compilerOptions: { ...compilerOptions, skipLibCheck: false, noEmit: true },
       include: [
         "Strict.mts",
+        "ProducerBindings.mts",
         "EncryptedFixture.mts",
         "Runtime.mts",
         "Operators.mts",

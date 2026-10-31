@@ -87,12 +87,12 @@ export const make = <E, R>(store: JobStoreService<E, R>, options: JobWorkerOptio
     const catalogs = options.catalog.map((entry) =>
       Object.freeze({
         queue: entry.catalog.queue,
-        kind: entry.catalog.kind,
+        name: entry.catalog.name,
         version: entry.catalog.version
       })
     )
     const keys = catalogs.map(
-      (entry) => `${entry.queue}\u0000${entry.kind}\u0000${entry.version}`
+      (entry) => `${entry.queue}\u0000${entry.name}\u0000${entry.version}`
     )
     if (
       catalogs.length === 0 ||

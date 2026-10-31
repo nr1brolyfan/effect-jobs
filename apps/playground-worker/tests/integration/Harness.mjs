@@ -53,7 +53,7 @@ try {
     await sql(migration.sql)
   }
   cfg.connectionString = `postgres://${cfg.user}:${cfg.password}@127.0.0.1:${cfg.port}/${cfg.database}`
-  local = await createLocal(cfg, { instrument: true })
+  local = await createLocal(cfg, { instrument: true, localPrivate: true })
   mf = local.mf
   const dispatch = (path, options = {}) => mf.dispatchFetch(local.origin + path, options)
   const post = (path, cookie, token, body) =>
@@ -493,14 +493,14 @@ try {
     )
   }
   const filtered = await (
-    await dispatch(query(a, "&state=Completed&kind=playground.welcome-email"), {
+    await dispatch(query(a, "&state=Completed&name=playground.welcome-email"), {
       headers: { Cookie: a.cookie }
     })
   ).json()
   assert(
     filtered.items.every(
       (job) =>
-        job.state === "Completed" && job.catalog.kind === "playground.welcome-email"
+        job.state === "Completed" && job.catalog.name === "playground.welcome-email"
     )
   )
   if (filtered.nextCursor) {
@@ -509,7 +509,7 @@ try {
         await dispatch(
           query(
             a,
-            `&state=Dead&kind=playground.welcome-email&cursor=${filtered.nextCursor}`
+            `&state=Dead&name=playground.welcome-email&cursor=${filtered.nextCursor}`
           ),
           { headers: { Cookie: a.cookie } }
         )

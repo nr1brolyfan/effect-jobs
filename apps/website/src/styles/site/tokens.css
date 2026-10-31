@@ -1,0 +1,12 @@
+:root {
+  color-scheme: dark;
+  --ej-bg: #090b10;
+  --ej-surface: #11151d;
+  --ej-border: #293140;
+  --ej-text: #eef2fa;
+  --ej-muted: #a7b1c2;
+  --ej-accent: #91b5ff;
+  --ej-success: #7ed9ad;
+  --ej-warning: #f0c27b;
+  --ej-danger: #ef9393;
+}

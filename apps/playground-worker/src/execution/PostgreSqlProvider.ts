@@ -11,7 +11,7 @@ import {
   TerminalRejected,
   LedgerFull
 } from "../providers/FakeProvider.js"
-import type { ProviderCommand, ProviderFailure } from "../providers/FakeProvider.js"
+import type { ProviderCommand } from "../providers/FakeProvider.js"
 import * as Mode from "../persistence/authority/PrivateMode.js"
 import * as Tables from "../persistence/authority/Schema.js"
 import { maxRetainedJobs } from "../demo/Traffic.js"
@@ -140,7 +140,7 @@ export const make = (schema: string) =>
             )
           // Expected synthetic failure is returned AFTER acknowledged ledger commit.
           if (outcome) {
-            return yield* Effect.fail(outcome as ProviderFailure)
+            return yield* outcome
           }
         }),
       // Mock observation DTO has source="mock"; a durable ledger must not impersonate it.

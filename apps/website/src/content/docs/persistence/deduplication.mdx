@@ -1,0 +1,91 @@
+---
+title: Retry a request without producing another job
+description: Stable producer identities, semantic conflicts and the retention window.
+---
+
+import { CodeExample } from "../../../components/docs/index"
+
+A client retries a report request after losing the response. Reuse the original
+operation ID so the queue can return the existing job instead of creating another
+one. The application must also make its report and receipt writes idempotent.
+
+## Name the business consequence
+
+Declare `JobProducer.make({ operation, slots })` once in an application domain
+module and share it between callers. For reports, an operation such as
+`report.request` declares the slot `generate`. Construct each
+identity with `producer.identity({ operationId, slot })`.
+
+The unique key is **`(operation, operationId, slot)` within one configured
+storage**. It is not scoped by job name or version. Multiple slots can enqueue
+the same job name; slots create independent consequences, not execution ordering.
+Use a namespaced operation and a stable durable request/idempotency ID. A new
+operation ID creates a new operation even when the payload is identical.
+
+Declaration names and slots are 1–128 ASCII characters matching
+`^[a-z][a-z0-9.-]*$`. Operation IDs are 1–256 UTF-8 bytes, valid Unicode scalar
+values, without NUL; comparison performs no trimming, case folding or normalization.
+Validate external request values before entering the mutation.
+
+The shared order example declares the operation beside its producer use case:
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/PlaceOrder.ts"
+  region="operation"
+  role="Producer"
+/>
+
+The [complete source](/docs/reference/examples/) binds that declaration to the
+confirmation enqueue inside the order transaction. Its receipt and unique order
+state protect whole-operation replay. The expanded tutorial uses two independent
+slots; a slot itself never establishes a dependency between jobs.
+
+## Interpret the result
+
+| Same producer identity, incoming content         | Result                                      |
+| ------------------------------------------------ | ------------------------------------------- |
+| No retained identity                             | `Inserted` with a library-generated job ID. |
+| Matching catalog and semantic payload            | `AlreadyPresent` with the original job ID.  |
+| Changed queue, name, version or semantic payload | `JobIntegrityConflict`; no overwrite.       |
+
+Concurrent producers are protected by storage uniqueness and conflict comparison,
+not a check-then-insert in application code. READ COMMITTED is required so the
+comparison statement can see a concurrent committed winner. If cleanup removes
+evidence during comparison, the backend conservatively conflicts rather than
+recreating it in that transaction.
+
+For a matching duplicate, **the first policy and initial availability win**.
+Changing deployment defaults or supplying a different schedule does not update
+an existing job or create a content conflict. Duplicate enqueue is not debounce,
+reschedule or last-write-wins. Omitted initial availability uses database time
+on first insertion; a retry does not reset it.
+
+## Semantic equality is more than matching JSON text
+
+Object property order does not matter; array order does. Equality compares catalog and payload format alongside the persisted semantic
+projection, including protected-field fingerprints.
+Lifecycle counters, leases, current retry availability and randomized ciphertext
+do not decide equality. Protected envelopes need stable compatible application
+fingerprints; routine encryption-key rotation must not change their meaning.
+
+The payload codec validates persistable values and supported Schema shapes.
+Finite fractional numbers are supported; NaN and infinities are rejected. Do not
+substitute arbitrary JSON serialization or compare mutable lifecycle rows.
+
+## Keep the evidence as long as retries are possible
+
+Deduplication lasts only while durable identity evidence remains. Set retention
+and coordinated receipt cleanup to cover the required request retry and response
+replay window. After evidence is deleted, the same tuple may create a new job.
+
+Request deduplication does not make external report delivery exactly once.
+A recovered worker can invoke a handler again with the same job ID; use durable
+provider idempotency or application reconciliation. An attempt number can repeat
+after an unknown outcome and is not an external idempotency key.
+
+See [atomic receipt writes](/docs/persistence/transactions/) and
+[unknown execution outcomes](/docs/execution/recovery/).
+
+`producer.enqueue(slot, input)` enforces the bound job/payload/default policy.
+`identity` remains a structural escape to explicit lower-level calls, without
+a global slot-to-job proof. Different queues under the same tuple conflict.

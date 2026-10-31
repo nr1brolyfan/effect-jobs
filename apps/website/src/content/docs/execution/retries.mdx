@@ -1,0 +1,85 @@
+---
+title: Retry reports without duplicating effects
+description: Separate persisted retry policy, enqueue deduplication and application idempotency.
+---
+
+import { CodeExample } from "../../../components/docs/index"
+
+A report provider accepts an upload, then the connection closes before its reply.
+Repeating the upload may create a second report. A queue cannot infer from that
+missing reply whether the first upload succeeded.
+
+Design the report operation's idempotency and reconciliation protocol before
+mapping failures to retries.
+
+## Choose the handler outcome
+
+Handlers return success or fail with a value from `JobFailures`. Map application
+errors through ordinary Effect composition; keep raw provider messages out of
+failure codes. Define bounded diagnostic codes with `FailureCode.define`.
+
+| Handler result                           | Durable action when fenced finalization succeeds                                  |
+| ---------------------------------------- | --------------------------------------------------------------------------------- |
+| Success                                  | `Completed`                                                                       |
+| `JobFailures.Retry({ code, notAfter? })` | `RetryScheduled`, or `Dead` when the retry budget/cutoff prevents another attempt |
+| `JobFailures.Dead({ code })`             | `Dead`; no scheduled retry                                                        |
+| `JobFailures.Isolate({ code })`          | `Isolated`; investigate the artifact or invariant                                 |
+| `JobFailures.OutcomeUnknown({ code })`   | No confirmed finalization; leave recovery to the bounded lease protocol           |
+
+Use `Retry` only when the application's effect contract makes another attempt
+safe. A defect, interruption, timeout or mixed Cause is not automatically mapped
+to `Retry`. Invalid persisted payloads fail decoding before the handler and can be
+fenced to `Isolated`.
+
+The [order tutorial](/docs/start/tutorial) supplies a stable job ID to the
+application mail service. A known replay-safe rejection becomes Retry;
+uncertain acceptance becomes OutcomeUnknown. A production adapter needs an
+independent idempotency/reconciliation contract for that key and request body.
+
+<CodeExample
+  sourcePath="orders/apps/worker/src/orders/jobs/SendConfirmation.ts"
+  region="handler"
+  role="Consumer"
+/>
+
+## Store the policy once
+
+`JobPolicy.make` resolves a complete immutable policy at enqueue. Its defaults are:
+
+| Option            | Default                                                       |
+| ----------------- | ------------------------------------------------------------- |
+| `maxAttempts`     | 3 finalized attempts, including the first                     |
+| `retryDelay`      | Fixed 5 seconds                                               |
+| `maxStalledCount` | 1 expired-lease recovery before the next makes the job `Dead` |
+| `attemptTimeout`  | 30 seconds                                                    |
+| `leaseDuration`   | Fixed, non-renewable 90 seconds                               |
+
+This is a fixed-delay schedule, not exponential backoff. A confirmed retry uses
+database time plus the stored delay. If that next availability is **at or after**
+`notAfter`, the job becomes `Dead`. The cutoff limits scheduling; it is not a
+promise to stop an already running handler at that timestamp.
+
+The attempt timeout must be strictly shorter than the lease. The runtime deadline
+covers validation, decoding, handler execution and the bounded finalization
+protocol; budget the handler's work accordingly.
+
+Changing deployment defaults or submitting a matching duplicate does not replace
+the first job's policy. See [deduplication](/docs/persistence/deduplication).
+
+## Use a stable application effect key
+
+For a report request, the application might identify the external effect by a
+stable report request ID and operation. Preserve that identity across worker
+invocations, check the provider's actual idempotency scope and retention window,
+and reconcile its authoritative result after response loss.
+
+Do not use `context.attemptNumber` as an external idempotency key. It is
+`attemptsMade + 1` and can repeat after an unknown outcome. Confirmed finalizations
+increment attempts; expired-lease recovery increments `stalledCount` instead.
+Consequently `maxAttempts` does not bound every handler invocation.
+
+Enqueue deduplication compares the producer tuple and semantic payload inside
+jobs storage. It neither deduplicates an external upload nor proves that a report
+was delivered. Removing retained identity evidence also ends that deduplication
+window. The [order tutorial](/docs/start/tutorial) provides the complete example;
+[recovery](/docs/execution/recovery) explains uncertain execution.

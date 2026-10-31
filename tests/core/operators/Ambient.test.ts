@@ -19,7 +19,7 @@ const expected = Schema.decodeSync(JobOperatorExpected)({
   lifecycleVersion: 4
 })
 const definition = {
-  catalog: { queue: "billing", kind: "invoice", version: 1 },
+  catalog: { queue: "billing", name: "invoice", version: 1 },
   payload: Schema.Struct({ value: Schema.String })
 }
 const unavailable: ApplicationAdapter = {

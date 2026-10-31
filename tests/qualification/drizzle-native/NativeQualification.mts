@@ -58,13 +58,16 @@ const receipts = pgSchema(schema).table("receipts", {
   jobId: text("job_id").notNull()
 })
 const definition = Job.make({
-  kind: "invoice.generate",
+  name: "invoice.generate",
   version: 1,
   queue: Queue.make("billing"),
   payload: Schema.Struct({ invoiceId: Schema.String }),
   encodePayload: encodeJobPayload
 })
-const producer = Producer.make({ operation: "billing.native", slots: ["generate"] })
+const producer = Producer.make({
+  operation: "billing.native",
+  slots: { generate: definition }
+})
 const input = (id: string, value = id) => ({
   producer: producer.identity({ operationId: id, slot: "generate" }),
   payload: { invoiceId: value },

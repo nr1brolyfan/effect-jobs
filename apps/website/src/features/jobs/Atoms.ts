@@ -170,7 +170,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         displayedQuery.pageNumber === pageNumber &&
         displayedQuery.pageSize === pageSize &&
         displayedQuery.filters.state === filters.state &&
-        displayedQuery.filters.kind === filters.kind &&
+        displayedQuery.filters.name === filters.name &&
         displayedQuery.filters.resolution === filters.resolution &&
         displayedQuery.filters.needsAttention === filters.needsAttention,
       pagination: {

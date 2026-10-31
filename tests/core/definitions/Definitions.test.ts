@@ -23,8 +23,6 @@ import type { JobsTransaction, JobEnqueueError } from "../../../src/JobTransacti
 import { withJoinedTransaction } from "../../../src/internal/JobTransaction.js"
 
 const queue = JobQueue.make("billing")
-const producer = JobProducer.make({ operation: "billing.issue", slots: ["pdf", "email"] })
-const identity = producer.identity({ operationId: "operation", slot: "pdf" })
 const policy = JobPolicy.make()
 const jobId = Schema.decodeSync(JobId)("generated-id")
 // Deliberately opaque test fixtures: only forwarding is qualified here, not codec bytes.
@@ -36,11 +34,16 @@ const encoded: EncodedJobPayload = {
 const encode: JobPayloadEncoder = () => Effect.succeed(encoded)
 const job = Job.make({
   queue,
-  kind: "invoice.generate",
+  name: "invoice.generate",
   version: 1,
   payload: Schema.Struct({ amount: Schema.Finite }),
   encodePayload: encode
 })
+const producer = JobProducer.make({
+  operation: "billing.issue",
+  slots: { pdf: job, email: job }
+})
+const identity = producer.identity({ operationId: "operation", slot: "pdf" })
 const input = { producer: identity, payload: { amount: 1.5 }, policy }
 const context: HandlerContext = {
   jobId,
@@ -52,30 +55,30 @@ const failure = <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.flip(effect)
 
 describe("immutable declarations", () => {
   it("copies and freezes slots without freezing or retaining caller configuration", () => {
-    const slots = ["pdf", "email"]
+    const slots = { pdf: job, email: job }
     const options = { operation: "billing.issue", slots }
     const declaration = JobProducer.make(options)
-    slots[0] = "sms"
+    slots.pdf = { ...job }
     options.operation = "changed"
     expect(declaration.operation).toBe("billing.issue")
-    expect(declaration.slots).toEqual(["pdf", "email"])
+    expect(declaration.slots).toEqual({ pdf: job, email: job })
     expect(Object.isFrozen(declaration)).toBe(true)
     expect(Object.isFrozen(declaration.slots)).toBe(true)
     expect(
       Object.isFrozen(declaration.identity({ operationId: "op", slot: "pdf" }))
     ).toBe(true)
-    expect(() => declaration.identity({ operationId: "op", slot: "sms" })).toThrow(
-      JobDeclarationError
-    )
+    expect(() =>
+      declaration.identity({ operationId: "op", slot: "sms" } as never)
+    ).toThrow(JobDeclarationError)
   })
 
   it.each([
-    { operation: "Bad", slots: ["pdf"] },
-    { operation: "ok", slots: [] },
-    { operation: "ok", slots: ["pdf", "pdf"] },
-    { operation: "ok", slots: ["pdf", "Bad"] }
+    { operation: "Bad", slots: { pdf: job } },
+    { operation: "ok", slots: {} },
+    { operation: "ok", slots: { pdf: null } },
+    { operation: "ok", slots: { Bad: job } }
   ])("validates declarations synchronously: %j", (options) => {
-    expect(() => JobProducer.make(options)).toThrow(JobDeclarationError)
+    expect(() => JobProducer.make(options as never)).toThrow(JobDeclarationError)
   })
 
   it.each(["", "secret\u0000value", "\ud800", "x".repeat(257)])(
@@ -102,7 +105,7 @@ describe("immutable declarations", () => {
     expect(() =>
       Job.make({
         queue,
-        kind: "Bad",
+        name: "Bad",
         version: 1,
         payload: Schema.String,
         encodePayload: encode
@@ -111,7 +114,7 @@ describe("immutable declarations", () => {
     expect(() =>
       Job.make({
         queue,
-        kind: "ok",
+        name: "ok",
         version: 0,
         payload: Schema.String,
         encodePayload: encode
@@ -137,7 +140,7 @@ describe("explicit transaction enqueue", () => {
     }
     const definition = Job.make({
       queue,
-      kind: "snapshot",
+      name: "snapshot",
       version: 1,
       payload: Schema.String,
       encodePayload: () =>
@@ -210,7 +213,7 @@ describe("explicit transaction enqueue", () => {
     let calls = 0
     const definition = Job.make({
       queue,
-      kind: "test",
+      name: "test",
       version: 1,
       payload: Schema.String,
       encodePayload: () => {
@@ -255,7 +258,7 @@ describe("explicit transaction enqueue", () => {
     let inserts = 0
     const definition = Job.make({
       queue,
-      kind: "test",
+      name: "test",
       version: 1,
       payload: Schema.String,
       encodePayload: () =>
@@ -355,7 +358,7 @@ describe("local registry and Layer dependencies", () => {
       )
     const definition = Job.make({
       queue,
-      kind: "services",
+      name: "services",
       version: 1,
       payload: schema,
       encodePayload: serviceEncode
@@ -537,7 +540,7 @@ describe("local registry and Layer dependencies", () => {
     expect(error).toMatchObject({
       _tag: "DuplicateJobHandler",
       queue: job.catalog.queue,
-      kind: job.catalog.kind,
+      name: job.catalog.name,
       version: job.catalog.version
     })
     expect(error.message).toContain("one handler")
@@ -548,8 +551,8 @@ describe("local registry and Layer dependencies", () => {
       const registry = yield* JobRegistry.JobRegistry
       for (const catalog of [
         job.catalog,
-        { queue: job.catalog.queue, kind: job.catalog.kind, version: 2 },
-        { queue: "other", kind: job.catalog.kind, version: job.catalog.version }
+        { queue: job.catalog.queue, name: job.catalog.name, version: 2 },
+        { queue: "other", name: job.catalog.name, version: job.catalog.version }
       ]) {
         yield* registry.install({ catalog, execute: () => Effect.void })
         expect(registry.find(catalog)).toBeDefined()
@@ -569,7 +572,7 @@ describe("local registry and Layer dependencies", () => {
   it("rejects duplicate catalog entries, while preserving different versions", async () => {
     const second = Job.make({
       queue,
-      kind: job.kind,
+      name: job.name,
       version: 2,
       payload: job.payload,
       encodePayload: encode
@@ -579,7 +582,7 @@ describe("local registry and Layer dependencies", () => {
     expect(Object.isFrozen(entries)).toBe(true)
     const duplicate = Job.make({
       queue: JobQueue.make("billing"),
-      kind: job.kind,
+      name: job.name,
       version: 1,
       payload: job.payload,
       encodePayload: encode
@@ -589,7 +592,7 @@ describe("local registry and Layer dependencies", () => {
     ).toMatchObject({
       _tag: "DuplicateJobCatalogEntry",
       queue: job.catalog.queue,
-      kind: job.catalog.kind,
+      name: job.catalog.name,
       version: job.catalog.version
     })
   })

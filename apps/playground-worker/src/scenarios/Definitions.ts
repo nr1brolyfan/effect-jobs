@@ -80,49 +80,49 @@ const commerce = JobQueue.make("playground-commerce")
 const privateData = JobQueue.make("playground-private")
 export const WelcomeEmail = Job.make({
   queue: communications,
-  kind: "playground.welcome-email",
+  name: "playground.welcome-email",
   payload: Payload
 })
 export const ImageProcessing = Job.make({
   queue: media,
-  kind: "playground.image-processing",
+  name: "playground.image-processing",
   payload: Payload
 })
 export const WebhookDelivery = Job.make({
   queue: communications,
-  kind: "playground.webhook-delivery",
+  name: "playground.webhook-delivery",
   payload: Payload
 })
 export const PrivateDataExport = Job.make({
   queue: privateData,
-  kind: "playground.private-data-export",
+  name: "playground.private-data-export",
   payload: ExportPayload
 })
 export const CatalogSync = Job.make({
   queue: commerce,
-  kind: "playground.catalog-sync",
+  name: "playground.catalog-sync",
   payload: Payload
 })
 export const SimulatedPayment = Job.make({
   queue: commerce,
-  kind: "playground.simulated-payment",
+  name: "playground.simulated-payment",
   payload: Payload
 })
 export const SyntheticDocumentExport = Job.make({
   queue: privateData,
-  kind: "playground.synthetic-document-export",
+  name: "playground.synthetic-document-export",
   payload: SyntheticExportPayload
 })
 export const Producer = JobProducer.make({
   operation: "playground.synthetic",
-  slots: [
-    "welcome-email",
-    "image-processing",
-    "webhook-delivery",
-    "private-data-export",
-    "catalog-sync",
-    "simulated-payment"
-  ]
+  slots: {
+    "welcome-email": WelcomeEmail,
+    "image-processing": ImageProcessing,
+    "webhook-delivery": WebhookDelivery,
+    "private-data-export": PrivateDataExport,
+    "catalog-sync": CatalogSync,
+    "simulated-payment": SimulatedPayment
+  }
 })
 
 export const definitions = [

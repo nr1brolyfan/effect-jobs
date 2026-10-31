@@ -157,7 +157,7 @@ export const makeOperators = (
         sourceMetadata,
         strict
       )({
-        catalog: { queue: row.queue, kind: row.kind, version: row.version },
+        catalog: { queue: row.queue, name: row.kind, version: row.version },
         producer: {
           operation: row.operation,
           operationId: row.operation_id,

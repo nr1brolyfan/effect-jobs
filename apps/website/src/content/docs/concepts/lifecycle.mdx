@@ -1,0 +1,66 @@
+---
+title: Lifecycle and outcomes
+description: Read durable job states without confusing uncertainty with a safe retry.
+sidebar:
+  order: 2
+---
+
+A worker can finish rendering a report and still lose the database response that
+confirms completion. Read durable state separately from what the handler appeared
+to do.
+
+```text
+Pending ──claim when due──→ Active ──confirmed success──→ Completed
+   ↑                         │
+   │                         ├──safe Retry──→ RetryScheduled ──due claim──→ Active
+   │                         ├──permanent failure / exhausted attempts──→ Dead
+   │                         └──quarantine──→ Isolated
+   └──expired lease recovery, within stalled budget── Active
+
+Pending / RetryScheduled ──explicit guarded cancellation──→ Cancelled
+```
+
+This is a reading guide. Database transitions require the expected ownership or
+operator guard; the diagram grants no mutation authority.
+
+| State            | Meaning                                                                                 |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| `Pending`        | Waiting to become due, or recovered after an expired lease.                             |
+| `Active`         | Claimed under a fixed lease; work may be executing or its outcome uncertain.            |
+| `RetryScheduled` | A confirmed safe retry is waiting for stored availability.                              |
+| `Completed`      | Completion was durably finalized.                                                       |
+| `Dead`           | Explicit permanent failure, exhausted attempts, retry cutoff or stalled-recovery limit. |
+| `Isolated`       | Quarantined for investigation, including payload decode failures.                       |
+| `Cancelled`      | Explicitly cancelled while Pending or RetryScheduled; does not interrupt Active work.   |
+
+## Unknown is an outcome, not a state
+
+`JobFailures.OutcomeUnknown` means the external effect may have happened. It does
+not finalize an ordinary retry. The row remains Active pending recovery or
+reconciliation. Defects, interruption and timeouts also do not prove a safe Retry.
+
+Expired-lease recovery increments `stalledCount`, not `attemptsMade`. Within the
+stored budget it returns the job to Pending; exceeding that budget makes it Dead.
+This mechanism does not prove that repeating the external effect is harmless.
+Handlers must preserve the same external identity and reconcile uncertain results.
+
+## Counters and clocks
+
+Claiming does not consume a finalized attempt. Confirmed Complete, Retry, Dead or
+Isolate finalization increments `attemptsMade` once. Handler `attemptNumber` is
+`attemptsMade + 1`, so it can repeat after uncertainty; use `context.jobId`, not
+the attempt number, as a stable per-job external idempotency key.
+
+The backend uses database time. Due means `availableAt <= dbNow`; ownership is
+valid only while `leaseExpiresAt > dbNow`. Leases do not renew. Fencing rejects
+stale finalization; it cannot undo an external effect already performed.
+
+## Terminal does not mean deleted
+
+Cleanup is an explicit, bounded operation. Completed and Dead rows need their
+stored retention policy and any application receipt protections to permit removal.
+Isolated and Cancelled are excluded from automatic cleanup. Deleting identity
+evidence ends its deduplication protection.
+
+Continue with [retries](/docs/execution/retries) and
+[recovery](/docs/execution/recovery) for handling uncertainty.

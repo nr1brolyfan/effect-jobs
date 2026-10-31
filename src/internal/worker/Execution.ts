@@ -144,7 +144,7 @@ export const executionFor = <E>(
         !supported.some(
           (entry) =>
             entry.queue === catalog.queue &&
-            entry.kind === catalog.kind &&
+            entry.name === catalog.name &&
             entry.version === catalog.version
         )
       ) {

@@ -41,8 +41,8 @@ export const layer = Layer.mergeAll(
           (job) =>
             (request.filters.state === undefined ||
               request.filters.state === job.state) &&
-            (request.filters.kind === undefined ||
-              request.filters.kind === job.catalog.kind)
+            (request.filters.name === undefined ||
+              request.filters.name === job.catalog.name)
         )
         return {
           ...Fixtures.page,

@@ -1,0 +1,14 @@
+{
+  "extends": "astro/tsconfigs/strictest",
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowArbitraryExtensions": true
+  },
+  "include": [
+    ".astro/types.d.ts",
+    "src/content.config.ts",
+    "src/components/docs/**/*.ts"
+  ],
+  "exclude": ["dist", "node_modules"]
+}

@@ -26,7 +26,7 @@ import type { JobStoreService } from "../../../src/JobStore.js"
 const queue = Queue.make("polling")
 const job = Job.make({
   queue,
-  kind: "neutral",
+  name: "neutral",
   version: 1,
   payload: Schema.Struct({ value: Schema.String }),
   encodePayload: Codec.encodeJobPayload

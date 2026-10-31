@@ -21,7 +21,7 @@ const identifier = (name: string) => {
   return `"${name}"`
 }
 export const summary = `jsonb_build_object(
-  'jobId',j.id,'catalog',jsonb_build_object('queue',j.queue,'kind',j.kind,'version',j.version),
+  'jobId',j.id,'catalog',jsonb_build_object('queue',j.queue,'name',j.kind,'version',j.version),
   'state',j.state,'availableAt',j.available_at,'updatedAt',j.updated_at,
   'completedAt',j.completed_at,'attemptsMade',j.attempts_made,
   'stalledCount',j.stalled_count,'lifecycleVersion',j.lifecycle_version,
@@ -136,7 +136,7 @@ export const make = (mapping: Mapping) => {
       values: [
         ...refValues(ref),
         request.filters.state ?? null,
-        request.filters.kind ?? null,
+        request.filters.name ?? null,
         after,
         request.limit + 1
       ]
@@ -155,7 +155,7 @@ export const make = (mapping: Mapping) => {
       values: [
         ...refValues(ref),
         request.filters.state ?? null,
-        request.filters.kind ?? null,
+        request.filters.name ?? null,
         request.filters.resolution ?? null,
         request.filters.needsAttention === true,
         after,

@@ -21,7 +21,7 @@ export const payload = (
     const catalog = detail.job.catalog
     const definition = Definitions.definitions.find(
       (entry) =>
-        entry.catalog.kind === catalog.kind &&
+        entry.catalog.name === catalog.name &&
         entry.catalog.queue === catalog.queue &&
         entry.catalog.version === catalog.version
     )
@@ -55,7 +55,7 @@ export const payload = (
         return unavailable("invalid-artifact")
       }
       encryption =
-        String(definition.catalog.kind) === "playground.synthetic-document-export"
+        String(definition.catalog.name) === "playground.synthetic-document-export"
           ? "SyntheticDocumentV1"
           : "PrivateDocumentV1"
     }
@@ -83,7 +83,7 @@ export const eligibility = (
 ) => {
   const selected = Definitions.definitions.find(
     (entry) =>
-      entry.catalog.kind === detail.job.catalog.kind &&
+      entry.catalog.name === detail.job.catalog.name &&
       entry.catalog.queue === detail.job.catalog.queue &&
       entry.catalog.version === detail.job.catalog.version
   )

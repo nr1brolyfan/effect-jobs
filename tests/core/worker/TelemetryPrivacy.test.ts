@@ -16,7 +16,7 @@ import { harness, policy } from "./Harness.js"
 const queue = Queue.make("review-probe")
 const job = Job.make({
   queue,
-  kind: "probe",
+  name: "probe",
   version: 1,
   payload: Schema.Struct({ value: Schema.String }),
   encodePayload: Codec.encodeJobPayload

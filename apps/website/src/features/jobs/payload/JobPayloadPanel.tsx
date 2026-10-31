@@ -99,7 +99,7 @@ const PayloadContent = (inputProps: {
     payload._tag === "Available" &&
     payload.encryption === "PrivateDocumentV1" &&
     payload.catalog.queue === "playground-private" &&
-    payload.catalog.kind === "playground.private-data-export" &&
+    payload.catalog.name === "playground.private-data-export" &&
     payload.catalog.version === 1
   useLayoutEffect(() => {
     if (synthetic && session && session.document === null) {

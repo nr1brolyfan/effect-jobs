@@ -34,13 +34,13 @@ export const run = (schema: string) =>
           })
           const catalog = yield* Schema.decodeUnknownEffect(CatalogIdentity)({
             queue: row.queue,
-            kind: row.kind,
+            name: row.kind,
             version: Number(row.version)
           })
           const definition = Definitions.definitions.find(
             (d) =>
               d.catalog.queue === catalog.queue &&
-              d.catalog.kind === catalog.kind &&
+              d.catalog.name === catalog.name &&
               d.catalog.version === catalog.version
           )
           if (!definition) {

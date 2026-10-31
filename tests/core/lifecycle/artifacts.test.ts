@@ -49,7 +49,7 @@ it.each([
   {},
   { ...prepared(), policy: {} },
   { ...prepared(), policy: { ...policy, maxAttempts: 4 } },
-  { ...prepared(), catalog: { queue: "invalid queue", kind: "invoice", version: 1 } },
+  { ...prepared(), catalog: { queue: "invalid queue", name: "invoice", version: 1 } },
   {
     ...prepared(),
     producer: { operation: "billing.issue", operationId: "", slot: "pdf" }

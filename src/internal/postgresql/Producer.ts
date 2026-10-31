@@ -51,7 +51,7 @@ export const insertOrCompareAt = (
         producer.operationId,
         producer.slot,
         catalog.queue,
-        catalog.kind,
+        catalog.name,
         catalog.version,
         JSON.stringify(prepared.policy),
         prepared.availableAt ?? null,
@@ -74,7 +74,7 @@ export const insertOrCompareAt = (
         prior === undefined ||
         !Schema.is(JobIdSchema)(prior.id) ||
         prior.queue !== catalog.queue ||
-        prior.kind !== catalog.kind ||
+        prior.kind !== catalog.name ||
         prior.version !== catalog.version ||
         prior.format_version !== encoded.formatVersion ||
         !(projection instanceof Uint8Array) ||

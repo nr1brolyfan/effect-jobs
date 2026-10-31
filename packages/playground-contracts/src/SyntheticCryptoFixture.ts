@@ -3,7 +3,7 @@ import { Effect, Schema } from "effect"
 // Explicitly public fixture material. Never use these keys for private documents.
 export const syntheticDocumentCatalog = {
   queue: "playground-private",
-  kind: "playground.synthetic-document-export",
+  name: "playground.synthetic-document-export",
   version: 1
 } as const
 

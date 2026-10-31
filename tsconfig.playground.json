@@ -18,5 +18,10 @@
     "packages/playground-contracts/tests/**/*.ts",
     "apps/**/*.ts",
     "apps/**/*.tsx"
+  ],
+  "exclude": [
+    "apps/website/src/content.config.ts",
+    "apps/website/src/components/docs/**",
+    "apps/website/.astro/**"
   ]
 }

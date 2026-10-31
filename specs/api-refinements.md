@@ -8,6 +8,63 @@ changes need an explicit new version and its decoder. The handler decoder remain
 explicit. `JobPolicy.defaultPolicy` is deeply frozen and readonly; `make()` has the
 same defaults and never freezes/mutates caller options.
 
+## Names, bindings and definition policy
+
+`Job.make({ name, queue, version?, payload, defaultPolicy?, encodePayload? })`
+uses a stable machine contract name, not a display label or generated job ID.
+Catalog identity is `(queue, name, version)`. Existing name VALUES and versions
+are unchanged by this field rename. There are no public `kind` aliases.
+
+Physical PostgreSQL remains `jobs.kind TEXT NOT NULL`; Drizzle exposes
+`name: text("kind").notNull()`. Required indexes/constraints and migration/readiness
+remain unchanged. Row adapters map physical kind to public name. No PostgreSQL
+migration, row rewrite or reset is required. Changing identifier VALUES is a
+separate catalog change. Signed playground cursor filters retain the durable
+`kind` key through an explicit Schema encoding map; public filters use `name`.
+Operator/repair discriminants and `redrive_kind` keep their meanings.
+
+A producer uses a nonempty immutable record of slot-to-job bindings:
+
+```ts
+const PlaceOrderProducer = JobProducer.make({
+  operation: "order.place",
+  slots: { confirmation: SendOrderConfirmation, invoice: CreateOrderInvoice }
+})
+PlaceOrderProducer.enqueue("confirmation", {
+  operationId: "submission-1",
+  payload: { orderId: "order-1" }
+})
+```
+
+The selected slot determines decoded payload, Schema EncodingServices and policy
+optionality. Bound enqueue delegates the existing ambient transaction, never
+begins/commits/replays one. Different jobs/queues and several slots bound to one
+job are supported. Empty/invalid maps, dynamic IDs and slots fail at their proper
+boundaries. `identity({ operationId, slot })` stays structural low-level access,
+not a global proof of the slot/job association. Job-level standalone and explicit
+transaction primitives remain available.
+
+Keep producer declarations near their owning business use case. Share one only
+when multiple callers execute that same operation; shared contracts must not
+import producer applications, handlers, providers or composition roots.
+
+A definitely provided complete `defaultPolicy` makes enqueue policy optional on
+all entrypoints. Absent or optional/dynamic defaults keep it statically required.
+An explicit complete policy replaces the whole default, never merges fields.
+JS/dynamic missing/invalid policy is rejected. The library validates and snapshots
+policy without freezing/mutating caller objects. First insertion persists the
+resolved policy; duplicates retain first policy and availability even after
+default changes. Workers execute only stored policy. Changing defaults alone
+needs no catalog version bump and changes no retained/pending row. There is no
+queue/global fallback hierarchy. FixedDelayV1 remains unchanged.
+
+Catalog identity selects the contract/handler; producer identity
+`(operation, operationId, slot)` selects the consequence globally within one jobs
+storage. Same tuple/catalog/semantic payload returns first ID. Changed payload,
+job, queue or version conflicts; distinct operationId means new work. Different
+slots may intentionally carry different recipients to the same job. This is not
+exactly-once external email, slot ordering or a workflow DAG.
+
 ## Diagnostic codes
 
 Import `* as FailureCode` from `effect-jobs/FailureCode`. Define application

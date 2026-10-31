@@ -3,8 +3,9 @@
 import assert from "node:assert/strict"
 import { Cause, Effect, Exit, Layer, Result, Schema } from "effect"
 import { TestClock } from "effect/testing"
-import { BillingQueue, SendReceipt, IssueInvoice, GeneratePdf } from "./contracts.js"
+import { BillingQueue, SendReceipt, GeneratePdf } from "./contracts.js"
 import * as Fixture from "./Fixture.js"
+import { IssueInvoice } from "./Fixture.js"
 import { snippet as overview } from "./overview.js"
 import { issueInvoice } from "./application.js"
 import { snippet as slots } from "./slots.js"
@@ -35,7 +36,7 @@ import { getTableConfig } from "drizzle-orm/pg-core"
 assert.equal(process.versions.bun ?? process.version, process.versions.bun ? "1.4.2" : "v24.15.0")
 assert.equal(SendReceipt.catalog.version, 1)
 assert.equal(BillingQueue.name, "billing")
-assert.equal(GeneratePdf.kind, CloudPdf.kind)
+assert.equal(GeneratePdf.name, CloudPdf.name)
 assert.equal(Layer.isLayer(BillingWorkerLayer), true)
 assert.equal(CloudInvoiceProducer.identity({ operationId: "op", slot: "generate-pdf" }).slot, "generate-pdf")
 assert.equal(IssueInvoice.identity({ operationId: "op", slot: "receipt" }).operation, "billing.issue-invoice")

@@ -26,7 +26,7 @@ describe("authenticated synthetic document correction", () => {
         const row = {
           ...Fixture.sourceRow,
           queue: Definitions.SyntheticDocumentExport.catalog.queue,
-          kind: Definitions.SyntheticDocumentExport.catalog.kind,
+          kind: Definitions.SyntheticDocumentExport.catalog.name,
           version: Definitions.SyntheticDocumentExport.catalog.version,
           format_version: 1,
           payload: bytes,
@@ -86,7 +86,7 @@ describe("authenticated synthetic document correction", () => {
           Exit.isFailure(
             yield* Effect.exit(
               Source.replacement(
-                { ...row, kind: Definitions.PrivateDataExport.catalog.kind },
+                { ...row, kind: Definitions.PrivateDataExport.catalog.name },
                 Fixture.ref,
                 wire
               )

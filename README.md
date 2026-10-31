@@ -11,13 +11,14 @@ then handle delivery in a separate worker.
 ```ts
 const SendReceipt = Job.make({
   queue: JobQueue.make("billing"),
-  kind: "invoice.receipt",
-  payload: Schema.Struct({ invoiceId: Schema.String })
+  name: "invoice.receipt",
+  payload: Schema.Struct({ invoiceId: Schema.String }),
+  defaultPolicy: JobPolicy.defaultPolicy
 })
 
 const IssueInvoice = JobProducer.make({
   operation: "billing.issue-invoice",
-  slots: ["receipt"]
+  slots: { receipt: SendReceipt }
 })
 
 // App setup: its Layer supplies a qualified PostgreSqlApplication adapter.
@@ -29,11 +30,7 @@ const jobsStorage = yield* PostgreSqlJobs.make({
 yield* jobsStorage.withTransaction(() =>
   Effect.gen(function* () {
     yield* invoices.create({ id: invoiceId }) // Uses this same application transaction.
-    yield* SendReceipt.enqueue({
-      producer: IssueInvoice.identity({ operationId, slot: "receipt" }),
-      payload: { invoiceId },
-      policy: JobPolicy.defaultPolicy
-    })
+    yield* IssueInvoice.enqueue("receipt", { operationId, payload: { invoiceId } })
   })
 )
 
@@ -86,28 +83,24 @@ export const BillingQueue = JobQueue.make("billing")
 
 export const SendReceipt = Job.make({
   queue: BillingQueue,
-  kind: "invoice.receipt",
-  payload: Schema.Struct({ invoiceId: Schema.String })
-})
-
-export const IssueInvoice = JobProducer.make({
-  operation: "billing.issue-invoice",
-  slots: ["receipt"]
+  name: "invoice.receipt",
+  payload: Schema.Struct({ invoiceId: Schema.String }),
+  defaultPolicy: JobPolicy.defaultPolicy
 })
 ```
 
 ```ts
-// apps/api — owns invoice writes; does not import the email provider
+// apps/api — owns invoice writes and its producer; does not import the email provider
+const IssueInvoice = JobProducer.make({
+  operation: "billing.issue-invoice",
+  slots: { receipt: SendReceipt }
+})
 const issueInvoice = (operationId: string, invoiceId: string) =>
   jobsStorage.withTransaction(() =>
     Effect.gen(function* () {
       yield* invoices.createOnce({ operationId, invoiceId })
 
-      return yield* SendReceipt.enqueue({
-        producer: IssueInvoice.identity({ operationId, slot: "receipt" }),
-        payload: { invoiceId },
-        policy: receiptPolicy
-      })
+      return yield* IssueInvoice.enqueue("receipt", { operationId, payload: { invoiceId } })
     })
   )
 ```
@@ -139,27 +132,43 @@ colliding:
 ```ts
 const IssueInvoiceWithPdf = JobProducer.make({
   operation: "billing.issue-invoice-with-pdf",
-  slots: ["send-receipt", "generate-pdf"]
+  slots: { "send-receipt": SendReceipt, "generate-pdf": GeneratePdf }
 })
 
 // Inside the application's transaction; GeneratePdf is another job definition.
-yield* SendReceipt.enqueue({
-  producer: IssueInvoiceWithPdf.identity({ operationId, slot: "send-receipt" }),
-  payload: { invoiceId },
-  policy: JobPolicy.defaultPolicy
-})
+yield* IssueInvoiceWithPdf.enqueue("send-receipt", { operationId, payload: { invoiceId } })
 
-yield* GeneratePdf.enqueue({
-  producer: IssueInvoiceWithPdf.identity({ operationId, slot: "generate-pdf" }),
+yield* IssueInvoiceWithPdf.enqueue("generate-pdf", {
+  operationId,
   payload: { invoiceId },
   policy: JobPolicy.defaultPolicy
 })
 ```
 
 Retrying with the same operation ID and slots returns the existing matching jobs.
-Declared slots are checked by TypeScript. A slot names the consequence, not the
-job kind: two slots can enqueue the same job kind. Slots do not impose execution
+Slot bindings check the selected payload, policy and Schema services in TypeScript. Low-level `identity` remains structural, without that binding proof. A slot names the consequence, not the
+job name: two slots can enqueue the same job name. Slots do not impose execution
 order or dependencies between jobs.
+
+A contract name answers which handler runs; an operation answers why the work
+exists. Initial invoice delivery and a deliberate resend can use the same job
+name with different operations/operation IDs. Two recipient slots can also bind
+the same job with different payloads. See the [checked invoice recipes](apps/website/examples/docs/orders/apps/api/src/orders/application/InvoiceDelivery.ts).
+
+| Field         | Meaning                                                           |
+| ------------- | ----------------------------------------------------------------- |
+| `name`        | Stable job contract and handler.                                  |
+| `queue`       | Logical processing/routing group.                                 |
+| `operation`   | Business action that caused work.                                 |
+| `operationId` | Stable instance across business retries, not an automatic job ID. |
+| `slot`        | Named consequence, not chronological stage.                       |
+
+A complete definition `defaultPolicy` makes ordinary enqueue policy optional.
+A complete override replaces it; without a definite default, policy is required.
+Matching duplicates retain the first stored policy/availability across deployment
+changes; workers read stored policy only. No version bump is needed for a default
+change alone. Public `name` maps to physical PostgreSQL `jobs.kind`; this field
+rename requires no migration or data rewrite. Identifier value changes are separate.
 
 ## Long-running Node.js worker
 
@@ -381,7 +390,7 @@ const ReceiptDocument = Schema.Struct({
 
 const SendPrivateReceipt = Job.make({
   queue: BillingQueue,
-  kind: "invoice.private-receipt",
+  name: "invoice.private-receipt",
 
   payload: Schema.Struct({
     invoiceId: Schema.String,
@@ -395,7 +404,7 @@ const SendPrivateReceipt = Job.make({
 
 const PrivateReceiptProducer = JobProducer.make({
   operation: "billing.private-receipt",
-  slots: ["receipt"]
+  slots: { receipt: SendPrivateReceipt }
 })
 
 const receipt = yield* Schema.decodeUnknownEffect(ReceiptDocument)({
@@ -458,13 +467,13 @@ invoice PDF. Each consequence has its own producer slot.
 // Shared definitions: reuse SendReceipt and BillingQueue from above.
 const GeneratePdf = Job.make({
   queue: BillingQueue,
-  kind: "invoice.generate-pdf",
+  name: "invoice.generate-pdf",
   payload: Schema.Struct({ invoiceId: Schema.String })
 })
 
 const CloudInvoiceProducer = JobProducer.make({
   operation: "billing.cloudflare.issue-invoice",
-  slots: ["send-receipt", "generate-pdf"]
+  slots: { "send-receipt": SendReceipt, "generate-pdf": GeneratePdf }
 })
 
 // Consumer composition: application mailer/PDF services own external effects.

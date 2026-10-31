@@ -21,7 +21,7 @@ const expected = Schema.decodeSync(JobOperatorExpected)({
   lifecycleVersion: 4
 })
 const definition = {
-  catalog: { queue: "billing", kind: "invoice", version: 1 },
+  catalog: { queue: "billing", name: "invoice", version: 1 },
   payload: Schema.Struct({ value: Schema.String })
 }
 const producer = { operation: "repair", operationId: "new", slot: "replacement" }
@@ -185,7 +185,10 @@ test("replacement enforces schema, canonical bounds, catalog and original produc
     [definition, { expected, producer, payload: { value: "ok", excess: true } }],
     [definition, { expected, producer, payload: { value: "x".repeat(65537) } }],
     [
-      { ...definition, catalog: { ...definition.catalog, version: 2 } },
+      {
+        ...definition,
+        catalog: { ...definition.catalog, version: 2 }
+      },
       { expected, producer, payload: { value: "ok" } }
     ],
     [
@@ -244,6 +247,7 @@ test.each(["source", "kind", "absent", "inconsistent", "semantic"])(
             {
               id: "child",
               ...definition.catalog,
+              kind: definition.catalog.name,
               format_version: 1,
               projection:
                 variant === "semantic"
@@ -318,6 +322,7 @@ test("exact lineage duplicate accepts deleted live reference without reassignmen
           {
             id: "child",
             ...definition.catalog,
+            kind: definition.catalog.name,
             format_version: 1,
             projection: encoded.semanticProjectionBytes,
             original_source_job_id: "source",

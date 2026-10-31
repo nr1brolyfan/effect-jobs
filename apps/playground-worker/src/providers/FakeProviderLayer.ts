@@ -11,13 +11,13 @@ import {
   type ProviderFailure
 } from "./FakeProvider.js"
 
-const key = ({ sandbox, producer }: ProviderIdentity) =>
+const key = (identity: ProviderIdentity) =>
   JSON.stringify([
-    sandbox.sandboxId,
-    sandbox.generation,
-    producer.operation,
-    producer.operationId,
-    producer.slot
+    identity.sandbox.sandboxId,
+    identity.sandbox.generation,
+    identity.producer.operation,
+    identity.producer.operationId,
+    identity.producer.slot
   ])
 
 // One fresh, bounded, in-memory ledger per Layer acquisition. No hosted durability claim.
@@ -80,7 +80,7 @@ export const layer = Layer.sync(FakeProvider, () => {
           return undefined
         })
         if (failure) {
-          return yield* Effect.fail(failure)
+          return yield* failure
         }
       }),
     inspect: (identity) =>

@@ -291,7 +291,7 @@ const UnmarkedPayload = Schema.Struct({
 })
 const definition = Job.make({
   queue: Queue.make("poc"),
-  kind: "encrypted.document",
+  name: "encrypted.document",
   version: 1,
   payload: UnmarkedPayload,
   encodePayload: Codec.encodeJobPayload

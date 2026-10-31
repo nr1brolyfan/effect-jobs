@@ -44,13 +44,13 @@ describe("identity boundaries", () => {
     expect("é").not.toBe("é")
   })
   it("validates retained catalog name and version bounds", () => {
-    const valid = { queue: "a".repeat(64), kind: "a".repeat(128), version: 32_767 }
+    const valid = { queue: "a".repeat(64), name: "a".repeat(128), version: 32_767 }
     expect(Schema.is(CatalogIdentity)(valid)).toBe(true)
     for (const invalid of [
       { ...valid, queue: "a".repeat(65) },
-      { ...valid, kind: "a".repeat(129) },
+      { ...valid, name: "a".repeat(129) },
       { ...valid, queue: "A" },
-      { ...valid, kind: "a_b" },
+      { ...valid, name: "a_b" },
       { ...valid, version: 0 },
       { ...valid, version: 32_768 },
       { ...valid, version: 1.5 }

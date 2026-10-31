@@ -27,14 +27,14 @@ import * as WakeCycle from "../../src/cloudflare/WakeCycle.js"
 declare const Response: typeof import("@cloudflare/workers-types").Response
 
 const queue = Queue.make("cloudflare-probe")
-const producer = Producer.make({ operation: "cloudflare.probe", slots: ["synthetic"] })
 const definition = Job.make({
   queue,
-  kind: "synthetic",
+  name: "synthetic",
   payload: Schema.String,
   encodePayload: Codec.encodeJobPayload
 })
 
+const producer = Producer.make({ operation: "cloudflare.probe", slots: { synthetic: definition } })
 const nativeProbe = Effect.scoped(
   Effect.gen(function* () {
     // Zero eager connections and no SQL: this synthetic URL is never connected.

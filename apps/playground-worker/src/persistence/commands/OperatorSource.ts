@@ -1,7 +1,6 @@
 import { Effect, Schema } from "effect"
 import { CatalogIdentity } from "effect-jobs/JobIdentity"
 import * as Codec from "effect-jobs/JobPayloadCodec"
-import * as JobProducer from "effect-jobs/JobProducer"
 import type { JobOperatorCommand } from "@effect-jobs/playground-contracts/Operators"
 import type { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import * as Definitions from "../../scenarios/Definitions.js"
@@ -23,10 +22,6 @@ const artifact = Schema.Struct({
   payloadBytes: byteBuffer,
   semanticProjectionBytes: byteBuffer
 })
-const producer = JobProducer.make({
-  operation: "playground.operator-redrive",
-  slots: ["replacement"]
-})
 
 // Includes the whole scoped source/request tuple, with a bounded library operationId.
 // This creates a new provider ledger identity; no original acceptance is transferred.
@@ -47,7 +42,11 @@ export const producerIdentity = (command: JobOperatorCommand) =>
         ).join(""),
       catch: invalid
     })
-    return producer.identity({ operationId, slot: "replacement" })
+    return Object.freeze({
+      operation: "playground.operator-redrive",
+      operationId,
+      slot: "replacement"
+    })
   })
 
 // Command-only private decoding. Ordinary detail/list reads never call this.
@@ -57,7 +56,7 @@ export const validate = (row: Readonly<Record<string, unknown>>, current: Sandbo
   Effect.gen(function* () {
     const catalog = yield* Schema.decodeUnknownEffect(CatalogIdentity)({
       queue: row.queue,
-      kind: row.kind,
+      name: row.kind,
       version: Number(row.version)
     }).pipe(
       Effect.mapError(() => new OperatorSourceRejected({ reason: "unsupported-catalog" }))
@@ -65,7 +64,7 @@ export const validate = (row: Readonly<Record<string, unknown>>, current: Sandbo
     const definition = Definitions.definitions.find(
       (candidate) =>
         candidate.catalog.queue === catalog.queue &&
-        candidate.catalog.kind === catalog.kind &&
+        candidate.catalog.name === catalog.name &&
         candidate.catalog.version === catalog.version
     )
     if (!definition) {

@@ -30,7 +30,7 @@ const row = () => {
     completed_at: null,
     last_failure_code: null,
     queue: artifact.catalog.queue,
-    kind: artifact.catalog.kind,
+    name: artifact.catalog.name,
     version: artifact.catalog.version,
     operation: artifact.producer.operation,
     slot: artifact.producer.slot,

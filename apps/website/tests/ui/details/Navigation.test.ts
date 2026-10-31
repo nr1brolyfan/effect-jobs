@@ -77,7 +77,7 @@ describe("detail navigation in the existing Atom registry", () => {
     }
     expect(
       Navigation.listStateFilters(
-        new URL("https://example.test/jobs?state=Pending&kind=hidden&due=true")
+        new URL("https://example.test/jobs?state=Pending&name=hidden&due=true")
       )
     ).toEqual({ state: "Pending" })
   })
@@ -197,12 +197,12 @@ describe("detail navigation in the existing Atom registry", () => {
     (mode) => {
       const path = mode === "demo" ? "/demo" : "/jobs"
       const port = browser(
-        `https://example.test${path}?state=Dead&kind=hidden&due=true#jobs`
+        `https://example.test${path}?state=Dead&name=hidden&due=true#jobs`
       )
       const registry = AtomRegistry.make()
       const scope = Scope.makeUnsafe()
       const restored: Array<Navigation.JobReturnContext | null> = []
-      const legacy = { ...context, filters: { state: "Dead" as const, kind: "hidden" } }
+      const legacy = { ...context, filters: { state: "Dead" as const, name: "hidden" } }
       const nav = Effect.runSync(
         Navigation.make(registry, port, {
           mode,
@@ -217,7 +217,7 @@ describe("detail navigation in the existing Atom registry", () => {
         nav.openFull(jobId)
         // Simulate a legacy history entry created before the toolbar was removed.
         port.history.back()
-        port.history.replaceState(null, "", `${path}?state=Dead&kind=hidden&due=1`)
+        port.history.replaceState(null, "", `${path}?state=Dead&name=hidden&due=1`)
         port.emit("popstate")
         expect(new URL(port.location.href).searchParams.get("state")).toBe("Dead")
         expect(new URL(port.location.href).searchParams.has("kind")).toBe(false)

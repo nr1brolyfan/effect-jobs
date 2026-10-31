@@ -95,7 +95,7 @@ export const detail = Schema.decodeUnknownSync(JobDetail)({
 export const sourceRow = {
   id: sourceId,
   queue: detail.job.catalog.queue,
-  kind: detail.job.catalog.kind,
+  kind: detail.job.catalog.name,
   version: 1,
   state: "Dead",
   available_at: 100,

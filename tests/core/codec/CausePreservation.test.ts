@@ -104,7 +104,7 @@ for (const kind of ["defect", "interrupt"] as const) {
 
     const definition = Job.make({
       queue: Queue.make("mixed-codec"),
-      kind: "receipt",
+      name: "receipt",
       payload: schema
     })
     const store = harness([

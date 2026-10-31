@@ -26,8 +26,8 @@ export const makeServer = () => {
           (job) =>
             (request.filters.state === undefined ||
               job.state === request.filters.state) &&
-            (request.filters.kind === undefined ||
-              job.catalog.kind === request.filters.kind)
+            (request.filters.name === undefined ||
+              job.catalog.name === request.filters.name)
         )
         const remaining = filtered.filter(
           (job) => request.cursor === undefined || job.jobId > request.cursor

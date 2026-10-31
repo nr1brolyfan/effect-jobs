@@ -11,7 +11,7 @@ const Position = Schema.Union([
   Schema.Struct({
     version: Schema.Literal(1),
     sandbox: SandboxRef,
-    filters: JobFilters,
+    filters: JobFilters.pipe(Schema.encodeKeys({ name: "kind" })),
     after: After
   }).pipe(
     Schema.check(
@@ -25,7 +25,7 @@ const Position = Schema.Union([
     version: Schema.Literal(2),
     view: Schema.Literals(["jobs", "problems"]),
     sandbox: SandboxRef,
-    filters: JobFilters,
+    filters: JobFilters.pipe(Schema.encodeKeys({ name: "kind" })),
     after: After
   }),
   Schema.Struct({
@@ -81,7 +81,7 @@ export const make = (key: CryptoKey): typeof CursorCodec.Service => {
   }
   return {
     encode: (position) =>
-      Schema.decodeUnknownEffect(Position)(position, { onExcessProperty: "error" }).pipe(
+      Schema.encodeEffect(Position)(position, { onExcessProperty: "error" }).pipe(
         Effect.mapError(() => new PlaygroundError({ code: "unavailable" })),
         Effect.flatMap((decoded) =>
           Effect.tryPromise({

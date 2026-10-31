@@ -90,7 +90,7 @@ export function captureReturnContext(context: JobReturnContext): JobReturnContex
     Object.entries(context.filters).filter(([key]) => shareableFilterKeys.has(key))
   ) as JobFilters
   const bounded =
-    context.filters.kind === undefined &&
+    context.filters.name === undefined &&
     context.cursors.length <= 100 &&
     Number.isInteger(context.pageNumber) &&
     context.pageNumber >= 1 &&
@@ -157,9 +157,9 @@ export const make = (
       const parsed = readRoute(url, bindings.mode, bindings.sandbox())
       if (
         parsed._tag === "List" &&
-        (url.searchParams.has("kind") || url.searchParams.has("due"))
+        (url.searchParams.has("name") || url.searchParams.has("due"))
       ) {
-        url.searchParams.delete("kind")
+        url.searchParams.delete("name")
         url.searchParams.delete("due")
         browser.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`)
       }

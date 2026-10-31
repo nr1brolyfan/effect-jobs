@@ -55,7 +55,7 @@ it("validated catalogs and nonthrowing parser share 128-character storage bounda
 it("omitted version and standard encoder match explicit values; custom override remains explicit", async () => {
   const base = {
     queue: Queue.make("billing"),
-    kind: "receipt",
+    name: "receipt",
     payload: Schema.Struct({ invoiceId: Schema.String })
   }
   const a = Job.make(base)

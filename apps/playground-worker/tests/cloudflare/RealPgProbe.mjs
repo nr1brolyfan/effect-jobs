@@ -52,7 +52,7 @@ export const probe = (url, schema, alarm, checks = []) =>
       checks.push("real connection and packed backend readiness")
       const definition = Job.make({
         queue: Queue.make("cf-real"),
-        kind: "synthetic",
+        name: "synthetic",
         payload: Schema.String
       })
       const policy = Policy.make({

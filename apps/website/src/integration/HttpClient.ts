@@ -89,7 +89,7 @@ export const client: Client = {
     request("/api/jobs/resolution/receipt", JobResolutionResult, "POST", input),
   problems: (input) =>
     request(
-      `/api/jobs/problems?${params(input, { state: input.filters.state, kind: input.filters.kind, resolution: input.filters.resolution, needsAttention: input.filters.needsAttention ? "true" : undefined, limit: String(input.limit), cursor: input.cursor })}`,
+      `/api/jobs/problems?${params(input, { state: input.filters.state, name: input.filters.name, resolution: input.filters.resolution, needsAttention: input.filters.needsAttention ? "true" : undefined, limit: String(input.limit), cursor: input.cursor })}`,
       JobProblemPage
     ),
   history: (input) =>
@@ -108,7 +108,7 @@ export const client: Client = {
   describe: () => request("/api/sandbox", SandboxView, "POST"),
   list: (input) =>
     request(
-      `/api/jobs?${params(input, { state: input.filters.state, kind: input.filters.kind, limit: String(input.limit), cursor: input.cursor })}`,
+      `/api/jobs?${params(input, { state: input.filters.state, name: input.filters.name, limit: String(input.limit), cursor: input.cursor })}`,
       JobPage
     ),
   detail: (input) =>
@@ -130,7 +130,7 @@ export const demoClient: Client = {
     Effect.fail(new PlaygroundError({ code: "capability-unavailable" })),
   problems: (input) =>
     request(
-      `/api/demo/jobs/problems?${params(input, { state: input.filters.state, kind: input.filters.kind, resolution: input.filters.resolution, needsAttention: input.filters.needsAttention ? "true" : undefined, limit: String(input.limit), cursor: input.cursor })}`,
+      `/api/demo/jobs/problems?${params(input, { state: input.filters.state, name: input.filters.name, resolution: input.filters.resolution, needsAttention: input.filters.needsAttention ? "true" : undefined, limit: String(input.limit), cursor: input.cursor })}`,
       JobProblemPage
     ),
   history: (input) =>
@@ -149,7 +149,7 @@ export const demoClient: Client = {
   describe: () => request("/api/demo", SandboxView),
   list: (input) =>
     request(
-      `/api/demo/jobs?${params(input, { state: input.filters.state, kind: input.filters.kind, limit: String(input.limit), cursor: input.cursor })}`,
+      `/api/demo/jobs?${params(input, { state: input.filters.state, name: input.filters.name, limit: String(input.limit), cursor: input.cursor })}`,
       JobPage
     ),
   detail: (input) =>

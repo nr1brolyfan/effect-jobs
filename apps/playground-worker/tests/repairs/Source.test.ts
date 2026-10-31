@@ -166,7 +166,7 @@ describe("server source authority and validation", () => {
                 {
                   ...row,
                   queue: Definitions.PrivateDataExport.catalog.queue,
-                  kind: Definitions.PrivateDataExport.catalog.kind,
+                  kind: Definitions.PrivateDataExport.catalog.name,
                   version: Definitions.PrivateDataExport.catalog.version
                 },
                 Fixture.ref,

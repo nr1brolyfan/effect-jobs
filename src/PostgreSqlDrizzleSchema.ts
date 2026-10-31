@@ -35,7 +35,7 @@ const makeJobsColumns = () => ({
   operationId: text("operation_id").notNull(),
   slot: text("slot").notNull(),
   queue: text("queue").notNull(),
-  kind: text("kind").notNull(),
+  name: text("kind").notNull(),
   version: integer("version").notNull(),
   policy: jsonb("policy").$type<JobPolicy>().notNull(),
   initialAvailableAt: bigint("initial_available_at", { mode: "number" }),
@@ -120,7 +120,7 @@ export const makeJobTables = (options: Options = {}) => {
       sql`(${j.state} IN ('Completed','Dead','Cancelled')) = (${j.completedAt} IS NOT NULL)`
     ),
     index(`${prefix}_due`)
-      .on(j.queue, j.kind, j.version, j.availableAt, j.id)
+      .on(j.queue, j.name, j.version, j.availableAt, j.id)
       .where(sql`${j.state} IN ('Pending','RetryScheduled')`),
     index(`${prefix}_expired`)
       .on(j.leaseExpiresAt, j.id)

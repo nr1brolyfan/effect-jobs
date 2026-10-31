@@ -44,7 +44,7 @@ import type { JobStoreService } from "../../../src/JobStore.js"
 const queue = Queue.make("worker-tests")
 const definition = Job.make({
   queue,
-  kind: "neutral.job",
+  name: "neutral.job",
   version: 1,
   payload: Schema.Struct({ value: Schema.String }),
   encodePayload: Codec.encodeJobPayload
@@ -299,7 +299,7 @@ it("does not claim unsupported durable versions or consume their counters", asyn
         ...prepared,
         catalog: {
           queue: prepared.catalog.queue,
-          kind: prepared.catalog.kind,
+          name: prepared.catalog.name,
           version: 2
         }
       }
@@ -683,7 +683,7 @@ it("runs notification and protected OTP-style adapters on the SAME generic engin
     Effect.gen(function* () {
       const notification = Job.make({
         queue,
-        kind: "security.notification",
+        name: "security.notification",
         version: 1,
         payload: Schema.Struct({
           userId: Schema.String,
@@ -693,7 +693,7 @@ it("runs notification and protected OTP-style adapters on the SAME generic engin
       })
       const otp = Job.make({
         queue,
-        kind: "email.otp",
+        name: "email.otp",
         version: 1,
         payload: Schema.Struct({
           challengeId: Schema.String,
@@ -993,11 +993,11 @@ it("does not finalize a store-returned unsupported artifact even if that handler
       const prepared = test.rows[0]!.prepared as PreparedJob
       test.rows[0]!.prepared = {
         ...prepared,
-        catalog: { queue: queue.name, kind: definition.kind, version: 2 }
+        catalog: { queue: queue.name, name: definition.name, version: 2 }
       }
       const registry = yield* JobRegistry
       yield* registry.install({
-        catalog: { queue: queue.name, kind: definition.kind, version: 2 },
+        catalog: { queue: queue.name, name: definition.name, version: 2 },
         execute: () => Effect.die("must not dispatch")
       })
       const worker = yield* make(test.store)

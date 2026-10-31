@@ -56,7 +56,7 @@ const routes = [
       )
   },
   {
-    name: "repair",
+    kind: "repair",
     budget: HttpRepairs.maximumBodyBytes,
     run: (stream: ReadableStream<Uint8Array>) =>
       HttpRepairs.body(request(stream, "/api/jobs/repair")).pipe(Effect.asVoid)

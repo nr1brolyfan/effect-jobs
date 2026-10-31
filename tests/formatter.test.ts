@@ -14,8 +14,7 @@ const runtimeArtifacts = [
   ".opencode/skills/multica-platform/references/agents.md",
   ".opencode/skills/multica-platform/references/issues.md",
   ".opencode/skills/multica-platform/references/mentions.md",
-  ".opencode/skills/multica-platform/references/skill-import.md",
-  "AGENTS.md"
+  ".opencode/skills/multica-platform/references/skill-import.md"
 ]
 
 it("keeps runtime formatter exclusions exact and disjoint from tracked files", () => {

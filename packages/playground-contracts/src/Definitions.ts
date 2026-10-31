@@ -13,11 +13,11 @@ export const ScenarioPayload = Schema.Struct({
 })
 export const ScenarioJob = Job.make({
   queue,
-  kind: "playground.scenario",
+  name: "playground.scenario",
   version: 1,
   payload: ScenarioPayload
 })
 export const ScenarioProducer = JobProducer.make({
   operation: "playground.scenario",
-  slots: ["execute"]
+  slots: { execute: ScenarioJob }
 })

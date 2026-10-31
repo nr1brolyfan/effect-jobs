@@ -36,7 +36,7 @@ export const page = Schema.decodeUnknownSync(JobPage)(
     items: [
       {
         jobId: "demo-job-a",
-        catalog: { queue: "playground", kind: "playground.scenario", version: 1 },
+        catalog: { queue: "playground", name: "playground.scenario", version: 1 },
         state: "Completed",
         availableAt: 1_800_000_000_000,
         updatedAt: 1_800_000_001_000,

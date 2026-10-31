@@ -1,4 +1,5 @@
 // Local workerd FFI. All inputs are fresh synthetic configuration; no .env access.
+import { createAssets } from "../../../website/StaticAssets.mjs"
 import { Miniflare, convertV4MiniflareOptions } from "miniflare"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
@@ -35,7 +36,6 @@ export const createLocal = async (
   const page =
     '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Effect Jobs Playground</title><link rel="stylesheet" href="/Jobs.css"></head><body><main id="jobs"></main><script type="module" src="/Client.js"></script></body></html>'
   const assets = {
-    "/": [page, "text/html"],
     "/jobs": [page, "text/html"],
     "/demo": [page, "text/html"],
     "/Client.js": [
@@ -95,20 +95,10 @@ export const createLocal = async (
         CURSOR_KEY: cfg.cursorKey
       },
       serviceBindings: {
-        ASSETS: (request) => {
-          const entry = assets[new URL(request.url).pathname]
-          return entry
-            ? new Response(entry[0], {
-                headers: {
-                  "Content-Type": entry[1],
-                  "Cache-Control": "no-store",
-                  "Content-Security-Policy":
-                    "default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'",
-                  "X-Content-Type-Options": "nosniff"
-                }
-              })
-            : new Response("Not found", { status: 404 })
-        }
+        ASSETS: createAssets({
+          siteDirectory: resolve(root, "apps/website/dist/site"),
+          dashboard: assets
+        })
       },
       outboundService: () => new Response("Outbound HTTP denied", { status: 403 })
     })

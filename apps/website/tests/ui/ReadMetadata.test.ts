@@ -46,8 +46,8 @@ describe("same-snapshot scoped filtered pagination metadata", () => {
   it.each([
     {},
     { state: "Completed" as const },
-    { kind: "playground.scenario" },
-    { state: "Completed" as const, kind: "playground.scenario" }
+    { name: "playground.scenario" },
+    { state: "Completed" as const, name: "playground.scenario" }
   ])("counts all matching scoped rows before cursor filtering: %j", (filters) => {
     const query = Queries.make(mapping).list(
       Fixtures.sandbox.ref,
@@ -58,7 +58,7 @@ describe("same-snapshot scoped filtered pagination metadata", () => {
       Fixtures.sandbox.ref.sandboxId,
       1,
       filters.state ?? null,
-      filters.kind ?? null,
+      filters.name ?? null,
       "anchor",
       21
     ])

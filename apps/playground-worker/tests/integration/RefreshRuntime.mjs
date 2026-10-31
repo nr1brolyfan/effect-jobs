@@ -141,7 +141,7 @@ try {
     generation: String(ref.generation),
     limit: "20",
     state: "Pending",
-    kind: "playground.welcome-email"
+    name: "playground.welcome-email"
   }
   const first = await query(params)
   assert.equal(first.status, 200)

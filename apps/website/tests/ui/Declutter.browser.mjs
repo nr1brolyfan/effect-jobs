@@ -78,7 +78,7 @@ const server = createServer(async (req, res) => {
     const q = Object.fromEntries(url.searchParams)
     requests.push(q)
     const filtered = jobs.filter(
-      (j) => (!q.state || j.state === q.state) && (!q.kind || j.catalog.kind === q.kind)
+      (j) => (!q.state || j.state === q.state) && (!q.kind || j.catalog.name === q.kind)
     )
     const offset = Number(q.cursor ?? 0),
       limit = Number(q.limit)
@@ -269,7 +269,7 @@ try {
     ).toHaveCount(0)
     // Legacy links cannot silently constrain rows. Preserve the state tab parameter.
     await page.goto(
-      `http://127.0.0.1:${server.address().port}/jobs?state=Dead&kind=unknown.kind&due=true`
+      `http://127.0.0.1:${server.address().port}/jobs?state=Dead&name=unknown.kind&due=true`
     )
     await expect(result).toHaveText("11 results")
     await expect(page.getByRole("tab", { name: /^Dead/ })).toHaveAttribute(

@@ -25,7 +25,7 @@ JobFailures.Retry({ code: "provider_busy" })
 const rawCode: Codes.FailureCode = "valid"
 void rawCode
 const base = {
-  kind: "receipt",
+  name: "receipt",
   queue: Queue.make("billing"),
   payload: Schema.String
 } as const

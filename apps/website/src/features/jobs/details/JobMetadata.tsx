@@ -51,7 +51,7 @@ export function JobMetadata(inputProps: { readonly detail: JobDetail }) {
               items={[
                 { label: "Job", value: job.jobId, mono: true },
                 { label: "Queue", value: job.catalog.queue, mono: true },
-                { label: "Kind", value: job.catalog.kind, mono: true },
+                { label: "Name", value: job.catalog.name, mono: true },
                 { label: "Schema version", value: job.catalog.version },
                 { label: "Producer operation", value: producer.operation, mono: true },
                 { label: "Operation identity", value: producer.operationId, mono: true },

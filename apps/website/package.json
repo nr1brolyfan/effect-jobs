@@ -18,15 +18,23 @@
   },
   "scripts": {
     "check": "tsc -p tsconfig.json",
-    "build": "bun build.mjs"
+    "build": "bun build.mjs && bun run site:build",
+    "site:build": "astro build",
+    "site:check": "astro sync && tsc --project tsconfig.site.json --noEmit",
+    "site:test": "node --test tests/site/Foundation.mjs",
+    "site:browser": "node tests/site/Browser.mjs",
+    "site:routes": "node tests/site/Routes.mjs"
   },
   "devDependencies": {
     "@babel/core": "7.29.7",
     "@babel/plugin-syntax-typescript": "7.29.7",
     "@babel/plugin-transform-react-jsx": "7.29.7",
     "@babel/plugin-transform-typescript": "7.29.7",
+    "@effect/sql-pg": "4.0.5",
     "@stylexjs/babel-plugin": "0.19.1",
     "@types/react": "19.3.0",
-    "@types/react-dom": "19.3.0"
+    "@types/react-dom": "19.3.0",
+    "astro": "7.4.2",
+    "@astrojs/starlight": "0.42.6"
   }
 }

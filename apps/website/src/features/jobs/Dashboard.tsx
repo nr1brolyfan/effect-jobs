@@ -120,14 +120,14 @@ const JobsTable = (props: {
           return (
             <div {...classes("job-identity")}>
               <span {...classes("job-icon")}>
-                <Icon name={jobIcon(cell.row.original.catalog.kind)} />
+                <Icon name={jobIcon(cell.row.original.catalog.name)} />
               </span>
               <div>
                 <strong
                   {...classes("job-name")}
-                  title={`${cell.row.original.catalog.kind} v${cell.row.original.catalog.version}`}
+                  title={`${cell.row.original.catalog.name} v${cell.row.original.catalog.version}`}
                 >
-                  {jobName(cell.row.original.catalog.kind)}
+                  {jobName(cell.row.original.catalog.name)}
                 </strong>
                 <button
                   type="button"

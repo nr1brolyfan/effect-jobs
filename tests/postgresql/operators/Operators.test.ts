@@ -34,7 +34,7 @@ import { makeJobTables } from "../../../src/PostgreSqlDrizzleSchema.js"
 
 const configPath = process.env.OPERATORS_PG_CONFIG_FILE
 const definition = {
-  catalog: { queue: "billing", kind: "invoice", version: 1 },
+  catalog: { queue: "billing", name: "invoice", version: 1 },
   payload: Schema.Struct({ value: Schema.String })
 }
 const producer = (id = randomUUID()) => ({

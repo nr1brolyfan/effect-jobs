@@ -1,7 +1,7 @@
 # Documentation and landing site
 
-Status: proposed implementation contract for owner approval before dispatch.
-Planning does not authorize execution, commits, push, publication or deployment.
+Status: accepted local documentation contract. Task authorization remains in
+issues; this specification does not authorize publication or deployment.
 
 ## Product direction
 
@@ -56,7 +56,7 @@ owners too; new shared script hooks are requested from the foundation owner.
   what a queue solves and what it does not solve.
 - /docs/start/installation: exact supported versions, required backend peers.
 - /docs/start/first-job: complete executable vertical slice with explicit Layers.
-- /docs/start/tutorial: build a report-generation workflow incrementally.
+- /docs/start/tutorial: build an order confirmation/invoice workflow incrementally.
 - /docs/concepts/model: definition, payload, queue, producer, consumer, handler.
 - /docs/concepts/lifecycle: actual states, transitions and failure outcomes.
 - /docs/persistence/postgresql: setup, schema ownership and migrations.
@@ -77,7 +77,8 @@ repeating disclaimers on every page. Internal workflow reports are not user docs
 
 ## Editorial and executable examples
 
-Use one synthetic report-generation/delivery domain throughout. No real provider
+Use the checked synthetic order confirmation/invoice narrative for the guided
+path. Retain report examples as checked reference recipes. No real provider
 credentials, email delivery or cloud resources are needed for examples. Introduce
 a realistic problem before the solution: slow request, crash between application
 write and enqueue, duplicated request, interrupted worker, ambiguous external

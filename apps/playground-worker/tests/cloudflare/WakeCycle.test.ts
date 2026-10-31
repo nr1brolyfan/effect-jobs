@@ -14,7 +14,7 @@ import * as WakeCycle from "../../src/cloudflare/WakeCycle.js"
 const queue = Queue.make("cloudflare-probe")
 const definition = Job.make({
   queue,
-  kind: "synthetic",
+  name: "synthetic",
   payload: Schema.String,
   encodePayload: Codec.encodeJobPayload
 })

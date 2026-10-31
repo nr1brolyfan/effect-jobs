@@ -30,7 +30,7 @@ const job = {
   jobId: "review-dead",
   catalog: {
     queue: "playground-communications",
-    kind: "playground.welcome-email",
+    name: "playground.welcome-email",
     version: 1
   },
   state: "Dead",

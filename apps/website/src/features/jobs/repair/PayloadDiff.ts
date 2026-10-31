@@ -67,14 +67,14 @@ export const parseReplacement = (
   }
   const definition = Definitions.definitions.find(
     (entry) =>
-      entry.catalog.kind === detail.job.catalog.kind &&
+      entry.catalog.name === detail.job.catalog.name &&
       entry.catalog.queue === detail.job.catalog.queue &&
       entry.catalog.version === detail.job.catalog.version
   )
   if (
     !definition ||
     (definition === Definitions.SyntheticDocumentExport && !synthetic) ||
-    definition.catalog.kind === Definitions.PrivateDataExport.catalog.kind ||
+    definition.catalog.name === Definitions.PrivateDataExport.catalog.name ||
     (detail.payload._tag === "Available" &&
       detail.payload.encryption !== "None" &&
       !synthetic)

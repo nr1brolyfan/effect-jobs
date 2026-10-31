@@ -144,7 +144,7 @@ import * as Codec from "./JobPayloadCodec.ts"
 import { ClaimResults, ClaimReconciliations, FinalizationResults, FinalizationReconciliations } from "effect-jobs/JobStore"
 import type { JobStoreService } from "effect-jobs/JobStore"
 assert.equal(Definition.definition.queue.name, "billing")
-assert.equal(Producer.identity.operationId, "request-123")
+assert.equal(Producer.producer.identity({ operationId: "request-123", slot: "delivery" }).operationId, "request-123")
 assert.equal(Policy.policy.retrySchedule.delayMillis, 5000)
 assert.equal(Policy.policy.completedRetention._tag, "Duration")
 assert(Storage.ddl.includes('CREATE TABLE "app_jobs"."jobs"'))
@@ -181,7 +181,7 @@ assert.deepEqual(examples.map(({ name }) => name).sort(), [
 ])
 const exportedNames = {
   Job: "definition",
-  JobProducer: "identity",
+  JobProducer: "producer",
   JobConsumer: "plan",
   JobPolicy: "policy",
   JobWorkerRuntime: "runOnce",

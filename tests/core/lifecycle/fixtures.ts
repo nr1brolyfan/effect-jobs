@@ -38,7 +38,7 @@ export const active = (
 export const ownership = (row = active()) => Result.getOrThrow(Lifecycle.ownershipOf(row))
 export const request: Store.ClaimRequest = {
   queue: "billing",
-  supportedCatalog: [{ queue: "billing", kind: "invoice", version: 1 }],
+  supportedCatalog: [{ queue: "billing", name: "invoice", version: 1 }],
   leaseToken: token
 }
 export const prepared = () => ({

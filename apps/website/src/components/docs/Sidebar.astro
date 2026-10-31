@@ -1,0 +1,16 @@
+---
+const groups = [
+  { title: "Start", links: [["Introduction", "/docs"], ["Getting started", "/docs/start/tutorial"]] },
+  { title: "Produce", links: [["Defining jobs", "/docs/start/tutorial#1-place-an-order-without-waiting-for-email"], ["Enqueueing & transactions", "/docs/persistence/transactions"]] },
+  { title: "Run", links: [["Workers & handlers", "/docs/execution/workers"], ["Retries & recovery", "/docs/execution/recovery"]] },
+  { title: "Operate", links: [["PostgreSQL & Drizzle", "/docs/persistence/drizzle"], ["Monitoring & troubleshooting", "/docs/operations/troubleshooting"]] },
+  { title: "Reference", links: [["API reference", "/docs/reference"]] }
+]
+const current = Astro.url.pathname.replace(/\/$/, "")
+---
+<div class="ej-nav-intro"><span class="ej-nav-dot" aria-hidden="true"></span>Durable by design</div>
+{groups.map((group) => <section class="ej-nav-group" aria-label={group.title}>
+  <h2>{group.title}</h2>
+  <ul>{group.links.map((link) => <li><a href={link[1]} aria-current={current === link[1] ? "page" : undefined}>{link[0]}</a></li>)}</ul>
+</section>)}
+<div class="ej-nav-footer"><span>Effect-native. PostgreSQL-backed.</span><a href="/docs/reference/examples">Complete checked examples <span aria-hidden="true">↗︎</span></a></div>

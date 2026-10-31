@@ -4,7 +4,7 @@
 import { Data, Schema } from "effect"
 
 /**
- * ASCII declaration-name grammar shared by queue, kind, operation and slot Schemas.
+ * ASCII declaration-name grammar shared by queue, name, operation and slot Schemas.
  *
  * @category constants
  */
@@ -26,11 +26,15 @@ const name = (maximum: number) =>
  */
 export const QueueName = name(64)
 /**
- * Job-kind Schema: 1–128 ASCII characters matching nameFormat.
+ * Job-name Schema: 1–128 ASCII characters matching nameFormat.
  *
  * @category schemas
  */
-export const JobKind = name(128)
+export type JobName = typeof JobName.Type
+/** Stable job-name Schema: 1–128 ASCII characters matching nameFormat.
+ * @category schemas
+ */
+export const JobName = name(128)
 /**
  * Producer operation-name Schema: 1–128 ASCII characters matching nameFormat.
  *
@@ -53,27 +57,27 @@ export const JobVersion = Schema.Int.pipe(
 )
 
 /**
- * Queue/kind/version Schema and literal-preserving structural identity.
+ * Queue/name/version Schema and literal-preserving structural identity.
  *
  * @category schemas
  */
 export const CatalogIdentity = Schema.Struct({
   queue: QueueName,
-  kind: JobKind,
+  name: JobName,
   version: JobVersion
 })
 /**
- * Queue/kind/version Schema and literal-preserving structural identity.
+ * Queue/name/version Schema and literal-preserving structural identity.
  *
  * @category models
  */
 export interface CatalogIdentity<
   Queue extends string = string,
-  Kind extends string = string,
+  Name extends string = string,
   Version extends number = number
 > {
   readonly queue: Queue
-  readonly kind: Kind
+  readonly name: Name
   readonly version: Version
 }
 
@@ -105,7 +109,7 @@ export class InvalidOperationId extends Data.TaggedError("InvalidOperationId")<{
  * @category operations
  */
 export const validateOperationId = (value: string): void => {
-  if (!validScalars(value)) {
+  if (typeof value !== "string" || !validScalars(value)) {
     throw new InvalidOperationId({ rule: "unicode-scalars" })
   }
   if (value.includes("\u0000")) {

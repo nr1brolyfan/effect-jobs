@@ -121,7 +121,7 @@ export const make = (mapping: Queries.Mapping) =>
           (decoded.version === 1 ? view !== "jobs" : decoded.view !== view) ||
           !("filters" in decoded) ||
           decoded.filters.state !== request.filters.state ||
-          decoded.filters.kind !== request.filters.kind ||
+          decoded.filters.name !== request.filters.name ||
           decoded.filters.resolution !== request.filters.resolution ||
           decoded.filters.needsAttention !== request.filters.needsAttention
         ) {

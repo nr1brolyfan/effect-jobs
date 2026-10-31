@@ -1,0 +1,95 @@
+---
+title: Store orders in PostgreSQL
+description: Own the schema, migrations and connection lifetime for durable order jobs.
+---
+
+import { CodeExample } from "../../../components/docs/index"
+
+An order request must survive an API restart. PostgreSQL stores the job beside
+application data; a worker can claim it after the request process has gone away.
+Start with a database and migration runner your application already owns.
+
+## Prepare storage before starting workers
+
+1. Choose one storage mapping. Defaults are `public.jobs` and
+   `public.job_payloads`; namespace and table names are configurable.
+2. Create the namespace with application migration credentials. Generate baseline
+   DDL with `PostgreSqlSchema.migration(mapping)`, or generate migrations from
+   [`makeJobTables`](/docs/persistence/drizzle/). Run and record those migrations
+   through your application's migration system.
+3. Pass the **same mapping** to `PostgreSqlJobs.layerNoDeps` or
+   `PostgreSqlJobs.make`. Set a positive `operationResponseBudgetMillis` matching
+   the worker's response budget.
+4. Explicitly run `backend.ready` before admitting work. It checks required
+   columns, keys, cascade and valid indexes; it never repairs the schema.
+
+The application migration example generates SQL without opening a connection.
+Run it once through your migration runner:
+
+<CodeExample sourcePath="orders/packages/database/src/Migrations.ts" role="Composition" />
+
+Names must match `^[a-z_][a-z0-9_]{0,62}$`; the jobs and payload table names must
+be different. The mapping configures relation names, not arbitrary columns.
+Keep the library's required constraints and indexes when adding application indexes.
+
+`jobs` holds producer/catalog identity, the first policy and lifecycle state.
+`job_payloads` holds immutable encoded payload and semantic projection, with a
+parent foreign key and cascading deletion. Application orders and request
+receipts remain application relations. Do not write queue state directly.
+
+## Connect the application-owned client
+
+For the native route, obtain the application's `PgClient`, pass that exact object
+to `PostgreSqlNative.layer({ client, operationTimeoutMillis })`, and provide that
+Layer to `PostgreSqlJobs.layerNoDeps`. The jobs Layer supplies `PostgreSqlJobs`,
+`JobEnqueue` and `JobOperators`; the native Layer supplies `PostgreSqlApplication`.
+Build Drizzle from the same `PgClient` service when using it for order queries.
+
+The shared setup in the complete order example captures that client:
+
+<CodeExample
+  sourcePath="orders/packages/database/src/Database.ts"
+  region="setup"
+  role="Composition"
+/>
+
+The application owns client/pool lifetime and finite acquisition, statement,
+transaction-control and release timeouts. `operationTimeoutMillis` bounds adapter
+operations; it does not replace those native timeout settings. Reuse the configured
+Layer graph and close its scope during shutdown. Imports start no SQL. This application setup explicitly checks readiness;
+construction starts no migrations, cleanup or workers.
+
+See [atomic transactions](/docs/persistence/transactions/) before writing an order
+and enqueuing its job. See [workers](/docs/execution/workers/) for the separate
+explicit execution lifetime.
+
+## Keep migration and runtime authority separate
+
+Runtime credentials need access to the configured relations, not permission to
+create or rebuild them. Run DDL during application deployment/migration, never
+inside request handlers or worker startup. A payload version change is separate
+from a database migration: retain old definitions and handlers while retained
+jobs still require them.
+
+For existing installations, preserve applied migration bytes. The public
+`operatorMigration` and `lineageMigration` helpers are explicit additive steps
+for their documented earlier layouts, not automatic upgrades or permission to
+reset storage. Fresh `migration(mapping)` includes the current layout.
+
+## Plan retention with receipts
+
+Cleanup is explicit and bounded. The generic backend exposes `cleanup`; it does
+not automatically install or run maintenance. Completed and Dead jobs are eligible
+only under their persisted retention policy. Pending, RetryScheduled, Active,
+Isolated and Cancelled jobs are not generic cleanup candidates.
+
+If order receipts or other domain records must protect jobs, select an
+application-owned coordinated cleanup adapter. Check references, expire eligible
+receipts and delete terminal jobs atomically with consistent locking and foreign
+keys. Running generic deletion alongside it can bypass those protections.
+Removing durable identity evidence ends the corresponding
+[deduplication window](/docs/persistence/deduplication/).
+
+The [complete examples](/docs/reference/examples/) keep migration, backend and
+worker sources together; [PostgreSQL API reference](/docs/reference/postgresql/)
+lists the public constructors and service requirements.
