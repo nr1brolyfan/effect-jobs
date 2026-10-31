@@ -31,7 +31,7 @@ export const delayed = (config: Event.Config, credential: string, requestId: str
             0,
             Number(rows[0]!.now) + 2000
           )
-          const policy = Policy.make({
+          const policy = yield* Policy.make({
             leaseDuration: Duration.millis(1800),
             attemptTimeout: Duration.millis(200),
             retryDelay: Duration.millis(500),

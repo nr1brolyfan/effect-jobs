@@ -55,7 +55,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         kind: "synthetic",
         payload: Schema.String
       })
-      const policy = Policy.make({
+      const policy = yield* Policy.make({
         leaseDuration: Duration.millis(1800),
         attemptTimeout: Duration.millis(200),
         retryDelay: Duration.millis(500),

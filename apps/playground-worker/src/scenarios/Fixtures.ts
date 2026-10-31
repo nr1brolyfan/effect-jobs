@@ -66,7 +66,7 @@ export const dashboard = profiles.map((profile, index) => ({
         operationId: `synthetic-fixture-${index}`,
         slot: "welcome-email"
       }),
-      policy: Policy.make(),
+      policy: Policy.defaultPolicy,
       relations: { syntheticActor: "demo-customer", syntheticOrderId: "demo-order-a" },
       ...(profile.label === "unknown"
         ? { observation: { source: "mock", observedAt: now, outcome: "unknown" } }

@@ -43,7 +43,7 @@ const consumer = Effect.runSync(
   })
 )
 const plan = Effect.runSync(Consumer.plan(consumer))
-const policy = Policy.make()
+const policy = Policy.defaultPolicy
 const spans = []
 const tracer = Tracer.make({
   span(options) {

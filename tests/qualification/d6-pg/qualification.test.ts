@@ -30,7 +30,7 @@ class CallerValue extends Context.Service<CallerValue, { readonly value: number 
 const input = (id: string, payload = id) => ({
   producer: producer.identity({ operationId: id, slot: "generate" }),
   payload: { invoiceId: payload },
-  policy: Policy.make()
+  policy: Policy.defaultPolicy
 })
 
 describe.skipIf(!enabled)("D6 real pg qualification", () => {
@@ -323,7 +323,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
       integration.withTransaction((tx) =>
         definition.enqueueInTransaction(tx, {
           ...input("commit"),
-          policy: Policy.make({ maxAttempts: 7 })
+          policy: Effect.runSync(Policy.make({ maxAttempts: 7 }))
         })
       )
     )

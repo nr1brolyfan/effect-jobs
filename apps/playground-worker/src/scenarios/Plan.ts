@@ -1,5 +1,8 @@
 import { Data, Duration, Effect, Schema } from "effect"
-import { ScenarioCommand } from "@effect-jobs/playground-contracts/Scenarios"
+import {
+  ScenarioCommand,
+  type ScenarioId
+} from "@effect-jobs/playground-contracts/Scenarios"
 import type { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import * as JobPolicy from "effect-jobs/JobPolicy"
 import * as Definitions from "./Definitions.js"
@@ -14,7 +17,7 @@ export interface PlannedJob {
 }
 
 const workloads = Definitions.Workload.literals
-const behavior = (scenario: ScenarioCommand["scenario"]): Definitions.Behavior => {
+const behavior = (scenario: ScenarioId): Definitions.Behavior => {
   switch (scenario) {
     case "delayed-success":
     case "success":
@@ -66,6 +69,9 @@ export const plan = Effect.fn("Playground.plan")(function* (
     catch: () => new InvalidScenario()
   })
   const operationId = `sandbox-request-${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`
+  const policy = yield* JobPolicy.make(
+    command.scenario === "retry-then-success" ? { retryDelay: Duration.seconds(120) } : {}
+  )
   const jobs: PlannedJob[] = []
   for (let index = 0; index < command.count; index++) {
     const workload = workloads[(seed + index) % workloads.length]!
@@ -82,11 +88,7 @@ export const plan = Effect.fn("Playground.plan")(function* (
         order: (seed + index) % 2 === 0 ? "demo-order-a" : "demo-order-b"
       },
       producer: Definitions.Producer.identity({ operationId, slot: workload }),
-      policy: JobPolicy.make(
-        command.scenario === "retry-then-success"
-          ? { retryDelay: Duration.seconds(120) }
-          : {}
-      ),
+      policy,
       ...(availableAt === undefined ? {} : { availableAt })
     })
   }

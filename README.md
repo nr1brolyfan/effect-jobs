@@ -56,11 +56,11 @@ const ReceiptHandler = SendReceipt.handlerLayer(
 
 ## Install
 
-Examples target the local-only `0.1.0-alpha.1-effect.4.1.0.local.2` candidate, which is not an npm release. Its exact peers are Effect `4.1.0` and optional Drizzle `1.0.0-rc.5`. This prerelease changes the alpha.0 enqueue,
+Examples target the local-only `0.1.0-alpha.1-effect.4.1.0.local.3` candidate, which is not an npm release. Its exact peers are Effect `4.1.0` and optional Drizzle `1.0.0-rc.5`. This prerelease changes the alpha.0 enqueue,
 policy, failure-code and encrypted-payload APIs; update callers before upgrading.
 
 ```sh
-npm install ./effect-jobs-0.1.0-alpha.1-effect.4.1.0.local.2.tgz effect@4.1.0
+npm install ./effect-jobs-0.1.0-alpha.1-effect.4.1.0.local.3.tgz effect@4.1.0
 ```
 
 Imports are omitted below. Use package subpaths (`effect-jobs/Job`, `effect-jobs/JobPolicy`, …); the root export is empty. `Codec` refers to `JobPayloadCodec`; `Consumer`, `Worker`, `Runtime`, `Polling` and `Registry` refer to the corresponding `JobConsumer`, `JobWorker`, `JobWorkerRuntime`, `PollingJobWorker` and `JobRegistry` modules.
@@ -353,7 +353,7 @@ const retry = Retry.exponential(Duration.seconds(1)).pipe(
   Retry.maxAttempts(4)
 )
 
-const receiptPolicy = JobPolicy.make({
+const receiptPolicy = yield* JobPolicy.make({
   attemptTimeout: Duration.seconds(20), // Time budget for one handler execution.
   leaseDuration: Duration.seconds(60), // Fixed, nonrenewing; must exceed timeout.
   retry, // Attempt limit includes the first finalized attempt.
@@ -374,8 +374,11 @@ Policy is persisted at enqueue. Changing this constant affects new jobs, not exi
 
 Use `Retry.fixed(Duration.seconds(5))` for a constant delay. Exponential retries
 start at the base delay, grow by a factor of two, and stop growing at the cap.
-Full jitter selects an integer delay from zero through that capped value. The
-worker persists the resulting availability; restarting does not redraw it.
+Jitter selects an integer delay in 80–120% of the nominal delay, with the upper
+bound shortened at the hard cap. For a nominal 60 seconds capped at 60 seconds,
+that means 48–60 seconds. The worker persists availability; restarting does not
+redraw it. Builders only describe configuration; `JobPolicy.make` validates it
+through the typed `JobPolicyConfigurationError` channel, without synchronous throws.
 See [retry policy](specs/retry-policy.md) for compatibility and worker rollout.
 
 ## Encrypt only what needs to travel

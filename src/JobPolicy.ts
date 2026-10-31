@@ -1,7 +1,7 @@
 /**
  * Resolves immutable execution and retention policy for durable storage.
  */
-import { Data, Duration, Schema } from "effect"
+import { Data, Duration, Effect, Schema } from "effect"
 import type { JobRetryPolicy } from "./JobRetryPolicy.js"
 import * as Retry from "./internal/policy/Retry.js"
 
@@ -58,6 +58,9 @@ const PolicyStruct = Schema.Struct({
   completedRetention: JobRetention,
   deadRetention: JobRetention
 })
+const OptionsObject = Schema.ObjectKeyword.pipe(
+  Schema.check(Schema.makeFilter((value) => !Array.isArray(value)))
+)
 /**
  * Complete immutable policy resolved by make and validated by PersistedJobPolicy.
  *
@@ -100,39 +103,89 @@ export interface JobPolicyOptions {
 }
 
 /**
- * Thrown synchronously with the invalid option field and expected constraint.
+ * Expected validation failure in make's typed error channel; supplied values are not echoed.
  *
  * @category errors
  */
 export class JobPolicyConfigurationError extends Data.TaggedError(
   "JobPolicyConfigurationError"
 )<{
-  readonly field: keyof JobPolicyOptions
+  readonly field: JobPolicyConfigurationField
   readonly expected: string
 }> {}
 
-const millis = (value: Duration.Duration, field: keyof JobPolicyOptions): number => {
-  const n = Retry.durationMillis(value)
+/** Exact option path reported for invalid public configuration. */
+export type JobPolicyConfigurationField =
+  | keyof JobPolicyOptions
+  | "options"
+  | "retry.delay"
+  | "retry.factor"
+  | "retry.maxDelay"
+  | "retry.maxAttempts"
+
+const positive = Effect.fnUntraced(function* (
+  n: number,
+  field: JobPolicyConfigurationField
+) {
   if (!Schema.is(PositiveMillis)(n)) {
-    throw new JobPolicyConfigurationError({
+    return yield* new JobPolicyConfigurationError({
       field,
       expected: `finite integer milliseconds in 1–${maximumMillis}`
     })
   }
   return n
-}
-const retention = (
+})
+const millis = (value: Duration.Duration, field: JobPolicyConfigurationField) =>
+  positive(Retry.durationMillis(value), field)
+
+const retention = Effect.fnUntraced(function* (
   value: Duration.Duration,
-  field: keyof JobPolicyOptions
-): JobRetention =>
-  Object.freeze(
-    !Duration.isFinite(value) && Duration.toMillis(value) === Infinity
+  field: JobPolicyConfigurationField
+): Effect.fn.Return<JobRetention, JobPolicyConfigurationError> {
+  return Object.freeze(
+    Duration.isDuration(value) &&
+      !Duration.isFinite(value) &&
+      Duration.toMillis(value) === Infinity
       ? { _tag: "Forever" }
-      : { _tag: "Duration", millis: millis(value, field) }
+      : { _tag: "Duration", millis: yield* millis(value, field) }
   )
+})
+
+const retrySchedule = Effect.fnUntraced(function* (
+  retry: JobRetryPolicy
+): Effect.fn.Return<Retry.RetrySchedule, JobPolicyConfigurationError> {
+  const description = retry.schedule
+  const delayMillis = yield* positive(description.delayMillis, "retry.delay")
+  const maxDelayMillis = yield* positive(
+    description.maxDelayMillis ?? maximumMillis,
+    "retry.maxDelay"
+  )
+  const factor = description._tag === "Fixed" ? 1 : description.factor
+  if (
+    description._tag === "Exponential" &&
+    (!Schema.is(Retry.Factor)(factor) || factor === 1)
+  ) {
+    return yield* new JobPolicyConfigurationError({
+      field: "retry.factor",
+      expected: "finite number greater than 1"
+    })
+  }
+  return Object.freeze(
+    description._tag === "Fixed" &&
+      description.maxDelayMillis === undefined &&
+      description.jitter === "None"
+      ? Retry.FixedDelayV1.make({ delayMillis })
+      : Retry.BackoffV1.make({
+          delayMillis,
+          factor,
+          maxDelayMillis,
+          jitter: description.jitter
+        })
+  )
+})
 
 /**
- * Resolves and freezes policy, throwing JobPolicyConfigurationError for invalid input.
+ * Lazily validates and freezes complete policy; expected errors stay in the Effect channel.
  * Defaults: 90s fixed lease, 30s attempt timeout, 5s retry delay, 3 finalized attempts,
  * 1 stalled recovery, 90d Completed retention and Forever Dead retention.
  * Timeout must be strictly shorter than the lease. Unknown outcomes can repeat an
@@ -158,47 +211,55 @@ const retention = (
  * @see {@link PersistedJobPolicy} for validation of stored complete policy
  * @category constructors
  */
-export const make = (options: JobPolicyOptions = {}): JobPolicy => {
+export const make = Effect.fnUntraced(function* (
+  options: JobPolicyOptions = {}
+): Effect.fn.Return<JobPolicy, JobPolicyConfigurationError> {
+  if (!Schema.is(OptionsObject)(options)) {
+    return yield* new JobPolicyConfigurationError({
+      field: "options",
+      expected: "an options object"
+    })
+  }
   if (
     options.retry !== undefined &&
     (options.retryDelay !== undefined || options.maxAttempts !== undefined)
   ) {
-    throw new JobPolicyConfigurationError({
+    return yield* new JobPolicyConfigurationError({
       field: "retry",
       expected: "retry without legacy retryDelay or maxAttempts"
     })
   }
   const retry = options.retry
-  if (retry !== undefined && !Schema.is(Retry.RetrySchedule)(retry.schedule)) {
-    throw new JobPolicyConfigurationError({
+  if (retry !== undefined && !Schema.is(Retry.RetryInput)(retry)) {
+    return yield* new JobPolicyConfigurationError({
       field: "retry",
-      expected: "a complete valid JobRetryPolicy"
+      expected: "a retry description built by JobRetryPolicy"
     })
   }
-  const leaseDurationMillis = millis(
+  const leaseDurationMillis = yield* millis(
     options.leaseDuration ?? Duration.seconds(90),
     "leaseDuration"
   )
-  const attemptTimeoutMillis = millis(
+  const attemptTimeoutMillis = yield* millis(
     options.attemptTimeout ?? Duration.seconds(30),
     "attemptTimeout"
   )
   if (attemptTimeoutMillis >= leaseDurationMillis) {
-    throw new JobPolicyConfigurationError({
+    return yield* new JobPolicyConfigurationError({
       field: "attemptTimeout",
       expected: "strictly less than leaseDuration"
     })
   }
-  const maxAttempts = retry?.maxAttempts ?? options.maxAttempts ?? 3
+  const maxAttempts = retry === undefined ? (options.maxAttempts ?? 3) : retry.maxAttempts
   const maxStalledCount = options.maxStalledCount ?? 1
   if (!Schema.is(Retry.AttemptLimit)(maxAttempts)) {
-    throw new JobPolicyConfigurationError({
-      field: "maxAttempts",
+    return yield* new JobPolicyConfigurationError({
+      field: retry === undefined ? "maxAttempts" : "retry.maxAttempts",
       expected: "integer in 1–100"
     })
   }
   if (!Schema.is(PolicyStruct.fields.maxStalledCount)(maxStalledCount)) {
-    throw new JobPolicyConfigurationError({
+    return yield* new JobPolicyConfigurationError({
       field: "maxStalledCount",
       expected: "integer in 0–100"
     })
@@ -208,24 +269,38 @@ export const make = (options: JobPolicyOptions = {}): JobPolicy => {
     attemptTimeoutMillis,
     maxAttempts,
     maxStalledCount,
-    retrySchedule: Object.freeze(
+    retrySchedule:
       retry === undefined
-        ? {
-            _tag: "FixedDelayV1",
-            delayMillis: millis(options.retryDelay ?? Duration.seconds(5), "retryDelay")
-          }
-        : { ...retry.schedule }
-    ),
-    completedRetention: retention(
+        ? Object.freeze(
+            Retry.FixedDelayV1.make({
+              delayMillis: yield* millis(
+                options.retryDelay ?? Duration.seconds(5),
+                "retryDelay"
+              )
+            })
+          )
+        : yield* retrySchedule(retry),
+    completedRetention: yield* retention(
       options.completedRetention ?? Duration.days(90),
       "completedRetention"
     ),
-    deadRetention: retention(options.deadRetention ?? Duration.infinity, "deadRetention")
+    deadRetention: yield* retention(
+      options.deadRetention ?? Duration.infinity,
+      "deadRetention"
+    )
   })
-}
+})
 
 /** Deeply immutable shared policy with the same defaults as make().
  * Caller-owned options are never frozen or mutated.
  * @category constants
  */
-export const defaultPolicy: JobPolicy = make()
+export const defaultPolicy: JobPolicy = Object.freeze({
+  leaseDurationMillis: 90_000,
+  attemptTimeoutMillis: 30_000,
+  maxAttempts: 3,
+  maxStalledCount: 1,
+  retrySchedule: Object.freeze(Retry.FixedDelayV1.make({ delayMillis: 5_000 })),
+  completedRetention: Object.freeze({ _tag: "Duration", millis: 90 * 86_400_000 }),
+  deadRetention: Object.freeze({ _tag: "Forever" })
+})

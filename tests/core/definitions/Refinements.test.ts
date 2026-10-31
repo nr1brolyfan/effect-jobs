@@ -11,7 +11,7 @@ import { EnqueueResults, type EncodedJobPayload } from "../../../src/JobContract
 import { JobId } from "../../../src/JobId.js"
 
 it("deeply immutable defaults do not freeze or alter caller options", () => {
-  expect(Policy.defaultPolicy).toEqual(Policy.make())
+  expect(Policy.defaultPolicy).toEqual(Effect.runSync(Policy.make()))
   for (const part of [
     Policy.defaultPolicy,
     Policy.defaultPolicy.retrySchedule,
@@ -25,7 +25,7 @@ it("deeply immutable defaults do not freeze or alter caller options", () => {
   ).toThrow(TypeError)
   const duration = Duration.seconds(8)
   const options = { maxAttempts: 5, retryDelay: duration }
-  expect(Policy.make(options).maxAttempts).toBe(5)
+  expect(Effect.runSync(Policy.make(options)).maxAttempts).toBe(5)
   expect(Object.isFrozen(options)).toBe(false)
   expect(Object.isFrozen(duration)).toBe(false)
   options.maxAttempts = 6

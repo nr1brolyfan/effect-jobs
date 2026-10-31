@@ -37,7 +37,7 @@ const unwrap = <A, E>(result: Result.Result<A, E>): A => {
 }
 const initial = (availableAt = 1000): Lifecycle.JobSnapshot => ({
   jobId,
-  policy: Policy.make(),
+  policy: Policy.defaultPolicy,
   state: "Pending",
   availableAt,
   updatedAt: 1000,
@@ -67,8 +67,10 @@ describe("deterministic application planning", () => {
       )
       expect(
         planned.every(
-          ({ payload }) =>
-            payload.version === 1 && payload.seed === 123 && payload.behavior === expected
+          (job) =>
+            job.payload.version === 1 &&
+            job.payload.seed === 123 &&
+            job.payload.behavior === expected
         )
       ).toBe(true)
     }
@@ -137,14 +139,14 @@ describe("deterministic application planning", () => {
   })
 
   it("decodes fixtures for every actual dashboard state and keeps unknown Active", () => {
-    expect(new Set(dashboard.map(({ detail }) => detail.job.state))).toEqual(
+    expect(new Set(dashboard.map((entry) => entry.detail.job.state))).toEqual(
       new Set(Lifecycle.JobState.literals)
     )
-    expect(dashboard.find(({ label }) => label === "unknown")?.detail.job.state).toBe(
+    expect(dashboard.find((entry) => entry.label === "unknown")?.detail.job.state).toBe(
       "Active"
     )
     expect(
-      dashboard.find(({ label }) => label === "delayed")?.detail.job.availableAt
+      dashboard.find((entry) => entry.label === "delayed")?.detail.job.availableAt
     ).toBeGreaterThan(1_800_000_000_000)
     expect(JSON.stringify(dashboard)).not.toMatch(
       /ciphertext|fingerprint|leaseToken|synthetic private export/
@@ -276,7 +278,7 @@ describe("encrypted consumer payload and installed handlers", () => {
         FakeProvider,
         FakeProvider.of({
           execute: () => Effect.failCause(mixed),
-          inspect: () => Effect.succeed(undefined)
+          inspect: () => Effect.undefined
         })
       )
       const payload = (await Effect.runPromise(jobs()))[0]!.payload

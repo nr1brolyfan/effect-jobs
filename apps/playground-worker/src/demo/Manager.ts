@@ -84,7 +84,7 @@ const seedBatch = (
         ...job,
         payload: { ...job.payload, behavior: profile?.behavior ?? behavior },
         availableAt: availableAt + (profile?.waitMillis ?? 0),
-        policy: JobPolicy.make({
+        policy: yield* JobPolicy.make({
           retryDelay: Duration.millis(profile?.retryMillis ?? 60_000)
         })
       }

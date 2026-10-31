@@ -361,7 +361,7 @@ export const finalize = (
       shouldSchedule &&
       finalization._tag === "Retry" &&
       row.policy.retrySchedule._tag === "BackoffV1" &&
-      row.policy.retrySchedule.jitter === "Full" &&
+      row.policy.retrySchedule.jitter !== "None" &&
       finalization.jitterSample === undefined
     ) {
       return yield* Result.fail(invalid("invalid-command"))

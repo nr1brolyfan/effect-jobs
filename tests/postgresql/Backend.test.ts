@@ -41,10 +41,12 @@ const definition = Job.make({
   encodePayload: encodeJobPayload
 })
 const producer = Producer.make({ operation: "billing.issue", slots: ["generate"] })
-const policy = Policy.make({
-  completedRetention: Duration.millis(1),
-  deadRetention: Duration.millis(1)
-})
+const policy = Effect.runSync(
+  Policy.make({
+    completedRetention: Duration.millis(1),
+    deadRetention: Duration.millis(1)
+  })
+)
 const input = (id: string, value = id, configured = policy, availableAt?: number) => ({
   producer: producer.identity({ operationId: id, slot: "generate" }),
   payload: { invoiceId: value },
@@ -555,7 +557,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
   test("duplicate returns ID, preserves first payload/policy/availability; conflict aborts parent even when caught", async () => {
     await clear()
     const first = await enqueue("duplicate", "same", policy, 1)
-    const changed = Policy.make({ maxAttempts: 10 })
+    const changed = await Effect.runPromise(Policy.make({ maxAttempts: 10 }))
     const before = await row("duplicate")
     const again = await enqueue("duplicate", "same", changed, 2)
     expect(again).toMatchObject({ _tag: "AlreadyPresent", jobId: first.jobId })
@@ -952,7 +954,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     await enqueue(
       "retry",
       "retry",
-      Policy.make({ retryDelay: Duration.millis(10000), maxAttempts: 2 })
+      await Effect.runPromise(
+        Policy.make({ retryDelay: Duration.millis(10000), maxAttempts: 2 })
+      )
     )
     const first = await claim()
     await finish(first, {
@@ -978,19 +982,21 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
   })
   test("exponential jitter persists the selected time across backend recreation and uncertain COMMIT", async () => {
     await clear()
-    const configured = Policy.make({
-      retry: Retry.exponential(Duration.seconds(10)).pipe(
-        Retry.capped(Duration.minutes(1)),
-        Retry.jittered(),
-        Retry.maxAttempts(5)
-      )
-    })
+    const configured = await Effect.runPromise(
+      Policy.make({
+        retry: Retry.exponential(Duration.seconds(10)).pipe(
+          Retry.capped(Duration.minutes(1)),
+          Retry.jittered(),
+          Retry.maxAttempts(5)
+        )
+      })
+    )
     await enqueue("backoff", "backoff", configured)
     // Matching production replay keeps the first policy, not new deployment defaults.
     await enqueue("backoff", "backoff", Policy.defaultPolicy)
     let claimed = await claim()
     expect(claimed.snapshot.policy).toEqual(configured)
-    for (const expectedDelay of [5000, 10000, 20000, 30000]) {
+    for (const expectedDelay of [10000, 20000, 40000, 54000]) {
       const command = Lifecycle.JobFinalizations.Retry({
         code: FailureCodes.define({ temporary: "temporary" }).temporary,
         jitterSample: 0.5
@@ -1174,7 +1180,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     await enqueue(
       "forever",
       "forever",
-      Policy.make({ completedRetention: Duration.infinity })
+      await Effect.runPromise(Policy.make({ completedRetention: Duration.infinity }))
     )
     await finish(await claim())
     await enqueue("complete-a")

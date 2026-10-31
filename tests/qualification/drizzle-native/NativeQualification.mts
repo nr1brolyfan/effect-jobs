@@ -69,7 +69,7 @@ const producer = Producer.make({ operation: "billing.native", slots: ["generate"
 const input = (id: string, value = id) => ({
   producer: producer.identity({ operationId: id, slot: "generate" }),
   payload: { invoiceId: value },
-  policy: Policy.make()
+  policy: Policy.defaultPolicy
 })
 const config = {
   host: "127.0.0.1",

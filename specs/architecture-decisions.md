@@ -346,15 +346,17 @@ internal tagged retry/retention objects or use choice callbacks.
 Illustrative public input:
 
 ```ts
-const policy = JobPolicy.make({
-  maxAttempts: 3,
-  retryDelay: Duration.seconds(5),
-  completedRetention: Duration.days(90),
-  deadRetention: Duration.infinity
-})
+const policy =
+  yield *
+  JobPolicy.make({
+    maxAttempts: 3,
+    retryDelay: Duration.seconds(5),
+    completedRetention: Duration.days(90),
+    deadRetention: Duration.infinity
+  })
 ```
 
-`JobPolicy.make()` also resolves the documented defaults. This decision changes
+Evaluating `JobPolicy.make()` also resolves the documented defaults. This decision changes
 the earlier proposal requiring explicit retention; it does not introduce
 exponential retry, automatic Isolated cleanup, or unlimited Pending/Active cleanup.
 
@@ -380,7 +382,10 @@ Fixed-delay-only retry was the extraction baseline. On 2026-10-30 the owner
 accepted the composable `JobRetryPolicy` API with `maxAttempts` and explicit
 `Policy.make({ retry })` assembly, and authorized direct local implementation.
 The API, full-jitter arithmetic, versioned persistence, compatibility and rollout
-contract are specified in [retry policy](retry-policy.md). This extends retries,
+contract are specified in [retry policy](retry-policy.md). The 2026-10-31 refinement
+keeps builders pure/unvalidated, validates complete policy in the typed Effect
+channel, and selects 80–120% proportional jitter with a hard bounded sampling
+interval. Existing stored Full jitter is not reinterpreted. This extends retries,
 not unknown-outcome recovery, and does not authorize publication or deployment.
 
 ## D5 — explicit application-owned protection and codec boundaries

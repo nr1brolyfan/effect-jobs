@@ -1,4 +1,4 @@
-import { Duration, Result, Schema } from "effect"
+import { Duration, Effect, Result, Schema } from "effect"
 import { JobId } from "../../../src/JobId.js"
 import * as Lifecycle from "../../../src/JobLifecycle.js"
 import * as Policy from "../../../src/JobPolicy.js"
@@ -6,12 +6,14 @@ import type * as Store from "../../../src/JobStore.js"
 
 export const now = 100_000
 export const token = "abcd-1234"
-export const policy = Policy.make({
-  leaseDuration: Duration.millis(100),
-  attemptTimeout: Duration.millis(30),
-  retryDelay: Duration.millis(5),
-  completedRetention: Duration.millis(10)
-})
+export const policy = Effect.runSync(
+  Policy.make({
+    leaseDuration: Duration.millis(100),
+    attemptTimeout: Duration.millis(30),
+    retryDelay: Duration.millis(5),
+    completedRetention: Duration.millis(10)
+  })
+)
 export const pending = (
   overrides: Partial<Lifecycle.JobSnapshot> = {}
 ): Lifecycle.JobSnapshot => ({

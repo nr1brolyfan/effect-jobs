@@ -99,7 +99,7 @@ registry or mutable builder is needed.
 ## Complete immutable policy
 
 Use `import * as JobPolicy from "effect-jobs/JobPolicy"` and
-`JobPolicy.make(options?: JobPolicyOptions): JobPolicy.JobPolicy`.
+`JobPolicy.make(options?: JobPolicyOptions): Effect<JobPolicy.JobPolicy, JobPolicy.JobPolicyConfigurationError>`.
 Every public input field is optional:
 
 | Field              | Input                                | Default         |
@@ -112,9 +112,10 @@ Every public input field is optional:
 | completedRetention | Effect Duration or Duration.infinity | 90 days         |
 | deadRetention      | Effect Duration or Duration.infinity | infinity        |
 
-No raw millisecond input or hand-written `_tag` is required publicly. `make` is a
-synchronous configuration factory and throws `JobPolicyConfigurationError` with
-the exact `field` and `expected` constraint. Counters retain source limits:
+No raw millisecond input or hand-written `_tag` is required publicly. `make`
+validates when its Effect is evaluated and fails through `JobPolicyConfigurationError`
+with the exact `field` and `expected` constraint; expected configuration failures
+are not synchronous throws or defects. Counters retain source limits:
 maxAttempts 1–100, maxStalledCount 0–100. Finite durations must resolve to integer
 milliseconds 1–253,402,300,799,999; no rounding, truncation or clamping. Zero,
 negative, fractional-millisecond and negative-infinity retention are rejected.
@@ -124,7 +125,7 @@ Only positive infinity is Forever, and only for retention.
 backend configuration, not a policy field; later backend qualification must
 ensure the stored lease can support timeout plus its budget.
 
-The returned object and every nested configuration object are frozen:
+The resolved policy and every nested configuration object are frozen:
 
 ```ts
 interface JobPolicy {
@@ -132,7 +133,15 @@ interface JobPolicy {
   readonly attemptTimeoutMillis: number
   readonly maxAttempts: number
   readonly maxStalledCount: number
-  readonly retrySchedule: { readonly _tag: "FixedDelayV1"; readonly delayMillis: number }
+  readonly retrySchedule:
+    | { readonly _tag: "FixedDelayV1"; readonly delayMillis: number }
+    | {
+        readonly _tag: "BackoffV1"
+        readonly delayMillis: number
+        readonly factor: number
+        readonly maxDelayMillis: number
+        readonly jitter: "None" | "Full" | "ProportionalV1"
+      }
   readonly completedRetention: JobRetention
   readonly deadRetention: JobRetention
 }

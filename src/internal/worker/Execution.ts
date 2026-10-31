@@ -87,7 +87,7 @@ export const executionFor = <E>(
         finalization._tag === "Retry" &&
         before.attemptsMade + 1 < before.policy.maxAttempts &&
         before.policy.retrySchedule._tag === "BackoffV1" &&
-        before.policy.retrySchedule.jitter === "Full"
+        before.policy.retrySchedule.jitter !== "None"
           ? JobFinalizations.Retry({ ...finalization, jitterSample: yield* Random.next })
           : finalization
       const request: FinalizationRequest = Object.freeze({

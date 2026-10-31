@@ -72,6 +72,9 @@ export const make = (schema: string) =>
           `INSERT INTO ${t.admission}(sandbox_id,generation,operation,request_id) VALUES ($1,$2,'PrivateTraffic',$3)`,
           [ref.sandboxId, ref.generation, requestId]
         )
+        const trafficPolicy = yield* Policy.make({
+          retryDelay: Duration.millis(interactionMillis)
+        }).pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" })))
         const jobIds = yield* Effect.forEach(
           scenarios,
           Effect.fnUntraced(function* (scenario, index) {
@@ -84,7 +87,7 @@ export const make = (schema: string) =>
             ).pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" })))
             const planned = {
               ...job!,
-              policy: Policy.make({ retryDelay: Duration.millis(interactionMillis) })
+              policy: trafficPolicy
             }
             const enqueue = Plan.enqueue(planned).pipe(
               Effect.provideService(JobEnqueue, producer),

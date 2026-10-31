@@ -91,7 +91,12 @@ export function JobMetadata(inputProps: { readonly detail: JobDetail }) {
                       },
                       {
                         label: "Retry jitter",
-                        value: policy.retrySchedule.jitter === "Full" ? "Full" : "None"
+                        value:
+                          policy.retrySchedule.jitter === "Full"
+                            ? "Full"
+                            : policy.retrySchedule.jitter === "ProportionalV1"
+                              ? "80–120% (bounded)"
+                              : "None"
                       }
                     ]),
                 {

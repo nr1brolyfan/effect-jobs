@@ -74,7 +74,7 @@ export const run = (schema: string, sandbox: SandboxView) =>
             operationId: `${ref.sandboxId}:${ref.generation}`,
             slot: "encrypted-document"
           }),
-          policy: Policy.make(),
+          policy: Policy.defaultPolicy,
           payload
         }).pipe(Effect.provideService(JobEnqueue, backend.producer))
         yield* sql.unsafe(

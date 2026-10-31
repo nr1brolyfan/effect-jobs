@@ -69,7 +69,7 @@ writeFileSync(
   join(work, "Runtime.mts"),
   `
 import assert from "node:assert/strict"
-import { Duration, Effect, Layer, Result, Schema } from "effect"
+import { Cause, Duration, Effect, Exit, Layer, Result, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Policy from "effect-jobs/JobPolicy"
@@ -90,10 +90,19 @@ assert.equal(JobFailures.Retry({ code }).code.length, 128)
 assert(Result.isFailure(Codes.parse("a".repeat(129))))
 assert(Object.isFrozen(Policy.defaultPolicy.retrySchedule))
 const retry = Retry.exponential(Duration.seconds(1)).pipe(Retry.capped(Duration.minutes(1)), Retry.jittered(), Retry.maxAttempts(5))
-const retryPolicy = Policy.make({ retry })
+const retryPolicy = await Effect.runPromise(Policy.make({ retry }))
 assert.equal(retryPolicy.maxAttempts, 5)
 assert.equal(retryPolicy.retrySchedule._tag, "BackoffV1")
+assert.equal(retryPolicy.retrySchedule.jitter, "ProportionalV1")
 assert.deepEqual(Schema.decodeUnknownSync(Policy.PersistedJobPolicy)(JSON.parse(JSON.stringify(retryPolicy))), retryPolicy)
+const invalidRetry = Retry.exponential(Duration.seconds(1), { factor: 0 })
+const invalidExit = await Effect.runPromiseExit(Policy.make({ retry: invalidRetry }))
+assert(Exit.isFailure(invalidExit))
+assert.equal(invalidExit.cause.reasons.length, 1)
+const invalidReason = invalidExit.cause.reasons[0]!
+assert(Cause.isFailReason(invalidReason))
+assert(invalidReason.error instanceof Policy.JobPolicyConfigurationError)
+assert.equal(invalidReason.error.field, "retry.factor")
 const definition = Job.make({ queue: Queue.make("billing"), kind: "receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: EncryptedDocument }) })
 assert.equal(definition.version, 1)
 const input = { producer: { operation: "billing.issue", operationId: "id", slot: "receipt" }, policy: Policy.defaultPolicy,

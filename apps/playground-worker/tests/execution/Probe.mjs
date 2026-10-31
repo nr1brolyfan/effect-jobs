@@ -76,7 +76,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         sql(`SELECT * FROM ${schema}.jobs WHERE id=$1`, [id]).pipe(
           Effect.map((rows) => rows[0])
         )
-      const shortPolicy = Policy.make({
+      const shortPolicy = yield* Policy.make({
         leaseDuration: Duration.millis(1800),
         attemptTimeout: Duration.millis(200),
         retryDelay: Duration.millis(500),

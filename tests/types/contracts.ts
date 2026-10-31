@@ -41,9 +41,9 @@ export const wrongCatalog: CatalogIdentity<"billing", "email", 1> = {
   // @ts-expect-error Wrong catalog version literal.
   version: 2
 }
-export const policy = JobPolicy.make({ retryDelay: Duration.seconds(5) })
+export const policy = Effect.runSync(JobPolicy.make({ retryDelay: Duration.seconds(5) }))
 // @ts-expect-error Public duration inputs are not raw milliseconds.
-export const rawDuration = JobPolicy.make({ retryDelay: 5000 })
+export const rawDuration = Effect.runSync(JobPolicy.make({ retryDelay: 5000 }))
 // @ts-expect-error Resolved durable policy cannot omit retention.
 export const incompletePolicy: JobPolicy.JobPolicy = {
   leaseDurationMillis: 90000,
