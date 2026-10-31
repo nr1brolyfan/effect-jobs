@@ -74,6 +74,9 @@ const SnapshotStruct = Schema.Struct({
   state: JobState,
   availableAt: EpochMillis,
   updatedAt: EpochMillis,
+  /** Initial durable insertion, in Unix epoch milliseconds. Null for migrated rows;
+   * omitted only by older/custom snapshot producers for source compatibility. */
+  createdAt: EpochMillis.pipe(Schema.NullOr, Schema.optionalKey),
   attemptsMade: Counter,
   stalledCount: Counter,
   lifecycleVersion: Counter,

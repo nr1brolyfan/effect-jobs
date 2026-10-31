@@ -93,6 +93,21 @@ also classify a COMMIT command tag of ROLLBACK as a NotCommitted failure rather
 than advertise successful business commit. The final fixture regression passed
 both durable rollback and that response classification on Node and Bun.
 
+Creation time (`created_at`, Unix epoch milliseconds) reuses the genuine server-time
+sample taken for initial insertion. It is immutable across duplicate production and
+all lifecycle operations. Each redrive/corrected successor gets its own insertion
+sample. This is an insertion-time observation, not a commit-time guarantee.
+`JobSnapshot.createdAt` exposes `number | null`; omission remains permitted for
+older custom snapshot producers. All PostgreSQL snapshots include the field.
+
+Fresh SQL and optional Drizzle schemas declare nullable bigint with no default.
+Existing installations explicitly run `creationTimeMigration(mapping)` once in
+their application migration transaction. It adds the column without modifying
+populated rows: historical creation times remain unknown (`null`). Readiness
+rejects a missing column, wrong type, NOT NULL or a default that could fabricate
+historical creation metadata. The playground registers this as additive v7,
+preserving v1–v6 migration bytes and checksums.
+
 Omitted availability uses a genuine server-time sample. Supplied availability
 is persisted separately as the immutable initial envelope field. Due eligibility
 uses `available_at <= dbNow`; rescheduled availability is lifecycle state.

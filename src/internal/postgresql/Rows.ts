@@ -16,6 +16,7 @@ export const snapshot = (row: Record<string, unknown>) =>
     state: row.state,
     availableAt: integer(row.available_at),
     updatedAt: integer(row.updated_at),
+    createdAt: row.created_at === null ? null : integer(row.created_at),
     attemptsMade: integer(row.attempts_made),
     stalledCount: integer(row.stalled_count),
     lifecycleVersion: integer(row.lifecycle_version),

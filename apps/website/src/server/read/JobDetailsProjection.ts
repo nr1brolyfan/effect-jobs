@@ -132,6 +132,5 @@ export const eligibility = (
 }
 
 export const retainedFields = {
-  createdAt: null,
   result: { _tag: "Unavailable" as const, reason: "not-stored" as const }
 }

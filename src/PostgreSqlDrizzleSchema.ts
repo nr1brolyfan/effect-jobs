@@ -42,6 +42,7 @@ const makeJobsColumns = () => ({
   state: text("state").notNull(),
   availableAt: bigint("available_at", { mode: "number" }).notNull(),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+  createdAt: bigint("created_at", { mode: "number" }),
   attemptsMade: bigint("attempts_made", { mode: "number" }).notNull().default(0),
   stalledCount: bigint("stalled_count", { mode: "number" }).notNull().default(0),
   lifecycleVersion: bigint("lifecycle_version", { mode: "number" }).notNull().default(0),

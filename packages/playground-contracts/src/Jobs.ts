@@ -213,7 +213,7 @@ export const JobDetail = Schema.Struct({
   policy: PersistedJobPolicy,
   relations: ApplicationRelations,
   observation: Observation.pipe(Schema.optional),
-  createdAt: Schema.Null,
+  createdAt: EpochMillis.pipe(Schema.NullOr),
   payload: JobPayloadView,
   result: Schema.TaggedStruct("Unavailable", { reason: Schema.Literal("not-stored") }),
   history: JobHistory,

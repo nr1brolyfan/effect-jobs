@@ -22,6 +22,7 @@ const row = () => {
     state: snapshot.state,
     available_at: snapshot.availableAt,
     updated_at: snapshot.updatedAt,
+    created_at: null,
     attempts_made: snapshot.attemptsMade,
     stalled_count: snapshot.stalledCount,
     lifecycle_version: snapshot.lifecycleVersion,
@@ -101,7 +102,9 @@ it.each(failures)(
     // Effect's handling of compound Causes; no database/commit guarantee is inferred.
     const expected = await Effect.runPromiseExit(
       Effect.failCause(cause).pipe(
-        Effect.catchTag("PostgreSqlFailure", () => Effect.succeed(ClaimResults.Unknown()))
+        Effect.catchTags({
+          PostgreSqlFailure: () => Effect.succeed(ClaimResults.Unknown())
+        })
       )
     )
     expect(actual).toEqual(expected)

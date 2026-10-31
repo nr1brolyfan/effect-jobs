@@ -29,7 +29,10 @@ export function JobScheduling(props: { readonly detail: JobDetail }) {
               />
             )
           },
-          { label: "Created", value: <Absent reason="Creation time is not stored" /> }
+          {
+            label: "Created",
+            value: <DetailTime value={props.detail.createdAt} label="Creation time" />
+          }
         ]}
       />
     </Panel>

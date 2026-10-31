@@ -56,11 +56,11 @@ const ReceiptHandler = SendReceipt.handlerLayer(
 
 ## Install
 
-Examples target the local-only `0.1.0-alpha.1-effect.4.1.0.local.4` candidate, which is not an npm release. Its exact peers are Effect `4.1.0` and optional Drizzle `1.0.0-rc.5`. This prerelease changes the alpha.0 enqueue,
+Examples target the local-only `0.1.0-alpha.1-effect.4.1.0.local.5` candidate, which is not an npm release. Its exact peers are Effect `4.1.0` and optional Drizzle `1.0.0-rc.5`. This prerelease changes the alpha.0 enqueue,
 policy, failure-code and encrypted-payload APIs; update callers before upgrading.
 
 ```sh
-npm install ./effect-jobs-0.1.0-alpha.1-effect.4.1.0.local.4.tgz effect@4.1.0
+npm install ./effect-jobs-0.1.0-alpha.1-effect.4.1.0.local.5.tgz effect@4.1.0
 ```
 
 Imports are omitted below. Use package subpaths (`effect-jobs/Job`, `effect-jobs/JobPolicy`, …); the root export is empty. `Codec` refers to `JobPayloadCodec`; `Consumer`, `Worker`, `Runtime`, `Polling` and `Registry` refer to the corresponding `JobConsumer`, `JobWorker`, `JobWorkerRuntime`, `PollingJobWorker` and `JobRegistry` modules.
@@ -663,3 +663,14 @@ Generate migrations from these declarations. The SQL migration helper includes
 only the library's baseline indexes; it does not know about `extraIndexes`.
 
 Payload versions are separate from database migrations. For an incompatible payload change, publish a new job version and keep the old definition/handler registered until old jobs no longer need it.
+
+Creation time is the initial durable enqueue insertion time, sampled from the
+store clock in Unix epoch milliseconds. PostgreSQL persists `created_at` atomically
+with the job and payload; it is independent of scheduled availability and never
+changes during duplicate enqueue, execution, retries or resolution. Redrive creates
+a new job with its own creation time. It does not promise a transaction commit time.
+Existing installations must explicitly apply
+`PostgreSqlSchema.creationTimeMigration(mapping)` through their migration runner
+before readiness. Historical rows remain `null` (unknown); no backfill is inferred.
+PostgreSQL snapshots always include `createdAt: number | null`. The snapshot Schema
+allows omission for source compatibility with older custom snapshot producers.

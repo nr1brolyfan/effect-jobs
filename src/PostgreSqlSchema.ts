@@ -117,6 +117,7 @@ export const migration = (mapping: Tables = tables()): string => {
   policy jsonb NOT NULL, initial_available_at bigint,
   state text NOT NULL CHECK (state IN ('Pending','Active','RetryScheduled','Completed','Dead','Isolated','Cancelled')),
   available_at bigint NOT NULL, updated_at bigint NOT NULL,
+  created_at bigint,
   attempts_made bigint NOT NULL DEFAULT 0 CHECK (attempts_made >= 0),
   stalled_count bigint NOT NULL DEFAULT 0 CHECK (stalled_count >= 0),
   lifecycle_version bigint NOT NULL DEFAULT 0 CHECK (lifecycle_version >= 0),
@@ -197,3 +198,11 @@ export const lineageMigration = (mapping: Tables = tables()): string => {
   ADD CONSTRAINT "${prefix}_source_fk" FOREIGN KEY (source_job_id) REFERENCES ${jobs}(id) ON DELETE SET NULL;
 CREATE INDEX "${prefix}_source" ON ${jobs} (source_job_id) WHERE source_job_id IS NOT NULL;`
 }
+
+/** Adds truthful creation metadata without inventing times for existing rows.
+ * Applications run this once in their own migration transaction. Runtime never
+ * migrates; readiness requires this nullable bigint column before use.
+ * @category operations
+ */
+export const creationTimeMigration = (mapping: Tables = tables()): string =>
+  `ALTER TABLE ${relations(mapping).jobs} ADD COLUMN created_at bigint;`
