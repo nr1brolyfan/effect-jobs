@@ -387,6 +387,10 @@ try {
     await expect(
       page.getByRole("button", { name: "Run scenario", exact: true })
     ).toBeEnabled()
+    await page
+      .getByRole("dialog", { name: "Create jobs", exact: true })
+      .locator("summary")
+      .click()
     let confirmation = ""
     page.once("dialog", async (d) => {
       confirmation = d.message()

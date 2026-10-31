@@ -299,7 +299,22 @@ export const layout = stylex.create({
     backgroundColor: colors.surface,
     overflow: "hidden"
   },
+  resultsGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: spacing.sm,
+    flexWrap: "wrap"
+  },
+  resolution: {
+    display: "flex",
+    alignItems: "center",
+    gap: spacing.sm,
+    color: colors.muted,
+    fontSize: typography.small
+  },
   panelHeading: {
+    flexWrap: "wrap",
+    gap: spacing.sm,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
@@ -461,31 +476,6 @@ export const layout = stylex.create({
     textUnderlineOffset: "4px",
     outline: { default: "none", ":focus-visible": `2px solid ${colors.focus}` },
     outlineOffset: "4px"
-  },
-  scenario: {
-    border: `1px solid ${colors.border}`,
-    borderRadius: radii.md,
-    marginTop: "20px",
-    backgroundColor: colors.surface
-  },
-  summary: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    listStyle: "none",
-    padding: "17px 20px",
-    cursor: "pointer",
-    gap: "14px",
-    outline: { default: "none", ":focus-visible": `2px solid ${colors.focus}` },
-    outlineOffset: "4px"
-  },
-  summaryTitle: { display: "flex", alignItems: "center", gap: "11px", flexWrap: "wrap" },
-  scenarioBody: {
-    display: "flex",
-    gap: "12px",
-    flexWrap: "wrap",
-    alignItems: "end",
-    padding: spacing.lg
   },
   session: {
     display: "flex",

@@ -11,15 +11,14 @@ import {
   useReactTable,
   type ColumnDef
 } from "@tanstack/react-table"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import type { JobSummary } from "@effect-jobs/playground-contracts/Jobs"
-import { ScenarioId } from "@effect-jobs/playground-contracts/Scenarios"
+import { CreateJobsDialog } from "./CreateJobsDialog.js"
 import { DateTime } from "../../ui/DateTime.js"
 import { Pagination } from "../../ui/Pagination.js"
 import {
   Badge,
   Button,
-  Field,
   Icon,
   TabsRoot,
   TabsList,
@@ -82,9 +81,6 @@ const classStyles = {
   "empty-state": layout.empty,
   "detail-panel": layout.detail,
   "detail-heading": layout.detailHeading,
-  "scenario-panel": layout.scenario,
-  "scenario-summary-title": layout.summaryTitle,
-  "scenario-body": layout.scenarioBody,
   "session-bar": layout.session,
   "sandbox-scope": layout.scope,
   muted: styles.muted
@@ -248,8 +244,6 @@ export const Dashboard = ({
   const route = useAtomValue(runtime.navigation.route)
   const detailPanel = useRef<HTMLElement>(null)
   const jobsPanel = useRef<HTMLElement>(null)
-  const scenariosPanel = useRef<HTMLDetailsElement>(null)
-  const scenarioControl = useRef<HTMLSelectElement>(null)
   const focusedSelection = useRef<string | undefined>(undefined)
   useLayoutEffect(() => {
     if (state.selected !== undefined && focusedSelection.current !== state.selected) {
@@ -264,8 +258,6 @@ export const Dashboard = ({
     }
     focusedSelection.current = state.selected
   }, [state.selected])
-  const [scenario, setScenario] = useState<typeof ScenarioId.Type>("success")
-  const [count, setCount] = useState(1)
   const close = () => {
     if (route._tag === "List") {
       runtime.closeDetail()
@@ -283,7 +275,22 @@ export const Dashboard = ({
     return () => window.removeEventListener("keydown", escape)
   })
   useLayoutEffect(() => {
+    const dialog = document.querySelector<HTMLElement>("[data-create-jobs-dialog]")
+    const focus = dialog?.contains(document.activeElement)
+      ? (document.activeElement as HTMLElement)
+      : dialog
+    const scroll = window.scrollY
     runtime.restoreViewport()
+    // Generation reset can restore the list anchor beneath the open modal.
+    // Consume that pending restoration while preserving the modal's focus/scroll.
+    if (dialog) {
+      if (!dialog.contains(document.activeElement)) {
+        focus?.focus({ preventScroll: true })
+      }
+      if (window.scrollY !== scroll) {
+        window.scrollTo({ top: scroll, behavior: "instant" })
+      }
+    }
   }, [runtime, state.resultsCurrent, state.page])
   const fullDetailFocus = useRef<{ identity: string; focused: boolean } | undefined>(
     undefined
@@ -514,26 +521,7 @@ export const Dashboard = ({
               <h1 {...stylex.props(layout.title)}>Background Jobs</h1>
             </div>
             <div {...classes("header-actions")}>
-              {!demo && (
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    if (scenariosPanel.current) {
-                      scenariosPanel.current.open = true
-                      scenariosPanel.current.scrollIntoView({
-                        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-                          ? "instant"
-                          : "smooth",
-                        block: "center"
-                      })
-                      scenarioControl.current?.focus({ preventScroll: true })
-                    }
-                  }}
-                >
-                  <Icon name="plus" />
-                  Create jobs
-                </Button>
-              )}
+              {!demo && <CreateJobsDialog runtime={runtime} />}
             </div>
           </header>
           <div {...classes("jobs-overview")}>
@@ -587,27 +575,62 @@ export const Dashboard = ({
               aria-label="Jobs list"
             >
               <div {...classes("panel-heading")}>
-                <h2 {...stylex.props(layout.heading)}>Jobs</h2>
-                <span
-                  role="status"
-                  className={[
-                    "results-count",
-                    stylex.props(layout.resultsLabel).className
-                  ].join(" ")}
-                >
-                  {state.page && state.resultsCurrent
-                    ? `${state.page.filteredTotal} ${state.page.filteredTotal === 1 ? "result" : "results"}${state.error ? " · stale" : ""}`
-                    : state.loading
-                      ? "Loading…"
-                      : "Results unavailable"}
-                </span>
+                <div {...stylex.props(layout.resultsGroup)}>
+                  <h2 {...stylex.props(layout.heading)}>Jobs</h2>
+                  <span
+                    role="status"
+                    className={[
+                      "results-count",
+                      stylex.props(layout.resultsLabel).className
+                    ].join(" ")}
+                  >
+                    {state.page && state.resultsCurrent
+                      ? `${state.page.filteredTotal} ${state.page.filteredTotal === 1 ? "result" : "results"}${state.error ? " · stale" : ""}`
+                      : state.loading
+                        ? "Loading…"
+                        : "Results unavailable"}
+                  </span>
+                </div>
+                <label {...stylex.props(layout.resolution)}>
+                  <span>Resolution</span>
+                  <select
+                    {...stylex.props(layout.pageSizeSelect)}
+                    aria-label="Resolution"
+                    value={
+                      state.filters.needsAttention
+                        ? "attention"
+                        : (state.filters.resolution ?? "all")
+                    }
+                    onChange={(event) => {
+                      const value = event.target.value
+                      void runtime.run(
+                        runtime.filter({
+                          ...runtime.snapshot().filters,
+                          resolution:
+                            value === "Open" ||
+                            value === "InProgress" ||
+                            value === "Resolved"
+                              ? value
+                              : undefined,
+                          needsAttention: value === "attention" ? true : undefined
+                        })
+                      )
+                    }}
+                  >
+                    <option value="all">All executions</option>
+                    <option value="attention">Needs attention</option>
+                    <option value="Open">Open</option>
+                    <option value="InProgress">In progress</option>
+                    <option value="Resolved">Resolved</option>
+                  </select>
+                </label>
               </div>
               <TabsRoot
                 value={state.filters.state ?? "all"}
                 onValueChange={(value) => {
                   void runtime.run(
                     runtime.filter({
-                      ...state.filters,
+                      ...runtime.snapshot().filters,
                       state: value === "all" ? undefined : (value as JobSummary["state"])
                     })
                   )
@@ -643,6 +666,15 @@ export const Dashboard = ({
                       <JobsTable runtime={runtime} data={state.page.items} />
                     )}
                   </div>
+                  {state.problemRows
+                    ?.filter((row) => row.representative === null)
+                    .map((row) => (
+                      <p key={row.problem.rootJobId}>
+                        Job no longer retained: {row.problem.rootJobId} ·{" "}
+                        {row.problem.state}
+                      </p>
+                    ))}
+
                   <div {...classes("pagination")}>
                     <Pagination
                       {...state.pagination}
@@ -695,47 +727,6 @@ export const Dashboard = ({
               </SyntheticDocumentSession>
             )}
           </div>
-          <section aria-label="Problem resolution">
-            <p>
-              Needs attention counts unresolved problem chains. Execution counts include
-              every retained job.
-            </p>
-            <Field label="Resolution">
-              <select
-                value={
-                  state.filters.needsAttention
-                    ? "attention"
-                    : (state.filters.resolution ?? "all")
-                }
-                onChange={(event) => {
-                  const value = event.target.value
-                  void runtime.run(
-                    runtime.filter({
-                      ...state.filters,
-                      resolution:
-                        value === "Open" || value === "InProgress" || value === "Resolved"
-                          ? value
-                          : undefined,
-                      needsAttention: value === "attention" ? true : undefined
-                    })
-                  )
-                }}
-              >
-                <option value="all">All executions</option>
-                <option value="attention">Needs attention</option>
-                <option value="Open">Open</option>
-                <option value="InProgress">In progress</option>
-                <option value="Resolved">Resolved</option>
-              </select>
-            </Field>
-            {state.problemRows
-              ?.filter((row) => row.representative === null)
-              .map((row) => (
-                <p key={row.problem.rootJobId}>
-                  Job no longer retained: {row.problem.rootJobId} · {row.problem.state}
-                </p>
-              ))}
-          </section>
           <div {...classes("session-bar")}>
             <p
               role="status"
@@ -774,101 +765,6 @@ export const Dashboard = ({
               </Button>
             )}
           </div>
-          {!demo && (
-            <details
-              ref={scenariosPanel}
-              {...classes("scenario-panel")}
-              role="region"
-              aria-label="Scenario launcher"
-            >
-              <summary {...stylex.props(layout.summary)}>
-                <div {...classes("scenario-summary-title")}>
-                  <Icon name="terminal" />
-                  <strong>Scenario lab</strong>
-                </div>
-                <Icon name="plus" />
-              </summary>
-              <div {...classes("scenario-body")}>
-                <Field label="Fake provider behavior">
-                  <select
-                    ref={scenarioControl}
-                    value={scenario}
-                    onChange={(event) =>
-                      setScenario(event.target.value as typeof ScenarioId.Type)
-                    }
-                  >
-                    {ScenarioId.literals.map((value) => (
-                      <option key={value} value={value}>
-                        {value}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Jobs (1–10)">
-                  <input
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={count}
-                    onChange={(event) => setCount(event.target.valueAsNumber)}
-                  />
-                </Field>
-                <Button
-                  variant="primary"
-                  disabled={
-                    unavailable ||
-                    !state.sandbox.capabilities.runScenario ||
-                    (state.sandbox.capacity?.mode === "bounded" &&
-                      (state.sandbox.capacity.retainedJobs + count > 100 ||
-                        state.sandbox.capacity.admittedCommands >= 200))
-                  }
-                  onClick={() =>
-                    void runtime.run(
-                      runtime.command("scenario", crypto.randomUUID(), scenario, count)
-                    )
-                  }
-                >
-                  Run scenario
-                </Button>
-                <Button
-                  disabled={
-                    unavailable ||
-                    !state.sandbox.capabilities.resetSandbox ||
-                    (state.sandbox.capacity?.mode === "bounded" &&
-                      (state.sandbox.capacity.retainedJobs > 94 ||
-                        state.sandbox.capacity.admittedCommands > 198))
-                  }
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        "Start a new generation with 6 starter jobs? Old jobs and receipts remain. Running jobs are not cancelled."
-                      )
-                    ) {
-                      void runtime.run(
-                        runtime.command("reset", crypto.randomUUID(), "success", 1)
-                      )
-                    }
-                  }}
-                >
-                  Reset my sandbox
-                </Button>
-                <Button
-                  disabled={state.pending === undefined || state.busy}
-                  onClick={() => void runtime.run(runtime.receipt)}
-                >
-                  Check exact request receipt
-                </Button>
-                <p {...stylex.props(layout.paragraph)}>
-                  {state.pending
-                    ? `Pending ${state.pending.kind} request: ${state.pending.request.requestId}`
-                    : ""}
-                </p>
-                <p role="status" {...stylex.props(styles.notice)}>
-                  {state.notice}
-                </p>
-              </div>
-            </details>
-          )}
         </div>
       </div>
     </div>
