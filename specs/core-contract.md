@@ -4,15 +4,18 @@ transaction-capability arguments for the qualified native integration.
 
 # Shared core contracts
 
-Implemented serial prerequisite for UPVE-1031, against accepted D1–D8 at
-`0e10e8a5a0b21101c00ea064e87ac641b73743c3`. The earlier
-`core-contract-proposal.md` is historical, not a merge input. This document freezes
-the contracts consumed by definitions/producer, lifecycle/store and codec units.
-It does not implement or qualify their runtimes or activate those tasks.
+The original serial prerequisite for UPVE-1031 was implemented against accepted
+D1–D8 at `0e10e8a5a0b21101c00ea064e87ac641b73743c3`. Its unit-specific ownership and
+qualification record below is historical. The public contracts here incorporate
+the breaking [contract-first redesign](api-redesign.md); use that document and
+the current README for complete worker/group/storage composition. The earlier
+`core-contract-proposal.md` is historical, not a merge input.
 
 ## Modules and import directions
 
-The package exports these exact public subpaths (ESM and declarations):
+This shared-contract subset has the following public subpaths (ESM and declarations).
+The complete current export inventory is in `package.json` and qualified by
+`tests/docs/api/Qualify.mjs`; this is not a six-subpath package inventory:
 
 ```text
 effect-jobs/JobId
@@ -156,12 +159,15 @@ type JobRetention =
   { readonly _tag: "Forever" } | { readonly _tag: "Duration"; readonly millis: number }
 ```
 
-`PersistedJobPolicy`, `FixedDelayV1`, `JobRetention`, `PositiveMillis` and
-`EpochMillis` are runtime Schemas. Persisted decode requires the **complete**
-resolved configuration and the cross-field constraint; it never fills current
-defaults into old rows. The layout is the V1 policy representation; concrete
-backend storage/version discriminator belongs to its schema task. Updated
-deployment defaults cannot rewrite retained rows.
+`JobPolicy` validates the resolved in-memory model. `PersistedJobPolicy` is the
+bidirectional storage codec: retained JSON uses `maxAttempts`, while decoded
+policy exposes `maxFinalizedAttempts`. Encode through that codec before storing
+JSON; serializing resolved policy directly is not the storage format. Persisted
+decode requires the **complete** stored configuration and the cross-field
+constraint; it never fills current defaults into old rows. `FixedDelayV1`,
+`JobRetention`, `PositiveMillis` and `EpochMillis` remain runtime Schemas. Updated
+deployment defaults cannot rewrite retained rows, and physical `attempts_made`
+continues to map to the public `finalizedAttempts` counter without a migration.
 
 `EpochMillis` preserves the source positive integer bound 1–253,402,300,799,999
 for availableAt/retryBefore; accepting epoch zero would be a policy change, not
@@ -322,7 +328,7 @@ it must not instantiate a second engine/pool. Explicit backend join must never
 open a new connection/transaction/savepoint, or independently commit/replay.
 Application owner retains whole-operation commit knowledge and replay authority.
 
-## Qualification and ownership
+## Historical serial-unit qualification and ownership
 
 Tests under `tests/core` exercise identity diagnostics, defaults and policy bounds,
 strict timeout edge, failure bounds, forwarding and capability lifetimes.
@@ -350,8 +356,10 @@ tracked/owned files without modifying runtime files. Exact command results,
 tool versions, read manifest and immutable base/head/tree are delivered in the
 issue report; this document does not invent successful future receipts.
 
-No PG or packed worker/backend qualification, database operation, push, PR,
-publication, runtime modification or merge is authorized. Temporal runtime edges
+That serial-unit authorization did not include PG or packed worker/backend
+qualification, database operations, push, PR, publication, runtime modification or
+merge. Subsequent local redesign authorization and current qualification are
+recorded in `api-redesign.md`, not inferred from this historical unit. Temporal runtime edges
 (due `<=`, owned `>`, expiry `<=`, usable lease `>= timeout + budget`, retry cutoff
 `>= retryBefore`, one DB-time snapshot) remain accepted obligations of later units;
 contract tests qualify only the policy inequality, not those unimplemented writes.

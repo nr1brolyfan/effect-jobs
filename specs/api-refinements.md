@@ -79,13 +79,13 @@ useful for already-protected envelopes and custom codecs.
 
 `PostgreSqlNative.layer({ client, operationTimeoutMillis })` supplies the adapter
 for the application's SAME native `PgClient@4.1.0`. `PostgreSqlJobs.layerNoDeps`
-provides `PostgreSqlJobs` and generic `JobEnqueue`. Public
+provides `PostgreSqlJobs`, `JobEnqueue`, `JobOperators`, `JobStorage` and `JobSchedule`. Public
 `client.withTransaction(body)` owns the transaction; Drizzle schema/queries run
 in that same client/Context. `db.transaction` retains its upstream type limitation
-and is excluded from positive qualification, without a local type correction. `job.enqueue(input)` requires it; it has no transaction
+and is excluded from positive qualification, without a local type correction. `producer.enqueue(input)` requires it; it has no transaction
 argument or implicit fallback. Jobs/domain/receipts must share the same source.
 
-`backend.withTransaction(() => job.enqueue(input))` delegates explicit manager
+`backend.withTransaction(() => producer.enqueue(input))` delegates explicit manager
 join-or-establish and supplies the producer service. `enqueueStandalone(input)`
 owns bounded preparation plus atomic job/payload/dedup insertion, rejects an active
 configured-client transaction and resolves after acknowledged commit. Unknown
