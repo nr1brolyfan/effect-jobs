@@ -4,8 +4,8 @@
 
 The current local package version is `0.1.0-alpha.1-effect.4.1.0.local.5`.
 The direct breaking redesign starts at `a467fc9e14c01d3d22a3dce7d516e3e5bd8b6a6a`;
-its implemented contract and local phase receipts are recorded in
-[api-redesign.md](api-redesign.md). Earlier candidate versions, task scopes and
+its implemented contract and local phase receipts are recorded in the source-only
+`specs/api-redesign.md`. Earlier candidate versions, task scopes and
 counts below are historical evidence, not current export or API documentation.
 Final qualification must bind the complete integrated source snapshot and one
 immutable archive to its own commands/logs. A source or packed local pass does not

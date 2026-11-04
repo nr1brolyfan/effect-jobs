@@ -7,8 +7,8 @@ transaction-capability arguments for the qualified native integration.
 The original serial prerequisite for UPVE-1031 was implemented against accepted
 D1–D8 at `0e10e8a5a0b21101c00ea064e87ac641b73743c3`. Its unit-specific ownership and
 qualification record below is historical. The public contracts here incorporate
-the breaking [contract-first redesign](api-redesign.md); use that document and
-the current README for complete worker/group/storage composition. The earlier
+the breaking contract-first redesign (source-only `specs/api-redesign.md`); use
+the [current README](../README.md) for complete worker/group/storage composition. The earlier
 `core-contract-proposal.md` is historical, not a merge input.
 
 ## Modules and import directions
