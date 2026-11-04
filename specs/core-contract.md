@@ -164,7 +164,7 @@ backend storage/version discriminator belongs to its schema task. Updated
 deployment defaults cannot rewrite retained rows.
 
 `EpochMillis` preserves the source positive integer bound 1–253,402,300,799,999
-for availableAt/notAfter; accepting epoch zero would be a policy change, not
+for availableAt/retryBefore; accepting epoch zero would be a policy change, not
 silently inferred from the superseded proposal. Ordinary past positive timestamps
 are valid. The backend must validate computed timestamp additions against the
 same bound rather than overflowing/clamping. No database-time arithmetic is
@@ -186,7 +186,7 @@ counts. Enforcing those transitions belongs to the lifecycle unit.
 `JobFailure` is a Schema/type union. `JobFailures` supplies checked frozen factories:
 
 ```ts
-JobFailures.Retry({ code: FailureCode, notAfter?: number })
+JobFailures.Retry({ code: FailureCode, retryBefore?: number })
 JobFailures.Dead({ code: FailureCode })
 JobFailures.Isolate({ code: FailureCode })
 JobFailures.OutcomeUnknown({ code: FailureCode })
@@ -195,7 +195,7 @@ JobFailures.OutcomeUnknown({ code: FailureCode })
 Codes are 1–128 characters matching `^[a-z0-9][a-z0-9_-]*$`; cutoffs use
 EpochMillis. Catalog definition validates once and throws an entry-specific `InvalidFailureCode`.
 Dynamic strings use `FailureCode.parse` returning Result; invalid retry cutoffs throw
-`InvalidJobFailure { field: "notAfter" }`, without recording input text. Domain errors are mapped by ordinary
+`InvalidJobFailure { field: "retryBefore" }`, without recording input text. Domain errors are mapped by ordinary
 Effect composition. Unknown is not a seventh lifecycle state; mixed causes,
 defects, interruption or timeout never imply known-safe Retry. Runtime boundaries
 must validate even structurally constructed failure values with `JobFailure`.
@@ -353,5 +353,5 @@ issue report; this document does not invent successful future receipts.
 No PG or packed worker/backend qualification, database operation, push, PR,
 publication, runtime modification or merge is authorized. Temporal runtime edges
 (due `<=`, owned `>`, expiry `<=`, usable lease `>= timeout + budget`, retry cutoff
-`>= notAfter`, one DB-time snapshot) remain accepted obligations of later units;
+`>= retryBefore`, one DB-time snapshot) remain accepted obligations of later units;
 contract tests qualify only the policy inequality, not those unimplemented writes.

@@ -186,7 +186,7 @@ On `2026-10-05T15:56Z`, the current production source and final COMMIT-tag manag
 passed **27/27 on Node 24.15.0 and 27/27 on Bun 1.4.2**, against PostgreSQL 16.15,
 pg 8.23.0 and Effect 4.0.0. Each run includes 25 production-backend real-PG tests
 and 2 optional Drizzle declaration tests; no PG tests skipped. Existing tests
-already covered retry-notAfter and lease-reserve equality and +/-1 ms neighbors;
+already covered retryBefore and lease-reserve equality and +/-1 ms neighbors;
 they were not reimplemented. The only test-code continuation change pins the
 new coordinator-authorized exact container ID. Phase A was not rerun.
 
@@ -225,7 +225,7 @@ The coordinator recovered the exact same label/image-verified resource at
 expanded phase-B suite then passed **27/27 on Node and 27/27 on Bun** at about
 `11:30Z`: 25 production-backend real-PG tests plus 2 Drizzle declaration tests.
 Receipts include exact actual DB-time equality and +/-1 ms neighbors for due,
-owned expiry, recovery expiry, lease reserve and retry-notAfter. Both runs
+owned expiry, recovery expiry, lease reserve and retryBefore. Both runs
 confirmed zero remaining fixture schemas/roles, restored TEMP, zero runtime DDL
 and zero savepoints. This did not repeat phase A.
 

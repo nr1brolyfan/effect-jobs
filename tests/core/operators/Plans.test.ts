@@ -69,7 +69,7 @@ describe("operator plans", () => {
           ownership(row),
           Lifecycle.JobFinalizations.Retry({
             code: Schema.decodeSync(FailureCode)("retry"),
-            notAfter: now + row.policy.retrySchedule.delayMillis + delta
+            retryBefore: now + row.policy.retrySchedule.delayMillis + delta
           }),
           now
         )

@@ -76,6 +76,15 @@ export const overrideId: EnqueueInput<string> = {
 export const outcome: JobFailure = JobFailures.OutcomeUnknown({
   code: FailureCodes.define({ value: "lost_response" }).value
 })
+export const retryCutoff = JobFailures.Retry({
+  code: FailureCodes.define({ value: "temporary" }).value,
+  retryBefore: 1000
+})
+export const removedRetryCutoff = JobFailures.Retry({
+  code: FailureCodes.define({ value: "temporary" }).value,
+  // @ts-expect-error Removed spelling; retryBefore is a scheduling cutoff, not an execution deadline.
+  notAfter: 1000
+})
 // @ts-expect-error Arbitrary domain errors are not library handler failures.
 export const domainFailure: JobFailure = { _tag: "DomainError", code: "x" }
 declare const handlerInput: HandlerInput<string>

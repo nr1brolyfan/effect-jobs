@@ -319,8 +319,8 @@ The owner subsequently accepted preserving these exact time boundaries:
 - `attemptTimeoutMillis < leaseDurationMillis` is required.
 - A claim or reconciled lease is usable only with remaining lease time
   `>= attemptTimeoutMillis + operationResponseBudgetMillis`.
-- A retry whose computed next availability is `>= notAfter` becomes Dead rather
-  than being scheduled. `notAfter` limits retry scheduling, not handler execution
+- A retry whose computed next availability is `>= retryBefore` becomes Dead rather
+  than being scheduled. `retryBefore` limits retry scheduling, not handler execution
   or initial availability.
 - Durable transitions use one database-time snapshot rather than process time.
   Tests must exercise equality and immediately neighboring values.

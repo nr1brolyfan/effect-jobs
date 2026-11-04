@@ -122,7 +122,7 @@ export const JobFinalization = Schema.Union([
     code: FailureCode,
     /** Worker-selected sample retained across uncertain finalization/reconciliation. */
     jitterSample: Retry.JitterSample.pipe(Schema.optional),
-    notAfter: EpochMillis.pipe(Schema.optional)
+    retryBefore: EpochMillis.pipe(Schema.optional)
   }),
   Schema.TaggedStruct("Dead", { code: FailureCode }),
   Schema.TaggedStruct("Isolate", { code: FailureCode })
@@ -333,8 +333,8 @@ export const release = (
 
 /**
  * Plans one fenced Complete/Retry/Dead/Isolate transition and increments attempts once.
- * Uses the first stored retry policy; next availability >= notAfter or exhausted attempts
- * becomes Dead. notAfter limits retry scheduling, not handler execution.
+ * Uses the first stored retry policy; next availability >= retryBefore or exhausted attempts
+ * becomes Dead. retryBefore limits retry scheduling, not handler execution.
  *
  * @category operations
  */
@@ -386,8 +386,8 @@ export const finalize = (
           ? "Isolated"
           : finalization._tag === "Dead" ||
               attemptsMade >= row.policy.maxAttempts ||
-              (finalization.notAfter !== undefined &&
-                nextAvailableAt >= finalization.notAfter)
+              (finalization.retryBefore !== undefined &&
+                nextAvailableAt >= finalization.retryBefore)
             ? "Dead"
             : "RetryScheduled"
     return {

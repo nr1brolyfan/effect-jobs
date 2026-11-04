@@ -34,7 +34,7 @@ rolling back the entire operator/receipt transaction when authority expires.
 
 Retry strictly accelerates a future stored retry, preserving policy, attempts,
 stalls, failure and artifacts. A previously scheduled availability below
-`Retry.notAfter` remains below that scheduling cutoff under strict acceleration.
+`Retry.retryBefore` remains below that scheduling cutoff under strict acceleration.
 Already-due retries are refused, preventing postponement.
 
 Cancellation preserves availability, counters, failure and artifacts, increments

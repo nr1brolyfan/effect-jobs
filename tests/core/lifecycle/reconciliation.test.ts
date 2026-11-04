@@ -210,7 +210,7 @@ describe("bounded unknown reconciliation", () => {
     L.JobFinalizations.Retry({ code: FailureCodes.define({ value: "temporary" }).value }),
     L.JobFinalizations.Retry({
       code: FailureCodes.define({ value: "temporary" }).value,
-      notAfter: now + 6
+      retryBefore: now + 6
     }),
     L.JobFinalizations.Dead({ code: FailureCodes.define({ value: "rejected" }).value }),
     L.JobFinalizations.Isolate({

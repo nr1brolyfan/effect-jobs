@@ -590,3 +590,37 @@ Remaining implementation: accepted retry/counter naming and finite graceful
 shutdown, then final integrated documentation/qualification and one independent
 review. This is a local checkpoint, not a release candidate. No push, merge,
 publication or deployment has occurred.
+
+## Implementation checkpoint: retry-scheduling cutoff naming
+
+The bounded schedule checkpoint is committed locally as `1a4c177`.
+Retry failures and finalization commands now expose only `retryBefore`, replacing
+`notAfter` directly without aliases. `InvalidJobFailure.field` uses the new name.
+It is a retry-scheduling cutoff, not a handler deadline or initial-availability
+constraint: computed next availability `>= retryBefore` still becomes Dead.
+
+Only runtime command data and its callers/documentation changed. Persisted policy
+JSON (`maxAttempts`), physical counters (`attempts_made`), immutable artifacts,
+budgets, retry arithmetic and unknown-outcome recovery retain their existing
+representation and behavior. Counter/limit/ordinal naming remains a separate
+unfinished implementation phase; this checkpoint does not claim it is completed.
+
+Negative strict type tests reject the removed constructor field. Runtime schema
+and failure-adapter tests reject the old spelling; the new cutoff survives the
+handler-failure-to-finalization boundary. Equality and +/-1 neighbor oracles also
+assert unchanged finalized counts, stalled counts and resolved policy.
+
+Node 24.15.0 qualification: full `verify` passes 1,069 tests (96 skipped), with
+eight source/packed JSDoc examples and 28 subpaths. README source/packed and
+playground type checks pass. Real PostgreSQL passes 78 source tests and 49 installed
+tests per Node/Bun runtime; native Drizzle A+B/runtime and installed public API/type
+gates pass. The separate full foreign-declaration audit remains diagnostic FAIL.
+Receipts: `/tmp/opencode/jobs-redesign-pg-s5isazga/`; the exact disposable container
+was removed and private configuration deleted. Changed TypeScript was checked
+against all traits and raw findings manually triaged; no confirmed applicable
+violation remained. Read scope included all files recursively under `ai-docs/`,
+plus repository workflow, architecture decisions and affected contract specs.
+
+Remaining: finalized-counter/limit/ordinal naming, finite graceful shutdown, then
+final integrated qualification/documentation and one independent review. No push,
+merge, publication or deployment has occurred.

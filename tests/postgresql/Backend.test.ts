@@ -239,7 +239,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       | {
           readonly _tag: "Retry"
           readonly code: FailureCodes.FailureCode
-          readonly notAfter?: number
+          readonly retryBefore?: number
         } = {
       _tag: "Complete"
     }
@@ -1370,7 +1370,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     }
     expect([...observed].sort((a, b) => a - b)).toEqual([-1, 0, 1])
   }, 30000)
-  test("retry notAfter equality and neighbors preserve the exact persisted scheduling rule", async () => {
+  test("retryBefore equality and neighbors preserve the exact persisted scheduling rule", async () => {
     const observed = new Set<number>()
     let lag = 2
     for (let i = 0; i < 90 && observed.size < 3; i++) {
@@ -1379,7 +1379,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       const claimed = await claim()
       const setup = await serverNow()
       const target = [-1, 0, 1][i % 3]!
-      const notAfter =
+      const retryBefore =
         setup + claimed.snapshot.policy.retrySchedule.delayMillis + lag + target
       let now = 0
       const measured: ApplicationAdapter = {
@@ -1408,12 +1408,12 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
           finalization: {
             _tag: "Retry",
             code: FailureCodes.define({ value: "temporary" }).value,
-            notAfter
+            retryBefore
           }
         })
       )
       const next = now + claimed.snapshot.policy.retrySchedule.delayMillis
-      const delta = notAfter - next
+      const delta = retryBefore - next
       expect(now).toBeGreaterThan(0)
       expect((await row(`retry-boundary-${i}`)).state).toBe(
         delta <= 0 ? "Dead" : "RetryScheduled"
@@ -1422,7 +1422,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         observed.add(delta)
         boundaries.push({
           operation: "retryNotAfter",
-          expiry: notAfter,
+          expiry: retryBefore,
           dbNow: now,
           delta
         })

@@ -81,7 +81,7 @@ missing or invalid entropy fails closed. Pure lifecycle planning remains pure.
 
 Exhausted attempts become Dead without calculating an unused future delay;
 `availableAt` remains unchanged in this case, including for fixed schedules.
-Otherwise, computed availability `>= notAfter` becomes Dead, preserving the
+Otherwise, computed availability `>= retryBefore` becomes Dead, preserving the
 existing equality boundary. Timestamp overflow fails explicitly, never wraps or
 clamps database time. These scheduling controls do not guarantee exact start time.
 
@@ -108,7 +108,7 @@ and new workers against new-policy jobs or roll readers back without resolving t
 Existing `FixedDelayV1` rows remain readable with their original values.
 
 Qualification must cover constructor/type boundaries, cap/jitter order and edges,
-attempt exhaustion, notAfter, fencing/recovery, response loss, identical-command
+attempt exhaustion, retryBefore, fencing/recovery, response loss, identical-command
 reconciliation, real PostgreSQL persistence/backend recreation on Node and Bun,
 and an installed package consumer. Focused passing checks do not waive the existing
 foreign-declaration/full-verification blockers or independent review requirement.

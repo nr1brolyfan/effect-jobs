@@ -233,7 +233,7 @@ describe("pure retry descriptions and typed policy assembly", () => {
     }
   )
 
-  it.each([-1, 0, 1])("compares notAfter to the sampled time, offset %i", (offset) => {
+  it.each([-1, 0, 1])("compares retryBefore to the sampled time, offset %i", (offset) => {
     const row = active({
       policy: resolved(Retry.exponential(Duration.millis(10)).pipe(Retry.jittered()))
     })
@@ -244,7 +244,7 @@ describe("pure retry descriptions and typed policy assembly", () => {
         Lifecycle.JobFinalizations.Retry({
           code,
           jitterSample: 0.5,
-          notAfter: now + 10 + offset
+          retryBefore: now + 10 + offset
         }),
         now
       )

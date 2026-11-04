@@ -191,7 +191,7 @@ describe("portable lifecycle (not database qualification)", () => {
         ownership(),
         L.JobFinalizations.Retry({
           code: FailureCodes.define({ value: "temporary" }).value,
-          notAfter: now + 6 + offset
+          retryBefore: now + 6 + offset
         }),
         now + 1
       )
@@ -199,6 +199,9 @@ describe("portable lifecycle (not database qualification)", () => {
     expect(row.state).toBe(offset <= 0 ? "Dead" : "RetryScheduled")
     expect(row.availableAt).toBe(now + 6)
     expect(row.completedAt).toBe(offset <= 0 ? now + 1 : null)
+    expect(row.attemptsMade).toBe(1)
+    expect(row.stalledCount).toBe(0)
+    expect(row.policy).toEqual(active().policy)
   })
   it.each([1, 3, 100])("maxAttempts %i includes first finalization", (maxAttempts) => {
     let row = pending({
