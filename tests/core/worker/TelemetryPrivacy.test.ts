@@ -7,10 +7,10 @@ import * as Codec from "../../../src/JobPayloadCodec.js"
 import * as Job from "../../../src/Job.js"
 import * as Queue from "../../../src/JobQueue.js"
 import * as Consumer from "../../../src/JobConsumer.js"
-import * as Worker from "../../../src/JobWorker.js"
-import { drain } from "../../../src/JobWorkerRuntime.js"
+import * as Worker from "./ProtocolWorker.js"
+import { drain } from "./ProtocolWorker.js"
 import { layer as registryLayer } from "../../../src/JobRegistry.js"
-import { FinalizationResults } from "../../../src/JobStore.js"
+import { FinalizationResult } from "../../../src/JobStore.js"
 import { harness, policy } from "./Harness.js"
 
 const queue = Queue.make("review-probe")
@@ -123,7 +123,7 @@ for (const phase of ["finalize", "reconcileFinalization"] as const) {
           {
             ...test.store,
             ...(phase === "reconcileFinalization"
-              ? { finalize: () => Effect.succeed(FinalizationResults.Unknown()) }
+              ? { finalize: () => Effect.succeed(FinalizationResult.Unknown()) }
               : {}),
             [phase]: () =>
               Effect.sync(() => {

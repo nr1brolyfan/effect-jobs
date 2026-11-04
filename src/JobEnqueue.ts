@@ -1,7 +1,13 @@
 /** Generic configured producer service; contains no backend imports. */
 import { Context, Data } from "effect"
 import type { Effect } from "effect"
-import type { EnqueueResult, JobIntegrityConflict, PreparedJob } from "./JobContract.js"
+import type {
+  EnqueueResult,
+  JobIntegrityConflict,
+  JobPolicyIncompatible,
+  PreparedJob
+} from "./JobContract.js"
+import type { JobsTransactionClosed } from "./JobTransaction.js"
 
 /** Safe backend failure preserving commit knowledge and transaction misuse.
  * No SQL, credentials, provider Causes or payloads are retained.
@@ -23,10 +29,26 @@ export class JobBackendError extends Data.TaggedError("JobBackendError")<{
 export interface JobEnqueueService {
   readonly enqueue: <E, R>(
     prepared: Effect.Effect<PreparedJob, E, R>
-  ) => Effect.Effect<EnqueueResult, E | JobBackendError | JobIntegrityConflict, R>
+  ) => Effect.Effect<
+    EnqueueResult,
+    | E
+    | JobBackendError
+    | JobIntegrityConflict
+    | JobPolicyIncompatible
+    | JobsTransactionClosed,
+    R
+  >
   readonly enqueueStandalone: <E, R>(
     prepared: Effect.Effect<PreparedJob, E, R>
-  ) => Effect.Effect<EnqueueResult, E | JobBackendError | JobIntegrityConflict, R>
+  ) => Effect.Effect<
+    EnqueueResult,
+    | E
+    | JobBackendError
+    | JobIntegrityConflict
+    | JobPolicyIncompatible
+    | JobsTransactionClosed,
+    R
+  >
 }
 /** Configured application storage; provided by a qualified backend Layer.
  * @category services

@@ -135,17 +135,22 @@ and `slot` identifies one consequence. Multiple slots may produce the same job
 kind. Applications should namespace operation names.
 
 Declare a producer once in an application-owned domain module and import it from
-all callers. The accepted API direction is:
+all callers. The contract-first redesign refines the accepted API direction to
+bind each slot to its job, route and default policy:
 
 ```ts
 export const IssueInvoiceProducer = JobProducer.make({
   operation: "billing.issue-invoice",
-  slots: ["generate-pdf", "send-email"]
+  slots: {
+    "generate-pdf": { job: GenerateInvoicePdf, queue: BillingQueue },
+    "send-email": { job: SendInvoiceEmail, queue: BillingQueue }
+  }
 })
 
-const producer = IssueInvoiceProducer.identity({
+const produce = IssueInvoiceProducer.enqueue({
   operationId,
-  slot: "generate-pdf"
+  slot: "generate-pdf",
+  payload: { invoiceId }
 })
 ```
 
@@ -171,8 +176,9 @@ The owner subsequently accepted these identifier boundaries and diagnostics:
 - Tests must cover these boundaries and actionable diagnostics. These accepted
   rules do not claim that runtime validation has already been implemented.
 
-Start with `identity({ operationId, slot })`; fluent `forOperation(...).slot(...)`
-is not required for the initial implementation. Do not introduce a mutable
+Use slot-bound enqueue with `operationId` and decoded payload; runtime IDs are
+validated in the Effect error channel. Fluent `forOperation(...).slot(...)` is
+not required for the initial implementation. Do not introduce a mutable
 builder or global registry to detect semantically similar names. Where multiple
 callers share the same production logic, use an ordinary application-domain
 function to bind producer slot, job definition, and input construction. Such
@@ -197,8 +203,8 @@ mandatory generic event ID; event IDs remain domain-owned.
 
 ### Equality and transaction guarantees
 
-For the same producer identity, compare catalog identity and domain payload
-semantics, including protected-field fingerprints. Changed catalog identity or
+For the same producer identity, compare job kind/version and domain payload
+semantics, including protected-field fingerprints. Changed kind/version or
 content produces a typed integrity error. The library-generated job ID is not a
 new candidate input to compare. There is no payload overwrite, debounce, or
 last-write-wins behavior.
@@ -209,7 +215,7 @@ equality remains subject to D5.
 
 The owner subsequently refined D3: policy and initial availability are immutable
 after creation but are not part of duplicate semantic equality. For a matching
-duplicate, retain the first stored policy and availability, even if the caller
+duplicate, retain the first stored queue, policy and availability, even if the caller
 supplies different values on a production retry. This is first-write-wins for
 execution configuration only, not for payload content. Changed deployment
 defaults must not mutate existing jobs or turn otherwise matching retries into

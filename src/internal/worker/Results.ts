@@ -8,4 +8,4 @@ export type DrainResult = Data.TaggedEnum<{
     readonly claimed: number
   }
 }>
-export const DrainResults = Data.taggedEnum<DrainResult>()
+export const DrainResult = Data.taggedEnum<DrainResult>()

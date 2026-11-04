@@ -1,5 +1,9 @@
 import { Effect, Schema } from "effect"
-import { EnqueueResults, JobIntegrityConflict } from "../../JobContract.js"
+import {
+  EnqueueResult,
+  JobIntegrityConflict,
+  JobPolicyIncompatible
+} from "../../JobContract.js"
 import type { PreparedJob } from "../../JobContract.js"
 import type { JobId } from "../../JobId.js"
 import { JobId as JobIdSchema } from "../../JobId.js"
@@ -7,20 +11,30 @@ import type { TransactionQuery } from "../../PostgreSqlTransaction.js"
 import { JobOperatorRejected, type JobLineage } from "../../JobOperators.js"
 import { dbTime, lineage as readLineage } from "./Rows.js"
 import { PostgreSqlFailure } from "../../PostgreSqlTransaction.js"
+import { maximumMillis } from "../../JobPolicy.js"
 
 /** READ COMMITTED is required: the post-conflict statement sees the committed winner. */
 export const insertOrCompare = (
   query: TransactionQuery,
   jobs: string,
   payloads: string,
-  prepared: PreparedJob
+  prepared: PreparedJob,
+  operationResponseBudgetMillis: number
 ) =>
   Effect.gen(function* () {
     const id = yield* Effect.sync(() => globalThis.crypto.randomUUID() as JobId)
     const now = yield* dbTime(query).pipe(
       Effect.mapError(() => new PostgreSqlFailure({ commitKnowledge: "NotCommitted" }))
     )
-    return yield* insertOrCompareAt(query, jobs, payloads, prepared, now, id).pipe(
+    return yield* insertOrCompareAt(
+      query,
+      jobs,
+      payloads,
+      prepared,
+      now,
+      operationResponseBudgetMillis,
+      id
+    ).pipe(
       Effect.mapError((error) =>
         error instanceof JobOperatorRejected ? new JobIntegrityConflict() : error
       )
@@ -34,16 +48,21 @@ export const insertOrCompareAt = (
   payloads: string,
   prepared: PreparedJob,
   now: number,
+  operationResponseBudgetMillis: number,
   generatedId?: JobId,
   lineage?: JobLineage
 ) =>
   Effect.gen(function* () {
     const { catalog, producer, encoded } = prepared
+    const admissible =
+      prepared.policy.leaseDurationMillis - prepared.policy.attemptTimeoutMillis >=
+        operationResponseBudgetMillis &&
+      prepared.policy.leaseDurationMillis <= maximumMillis - now
     const id =
       generatedId ?? (yield* Effect.sync(() => globalThis.crypto.randomUUID() as JobId))
     const rows = yield* query.query(
       `INSERT INTO ${jobs} (id,operation,operation_id,slot,queue,kind,version,policy,initial_available_at,state,available_at,updated_at,original_source_job_id,source_job_id,redrive_kind,created_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Pending',$10,$11,$12,$13,$14,$11)
+      SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,'Pending',$10,$11,$12,$13,$14,$11 WHERE $15::boolean
       ON CONFLICT (operation,operation_id,slot) DO NOTHING RETURNING id`,
       [
         id,
@@ -59,21 +78,26 @@ export const insertOrCompareAt = (
         now,
         lineage?.originalSourceJobId ?? null,
         lineage?.sourceJobId ?? null,
-        lineage?.kind ?? null
+        lineage?.kind ?? null,
+        admissible
       ]
     )
     if (rows.length === 0) {
       // Hold the parent until comparison completes: cleanup cannot remove evidence in between.
       const prior = (yield* query.query(
-        `SELECT j.id,j.queue,j.kind,j.version,j.original_source_job_id,j.source_job_id,j.redrive_kind,p.format_version,p.projection FROM ${jobs} j JOIN ${payloads} p ON p.job_id=j.id
+        `SELECT j.id,j.kind,j.version,j.original_source_job_id,j.source_job_id,j.redrive_kind,p.format_version,p.projection FROM ${jobs} j JOIN ${payloads} p ON p.job_id=j.id
         WHERE j.operation=$1 AND j.operation_id=$2 AND j.slot=$3 FOR KEY SHARE OF j`,
         [producer.operation, producer.operationId, producer.slot]
       ))[0]
       const projection = prior?.projection
+      // Admission gates only new rows. A retained matching consequence owns its
+      // original policy, regardless of the producer's current defaults or route.
+      if (prior === undefined && !admissible) {
+        return yield* new JobPolicyIncompatible()
+      }
       if (
         prior === undefined ||
         !Schema.is(JobIdSchema)(prior.id) ||
-        prior.queue !== catalog.queue ||
         prior.kind !== catalog.kind ||
         prior.version !== catalog.version ||
         prior.format_version !== encoded.formatVersion ||
@@ -100,7 +124,7 @@ export const insertOrCompareAt = (
           ? new JobIntegrityConflict()
           : new JobOperatorRejected({ reason: "lineage-conflict" })
       }
-      return EnqueueResults.AlreadyPresent({ jobId: prior.id as JobId })
+      return EnqueueResult.AlreadyPresent({ jobId: prior.id as JobId })
     }
     yield* query.query(
       `INSERT INTO ${payloads} (job_id,format_version,payload,projection) VALUES ($1,$2,$3,$4)`,
@@ -111,5 +135,5 @@ export const insertOrCompareAt = (
         new Uint8Array(encoded.semanticProjectionBytes)
       ]
     )
-    return EnqueueResults.Inserted({ jobId: id })
+    return EnqueueResult.Inserted({ jobId: id })
   })

@@ -3,9 +3,9 @@ import * as Job from "../../src/Job.js"
 import * as Queue from "../../src/JobQueue.js"
 import * as Consumer from "../../src/JobConsumer.js"
 import * as Codec from "../../src/JobPayloadCodec.js"
-import * as Worker from "../../src/JobWorker.js"
-import { drain } from "../../src/JobWorkerRuntime.js"
-import { layerForPlan } from "../../src/PollingJobWorker.js"
+import * as Worker from "../core/worker/ProtocolWorker.js"
+import { drain } from "../core/worker/ProtocolWorker.js"
+import * as Polling from "../../src/JobPolling.js"
 import type { JobStoreService } from "../../src/JobStore.js"
 import type { JobRegistry, DuplicateJobHandler } from "../../src/JobRegistry.js"
 
@@ -30,8 +30,9 @@ const installed: Layer.Layer<
   DuplicateJobHandler,
   JobRegistry | HandlerDependency
 > = definition.handlerLayer(
-  ({ payload, context }) =>
+  (input) =>
     Effect.gen(function* () {
+      const { payload, context } = input
       const dependency = yield* HandlerDependency
       const text: string = payload.text
       const attempt: number = context.attemptNumber
@@ -62,9 +63,8 @@ const built: Layer.Layer<
 > = Worker.layer(store, { catalog: [definition], operationResponseBudgetMillis: 100 })
 void built
 declare const consumer: Consumer.JobConsumer
-declare const plan: Consumer.JobPlan
 const drained: Effect.Effect<
-  import("../../src/JobWorkerRuntime.js").DrainResult,
+  import("../../src/JobWorker.js").DrainResult,
   Worker.JobWorkerNotReady | Worker.JobWorkerConfigurationError,
   Worker.JobWorker
 > = drain(consumer)
@@ -73,12 +73,12 @@ const polling: Layer.Layer<
   never,
   Worker.JobWorkerNotReady | Worker.JobWorkerConfigurationError,
   Worker.JobWorker
-> = layerForPlan(plan)
+> = Polling.layer([definition.queue])
 void polling
 // @ts-expect-error the worker requires explicit finite backend response configuration
 const missingBudget = Worker.make(store, { catalog: [definition] })
 void missingBudget
 // @ts-expect-error no domain handler error classifier callback
-layerForPlan(plan, { classifyError: () => "Retry" })
+Polling.layer([definition.queue], { classifyError: () => "Retry" })
 // @ts-expect-error internal hooks are not public polling configuration
-layerForPlan(plan, { beforeExecutionBoundary: Effect.void })
+Polling.layer([definition.queue], { beforeExecutionBoundary: Effect.void })

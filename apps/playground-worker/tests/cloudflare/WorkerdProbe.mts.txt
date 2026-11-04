@@ -18,7 +18,7 @@ import * as Queue from "effect-jobs/JobQueue"
 import * as Policy from "effect-jobs/JobPolicy"
 import * as Producer from "effect-jobs/JobProducer"
 import * as Consumer from "effect-jobs/JobConsumer"
-import * as Registry from "effect-jobs/JobRegistry"
+import * as Group from "effect-jobs/JobGroup"
 import * as Worker from "effect-jobs/JobWorker"
 import type { JobStoreService } from "effect-jobs/JobStore"
 import * as WakeCycle from "../../src/cloudflare/WakeCycle.js"
@@ -27,13 +27,14 @@ import * as WakeCycle from "../../src/cloudflare/WakeCycle.js"
 declare const Response: typeof import("@cloudflare/workers-types").Response
 
 const queue = Queue.make("cloudflare-probe")
-const producer = Producer.make({ operation: "cloudflare.probe", slots: ["synthetic"] })
 const definition = Job.make({
   queue,
   kind: "synthetic",
   payload: Schema.String,
   encodePayload: Codec.encodeJobPayload
 })
+const group = Group.make("cloudflare-probe", { synthetic: definition })
+const producer = Producer.make({ operation: "cloudflare.probe", slots: { synthetic: { job: definition, queue } } })
 
 const nativeProbe = Effect.scoped(
   Effect.gen(function* () {
@@ -52,7 +53,7 @@ const nativeProbe = Effect.scoped(
     )
     const result = yield* definition
       .enqueue({
-        producer: producer.identity({ operationId: "synthetic-1", slot: "synthetic" }),
+        producer: { operation: producer.operation, operationId: "synthetic-1", slot: "synthetic" },
         payload: "synthetic",
         policy: Policy.defaultPolicy
       })
@@ -81,12 +82,11 @@ export class Probe extends DurableObject {
         finalize: unexpected,
         reconcileFinalization: unexpected
       }
-      const worker = Worker.layer(store, {
-        catalog: [definition],
+      const worker = Worker.layer(group, {
+        store,
         operationResponseBudgetMillis: 100
-      }).pipe(
-        Layer.provide(definition.handlerLayer(() => Effect.void, Codec.decodeJobPayload)),
-        Layer.provide(Registry.layer)
+      }, { queues: [{ queue, concurrency: 2 }] }).pipe(
+        Layer.provide(group.toLayer({ synthetic: () => Effect.void }))
       )
       const result = await Effect.runPromise(
         Consumer.make(queue, {

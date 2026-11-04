@@ -19,7 +19,7 @@ import { JobRegistry, type DuplicateJobHandler } from "./JobRegistry.js"
 import type { JobEnqueueError, JobsTransaction } from "./JobTransaction.js"
 import { encodeJobPayload } from "./JobPayloadCodec.js"
 import { JobEnqueue, type JobBackendError } from "./JobEnqueue.js"
-import { insertPrepared } from "./internal/JobTransaction.js"
+import { insertPreparing } from "./internal/JobTransaction.js"
 
 /**
  * Thrown synchronously for an invalid catalog identity or payload Schema.
@@ -47,9 +47,10 @@ export interface JobDefinition<
   readonly payload: Payload
   readonly catalog: CatalogIdentity<Queue, Kind, Version>
   /** Enqueues in the active configured backend transaction; runs no commit or replay.
-   * Same producer tuple compares catalog and semantic payload, returning the first ID
+   * Same producer tuple compares kind/version and semantic payload, returning the first ID
    * for a match or JobIntegrityConflict for changed content. Results are provisional
-   * until outer commit; encoding services and backend E/R remain explicit. */
+   * until outer commit; the first queue/policy/availability are retained. Encoding
+   * services and backend E/R remain explicit. */
   readonly enqueue: (
     input: EnqueueInput<Payload["Type"]>
   ) => Effect.Effect<
@@ -224,9 +225,9 @@ export function make<
       tx: JobsTransaction<E, R>,
       input: EnqueueInput<Payload["Type"]>
     ) {
-      return yield* Effect.flatMap(prepare(input), (prepared) =>
-        insertPrepared(tx, prepared)
-      ).pipe(observe("enqueue", "provisional"))
+      return yield* insertPreparing(tx, prepare(input)).pipe(
+        observe("enqueue", "provisional")
+      )
     }),
     handlerLayer: <R>(
       execute: (

@@ -1,7 +1,7 @@
 import * as FailureCodes from "../../src/FailureCode.js"
 import { readFileSync, writeFileSync } from "node:fs"
 import { randomBytes, randomUUID } from "node:crypto"
-import { Effect, Exit, Duration, Schema, Deferred, Fiber, Layer } from "effect"
+import { Effect, Exit, Duration, Schema, Deferred, Fiber } from "effect"
 import type { PoolConfig } from "pg"
 import { Pool } from "../qualification/d6-pg/PgDriver.js"
 import { beforeAll, afterAll, describe, expect, test } from "vitest"
@@ -17,20 +17,24 @@ import {
   PostgreSqlApplication,
   PostgreSqlFailure
 } from "../../src/PostgreSqlTransaction.js"
-import type { ApplicationAdapter } from "../../src/PostgreSqlTransaction.js"
+import type {
+  ApplicationAdapter,
+  PostgreSqlError
+} from "../../src/PostgreSqlTransaction.js"
 import * as Payload from "../../src/JobPayload.js"
-import { encodeJobPayload, decodeJobPayload } from "../../src/JobPayloadCodec.js"
-import * as Registry from "../../src/JobRegistry.js"
-import * as Consumer from "../../src/JobConsumer.js"
+import { encodeJobPayload } from "../../src/JobPayloadCodec.js"
 import * as Worker from "../../src/JobWorker.js"
-import { drain } from "../../src/JobWorkerRuntime.js"
 import { JobFailures, type JobFailure } from "../../src/JobFailure.js"
-import type { HandlerInput } from "../../src/JobContract.js"
+import type { HandlerInput, EnqueueResult } from "../../src/JobContract.js"
 import { readQualificationResource } from "../qualification/Resource.mjs"
 import type { ClaimedJob } from "../../src/JobStore.js"
-import type { JobsTransaction } from "../../src/JobTransaction.js"
+import type { JobsTransaction, JobEnqueueError } from "../../src/JobTransaction.js"
 import * as App from "../qualification/d6-pg/ApplicationTransactions.js"
 import * as Adapter from "./Adapter.js"
+import { createRequire } from "node:module"
+import { JobEnqueue } from "../../src/JobEnqueue.js"
+import type { JobBackendError } from "../../src/JobEnqueue.js"
+import * as Group from "../../src/JobGroup.js"
 
 const directory = process.env.D6_RESOURCE_DIRECTORY
 const definition = Job.make({
@@ -40,7 +44,11 @@ const definition = Job.make({
   payload: Schema.Struct({ invoiceId: Schema.String }),
   encodePayload: encodeJobPayload
 })
-const producer = Producer.make({ operation: "billing.issue", slots: ["generate"] })
+const producer = Producer.make({
+  operation: "billing.issue",
+  slots: { generate: { job: definition, queue: definition.queue } }
+})
+const workerGroup = Group.make("backend-fixture", { generate: definition })
 const policy = Effect.runSync(
   Policy.make({
     completedRetention: Duration.millis(1),
@@ -48,7 +56,7 @@ const policy = Effect.runSync(
   })
 )
 const input = (id: string, value = id, configured = policy, availableAt?: number) => ({
-  producer: producer.identity({ operationId: id, slot: "generate" }),
+  producer: { operation: producer.operation, operationId: id, slot: "generate" },
   payload: { invoiceId: value },
   policy: configured,
   ...(availableAt === undefined ? {} : { availableAt })
@@ -247,20 +255,11 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          yield* Layer.build(definition.handlerLayer(execute, decodeJobPayload))
-          const worker = yield* Worker.make(backend.store, {
-            catalog: [definition],
-            operationResponseBudgetMillis: 100
-          })
-          const consumer = yield* Consumer.make(definition.queue, {
-            localConcurrency: 1,
-            claimLimitPerRun: 1,
-            recoveryLimitPerRun: 1
-          })
-          return yield* drain(consumer).pipe(
-            Effect.provideService(Worker.JobWorker, worker)
-          )
-        }).pipe(Effect.provide(Registry.layer))
+          const worker = yield* Worker.make(workerGroup, backend, {
+            queues: [{ queue: definition.queue }]
+          }).pipe(Effect.provide(workerGroup.toLayer({ generate: execute })))
+          return yield* worker.drain(definition.queue, { maxJobs: 1, recoveryLimit: 1 })
+        })
       )
     )
   const clear = async () => {
@@ -287,7 +286,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     )
     expect(
       JSON.parse(
-        readFileSync(new URL("./node_modules/pg/package.json", import.meta.url), "utf8")
+        readFileSync(createRequire(import.meta.url).resolve("pg/package.json"), "utf8")
       ).version
     ).toBe("8.23.0")
     const before = source.counters.borrows
@@ -337,6 +336,48 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         .rows[0].n
     ).toBe(1)
   })
+  test("recovery locks and changes only expired rows in the requested queue", async () => {
+    await clear()
+    const other = Job.make({
+      queue: Queue.make("billing-other"),
+      kind: definition.kind,
+      version: definition.version,
+      payload: definition.payload
+    })
+    const first = await Effect.runPromise(
+      backend.withTransaction(() => definition.enqueue(input("recover-billing")))
+    )
+    const second = await Effect.runPromise(
+      backend.withTransaction(() => other.enqueue(input("recover-other")))
+    )
+    expect((await Effect.runPromise(backend.store.claim(request())))._tag).toBe("Claimed")
+    expect(
+      (
+        await Effect.runPromise(
+          backend.store.claim({
+            queue: other.queue.name,
+            supportedCatalog: [other.catalog],
+            leaseToken: randomUUID()
+          })
+        )
+      )._tag
+    ).toBe("Claimed")
+    await observer.query(
+      "UPDATE backend_fixture.tasks SET lease_expires_at=1 WHERE id=ANY($1::text[])",
+      [[first.jobId, second.jobId]]
+    )
+    const before = await row("recover-other")
+    expect(
+      await Effect.runPromise(backend.store.recoverExpired(definition.queue.name, 1))
+    ).toBe(1)
+    expect((await row("recover-billing")).state).toBe("Pending")
+    expect(await row("recover-other")).toEqual(before)
+    expect(
+      await Effect.runPromise(backend.store.recoverExpired(other.queue.name, 1))
+    ).toBe(1)
+    expect((await row("recover-other")).state).toBe("Pending")
+  })
+
   test("installed neutral transaction through worker retry, unknown recovery, completion and bounded cleanup", async () => {
     await clear()
     const id = "pipeline"
@@ -391,7 +432,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       "UPDATE backend_fixture.tasks SET lease_expires_at=1 WHERE id=$1",
       [produced.jobId]
     )
-    expect(await Effect.runPromise(backend.store.recoverExpired(1))).toBe(1)
+    expect(
+      await Effect.runPromise(backend.store.recoverExpired(definition.queue.name, 1))
+    ).toBe(1)
     await observer.query("UPDATE backend_fixture.tasks SET available_at=1 WHERE id=$1", [
       produced.jobId
     ])
@@ -554,6 +597,146 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         .rows[0].n
     ).toBe(0)
   })
+  test("deployment budget incompatibility backs off without isolating or modifying retained jobs", async () => {
+    await clear()
+    await enqueue("retained-policy", "same")
+    const before = await row("retained-policy")
+    const incompatible = await Effect.runPromise(
+      Jobs.make({
+        ...mapping,
+        operationResponseBudgetMillis:
+          Policy.defaultPolicy.leaseDurationMillis -
+          Policy.defaultPolicy.attemptTimeoutMillis +
+          1
+      }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
+    )
+    const claimResult = await Effect.runPromise(
+      incompatible.store.claim(request()).pipe(Effect.result)
+    )
+    expect(claimResult).toMatchObject({
+      _tag: "Failure",
+      failure: { _tag: "JobPolicyIncompatible" }
+    })
+    expect(await row("retained-policy")).toEqual(before)
+    let executions = 0
+    const group = Group.make("retained-policy", { generate: definition })
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const blocked = yield* Worker.make(group, incompatible, {
+          queues: [{ queue: definition.queue }]
+        })
+        expect(yield* blocked.drain(definition.queue)).toMatchObject({
+          _tag: "Backoff",
+          phase: "claim",
+          claimed: 0
+        })
+        expect(yield* Effect.promise(() => row("retained-policy"))).toEqual(before)
+        expect(executions).toBe(0)
+        const restored = yield* Worker.make(group, backend, {
+          queues: [{ queue: definition.queue }]
+        })
+        expect(yield* restored.drain(definition.queue)).toMatchObject({
+          _tag: "Idle",
+          claimed: 1
+        })
+      }).pipe(
+        Effect.provide(
+          group.toLayer({
+            generate: () =>
+              Effect.sync(() => {
+                executions++
+              })
+          })
+        )
+      )
+    )
+    expect(executions).toBe(1)
+    expect((await row("retained-policy")).state).toBe("Completed")
+  })
+
+  test("new production validates the single storage response budget without persisting incompatible jobs", async () => {
+    await clear()
+    const overflowPolicy = await Effect.runPromise(
+      Policy.make({ leaseDuration: Duration.millis(Policy.maximumMillis) })
+    )
+    const overflow = Producer.make({
+      operation: "admission.fixture",
+      slots: {
+        generate: { job: definition, queue: definition.queue, policy: overflowPolicy }
+      }
+    })
+    expect(
+      await Effect.runPromise(
+        backend
+          .withTransaction(() =>
+            overflow.enqueue({
+              slot: "generate",
+              operationId: "admission-overflow",
+              payload: { invoiceId: "same" }
+            })
+          )
+          .pipe(Effect.result)
+      )
+    ).toMatchObject({ _tag: "Failure", failure: { _tag: "JobPolicyIncompatible" } })
+    expect(await row("admission-overflow")).toBeUndefined()
+    for (const reserve of [99, 100, 101]) {
+      const configured = await Effect.runPromise(
+        Policy.make({
+          leaseDuration: Duration.millis(
+            Policy.defaultPolicy.attemptTimeoutMillis + reserve
+          )
+        })
+      )
+      const route = Producer.make({
+        operation: "admission.fixture",
+        slots: {
+          generate: { job: definition, queue: definition.queue, policy: configured }
+        }
+      })
+      for (const mode of ["ambient", "explicit", "standalone"] as const) {
+        const operationId = `admission-${mode}-${reserve}`
+        const input = {
+          slot: "generate",
+          operationId,
+          payload: { invoiceId: "same" }
+        } as const
+        const produce: Effect.Effect<
+          EnqueueResult,
+          JobEnqueueError | JobBackendError | PostgreSqlError
+        > =
+          mode === "standalone"
+            ? route
+                .enqueueStandalone(input)
+                .pipe(Effect.provideService(JobEnqueue, backend.producer))
+            : mode === "explicit"
+              ? backend.withTransaction((tx) => route.enqueueInTransaction(tx, input))
+              : backend.withTransaction(() => route.enqueue(input))
+        const result = await Effect.runPromise(produce.pipe(Effect.result))
+        if (reserve < 100) {
+          expect(result).toMatchObject({
+            _tag: "Failure",
+            failure: { _tag: "JobPolicyIncompatible" }
+          })
+          expect(await row(operationId)).toBeUndefined()
+        } else {
+          expect(result).toMatchObject({ _tag: "Success", success: { _tag: "Inserted" } })
+          expect((await row(operationId)).policy).toEqual(configured)
+        }
+      }
+    }
+    expect(
+      (await observer.query("SELECT count(*)::int AS count FROM backend_fixture.tasks"))
+        .rows[0].count
+    ).toBe(6)
+    expect(
+      (
+        await observer.query(
+          "SELECT count(*)::int AS count FROM backend_fixture.task_artifacts"
+        )
+      ).rows[0].count
+    ).toBe(6)
+  })
+
   test("duplicate returns ID, preserves first payload/policy/availability; conflict aborts parent even when caught", async () => {
     await clear()
     const first = await enqueue("duplicate", "same", policy, 1)
@@ -565,6 +748,46 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     const before = await row("duplicate")
     const again = await enqueue("duplicate", "same", changed, 2)
     expect(again).toMatchObject({ _tag: "AlreadyPresent", jobId: first.jobId })
+    expect(await row("duplicate")).toEqual(before)
+    const incompatible = Producer.make({
+      operation: producer.operation,
+      slots: {
+        generate: {
+          job: definition,
+          queue: Queue.make("billing-new-route"),
+          policy: { ...changed, leaseDurationMillis: changed.attemptTimeoutMillis + 1 }
+        }
+      }
+    })
+    expect(
+      await Effect.runPromise(
+        backend.withTransaction(() =>
+          incompatible.enqueue({
+            slot: "generate",
+            operationId: "duplicate",
+            payload: { invoiceId: "same" }
+          })
+        )
+      )
+    ).toMatchObject({ _tag: "AlreadyPresent", jobId: first.jobId })
+    expect(await row("duplicate")).toEqual(before)
+    const rerouted = Producer.make({
+      operation: producer.operation,
+      slots: {
+        generate: { job: definition, queue: Queue.make("billing-slow"), policy: changed }
+      }
+    })
+    const movedRetry = await Effect.runPromise(
+      backend.withTransaction(() =>
+        rerouted.enqueue({
+          slot: "generate",
+          operationId: "duplicate",
+          payload: { invoiceId: "same" },
+          availableAt: 3
+        })
+      )
+    )
+    expect(movedRetry).toMatchObject({ _tag: "AlreadyPresent", jobId: first.jobId })
     expect(await row("duplicate")).toEqual(before)
     await expect(
       Effect.runPromise(
@@ -609,6 +832,47 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     )
     expect(exits.filter(Exit.isSuccess)).toHaveLength(1)
     expect(exits.filter(Exit.isFailure)).toHaveLength(1)
+  })
+  test("concurrent producer routing changes converge without changing the winner's route", async () => {
+    await clear()
+    const routes = ["billing", "billing-slow"].map((name) =>
+      Producer.make({
+        operation: producer.operation,
+        slots: { generate: { job: definition, queue: Queue.make(name), policy } }
+      })
+    )
+    const results = await Promise.all(
+      routes.map((route) =>
+        Effect.runPromise(
+          backend.withTransaction(() =>
+            route.enqueue({
+              slot: "generate",
+              operationId: "routing-race",
+              payload: { invoiceId: "same" }
+            })
+          )
+        )
+      )
+    )
+    expect(new Set(results.map((result) => result.jobId)).size).toBe(1)
+    expect(results.filter((result) => result._tag === "Inserted")).toHaveLength(1)
+    const winner = results.findIndex((result) => result._tag === "Inserted")
+    const before = await row("routing-race")
+    expect(before.queue).toBe(routes[winner]!.slots.generate.queue.name)
+    for (const route of routes) {
+      expect(
+        await Effect.runPromise(
+          backend.withTransaction(() =>
+            route.enqueue({
+              slot: "generate",
+              operationId: "routing-race",
+              payload: { invoiceId: "same" }
+            })
+          )
+        )
+      ).toMatchObject({ _tag: "AlreadyPresent", jobId: results[0]!.jobId })
+    }
+    expect(await row("routing-race")).toEqual(before)
   })
   test("omitted availability comes from database time; future/unsupported tuples remain untouched", async () => {
     await clear()
@@ -804,9 +1068,11 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
           )
       }
       const controlledBackend = await make(controlled)
-      expect(await Effect.runPromise(controlledBackend.store.recoverExpired(1))).toBe(
-        delta <= 0 ? 1 : 0
-      )
+      expect(
+        await Effect.runPromise(
+          controlledBackend.store.recoverExpired(definition.queue.name, 1)
+        )
+      ).toBe(delta <= 0 ? 1 : 0)
       expect((await row(`recovery-boundary-${delta}`)).state).toBe(
         delta <= 0 ? "Pending" : "Active"
       )
@@ -937,7 +1203,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       [first.ownership.jobId]
     )
     await expect(finish(first)).rejects.toMatchObject({ _tag: "JobOwnershipLost" })
-    expect(await Effect.runPromise(backend.store.recoverExpired(1))).toBe(1)
+    expect(
+      await Effect.runPromise(backend.store.recoverExpired(definition.queue.name, 1))
+    ).toBe(1)
     const recovered = await row("expired")
     expect(recovered.state).toBe("Pending")
     expect(Number(recovered.stalled_count)).toBe(1)
@@ -947,7 +1215,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       "UPDATE backend_fixture.tasks SET lease_expires_at=1 WHERE id=$1",
       [second.ownership.jobId]
     )
-    expect(await Effect.runPromise(backend.store.recoverExpired(1))).toBe(1)
+    expect(
+      await Effect.runPromise(backend.store.recoverExpired(definition.queue.name, 1))
+    ).toBe(1)
     expect(await row("expired")).toMatchObject({
       state: "Dead",
       last_failure_code: "stall_limit_exceeded"
@@ -1161,7 +1431,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         Adapter.make(source, () => (remaining-- > 0 ? fault : undefined))
       )
       await expect(
-        Effect.runPromise(faulted.store.recoverExpired(1))
+        Effect.runPromise(faulted.store.recoverExpired(definition.queue.name, 1))
       ).rejects.toMatchObject({ _tag: "PostgreSqlFailure", commitKnowledge: "Unknown" })
       expect(Number((await row(`recovery-${fault}`)).stalled_count)).toBe(
         fault === "after-durable" ? 1 : 0
@@ -1276,7 +1546,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       Effect.runPromise(backend.store.claim({ ...request(), supportedCatalog: [] }))
     ).rejects.toMatchObject({ _tag: "JobStoreProtocolError" })
     await expect(
-      Effect.runPromise(backend.store.recoverExpired(501))
+      Effect.runPromise(backend.store.recoverExpired(definition.queue.name, 501))
     ).rejects.toMatchObject({ _tag: "JobStoreProtocolError" })
     expect(source.counters.borrows).toBe(before)
     const clients = await Promise.all(Array.from({ length: 4 }, () => pool.connect()))

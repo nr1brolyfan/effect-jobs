@@ -8,7 +8,7 @@ import * as Codes from "../../../src/FailureCode.js"
 import { JobFailures } from "../../../src/JobFailure.js"
 import { encodeJobPayload } from "../../../src/JobPayloadCodec.js"
 import { withJoinedTransaction } from "../../../src/internal/JobTransaction.js"
-import { EnqueueResults, type EncodedJobPayload } from "../../../src/JobContract.js"
+import { EnqueueResult, type EncodedJobPayload } from "../../../src/JobContract.js"
 import { JobId } from "../../../src/JobId.js"
 
 it("deeply immutable defaults do not freeze or alter caller options", () => {
@@ -77,7 +77,7 @@ it("omitted version and standard encoder match explicit values; custom override 
       (prepared) =>
         Effect.sync(() => {
           artifacts.push(prepared.encoded)
-          return EnqueueResults.Inserted({ jobId: Schema.decodeSync(JobId)("job") })
+          return EnqueueResult.Inserted({ jobId: Schema.decodeSync(JobId)("job") })
         }),
       (tx) => job.enqueueInTransaction(tx, input)
     )

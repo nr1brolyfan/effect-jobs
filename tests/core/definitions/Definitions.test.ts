@@ -7,7 +7,7 @@ import * as JobProducer from "../../../src/JobProducer.js"
 import * as JobQueue from "../../../src/JobQueue.js"
 import * as JobRegistry from "../../../src/JobRegistry.js"
 import {
-  EnqueueResults,
+  EnqueueResult,
   JobPayloadCodecError,
   type EncodedJobPayload,
   type HandlerContext,
@@ -17,14 +17,17 @@ import {
 } from "../../../src/JobContract.js"
 import { JobFailures } from "../../../src/JobFailure.js"
 import { JobId } from "../../../src/JobId.js"
-import { InvalidOperationId, JobDeclarationError } from "../../../src/JobIdentity.js"
+import {
+  InvalidOperationId,
+  JobDeclarationError,
+  OperationId,
+  validateOperationId
+} from "../../../src/JobIdentity.js"
 import * as JobPolicy from "../../../src/JobPolicy.js"
 import type { JobsTransaction, JobEnqueueError } from "../../../src/JobTransaction.js"
 import { withJoinedTransaction } from "../../../src/internal/JobTransaction.js"
 
 const queue = JobQueue.make("billing")
-const producer = JobProducer.make({ operation: "billing.issue", slots: ["pdf", "email"] })
-const identity = producer.identity({ operationId: "operation", slot: "pdf" })
 const policy = JobPolicy.defaultPolicy
 const jobId = Schema.decodeSync(JobId)("generated-id")
 // Deliberately opaque test fixtures: only forwarding is qualified here, not codec bytes.
@@ -41,6 +44,11 @@ const job = Job.make({
   payload: Schema.Struct({ amount: Schema.Finite }),
   encodePayload: encode
 })
+const producer = JobProducer.make({
+  operation: "billing.issue",
+  slots: { pdf: { job, queue }, email: { job, queue } }
+})
+const identity = { operation: producer.operation, operationId: "operation", slot: "pdf" }
 const input = { producer: identity, payload: { amount: 1.5 }, policy }
 const context: HandlerContext = {
   jobId,
@@ -52,30 +60,31 @@ const failure = <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.flip(effect)
 
 describe("immutable declarations", () => {
   it("copies and freezes slots without freezing or retaining caller configuration", () => {
-    const slots = ["pdf", "email"]
+    const slots = {
+      pdf: { job, queue: JobQueue.make<string>("billing") },
+      email: { job, queue }
+    }
     const options = { operation: "billing.issue", slots }
     const declaration = JobProducer.make(options)
-    slots[0] = "sms"
+    slots.pdf = { job, queue: JobQueue.make("sms") }
     options.operation = "changed"
     expect(declaration.operation).toBe("billing.issue")
-    expect(declaration.slots).toEqual(["pdf", "email"])
+    expect(Object.keys(declaration.slots)).toEqual(["pdf", "email"])
+    expect(declaration.slots.pdf.queue.name).toBe("billing")
     expect(Object.isFrozen(declaration)).toBe(true)
     expect(Object.isFrozen(declaration.slots)).toBe(true)
-    expect(
-      Object.isFrozen(declaration.identity({ operationId: "op", slot: "pdf" }))
-    ).toBe(true)
-    expect(() => declaration.identity({ operationId: "op", slot: "sms" })).toThrow(
-      JobDeclarationError
-    )
+    expect(Object.isFrozen(declaration.slots.pdf)).toBe(true)
   })
 
   it.each([
-    { operation: "Bad", slots: ["pdf"] },
-    { operation: "ok", slots: [] },
-    { operation: "ok", slots: ["pdf", "pdf"] },
-    { operation: "ok", slots: ["pdf", "Bad"] }
+    { operation: "Bad", slots: { pdf: { job, queue } } },
+    { operation: "ok", slots: {} },
+    { operation: "ok", slots: { "pdf!": { job, queue } } },
+    { operation: "ok", slots: { Bad: { job, queue } } }
   ])("validates declarations synchronously: %j", (options) => {
-    expect(() => JobProducer.make(options)).toThrow(JobDeclarationError)
+    expect(() => JobProducer.make<string, JobProducer.Bindings>(options)).toThrow(
+      JobDeclarationError
+    )
   })
 
   it.each(["", "secret\u0000value", "\ud800", "x".repeat(257)])(
@@ -83,7 +92,7 @@ describe("immutable declarations", () => {
     (operationId) => {
       let caught: unknown
       try {
-        producer.identity({ operationId, slot: "pdf" })
+        validateOperationId(operationId)
       } catch (error) {
         caught = error
       }
@@ -94,9 +103,7 @@ describe("immutable declarations", () => {
   )
 
   it("preserves exact IDs and validates queue/catalog boundaries", () => {
-    expect(producer.identity({ operationId: " Opé ", slot: "email" }).operationId).toBe(
-      " Opé "
-    )
+    expect(Schema.decodeSync(OperationId)(" Opé ")).toBe(" Opé ")
     expect(() => JobQueue.make("Bad")).toThrow(JobQueue.InvalidJobQueue)
     expect(() => JobQueue.make("x".repeat(65))).toThrow(JobQueue.InvalidJobQueue)
     expect(() =>
@@ -153,7 +160,7 @@ describe("explicit transaction enqueue", () => {
       withJoinedTransaction(
         (value) => {
           prepared = value
-          return Effect.succeed(EnqueueResults.Inserted({ jobId }))
+          return Effect.succeed(EnqueueResult.Inserted({ jobId }))
         },
         (tx) => definition.enqueueInTransaction(tx, mutable)
       )
@@ -170,12 +177,12 @@ describe("explicit transaction enqueue", () => {
       withJoinedTransaction(
         (value) => {
           prepared = value
-          return Effect.succeed(EnqueueResults.Inserted({ jobId }))
+          return Effect.succeed(EnqueueResult.Inserted({ jobId }))
         },
         (tx) => job.enqueueInTransaction(tx, { ...input, availableAt: 12 })
       )
     )
-    expect(result).toEqual(EnqueueResults.Inserted({ jobId }))
+    expect(result).toEqual(EnqueueResult.Inserted({ jobId }))
     expect(prepared).toEqual({
       catalog: job.catalog,
       producer: identity,
@@ -196,7 +203,7 @@ describe("explicit transaction enqueue", () => {
       withJoinedTransaction(
         (value) => {
           prepared = value
-          return Effect.succeed(EnqueueResults.AlreadyPresent({ jobId }))
+          return Effect.succeed(EnqueueResult.AlreadyPresent({ jobId }))
         },
         (tx) => job.enqueueInTransaction(tx, input)
       )
@@ -239,7 +246,7 @@ describe("explicit transaction enqueue", () => {
           withJoinedTransaction(
             () => {
               calls++
-              return Effect.succeed(EnqueueResults.Inserted({ jobId }))
+              return Effect.succeed(EnqueueResult.Inserted({ jobId }))
             },
             (tx) => definition.enqueueInTransaction(tx, invalid)
           )
@@ -266,7 +273,7 @@ describe("explicit transaction enqueue", () => {
         withJoinedTransaction(
           () => {
             inserts++
-            return Effect.succeed(EnqueueResults.Inserted({ jobId }))
+            return Effect.succeed(EnqueueResult.Inserted({ jobId }))
           },
           (tx) => definition.enqueueInTransaction(tx, { ...input, payload: "x" })
         )
@@ -299,7 +306,7 @@ describe("explicit transaction enqueue", () => {
       withJoinedTransaction(
         () => {
           calls++
-          return Effect.succeed(EnqueueResults.Inserted({ jobId }))
+          return Effect.succeed(EnqueueResult.Inserted({ jobId }))
         },
         (tx) =>
           Effect.sync(() => {
@@ -362,7 +369,7 @@ describe("local registry and Layer dependencies", () => {
     })
     await Effect.runPromise(
       withJoinedTransaction(
-        () => Effect.succeed(EnqueueResults.Inserted({ jobId })),
+        () => Effect.succeed(EnqueueResult.Inserted({ jobId })),
         (tx) => definition.enqueueInTransaction(tx, { ...input, payload: "payload" })
       ).pipe(Effect.provideService(Encoding, { prefix: "encoded:" }))
     )

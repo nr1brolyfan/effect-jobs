@@ -405,7 +405,7 @@ for (const mode of [
         if (mode === "unavailable") {
           keys.outage(false)
           yield* TestClock.adjust("2 minutes")
-          assert.equal(yield* test.store.recoverExpired(1), 0)
+          assert.equal(yield* test.store.recoverExpired(definition.queue.name, 1), 0)
           const afterRecovery = yield* test.store.claim({
             queue: definition.queue.name,
             supportedCatalog: [definition.catalog],

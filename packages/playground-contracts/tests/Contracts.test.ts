@@ -117,8 +117,11 @@ describe("frozen playground boundaries", () => {
       version: 1
     })
     expect(
-      ScenarioProducer.identity({ operationId: "demo-request", slot: "execute" })
-        .operation
+      {
+        operation: ScenarioProducer.operation,
+        operationId: "demo-request",
+        slot: "execute"
+      }.operation
     ).toBe("playground.scenario")
   })
   it("supplies composable filtered reads and reconciliation-only notifications", async () => {
@@ -160,9 +163,9 @@ describe("frozen playground boundaries", () => {
           yield* TestClock.setTime(1)
           return yield* Effect.flatMap(JobsRead, (read) => read.list(context, query))
         }).pipe(
-          Effect.catchTag("PlaygroundError", (error) =>
-            Effect.succeed(toPublicError(error))
-          )
+          Effect.catchTags({
+            PlaygroundError: (error) => Effect.succeed(toPublicError(error))
+          })
         )
       )
       expect(result).toEqual({ code })
@@ -177,9 +180,9 @@ describe("frozen playground boundaries", () => {
     })
     const result = await run(
       Effect.flatMap(Scenarios, (service) => service.run(access, command)).pipe(
-        Effect.catchTag("PlaygroundError", (error) =>
-          Effect.succeed(toPublicError(error))
-        )
+        Effect.catchTags({
+          PlaygroundError: (error) => Effect.succeed(toPublicError(error))
+        })
       )
     )
     expect(result).toEqual({ code: "capability-unavailable" })

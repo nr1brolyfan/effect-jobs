@@ -8,6 +8,10 @@
   "sideEffects": false,
   "packageManager": "bun@1.4.2",
   "exports": {
+    "./JobGroup": {
+      "types": "./dist/JobGroup.d.ts",
+      "import": "./dist/JobGroup.js"
+    },
     "./PostgreSqlJobs": {
       "types": "./dist/PostgreSqlJobs.d.ts",
       "import": "./dist/PostgreSqlJobs.js"
@@ -28,13 +32,9 @@
       "types": "./dist/JobWorker.d.ts",
       "import": "./dist/JobWorker.js"
     },
-    "./JobWorkerRuntime": {
-      "types": "./dist/JobWorkerRuntime.d.ts",
-      "import": "./dist/JobWorkerRuntime.js"
-    },
-    "./PollingJobWorker": {
-      "types": "./dist/PollingJobWorker.d.ts",
-      "import": "./dist/PollingJobWorker.js"
+    "./JobPolling": {
+      "types": "./dist/JobPolling.d.ts",
+      "import": "./dist/JobPolling.js"
     },
     ".": {
       "types": "./dist/index.d.ts",
@@ -182,6 +182,7 @@
     "@effect/ai-openrouter": "4.1.0",
     "@effect/platform-node": "4.1.0",
     "@effect/platform-node-shared": "4.1.0",
+    "@effect/sql-pg": "4.1.0",
     "@effect/tsgo": "0.48.0",
     "@types/node": "26.4.1",
     "@types/pg": "8.20.0",

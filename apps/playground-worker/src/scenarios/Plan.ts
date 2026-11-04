@@ -7,12 +7,16 @@ import type { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import * as JobPolicy from "effect-jobs/JobPolicy"
 import * as Retry from "effect-jobs/JobRetryPolicy"
 import * as Definitions from "./Definitions.js"
+import type { ProducerIdentity } from "effect-jobs/JobIdentity"
 
 export class InvalidScenario extends Data.TaggedError("InvalidScenario")<{}> {}
 export interface PlannedJob {
   readonly workload: Definitions.Workload
   readonly payload: Definitions.Payload
-  readonly producer: ReturnType<typeof Definitions.Producer.identity>
+  readonly producer: ProducerIdentity<
+    typeof Definitions.Producer.operation,
+    Definitions.Workload
+  >
   readonly policy: JobPolicy.JobPolicy
   readonly availableAt?: number
 }
@@ -90,7 +94,11 @@ export const plan = Effect.fn("Playground.plan")(function* (
         tenant: (seed + index) % 2 === 0 ? "demo-tenant-a" : "demo-tenant-b",
         order: (seed + index) % 2 === 0 ? "demo-order-a" : "demo-order-b"
       },
-      producer: Definitions.Producer.identity({ operationId, slot: workload }),
+      producer: {
+        operation: Definitions.Producer.operation,
+        operationId,
+        slot: workload
+      },
       policy,
       ...(availableAt === undefined ? {} : { availableAt })
     })
@@ -99,10 +107,11 @@ export const plan = Effect.fn("Playground.plan")(function* (
   // by sequence while retaining the operation/request namespace on replay.
   return jobs.map((job) => ({
     ...job,
-    producer: Definitions.Producer.identity({
+    producer: {
+      operation: Definitions.Producer.operation,
       operationId: `${operationId}-${job.payload.sequence}`,
       slot: job.workload
-    })
+    }
   }))
 })
 
@@ -121,29 +130,30 @@ export const exportPayload = (
  * Do not run concurrently inside one transaction or convert a conflict into success.
  */
 export const enqueue = (job: PlannedJob) => {
+  const producer = Definitions.makeProducer(job.policy)
   const input = {
-    producer: job.producer,
-    policy: job.policy,
+    operationId: job.producer.operationId,
     payload: job.payload,
     ...(job.availableAt === undefined ? {} : { availableAt: job.availableAt })
   }
   switch (job.workload) {
     case "welcome-email":
-      return Definitions.WelcomeEmail.enqueue(input)
+      return producer.enqueue({ ...input, slot: "welcome-email" })
     case "image-processing":
-      return Definitions.ImageProcessing.enqueue(input)
+      return producer.enqueue({ ...input, slot: "image-processing" })
     case "webhook-delivery":
-      return Definitions.WebhookDelivery.enqueue(input)
+      return producer.enqueue({ ...input, slot: "webhook-delivery" })
     case "private-data-export":
       // All planner inputs are fixed synthetic data, including private sandboxes.
       // Keep the generic private-key catalog for existing artifacts and consumers.
-      return Definitions.SyntheticDocumentExport.enqueue({
+      return producer.enqueue({
         ...input,
+        slot: "private-data-export",
         payload: exportPayload(job.payload)
       })
     case "catalog-sync":
-      return Definitions.CatalogSync.enqueue(input)
+      return producer.enqueue({ ...input, slot: "catalog-sync" })
     case "simulated-payment":
-      return Definitions.SimulatedPayment.enqueue(input)
+      return producer.enqueue({ ...input, slot: "simulated-payment" })
   }
 }

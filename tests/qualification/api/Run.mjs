@@ -77,7 +77,7 @@ import * as Retry from "effect-jobs/JobRetryPolicy"
 import * as Codes from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
-import { EnqueueResults, type PreparedJob } from "effect-jobs/JobContract"
+import { EnqueueResult, type PreparedJob } from "effect-jobs/JobContract"
 import { JobOperators, JobOperatorExpected } from "effect-jobs/JobOperators"
 import { JobId } from "effect-jobs/JobId"
 import * as Registry from "effect-jobs/JobRegistry"
@@ -118,7 +118,7 @@ const input = { producer: { operation: "billing.issue", operationId: "id", slot:
   payload: { invoiceId: "public", document: { recipient: "PRIVATE fixture", total: 12n } } }
 const prepared: PreparedJob[] = []
 const backend = JobEnqueue.of({ enqueue: (prepare) => prepare.pipe(Effect.map((value) => {
-  prepared.push(value); return EnqueueResults.Inserted({ jobId: Schema.decodeSync(JobId)("fixture-job") })
+  prepared.push(value); return EnqueueResult.Inserted({ jobId: Schema.decodeSync(JobId)("fixture-job") })
 })), enqueueStandalone: () => Effect.die("fake backend does not qualify transactions") })
 for (const active of ["one", "one", "two"]) await Effect.runPromise(definition.enqueue(input).pipe(Effect.provideService(JobEnqueue, backend), Effect.provide(keysLayer(keys(active)))))
 assert.notDeepEqual(prepared[0]!.encoded.payloadBytes, prepared[1]!.encoded.payloadBytes)

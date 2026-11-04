@@ -31,27 +31,27 @@ const script = (
     claim: (input) =>
       Effect.sync(() => {
         calls.push(["claim", input])
-        return options.claim ?? S.ClaimResults.Unknown()
+        return options.claim ?? S.ClaimResult.Unknown()
       }),
     reconcileClaim: (input) =>
       Effect.sync(() => {
         calls.push(["claim-read", input])
-        return options.claimRead ?? S.ClaimReconciliations.Unknown()
+        return options.claimRead ?? S.ClaimReconciliation.Unknown()
       }),
     release: (input, phase) =>
       Effect.sync(() => {
         calls.push(["release", [input, phase]])
-        return options.release ?? S.FinalizationResults.Applied()
+        return options.release ?? S.FinalizationResult.Applied()
       }),
     finalize: (input) =>
       Effect.sync(() => {
         calls.push(["finalize", input])
-        return options.write?.[writes++] ?? S.FinalizationResults.Unknown()
+        return options.write?.[writes++] ?? S.FinalizationResult.Unknown()
       }),
     reconcileFinalization: (input) =>
       Effect.sync(() => {
         calls.push(["final-read", input])
-        return options.finalRead ?? S.FinalizationReconciliations.Unknown()
+        return options.finalRead ?? S.FinalizationReconciliation.Unknown()
       }),
     recoverExpired: () => Effect.die("Unexpected recovery")
   }
@@ -62,8 +62,8 @@ describe("bounded unknown reconciliation", () => {
   it.each(["Claimed", "Empty"] as const)("known %s skips reconciliation", (tag) => {
     const response =
       tag === "Claimed"
-        ? S.ClaimResults.Claimed({ claim: claimed() })
-        : S.ClaimResults.Empty()
+        ? S.ClaimResult.Claimed({ claim: claimed() })
+        : S.ClaimResult.Empty()
     const { store, calls } = script({ claim: response })
     expect(Effect.runSync(R.resolveClaim(store, request))._tag).toBe(
       tag === "Claimed" ? "Ready" : "Skipped"
@@ -75,12 +75,12 @@ describe("bounded unknown reconciliation", () => {
     (tag) => {
       const response =
         tag === "Owned"
-          ? S.ClaimReconciliations.Owned({ claim: claimed() })
+          ? S.ClaimReconciliation.Owned({ claim: claimed() })
           : tag === "InsufficientLease"
-            ? S.ClaimReconciliations.InsufficientLease({ ownership: ownership() })
+            ? S.ClaimReconciliation.InsufficientLease({ ownership: ownership() })
             : tag === "NotOwned"
-              ? S.ClaimReconciliations.NotOwned()
-              : S.ClaimReconciliations.Unknown()
+              ? S.ClaimReconciliation.NotOwned()
+              : S.ClaimReconciliation.Unknown()
       const { store, calls } = script({ claimRead: response })
       expect(Effect.runSync(R.resolveClaim(store, request))._tag).toBe(
         tag === "Owned" ? "Ready" : tag === "Unknown" ? "Deferred" : "Skipped"
@@ -98,14 +98,14 @@ describe("bounded unknown reconciliation", () => {
   )
   it("unknown release defers without another read/write", () => {
     const { store, calls } = script({
-      claimRead: S.ClaimReconciliations.InsufficientLease({ ownership: ownership() }),
-      release: S.FinalizationResults.Unknown()
+      claimRead: S.ClaimReconciliation.InsufficientLease({ ownership: ownership() }),
+      release: S.FinalizationResult.Unknown()
     })
     expect(Effect.runSync(R.resolveClaim(store, request))._tag).toBe("Deferred")
     expect(calls).toHaveLength(3)
   })
   it("known finalization is applied without a read", () => {
-    const { store, calls } = script({ write: [S.FinalizationResults.Applied()] })
+    const { store, calls } = script({ write: [S.FinalizationResult.Applied()] })
     expect(Effect.runSync(R.resolveFinalization(store, finalizationRequest()))).toBe(
       "Applied"
     )
@@ -114,7 +114,7 @@ describe("bounded unknown reconciliation", () => {
   it.each(["Applied", "OwnershipLost", "Unknown", "StillOwned"] as const)(
     "unknown finalization read %s",
     (tag) => {
-      const response = S.FinalizationReconciliations[tag]()
+      const response = S.FinalizationReconciliation[tag]()
       const { store, calls } = script({ finalRead: response })
       const input = finalizationRequest()
       expect(Effect.runSync(R.resolveFinalization(store, input))).toBe(
@@ -136,8 +136,8 @@ describe("bounded unknown reconciliation", () => {
   )
   it("one identical finalization retry can succeed", () => {
     const { store, calls } = script({
-      finalRead: S.FinalizationReconciliations.StillOwned(),
-      write: [S.FinalizationResults.Unknown(), S.FinalizationResults.Applied()]
+      finalRead: S.FinalizationReconciliation.StillOwned(),
+      write: [S.FinalizationResult.Unknown(), S.FinalizationResult.Applied()]
     })
     expect(Effect.runSync(R.resolveFinalization(store, finalizationRequest()))).toBe(
       "Applied"

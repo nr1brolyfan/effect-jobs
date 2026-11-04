@@ -36,42 +36,25 @@ const library = (name) =>
           )
     ).href
   )
-const [Job, JobQueue, Codec, Policy, Registry, Worker, Runtime, Consumer] =
-  await Promise.all(
-    [
-      "Job",
-      "JobQueue",
-      "JobPayloadCodec",
-      "JobPolicy",
-      "JobRegistry",
-      "JobWorker",
-      "JobWorkerRuntime",
-      "JobConsumer"
-    ].map(library)
+const [Job, JobQueue, Codec, Policy, Group, Worker] = await Promise.all(
+  ["Job", "JobQueue", "JobPayloadCodec", "JobPolicy", "JobGroup", "JobWorker"].map(
+    library
   )
+)
 const queue = JobQueue.make("load-proof")
 const definition = Job.make({ queue, kind: "load-proof", payload: Schema.String })
-const consumer = Effect.runSync(
-  Consumer.make(queue, {
-    localConcurrency: 1,
-    claimLimitPerRun: 1,
-    recoveryLimitPerRun: 1
-  })
-)
+const group = Group.make("load-proof", { synthetic: definition })
 const runJob = () =>
   Effect.gen(function* () {
     const encoded = yield* Codec.encodeJobPayload(definition.payload, "synthetic")
     let invoked = 0
     let finalized = false
-    yield* Layer.build(
-      definition.handlerLayer(
-        () =>
-          Effect.sync(() => {
-            invoked++
-          }),
-        Codec.decodeJobPayload
-      )
-    )
+    const handlers = group.toLayer({
+      synthetic: () =>
+        Effect.sync(() => {
+          invoked++
+        })
+    })
     const store = {
       recoverExpired: () => Effect.succeed(0),
       claim: (request) =>
@@ -119,15 +102,21 @@ const runJob = () =>
       reconcileClaim: () => Effect.succeed({ _tag: "Unknown" }),
       reconcileFinalization: () => Effect.succeed({ _tag: "Unknown" })
     }
-    const worker = yield* Worker.make(store, {
-      catalog: [definition],
-      operationResponseBudgetMillis: 100
-    })
-    yield* Runtime.drain(consumer).pipe(Effect.provideService(Worker.JobWorker, worker))
+    const worker = yield* Worker.make(
+      group,
+      {
+        store,
+        operationResponseBudgetMillis: 100
+      },
+      { queues: [{ queue }] }
+    ).pipe(Effect.provide(handlers))
+    yield* Worker.drain(queue, { maxJobs: 1, recoveryLimit: 1 }).pipe(
+      Effect.provideService(Worker.JobWorker, worker)
+    )
     assert.equal(invoked, 1)
     assert.equal(finalized, true)
     return { invoked, finalized }
-  }).pipe(Effect.provide(Registry.layer))
+  })
 const limits = BoundedSink.limits
 const report = { runtime: process.version, bun: process.versions.bun, limits, cases: [] }
 for (const fault of ["slow", "offline"]) {

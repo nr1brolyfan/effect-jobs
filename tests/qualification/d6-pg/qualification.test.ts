@@ -34,12 +34,15 @@ const definition = Job.make({
   payload: Schema.Struct({ invoiceId: Schema.String }),
   encodePayload: encodeJobPayload
 })
-const producer = Producer.make({ operation: "billing.issue", slots: ["generate"] })
+const producer = Producer.make({
+  operation: "billing.issue",
+  slots: { generate: { job: definition, queue: definition.queue } }
+})
 class CallerValue extends Context.Service<CallerValue, { readonly value: number }>()(
   "d6/CallerValue"
 ) {}
 const input = (id: string, payload = id) => ({
-  producer: producer.identity({ operationId: id, slot: "generate" }),
+  producer: { operation: producer.operation, operationId: id, slot: "generate" },
   payload: { invoiceId: payload },
   policy: Policy.defaultPolicy
 })

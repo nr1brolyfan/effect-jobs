@@ -6,11 +6,13 @@ import type { Effect } from "effect"
 import type {
   EnqueueResult,
   JobIntegrityConflict,
+  JobPolicyIncompatible,
   PreparedJob,
   InvalidJobInput,
   JobPayloadCodecError
 } from "./JobContract.js"
 import type { JobsTransactionTypeId } from "./internal/JobTransaction.js"
+import type { InvalidOperationId } from "./JobIdentity.js"
 
 /**
  * Typed failure when enqueue runs after its backend callback has exited.
@@ -33,9 +35,14 @@ export class JobsTransactionClosed extends Data.TaggedError("JobsTransactionClos
  */
 export interface JobsTransaction<E = never, R = never> {
   readonly [JobsTransactionTypeId]: {
+    readonly assertActive: Effect.Effect<void, JobsTransactionClosed>
     readonly insertOrCompare: (
       prepared: PreparedJob
-    ) => Effect.Effect<EnqueueResult, E | JobIntegrityConflict | JobsTransactionClosed, R>
+    ) => Effect.Effect<
+      EnqueueResult,
+      E | JobIntegrityConflict | JobPolicyIncompatible | JobsTransactionClosed,
+      R
+    >
   }
 }
 /**
@@ -45,8 +52,10 @@ export interface JobsTransaction<E = never, R = never> {
  */
 export type JobEnqueueError =
   | InvalidJobInput
+  | InvalidOperationId
   | JobPayloadCodecError
   | JobIntegrityConflict
+  | JobPolicyIncompatible
   | JobsTransactionClosed
 
 /**

@@ -1,5 +1,8 @@
 import { Effect, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
+import * as JobGroup from "effect-jobs/JobGroup"
+import type { JobPolicy } from "effect-jobs/JobPolicy"
+import { defaultPolicy } from "effect-jobs/JobPolicy"
 import * as JobProducer from "effect-jobs/JobProducer"
 import * as JobQueue from "effect-jobs/JobQueue"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
@@ -113,17 +116,19 @@ export const SyntheticDocumentExport = Job.make({
   kind: "playground.synthetic-document-export",
   payload: SyntheticExportPayload
 })
-export const Producer = JobProducer.make({
-  operation: "playground.synthetic",
-  slots: [
-    "welcome-email",
-    "image-processing",
-    "webhook-delivery",
-    "private-data-export",
-    "catalog-sync",
-    "simulated-payment"
-  ]
-})
+export const makeProducer = (policy: JobPolicy = defaultPolicy) =>
+  JobProducer.make({
+    operation: "playground.synthetic",
+    slots: {
+      "welcome-email": { job: WelcomeEmail, queue: communications, policy },
+      "image-processing": { job: ImageProcessing, queue: media, policy },
+      "webhook-delivery": { job: WebhookDelivery, queue: communications, policy },
+      "private-data-export": { job: SyntheticDocumentExport, queue: privateData, policy },
+      "catalog-sync": { job: CatalogSync, queue: commerce, policy },
+      "simulated-payment": { job: SimulatedPayment, queue: commerce, policy }
+    }
+  })
+export const Producer = makeProducer()
 
 export const definitions = [
   WelcomeEmail,
@@ -134,3 +139,13 @@ export const definitions = [
   SimulatedPayment,
   SyntheticDocumentExport
 ] as const
+
+export const group = JobGroup.make("playground-scenarios", {
+  welcomeEmail: WelcomeEmail,
+  imageProcessing: ImageProcessing,
+  webhookDelivery: WebhookDelivery,
+  privateDataExport: PrivateDataExport,
+  catalogSync: CatalogSync,
+  simulatedPayment: SimulatedPayment,
+  syntheticDocumentExport: SyntheticDocumentExport
+})

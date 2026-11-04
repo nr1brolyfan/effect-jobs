@@ -12,8 +12,12 @@ type AssertNever<T extends never> = T
 // @ts-expect-error Encrypted encoding cannot lose the application key requirement.
 export type MissingKeys = AssertNever<Effect.Services<typeof encoded>>
 
-// @ts-expect-error Producer slots are closed application declarations.
-Definitions.Producer.identity({ operationId: "synthetic", slot: "real-payment" })
+export const invalidProducerSlot = Definitions.Producer.enqueue({
+  operationId: "synthetic",
+  // @ts-expect-error Producer slots are closed application declarations.
+  slot: "real-payment",
+  payload: {} as Definitions.Payload
+})
 
 // @ts-expect-error Private export always requires a decoded typed document.
 export const missingDocument: Definitions.ExportPayload = {} as Definitions.Payload

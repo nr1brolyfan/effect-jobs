@@ -9,11 +9,11 @@ import * as Retry from "../../../src/JobRetryPolicy.js"
 import * as Codec from "../../../src/JobPayloadCodec.js"
 import * as Codes from "../../../src/FailureCode.js"
 import * as Registry from "../../../src/JobRegistry.js"
-import * as Worker from "../../../src/JobWorker.js"
+import * as Worker from "./ProtocolWorker.js"
 import * as Consumer from "../../../src/JobConsumer.js"
-import * as Runtime from "../../../src/JobWorkerRuntime.js"
+import * as Runtime from "./ProtocolWorker.js"
 import { JobFailures } from "../../../src/JobFailure.js"
-import { FinalizationResults } from "../../../src/JobStore.js"
+import { FinalizationResult } from "../../../src/JobStore.js"
 import type { FinalizationRequest } from "../../../src/JobStore.js"
 import { harness } from "./Harness.js"
 
@@ -57,8 +57,8 @@ it.each([
             return test.store.finalize(request)
           }
           return scenario.loss === "before-commit"
-            ? Effect.succeed(FinalizationResults.Unknown())
-            : test.store.finalize(request).pipe(Effect.as(FinalizationResults.Unknown()))
+            ? Effect.succeed(FinalizationResult.Unknown())
+            : test.store.finalize(request).pipe(Effect.as(FinalizationResult.Unknown()))
         }
       }
       let handlerCalls = 0

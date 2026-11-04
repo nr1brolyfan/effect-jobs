@@ -14,11 +14,10 @@ import { TestClock } from "effect/testing"
 import { it } from "vitest"
 import * as Job from "../../../src/Job.js"
 import * as Queue from "../../../src/JobQueue.js"
-import * as Consumer from "../../../src/JobConsumer.js"
+import * as Group from "../../../src/JobGroup.js"
 import * as Codec from "../../../src/JobPayloadCodec.js"
-import { JobRegistry, layer as registryLayer } from "../../../src/JobRegistry.js"
 import * as Worker from "../../../src/JobWorker.js"
-import { layerForPlan } from "../../../src/PollingJobWorker.js"
+import * as Polling from "../../../src/JobPolling.js"
 import { harness, policy } from "./Harness.js"
 import { JobOwnershipLost } from "../../../src/JobStore.js"
 import type { JobStoreService } from "../../../src/JobStore.js"
@@ -31,38 +30,35 @@ const job = Job.make({
   payload: Schema.Struct({ value: Schema.String }),
   encodePayload: Codec.encodeJobPayload
 })
-const consumer = Effect.runSync(
-  Consumer.make(queue, {
-    localConcurrency: 2,
-    claimLimitPerRun: 2,
-    recoveryLimitPerRun: 1
-  })
-)
-const plan = Effect.runSync(Consumer.plan(consumer))
+const group = Group.make("polling", { neutral: job })
+const handlers = group.toLayer({ neutral: () => Effect.void })
+const pollingOptions = { maxJobs: 2, recoveryLimit: 1 }
 const random = (value: number) =>
   Effect.provideService(Random.Random, {
     nextDoubleUnsafe: () => value,
     nextIntUnsafe: () => Math.floor(value * 2 ** 32)
   })
-const run = <A, E>(program: Effect.Effect<A, E, JobRegistry | Scope.Scope>, value = 0) =>
+const run = <A, E>(program: Effect.Effect<A, E, Scope.Scope>, value = 0) =>
   Effect.runPromise(
     program.pipe(
-      Effect.provide(Layer.mergeAll(registryLayer, TestClock.layer(), Logger.layer([]))),
+      Effect.provide(Layer.mergeAll(TestClock.layer(), Logger.layer([]))),
       random(value),
       Effect.scoped
     )
   )
 const make = (store: JobStoreService<unknown>) =>
-  Effect.gen(function* () {
-    yield* Layer.build(job.handlerLayer(() => Effect.void, Codec.decodeJobPayload))
-    return yield* Worker.make(store, {
-      catalog: [job],
-      operationResponseBudgetMillis: 100
-    })
-  })
+  Worker.make(
+    group,
+    { store, operationResponseBudgetMillis: 100 },
+    {
+      queues: [{ queue, concurrency: 2 }]
+    }
+  ).pipe(Effect.provide(handlers))
 const start = (worker: Worker.JobWorkerService) =>
   Layer.build(
-    layerForPlan(plan).pipe(Layer.provide(Layer.succeed(Worker.JobWorker, worker)))
+    Polling.layer([queue], pollingOptions).pipe(
+      Layer.provide(Layer.succeed(Worker.JobWorker, worker))
+    )
   )
 
 it("performs one recovery and one empty claim, idles, and closes all polling work", async () => {
@@ -187,25 +183,44 @@ it("validates every plan queue before spawning loops and rejects invalid polling
     Effect.gen(function* () {
       const test = harness()
       const worker = yield* make(test.store)
-      const missing = yield* Consumer.make(Queue.make("missing"), {
-        localConcurrency: 1,
-        claimLimitPerRun: 1,
-        recoveryLimitPerRun: 1
-      })
-      const mixed = yield* Consumer.plan(consumer, missing)
+      const mixed = [queue, Queue.make("missing")]
       const failed = yield* Layer.build(
-        layerForPlan(mixed).pipe(Layer.provide(Layer.succeed(Worker.JobWorker, worker)))
+        Polling.layer(mixed, pollingOptions).pipe(
+          Layer.provide(Layer.succeed(Worker.JobWorker, worker))
+        )
       ).pipe(Effect.result)
       assert.equal(failed._tag, "Failure")
       assert.equal(test.calls.claims.length, 0)
-      for (const idlePollMillis of [0, -1, 0.5, Infinity, NaN]) {
+      for (const queues of [[], [queue, queue]]) {
         const result = yield* Layer.build(
-          layerForPlan(plan, { idlePollMillis }).pipe(
+          Polling.layer(queues).pipe(
             Layer.provide(Layer.succeed(Worker.JobWorker, worker))
           )
         ).pipe(Effect.result)
         assert.equal(result._tag, "Failure")
       }
+      for (const options of [
+        { maxJobs: 0 },
+        { recoveryLimit: 10_001 },
+        { ...pollingOptions, concurrency: 8 }
+      ]) {
+        const result = yield* Layer.build(
+          Polling.layer([queue], options).pipe(
+            Layer.provide(Layer.succeed(Worker.JobWorker, worker))
+          )
+        ).pipe(Effect.result)
+        assert.equal(result._tag, "Failure")
+      }
+      for (const idlePollMillis of [0, -1, 0.5, Infinity, NaN]) {
+        const result = yield* Layer.build(
+          Polling.layer([queue], { ...pollingOptions, idlePollMillis }).pipe(
+            Layer.provide(Layer.succeed(Worker.JobWorker, worker))
+          )
+        ).pipe(Effect.result)
+        assert.equal(result._tag, "Failure")
+      }
+      assert.equal(test.calls.claims.length, 0)
+      assert.equal(test.calls.recoveries.length, 0)
     })
   )
 })
@@ -216,10 +231,7 @@ it("runs parallel plans on independent runtime capabilities without a global cat
       const first = harness()
       const second = harness()
       const firstWorker = yield* make(first.store)
-      const secondWorker = yield* Worker.make(second.store, {
-        catalog: [job],
-        operationResponseBudgetMillis: 100
-      })
+      const secondWorker = yield* make(second.store)
       yield* start(firstWorker)
       yield* start(secondWorker)
       yield* Effect.yieldNow
@@ -243,7 +255,6 @@ it("captures provider requirements once at worker construction, not as ambient p
   await run(
     Effect.gen(function* () {
       const test = harness()
-      yield* Layer.build(job.handlerLayer(() => Effect.void, Codec.decodeJobPayload))
       const store: JobStoreService<JobOwnershipLost, Connection> = {
         ...test.store,
         claim: (request) =>
@@ -253,10 +264,17 @@ it("captures provider requirements once at worker construction, not as ambient p
             return yield* test.store.claim(request)
           })
       }
-      const worker = yield* Worker.make(store, {
-        catalog: [job],
-        operationResponseBudgetMillis: 100
-      }).pipe(Effect.provideService(Connection, { marker: "borrowed" }))
+      const worker = yield* Worker.make(
+        group,
+        {
+          store,
+          operationResponseBudgetMillis: 100
+        },
+        { queues: [{ queue, concurrency: 2 }] }
+      ).pipe(
+        Effect.provide(handlers),
+        Effect.provideService(Connection, { marker: "borrowed" })
+      )
       yield* start(worker)
       yield* Effect.yieldNow
       assert.equal(test.calls.claims.length, 1)
@@ -279,27 +297,28 @@ it("closes active executions with the polling scope and never releases after exe
       const reached = yield* Deferred.make<void>()
       let handlers = 0
       let stopped = 0
-      yield* Layer.build(
-        job.handlerLayer(
-          () =>
-            Effect.sync(() => {
-              handlers++
-            }).pipe(
-              Effect.andThen(Deferred.succeed(reached, undefined)),
-              Effect.andThen(Effect.never),
-              Effect.ensuring(
-                Effect.sync(() => {
-                  stopped++
-                })
-              )
-            ),
-          Codec.decodeJobPayload
-        )
-      )
-      const worker = yield* Worker.make(test.store, {
-        catalog: [job],
-        operationResponseBudgetMillis: 100
+      const activeHandlers = group.toLayer({
+        neutral: () =>
+          Effect.sync(() => {
+            handlers++
+          }).pipe(
+            Effect.andThen(Deferred.succeed(reached, undefined)),
+            Effect.andThen(Effect.never),
+            Effect.ensuring(
+              Effect.sync(() => {
+                stopped++
+              })
+            )
+          )
       })
+      const worker = yield* Worker.make(
+        group,
+        {
+          store: test.store,
+          operationResponseBudgetMillis: 100
+        },
+        { queues: [{ queue, concurrency: 2 }] }
+      ).pipe(Effect.provide(activeHandlers))
       const scope = yield* Scope.make()
       yield* Scope.provide(scope)(start(worker))
       yield* Deferred.await(reached)

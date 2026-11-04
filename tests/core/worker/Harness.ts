@@ -3,10 +3,10 @@ import { JobId } from "../../../src/JobId.js"
 import * as Lifecycle from "../../../src/JobLifecycle.js"
 import * as Policy from "../../../src/JobPolicy.js"
 import {
-  ClaimResults,
-  ClaimReconciliations,
-  FinalizationResults,
-  FinalizationReconciliations,
+  ClaimResult,
+  ClaimReconciliation,
+  FinalizationResult,
+  FinalizationReconciliation,
   JobOwnershipLost
 } from "../../../src/JobStore.js"
 import type { PreparedJob } from "../../../src/JobContract.js"
@@ -83,25 +83,25 @@ export const harness = (prepared: ReadonlyArray<PreparedJob> = []) => {
           )
         })
         if (row === undefined) {
-          return ClaimResults.Empty()
+          return ClaimResult.Empty()
         }
         const next = Lifecycle.claim(row.snapshot, request.leaseToken, now, 100)
         if (Result.isFailure(next)) {
-          return ClaimResults.Empty()
+          return ClaimResult.Empty()
         }
         row.snapshot = next.success
-        return ClaimResults.Claimed({ claim: claimOf(row) })
+        return ClaimResult.Claimed({ claim: claimOf(row) })
       }),
     reconcileClaim: (token) =>
       atomic((now) => {
         calls.claimReconciliations.push(token)
         const row = rows.find((row) => row.snapshot.leaseToken === token)
         if (row === undefined) {
-          return ClaimReconciliations.NotOwned()
+          return ClaimReconciliation.NotOwned()
         }
         return Lifecycle.usableLease(row.snapshot, now, 100)
-          ? ClaimReconciliations.Owned({ claim: claimOf(row) })
-          : ClaimReconciliations.InsufficientLease({ ownership: claimOf(row).ownership })
+          ? ClaimReconciliation.Owned({ claim: claimOf(row) })
+          : ClaimReconciliation.InsufficientLease({ ownership: claimOf(row).ownership })
       }),
     release: (ownership, phase) =>
       atomic((now) => {
@@ -116,7 +116,7 @@ export const harness = (prepared: ReadonlyArray<PreparedJob> = []) => {
       }).pipe(
         Effect.flatMap((applied) =>
           applied
-            ? Effect.succeed(FinalizationResults.Applied())
+            ? Effect.succeed(FinalizationResult.Applied())
             : Effect.fail(new JobOwnershipLost())
         )
       ),
@@ -138,7 +138,7 @@ export const harness = (prepared: ReadonlyArray<PreparedJob> = []) => {
       }).pipe(
         Effect.flatMap((applied) =>
           applied
-            ? Effect.succeed(FinalizationResults.Applied())
+            ? Effect.succeed(FinalizationResult.Applied())
             : Effect.fail(new JobOwnershipLost())
         )
       ),
@@ -147,7 +147,7 @@ export const harness = (prepared: ReadonlyArray<PreparedJob> = []) => {
         calls.finalizationReconciliations.push(request)
         const row = rows.find((row) => row.snapshot.jobId === request.ownership.jobId)!
         if (Lifecycle.isOwned(row.snapshot, request.ownership, now)) {
-          return FinalizationReconciliations.StillOwned()
+          return FinalizationReconciliation.StillOwned()
         }
         const expected = Lifecycle.finalize(
           request.before,
@@ -157,14 +157,17 @@ export const harness = (prepared: ReadonlyArray<PreparedJob> = []) => {
         )
         return Result.isSuccess(expected) &&
           snapshotEquals(expected.success, row.snapshot)
-          ? FinalizationReconciliations.Applied()
-          : FinalizationReconciliations.OwnershipLost()
+          ? FinalizationReconciliation.Applied()
+          : FinalizationReconciliation.OwnershipLost()
       }),
-    recoverExpired: (limit) =>
+    recoverExpired: (queue, limit) =>
       atomic((now) => {
         calls.recoveries.push(limit)
         let count = 0
         for (const row of rows) {
+          if ((row.prepared as PreparedJob).catalog.queue !== queue) {
+            continue
+          }
           if (count === limit) {
             break
           }

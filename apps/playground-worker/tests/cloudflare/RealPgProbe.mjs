@@ -20,8 +20,7 @@ import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import * as Job from "effect-jobs/Job"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Policy from "effect-jobs/JobPolicy"
-import * as Codec from "effect-jobs/JobPayloadCodec"
-import * as Registry from "effect-jobs/JobRegistry"
+import * as Group from "effect-jobs/JobGroup"
 import * as Worker from "effect-jobs/JobWorker"
 import * as Consumer from "effect-jobs/JobConsumer"
 import * as Wake from "../../src/cloudflare/WakeCycle.js"
@@ -181,7 +180,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         assert(
           Exit.isFailure(yield* Effect.exit(finish(old.claim, { _tag: "Complete" })))
         )
-        assert.equal(yield* backend.store.recoverExpired(1), 1)
+        assert.equal(yield* backend.store.recoverExpired(definition.queue.name, 1), 1)
         const fresh = yield* claim()
         assert.equal(fresh._tag, "Claimed")
         assert.notEqual(fresh.claim.ownership.leaseToken, old.claim.ownership.leaseToken)
@@ -215,20 +214,18 @@ export const probe = (url, schema, alarm, checks = []) =>
         checks.push("interruption during genuine SQL; rollback and reusable client")
         yield* definition.enqueueStandalone(input("worker"))
         let calls = 0
-        const worker = Worker.layer(backend.store, {
-          catalog: [definition],
-          operationResponseBudgetMillis: 500
+        const group = Group.make("cloudflare-real-pg", { synthetic: definition })
+        const worker = Worker.layer(group, backend, {
+          queues: [{ queue: definition.queue, concurrency: 2 }]
         }).pipe(
           Layer.provide(
-            definition.handlerLayer(
-              () =>
+            group.toLayer({
+              synthetic: () =>
                 Effect.sync(() => {
                   calls++
-                }),
-              Codec.decodeJobPayload
-            )
-          ),
-          Layer.provide(Registry.layer)
+                })
+            })
+          )
         )
         const consumer = yield* Consumer.make(definition.queue, {
           localConcurrency: 2,

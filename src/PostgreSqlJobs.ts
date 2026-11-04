@@ -4,7 +4,7 @@ import { makeHealth } from "./internal/postgresql/Health.js"
  */
 import { JobOperators, type JobOperatorsService } from "./JobOperators.js"
 import { makeOperators } from "./internal/postgresql/Operators.js"
-import { JobIntegrityConflict } from "./JobContract.js"
+import { JobIntegrityConflict, JobPolicyIncompatible } from "./JobContract.js"
 import { PostgreSqlFailure, PostgreSqlInvalidHandle } from "./PostgreSqlTransaction.js"
 import { Cause, Context, Effect, Layer, Schema } from "effect"
 import { JobBackendError, JobEnqueue, type JobEnqueueService } from "./JobEnqueue.js"
@@ -19,7 +19,11 @@ import {
   type Tables
 } from "./PostgreSqlSchema.js"
 import type { JobCleanupService, JobStoreService } from "./JobStore.js"
-import { withJoinedTransaction } from "./internal/JobTransaction.js"
+import {
+  insertPreparing,
+  JobsTransactionTypeId,
+  withJoinedTransaction
+} from "./internal/JobTransaction.js"
 import { insertOrCompare } from "./internal/postgresql/Producer.js"
 import { makeCleanup, makeStore } from "./internal/postgresql/Store.js"
 import { ready } from "./internal/postgresql/Readiness.js"
@@ -37,6 +41,31 @@ const backendError = (error: PostgreSqlError): JobBackendError =>
     commitKnowledge:
       error._tag === "PostgreSqlFailure" ? error.commitKnowledge : "NotCommitted"
   })
+
+/** Ambient production inside a bridge is bound to its validated callback invocation. */
+const transactionProducer = (
+  tx: JobsTransaction<PostgreSqlError>
+): JobEnqueueService => ({
+  enqueue: (prepared) =>
+    insertPreparing(tx, prepared).pipe(
+      Effect.mapError((error) =>
+        error instanceof PostgreSqlFailure || error instanceof PostgreSqlInvalidHandle
+          ? backendError(error)
+          : error
+      )
+    ),
+  enqueueStandalone: () =>
+    tx[JobsTransactionTypeId].assertActive.pipe(
+      Effect.andThen(
+        Effect.fail(
+          new JobBackendError({
+            reason: "active-transaction",
+            commitKnowledge: "NotCommitted"
+          })
+        )
+      )
+    )
+})
 
 const neutralOperators = (
   operators: JobOperatorsService<PostgreSqlError>
@@ -104,12 +133,12 @@ const neutralOperators = (
 })
 
 /**
- * Storage mapping and positive operation response budget; match the worker budget.
+ * Storage mapping and its single positive operation response budget.
  *
  * @category models
  */
 export interface Options extends TableOptions {
-  /** Positive integer reserve matching Worker options, within the remaining stored lease. */
+  /** Positive integer reserve used by claim admission and worker execution. */
   readonly operationResponseBudgetMillis: number
 }
 /**
@@ -119,6 +148,8 @@ export interface Options extends TableOptions {
  * @category models
  */
 export interface Backend {
+  /** Shared execution reserve, resolved once with this storage configuration. */
+  readonly operationResponseBudgetMillis: number
   /** Explicit bounded schema/index introspection; never creates or migrates storage. */
   readonly ready: Effect.Effect<void, PostgreSqlError>
   readonly tables: Tables
@@ -131,7 +162,8 @@ export interface Backend {
   readonly cleanup: JobCleanupService<PostgreSqlError>
   /** Opt-in read-only bounded health sample; app selects ONE reporter per queue/storage. */
   readonly health: ReturnType<typeof makeHealth>
-  /** Joins the adapter-registered exact active source/connection. No BEGIN/savepoint,
+  /** Joins the adapter-registered exact active source/connection and supplies an
+   * invocation-bound JobEnqueue service. No BEGIN/savepoint,
    * independent commit or replay. Sequence enqueue inside this callback; its capability
    * closes on exit and success remains provisional until outer commit.
    *
@@ -152,7 +184,7 @@ export interface Backend {
   readonly joinTransaction: <A, E, R>(
     handle: unknown,
     body: (tx: JobsTransaction<PostgreSqlError>) => Effect.Effect<A, E, R>
-  ) => Effect.Effect<A, E | PostgreSqlError, R>
+  ) => Effect.Effect<A, E | PostgreSqlError, Exclude<R, JobEnqueue>>
   /** Delegates join-or-establish to the application manager, then supplies the scoped
    * enqueue capability. Does not reconcile or replay unknown application commits. */
   readonly withTransaction: <A, E, R>(
@@ -190,16 +222,17 @@ export const make = (options: Options) =>
     }
     const { jobs, payloads } = relations(mapping)
     const joinTransaction: Backend["joinTransaction"] = (handle, body) =>
-      adapter
-        .validate(handle)
-        .pipe(
-          Effect.flatMap((query) =>
-            withJoinedTransaction(
-              (prepared) => insertOrCompare(query, jobs, payloads, prepared),
-              body
-            )
+      adapter.validate(handle).pipe(
+        Effect.flatMap((query) =>
+          withJoinedTransaction(
+            (prepared) => insertOrCompare(query, jobs, payloads, prepared, budget),
+            (tx) =>
+              Effect.suspend(() => body(tx)).pipe(
+                Effect.provideService(JobEnqueue, transactionProducer(tx))
+              )
           )
         )
+      )
     const producer: JobEnqueueService = {
       enqueue: (prepared) =>
         Effect.gen(function* () {
@@ -211,9 +244,12 @@ export const make = (options: Options) =>
           }
           const query = yield* adapter.ambient.pipe(Effect.mapError(backendError))
           const value = yield* prepared
-          return yield* insertOrCompare(query, jobs, payloads, value).pipe(
+          return yield* insertOrCompare(query, jobs, payloads, value, budget).pipe(
             Effect.mapError((error) =>
-              error._tag === "JobIntegrityConflict" ? error : backendError(error)
+              error instanceof JobIntegrityConflict ||
+              error instanceof JobPolicyIncompatible
+                ? error
+                : backendError(error)
             )
           )
         }),
@@ -222,12 +258,13 @@ export const make = (options: Options) =>
           .ownedTransaction((query) =>
             Effect.gen(function* () {
               const value = yield* prepared
-              return yield* insertOrCompare(query, jobs, payloads, value)
+              return yield* insertOrCompare(query, jobs, payloads, value, budget)
             })
           )
           .pipe(
             Effect.mapError((error) =>
               error instanceof JobIntegrityConflict ||
+              error instanceof JobPolicyIncompatible ||
               !(
                 error instanceof PostgreSqlFailure ||
                 error instanceof PostgreSqlInvalidHandle
@@ -240,6 +277,7 @@ export const make = (options: Options) =>
     const operators = makeOperators(adapter, jobs, payloads, budget)
     const neutral = neutralOperators(operators)
     return PostgreSqlJobs.of({
+      operationResponseBudgetMillis: budget,
       operators,
       producer,
       ready: ready(adapter, jobs, payloads),
@@ -254,7 +292,7 @@ export const make = (options: Options) =>
             ? joinTransaction(handle, (tx) =>
                 body(tx).pipe(
                   Effect.provide(
-                    Context.make(JobEnqueue, producer).pipe(
+                    Context.make(JobEnqueue, transactionProducer(tx)).pipe(
                       Context.add(JobOperators, neutral)
                     )
                   )
@@ -263,11 +301,12 @@ export const make = (options: Options) =>
             : adapter.ambient.pipe(
                 Effect.flatMap((query) =>
                   withJoinedTransaction(
-                    (prepared) => insertOrCompare(query, jobs, payloads, prepared),
+                    (prepared) =>
+                      insertOrCompare(query, jobs, payloads, prepared, budget),
                     (tx) =>
                       body(tx).pipe(
                         Effect.provide(
-                          Context.make(JobEnqueue, producer).pipe(
+                          Context.make(JobEnqueue, transactionProducer(tx)).pipe(
                             Context.add(JobOperators, neutral)
                           )
                         )

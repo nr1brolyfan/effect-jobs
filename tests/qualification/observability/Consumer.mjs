@@ -38,21 +38,18 @@ const { OtlpExporter, OtlpLogger, OtlpMetrics, OtlpSerialization, OtlpTracer } =
   await pkg("effect/observability")
 const { makeWithTransaction } = await pkg("effect/sql/SqlClient")
 const { ConnectionError, SqlError } = await pkg("effect/sql/SqlError")
-const [Job, Queue, Codec, Enqueue, Policy, Registry, Worker, Runtime, Consumer, Native] =
-  await Promise.all(
-    [
-      "Job",
-      "JobQueue",
-      "JobPayloadCodec",
-      "JobEnqueue",
-      "JobPolicy",
-      "JobRegistry",
-      "JobWorker",
-      "JobWorkerRuntime",
-      "JobConsumer",
-      "PostgreSqlNative"
-    ].map(library)
-  )
+const [Job, Queue, Codec, Enqueue, Policy, Group, Worker, Native] = await Promise.all(
+  [
+    "Job",
+    "JobQueue",
+    "JobPayloadCodec",
+    "JobEnqueue",
+    "JobPolicy",
+    "JobGroup",
+    "JobWorker",
+    "PostgreSqlNative"
+  ].map(library)
+)
 const base = process.env.OBS_COLLECTOR_URL
 const metricBase = process.env.OBS_METRIC_URL
 assert.match(base, /^http:\/\/127\.0\.0\.1:\d+$/)
@@ -65,13 +62,7 @@ const job = Job.make({
   encodePayload: Codec.encodeJobPayload
 })
 const policy = Policy.defaultPolicy
-const consumer = Effect.runSync(
-  Consumer.make(queue, {
-    localConcurrency: 1,
-    claimLimitPerRun: 1,
-    recoveryLimitPerRun: 1
-  })
-)
+const group = Group.make("synthetic", { synthetic: job })
 const controlCanary = "SYNTHETIC_NATIVE_CONTROL_CANARY"
 const transactionService = Context.Service("synthetic/transaction")
 const withTransaction = makeWithTransaction({
@@ -198,20 +189,23 @@ const program = Effect.gen(function* () {
           policy
         })
         .pipe(Effect.provideService(Enqueue.JobEnqueue, producer))
-      yield* Layer.build(
-        job.handlerLayer(
-          () =>
-            Effect.sync(() => {
-              invoked++
-            }),
-          Codec.decodeJobPayload
-        )
-      )
-      const worker = yield* Worker.make(store, {
-        catalog: [job],
-        operationResponseBudgetMillis: 100
+      const handlers = group.toLayer({
+        synthetic: () =>
+          Effect.sync(() => {
+            invoked++
+          })
       })
-      yield* Runtime.drain(consumer).pipe(Effect.provideService(Worker.JobWorker, worker))
+      const worker = yield* Worker.make(
+        group,
+        {
+          store,
+          operationResponseBudgetMillis: 100
+        },
+        { queues: [{ queue }] }
+      ).pipe(Effect.provide(handlers))
+      yield* Worker.drain(queue, { maxJobs: 1, recoveryLimit: 1 }).pipe(
+        Effect.provideService(Worker.JobWorker, worker)
+      )
       const exit = yield* native.ownedTransaction(() => Effect.void).pipe(Effect.exit)
       assert.ok(Exit.isFailure(exit) && !Cause.pretty(exit.cause).includes(controlCanary))
       yield* (yield* OtlpExporter.Flusher).flush
@@ -235,10 +229,7 @@ const program = Effect.gen(function* () {
         Effect.exit
       )
       // #endregion motel debug
-    }).pipe(
-      Effect.withTracer(tracer),
-      Effect.provide(Layer.mergeAll(Logger.layer([logger]), Registry.layer))
-    )
+    }).pipe(Effect.withTracer(tracer), Effect.provide(Logger.layer([logger])))
     yield* work
     assert.equal(invoked, 1)
     yield* (yield* OtlpExporter.Flusher).flush

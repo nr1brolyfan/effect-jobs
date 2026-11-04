@@ -257,7 +257,7 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     await pool.query(`UPDATE ${jobs} SET lease_expires_at=1 WHERE id=$1`, [
       inserted.jobId
     ])
-    await Effect.runPromise(backend.store.recoverExpired(10))
+    await Effect.runPromise(backend.store.recoverExpired(definition.queue.name, 10))
     expect((await read(inserted.jobId)).created_at).toBe(original)
     const recovered = await read(inserted.jobId)
     await Effect.runPromise(

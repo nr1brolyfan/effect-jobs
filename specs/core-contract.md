@@ -91,10 +91,14 @@ containing sensitive inputs as enqueue errors.
 void` validates names, nonempty slots and uniqueness synchronously. It throws
 `JobDeclarationError` containing `field` (`operation`, `slots`, or `slots[index]`),
 the invalid declaration `value` where applicable, and actionable `expected` text.
-The producer unit **must call this before returning its immutable declaration**;
-there is no producer implementation here. It must preserve inferred operation and
-slot literals, reject undeclared slots, and copy/freeze its slot array. No global
-registry or mutable builder is needed.
+`JobProducer.make({ operation, slots })` calls this helper on the slot-record keys
+before returning its immutable declaration. Each slot binds `{ job, queue, policy? }`;
+omitted policy resolves to the library default. Operation and slot literals and
+each Schema's payload/encoding services remain inferred. Production accepts
+`{ slot, operationId, payload, availableAt? }`, not a caller-selected route or policy.
+Runtime ID validation uses the Effect error channel with bounded
+`InvalidOperationId` diagnostics. No global registry, identity builder or mutable
+builder is needed.
 
 ## Complete immutable policy
 
@@ -197,17 +201,30 @@ defects, interruption or timeout never imply known-safe Retry. Runtime boundarie
 must validate even structurally constructed failure values with `JobFailure`.
 
 `EnqueueInput<Payload>` has required producer, decoded payload, resolved policy
-and optional availableAt. No job ID is supplied. `EnqueueResults` is a
+and optional availableAt. No job ID is supplied. `EnqueueResult` is a
 `Data.taggedEnum` factory for `Inserted { jobId } | AlreadyPresent { jobId }`.
 Results remain provisional until application commit.
 
-For matching producer tuples, duplicate equality compares catalog and validated
-canonical semantic payload/fingerprints only. It excludes generated IDs, policy,
+The public producer API selects this metadata from its declared slot. Its
+`enqueue` and `enqueueStandalone` resolve `JobEnqueue`; `enqueueInTransaction`
+accepts a qualified callback capability. The standard artifact codec is fixed.
+All forms preserve the selected Schema's encoding service requirements.
+
+For matching producer tuples, duplicate equality compares job kind/version and validated
+canonical semantic payload/fingerprints only. It excludes queue routing, generated IDs, policy,
 initial/current availability, ciphertext randomness and lifecycle state. Matching
-duplicates return the original ID and retain first policy/availability. Omitted
+duplicates return the original ID and retain first queue/policy/availability. Omitted
 availability uses DB time only on first insertion. Conflicts are typed
 `JobIntegrityConflict` with no raw payload/identifiers; they cannot be swallowed
 to commit partial application writes.
+
+The configured storage admits only new policies that reserve attempt timeout plus
+its single operation-response budget and keep lease expiry within the bounded
+storage clock. `JobPolicyIncompatible` rejects a new record without inserting the
+parent or payload. Matching duplicates still retain their original policy even
+if current producer defaults are incompatible. A valid retained job incompatible
+with the current claim budget fails with this configuration error without being
+isolated or mutated; workers back off rather than classify it as corrupt payload.
 
 `InvalidJobInput { field }` and `JobPayloadCodecError { reason }` are bounded
 operation-owned errors. `JobTransaction.JobEnqueueError` unites those with

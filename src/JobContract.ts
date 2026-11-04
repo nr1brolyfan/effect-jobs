@@ -31,7 +31,7 @@ export interface HandlerInput<Payload> {
 }
 /**
  * Decoded payload, stable producer identity and resolved policy. No caller job ID.
- * Matching duplicates retain the original policy and availability.
+ * Matching duplicates retain the original queue, policy and availability.
  *
  * @category models
  */
@@ -57,7 +57,7 @@ export type EnqueueResult = Data.TaggedEnum<{
  *
  * @category constructors
  */
-export const EnqueueResults = Data.taggedEnum<EnqueueResult>()
+export const EnqueueResult = Data.taggedEnum<EnqueueResult>()
 
 /**
  * Current canonical encoded payload/projection format discriminator.
@@ -146,12 +146,19 @@ export class InvalidJobInput extends Data.TaggedError("InvalidJobInput")<{
   readonly field: "catalog" | "producer" | "policy" | "availableAt" | "payload"
 }> {}
 /**
- * Same producer tuple with different catalog or semantic payload. Propagate the
+ * Same producer tuple with different kind/version or semantic payload. Propagate the
  * failure to the transaction owner; do not commit partial domain writes.
  *
  * @category errors
  */
 export class JobIntegrityConflict extends Data.TaggedError("JobIntegrityConflict")<{}> {}
+/** New production cannot reserve its attempt timeout and this storage's response budget.
+ * Matching duplicates still retain their original policy. No payload data is exposed.
+ * @category errors
+ */
+export class JobPolicyIncompatible extends Data.TaggedError(
+  "JobPolicyIncompatible"
+)<{}> {}
 /**
  * Bounded codec failure reason without raw payload or Schema diagnostic inputs.
  *

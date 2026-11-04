@@ -83,9 +83,9 @@ requirements. Due, expiry and terminal-cleanup partial indexes are provided.
 Index names retain a bounded hash of the full configured table name to avoid
 PostgreSQL truncating away its distinguishing suffix.
 
-IDs are generated only by the library. A semantic duplicate compares catalog,
+IDs are generated only by the library. A semantic duplicate compares kind/version,
 payload format and canonical projection bytes, including protected fingerprints;
-it returns the first ID without changing policy, availability or randomized
+it returns the first ID without changing queue routing, policy, availability or randomized
 ciphertext. Changed content is `JobIntegrityConflict`. A genuine same-connection
 PostgreSQL error additionally aborts the producer transaction, so catching that
 typed error cannot commit preceding domain writes. An application manager must

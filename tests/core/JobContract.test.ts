@@ -8,8 +8,8 @@ import { maximumMillis } from "../../src/JobPolicy.js"
 
 it("returns the same branded ID for inserted and matching existing jobs", () => {
   const jobId = Schema.decodeSync(JobId)("opaque-id")
-  expect(Contract.EnqueueResults.Inserted({ jobId })).toEqual({ _tag: "Inserted", jobId })
-  expect(Contract.EnqueueResults.AlreadyPresent({ jobId }).jobId).toBe(jobId)
+  expect(Contract.EnqueueResult.Inserted({ jobId })).toEqual({ _tag: "Inserted", jobId })
+  expect(Contract.EnqueueResult.AlreadyPresent({ jobId }).jobId).toBe(jobId)
   expect(Schema.is(JobId)("")).toBe(false)
 })
 it("retains distinct validated handler outcome values", () => {

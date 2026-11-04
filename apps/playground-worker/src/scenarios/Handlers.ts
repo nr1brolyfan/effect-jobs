@@ -1,4 +1,4 @@
-import { Cause, Effect, Layer, Match } from "effect"
+import { Cause, Effect, Match } from "effect"
 import * as FailureCode from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
 import type { HandlerInput } from "effect-jobs/JobContract"
@@ -123,26 +123,14 @@ export const executeSyntheticExport = Effect.fn("Playground.executeSyntheticExpo
   }
 )
 
-// Proposal for HandlerRegistry.ts; importing this module installs nothing.
+// Complete group implementation; importing this module installs nothing.
 // Provide the same FakeProvider Layer and DocumentKeys Layer for all handlers.
-export const layerNoDeps = Layer.mergeAll(
-  Definitions.WelcomeEmail.handlerLayer(execute("welcome-email"), Codec.decodeJobPayload),
-  Definitions.ImageProcessing.handlerLayer(
-    execute("image-processing"),
-    Codec.decodeJobPayload
-  ),
-  Definitions.WebhookDelivery.handlerLayer(
-    execute("webhook-delivery"),
-    Codec.decodeJobPayload
-  ),
-  Definitions.SyntheticDocumentExport.handlerLayer(
-    executeSyntheticExport,
-    Codec.decodeJobPayload
-  ),
-  Definitions.PrivateDataExport.handlerLayer(executeExport, Codec.decodeJobPayload),
-  Definitions.CatalogSync.handlerLayer(execute("catalog-sync"), Codec.decodeJobPayload),
-  Definitions.SimulatedPayment.handlerLayer(
-    execute("simulated-payment"),
-    Codec.decodeJobPayload
-  )
-)
+export const layerNoDeps = Definitions.group.toLayer({
+  welcomeEmail: execute("welcome-email"),
+  imageProcessing: execute("image-processing"),
+  webhookDelivery: execute("webhook-delivery"),
+  syntheticDocumentExport: executeSyntheticExport,
+  privateDataExport: executeExport,
+  catalogSync: execute("catalog-sync"),
+  simulatedPayment: execute("simulated-payment")
+})

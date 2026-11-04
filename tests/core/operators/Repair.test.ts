@@ -143,7 +143,8 @@ test.each(["Dead", "Isolated"] as const)(
       200,
       "source",
       "source",
-      "CorrectedRedrive"
+      "CorrectedRedrive",
+      true
     ])
     expect(new TextDecoder().decode(calls.at(-1)!.values![2] as Uint8Array)).toBe(
       '{"value":"fixed"}'
@@ -159,7 +160,6 @@ test.each([
   { operation: "BAD" },
   { initial_available_at: -1 },
   { lease_token: "owned" },
-  { policy: { ...defaultPolicy, leaseDurationMillis: 30001 } },
   { original_source_job_id: "other", source_job_id: "wrong", redrive_kind: "Redrive" },
   { original_source_job_id: "source", source_job_id: "source", redrive_kind: "Redrive" },
   { original_source_job_id: "other", redrive_kind: null }
@@ -179,6 +179,34 @@ test.each([
   expect(calls.every((c) => c.sql.startsWith("SELECT"))).toBe(true)
   expect(calls.some((c) => c.sql.startsWith("SELECT floor"))).toBe(false)
 })
+
+test.each([9, 10, 11])(
+  "distinguishes stored policy reserve %s from invalid artifact data",
+  async (reserve) => {
+    const { calls, service } = fixture({
+      ...row(),
+      policy: {
+        ...defaultPolicy,
+        leaseDurationMillis: defaultPolicy.attemptTimeoutMillis + reserve
+      }
+    })
+    const result = await Effect.runPromiseExit(
+      service.correctedRedrive(definition, {
+        expected,
+        producer,
+        payload: { value: "fixed" }
+      })
+    )
+    if (reserve < 10) {
+      expect(failure(result)).toMatchObject({ value: { reason: "policy-incompatible" } })
+      expect(calls.every((call) => call.sql.startsWith("SELECT"))).toBe(true)
+      expect(calls.some((call) => call.sql.startsWith("SELECT floor"))).toBe(false)
+    } else {
+      expect(Exit.isSuccess(result)).toBe(true)
+      expect(calls.some((call) => call.sql.startsWith('INSERT INTO "jobs"'))).toBe(true)
+    }
+  }
+)
 
 test("replacement enforces schema, canonical bounds, catalog and original producer without insertion", async () => {
   for (const [def, request] of [
@@ -282,6 +310,7 @@ test.each(["source", "kind", "absent", "inconsistent", "semantic"])(
         '"payloads"',
         { catalog: definition.catalog, producer, policy: defaultPolicy, encoded },
         200,
+        100,
         undefined,
         {
           originalSourceJobId: expected.jobId,
@@ -336,7 +365,7 @@ test("exact lineage duplicate accepts deleted live reference without reassignmen
   }
   expect(
     await Effect.runPromise(
-      insertOrCompareAt(query, '"jobs"', '"payloads"', prepared, 200, undefined, {
+      insertOrCompareAt(query, '"jobs"', '"payloads"', prepared, 200, 100, undefined, {
         originalSourceJobId: expected.jobId,
         sourceJobId: expected.jobId,
         kind: "CorrectedRedrive"
@@ -347,7 +376,7 @@ test("exact lineage duplicate accepts deleted live reference without reassignmen
   expect(
     failure(
       await Effect.runPromiseExit(
-        insertOrCompare(query, '"jobs"', '"payloads"', prepared)
+        insertOrCompare(query, '"jobs"', '"payloads"', prepared, 100)
       )
     )
   ).toMatchObject({ value: { _tag: "JobIntegrityConflict" } })

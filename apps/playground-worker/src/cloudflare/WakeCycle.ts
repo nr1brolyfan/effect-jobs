@@ -1,6 +1,6 @@
 import { Clock, Context, Effect, Schema } from "effect"
 import type { JobConsumer } from "effect-jobs/JobConsumer"
-import * as JobWorkerRuntime from "effect-jobs/JobWorkerRuntime"
+import * as JobWorker from "effect-jobs/JobWorker"
 
 const Delay = Schema.Int.pipe(
   Schema.check(Schema.isBetween({ minimum: 0, maximum: 3_600_000 }))
@@ -75,7 +75,10 @@ export const run = (consumer: JobConsumer) =>
     }
     const started = yield* Clock.currentTimeMillis
     yield* alarm.set(started + Math.min(initial.expiresInMillis, limits.repairMillis))
-    const result = yield* JobWorkerRuntime.drain(consumer).pipe(
+    const result = yield* JobWorker.drain(consumer.queue, {
+      maxJobs: consumer.claimLimitPerRun,
+      recoveryLimit: consumer.recoveryLimitPerRun
+    }).pipe(
       Effect.timeout(limits.cycleMillis),
       Effect.mapError(() => new WakeUnavailable())
     )

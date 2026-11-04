@@ -81,6 +81,7 @@ export class JobOperatorRejected extends Data.TaggedError("JobOperatorRejected")
     | "unsupported-catalog"
     | "arithmetic-bound"
     | "lineage-conflict"
+    | "policy-incompatible"
 }> {}
 /** All successes are provisional until the outer owner commits. @category models */
 export interface JobOperatorsService<E = never, R = never> {

@@ -82,9 +82,9 @@ describe("schema-bound local encrypted fields", () => {
     const RegistryLayer = Registry.layer
     const HandlerLayer = definition
       .handlerLayer(
-        ({ payload }) =>
+        (input) =>
           Effect.sync(() => {
-            expect(payload.document.total).toBe(123n)
+            expect(input.payload.document.total).toBe(123n)
             calls++
           }),
         decodeJobPayload
@@ -154,7 +154,7 @@ describe("schema-bound local encrypted fields", () => {
         second: personal
       }),
       items: Schema.Array(item),
-      optional: Schema.optionalKey(EncryptedDocument)
+      optional: EncryptedDocument.pipe(Schema.optionalKey)
     })
     const input = {
       nested: { first: document, second: document },
@@ -174,7 +174,7 @@ describe("schema-bound local encrypted fields", () => {
     ).toEqual(input)
     const optional = await run(
       encodeJobPayload(
-        Schema.Struct({ optional: Schema.optionalKey(EncryptedDocument) }),
+        Schema.Struct({ optional: EncryptedDocument.pipe(Schema.optionalKey) }),
         { optional: document }
       )
     )
@@ -248,9 +248,9 @@ it("actual worker isolates invalid opened artifacts before the handler under exi
   const [{ harness }, Worker, Consumer, Runtime, { TestClock }, Policy] =
     await Promise.all([
       import("../worker/Harness.js"),
-      import("../../../src/JobWorker.js"),
+      import("../worker/ProtocolWorker.js"),
       import("../../../src/JobConsumer.js"),
-      import("../../../src/JobWorkerRuntime.js"),
+      import("../worker/ProtocolWorker.js"),
       import("effect/testing"),
       import("../../../src/JobPolicy.js")
     ])

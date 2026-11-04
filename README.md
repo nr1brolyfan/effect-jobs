@@ -17,7 +17,7 @@ const SendReceipt = Job.make({
 
 const IssueInvoice = JobProducer.make({
   operation: "billing.issue-invoice",
-  slots: ["receipt"]
+  slots: { receipt: { job: SendReceipt, queue: SendReceipt.queue } }
 })
 
 // App setup: its Layer supplies a qualified PostgreSqlApplication adapter.
@@ -29,27 +29,26 @@ const jobsStorage = yield* PostgreSqlJobs.make({
 yield* jobsStorage.withTransaction(() =>
   Effect.gen(function* () {
     yield* invoices.create({ id: invoiceId }) // Uses this same application transaction.
-    yield* SendReceipt.enqueue({
-      producer: IssueInvoice.identity({ operationId, slot: "receipt" }),
-      payload: { invoiceId },
-      policy: JobPolicy.defaultPolicy
+    yield* IssueInvoice.enqueue({
+      operationId, slot: "receipt",
+      payload: { invoiceId }
     })
   })
 )
 
 // Worker: typed payload, separate deployment, durable retries.
-const ReceiptHandler = SendReceipt.handlerLayer(
-  ({ payload, context }) =>
+const BillingJobs = JobGroup.make("billing", { receipt: SendReceipt })
+const ReceiptHandler = BillingJobs.toLayer({
+  receipt: (input) =>
     Effect.gen(function* () {
       const mailer = yield* ReceiptMailer
 
       yield* mailer.send({
-        invoiceId: payload.invoiceId,
-        idempotencyKey: context.jobId // Execution is at least once, not exactly once.
+        invoiceId: input.payload.invoiceId,
+        idempotencyKey: input.context.jobId // Execution is at least once, not exactly once.
       })
-    }),
-  Codec.decodeJobPayload
-)
+    })
+})
 ```
 
 **Initial alpha · Effect · PostgreSQL · transaction-bound enqueue**
@@ -63,7 +62,7 @@ policy, failure-code and encrypted-payload APIs; update callers before upgrading
 npm install ./effect-jobs-0.1.0-alpha.1-effect.4.1.0.local.5.tgz effect@4.1.0
 ```
 
-Imports are omitted below. Use package subpaths (`effect-jobs/Job`, `effect-jobs/JobPolicy`, …); the root export is empty. `Codec` refers to `JobPayloadCodec`; `Consumer`, `Worker`, `Runtime`, `Polling` and `Registry` refer to the corresponding `JobConsumer`, `JobWorker`, `JobWorkerRuntime`, `PollingJobWorker` and `JobRegistry` modules.
+Imports are omitted below. Use package subpaths (`effect-jobs/Job`, `effect-jobs/JobGroup`, `effect-jobs/JobPolicy`, …); the root export is empty. `Codec`, `Worker` and `Polling` refer to `JobPayloadCodec`, `JobWorker` and `JobPolling` respectively.
 
 `invoices`, mailers, credentials and protection services are application code, not library exports. Handler services return explicit `JobFailure` values.
 
@@ -73,8 +72,9 @@ of the same name. The application provides its scoped `PgClient` Layer, with
 finite connection, statement and idle transaction timeouts.
 
 `FailureCode` is the `effect-jobs/FailureCode` module; `JobEnqueue` is the service
-exported by `effect-jobs/JobEnqueue`. Job version defaults to `1`, and the standard
-payload encoder is implicit. Custom versions/encoders remain explicit options.
+exported by `effect-jobs/JobEnqueue`. Job version defaults to `1`. Slot-bound
+producers use the standard artifact codec; domain transformations and encryption
+belong in the payload Schema.
 
 ## One definition, multiple applications
 
@@ -90,9 +90,11 @@ export const SendReceipt = Job.make({
   payload: Schema.Struct({ invoiceId: Schema.String })
 })
 
+export const BillingJobs = JobGroup.make("billing", { receipt: SendReceipt })
+
 export const IssueInvoice = JobProducer.make({
   operation: "billing.issue-invoice",
-  slots: ["receipt"]
+  slots: { receipt: { job: SendReceipt, queue: BillingQueue } }
 })
 ```
 
@@ -103,10 +105,9 @@ const issueInvoice = (operationId: string, invoiceId: string) =>
     Effect.gen(function* () {
       yield* invoices.createOnce({ operationId, invoiceId })
 
-      return yield* SendReceipt.enqueue({
-        producer: IssueInvoice.identity({ operationId, slot: "receipt" }),
-        payload: { invoiceId },
-        policy: receiptPolicy
+      return yield* IssueInvoice.enqueue({
+        operationId, slot: "receipt",
+        payload: { invoiceId }
       })
     })
   )
@@ -114,18 +115,17 @@ const issueInvoice = (operationId: string, invoiceId: string) =>
 
 ```ts
 // apps/billing-worker — owns email credentials; does not import the API
-const ReceiptHandler = SendReceipt.handlerLayer(
-  ({ payload, context }) =>
+const ReceiptHandler = BillingJobs.toLayer({
+  receipt: (input) =>
     Effect.gen(function* () {
       const mailer = yield* ReceiptMailer
 
       yield* mailer.send({
-        invoiceId: payload.invoiceId,
-        idempotencyKey: context.jobId
+        invoiceId: input.payload.invoiceId,
+        idempotencyKey: input.context.jobId
       })
-    }),
-  Codec.decodeJobPayload
-)
+    })
+})
 ```
 
 Reuse `operationId` and `invoiceId` on request retries. Matching enqueues return the original job ID; changed content conflicts. Domain idempotency is still yours. `invoices.createOnce` must use the adapter's active transaction, not a separate connection.
@@ -139,20 +139,21 @@ colliding:
 ```ts
 const IssueInvoiceWithPdf = JobProducer.make({
   operation: "billing.issue-invoice-with-pdf",
-  slots: ["send-receipt", "generate-pdf"]
+  slots: {
+    "send-receipt": { job: SendReceipt, queue: BillingQueue },
+    "generate-pdf": { job: GeneratePdf, queue: BillingQueue }
+  }
 })
 
 // Inside the application's transaction; GeneratePdf is another job definition.
-yield* SendReceipt.enqueue({
-  producer: IssueInvoiceWithPdf.identity({ operationId, slot: "send-receipt" }),
-  payload: { invoiceId },
-  policy: JobPolicy.defaultPolicy
+yield* IssueInvoiceWithPdf.enqueue({
+  operationId, slot: "send-receipt",
+  payload: { invoiceId }
 })
 
-yield* GeneratePdf.enqueue({
-  producer: IssueInvoiceWithPdf.identity({ operationId, slot: "generate-pdf" }),
-  payload: { invoiceId },
-  policy: JobPolicy.defaultPolicy
+yield* IssueInvoiceWithPdf.enqueue({
+  operationId, slot: "generate-pdf",
+  payload: { invoiceId }
 })
 ```
 
@@ -176,26 +177,20 @@ const jobsStorage = yield* PostgreSqlJobs.make({
   operationResponseBudgetMillis: 100
 }).pipe(Effect.provide(ApplicationPostgresLayer))
 
-const WorkerLayer = Worker.layer(jobsStorage.store, {
-  catalog: [SendReceipt],
-  operationResponseBudgetMillis: 100 // Same budget as the backend.
+const WorkerLayer = Worker.layer(BillingJobs, jobsStorage, {
+  queues: [{ queue: BillingQueue, concurrency: 2 }]
 }).pipe(
-  Layer.provideMerge(ReceiptHandler),
-  Layer.provide(Registry.layer),
+  Layer.provide(ReceiptHandler),
   Layer.provide(ReceiptMailerLayer)
 )
 
 const runWorker = Effect.gen(function* () {
   yield* jobsStorage.ready // Checks readiness; does not run migrations.
 
-  const billing = yield* Consumer.make(BillingQueue, {
-    localConcurrency: 2, // Max simultaneous handlers in this consumer instance.
-    claimLimitPerRun: 20, // Max jobs claimed during one bounded drain.
-    recoveryLimitPerRun: 20 // Max expired leases processed for recovery per drain.
-  })
-
-  const plan = yield* Consumer.plan(billing)
-  const PollingLayer = Polling.layerForPlan(plan).pipe(Layer.provide(WorkerLayer))
+  const PollingLayer = Polling.layer([BillingQueue], {
+    maxJobs: 20, // Max jobs claimed during one bounded drain.
+    recoveryLimit: 20 // Max expired leases recovered in this queue per drain.
+  }).pipe(Layer.provide(WorkerLayer))
 
   yield* Effect.never.pipe(Effect.provide(PollingLayer))
 }).pipe(Effect.scoped)
@@ -203,12 +198,12 @@ const runWorker = Effect.gen(function* () {
 NodeRuntime.runMain(runWorker)
 ```
 
-The Scope owns polling shutdown. Construction starts no workers. `localConcurrency` is per consumer instance, not a global queue limit; keep queue configuration consistent across replicas.
+The Scope owns polling shutdown. Construction starts no workers. Concurrency is fixed per worker instance and shared across its concurrent drains, not a global queue limit.
 
 For a bounded invocation instead of a server:
 
 ```ts
-yield* Runtime.drain(billing).pipe(Effect.provide(WorkerLayer))
+yield* Worker.drain(BillingQueue, { maxJobs: 20, recoveryLimit: 20 }).pipe(Effect.provide(WorkerLayer))
 // One bounded run, not “wait until every future retry has finished”.
 ```
 
@@ -231,10 +226,9 @@ yield* client
     Effect.gen(function* () {
       yield* db.insert(invoiceTable).values({ id: invoiceId })
 
-      return yield* SendReceipt.enqueue({
-        producer: IssueInvoice.identity({ operationId, slot: "receipt" }),
-        payload: { invoiceId },
-        policy: JobPolicy.defaultPolicy
+      return yield* IssueInvoice.enqueue({
+        operationId, slot: "receipt",
+        payload: { invoiceId }
       })
     })
   )
@@ -263,10 +257,9 @@ receipts or lost responses never authorize automatic replay or prove NotCommitte
 write, `enqueueStandalone` opens its own transaction and rejects active ones:
 
 ```ts
-yield* SendReceipt.enqueueStandalone({
-  producer: IssueInvoice.identity({ operationId, slot: "receipt" }),
-  payload: { invoiceId },
-  policy: JobPolicy.defaultPolicy
+yield* IssueInvoice.enqueueStandalone({
+  operationId, slot: "receipt",
+  payload: { invoiceId }
 }).pipe(Effect.provideService(JobEnqueue, jobsStorage.producer))
 ```
 
@@ -293,14 +286,14 @@ const Codes = FailureCode.define({
 ```
 
 ```ts
-const ReceiptHandler = SendReceipt.handlerLayer(
-  ({ payload, context }) =>
+const ReceiptHandler = BillingJobs.toLayer({
+  receipt: (input) =>
     Effect.gen(function* () {
       const templates = yield* ReceiptTemplates
       const provider = yield* EmailProvider
 
       const email = yield* templates
-        .load(payload.invoiceId)
+        .load(input.payload.invoiceId)
         .pipe(
           Effect.mapError(() => JobFailures.Isolate({ code: Codes.ReceiptUnreadable }))
         )
@@ -309,7 +302,7 @@ const ReceiptHandler = SendReceipt.handlerLayer(
       const result = yield* provider
         .send({
           email,
-          idempotencyKey: context.jobId
+          idempotencyKey: input.context.jobId
         })
         .pipe(
           Effect.mapError(() => JobFailures.OutcomeUnknown({ code: Codes.ResponseLost }))
@@ -332,9 +325,8 @@ const ReceiptHandler = SendReceipt.handlerLayer(
         ),
         Match.exhaustive
       )
-    }),
-  Codec.decodeJobPayload
-)
+    })
+})
 ```
 
 | Outcome          | Use it when                                  |
@@ -366,10 +358,13 @@ const receiptPolicy = yield* JobPolicy.make({
   deadRetention: Duration.infinity // Retain failures for investigation.
 })
 
-yield* SendReceipt.enqueue({
-  producer: IssueInvoice.identity({ operationId, slot: "receipt" }),
+const ScheduledInvoice = JobProducer.make({
+  operation: IssueInvoice.operation,
+  slots: { receipt: { job: SendReceipt, queue: BillingQueue, policy: receiptPolicy } }
+})
+yield* ScheduledInvoice.enqueue({
+  operationId, slot: "receipt",
   payload: { invoiceId },
-  policy: receiptPolicy,
   availableAt: deliveryTimeMillis // Optional initial eligibility, epoch milliseconds.
 })
 ```
@@ -415,7 +410,7 @@ const SendPrivateReceipt = Job.make({
 
 const PrivateReceiptProducer = JobProducer.make({
   operation: "billing.private-receipt",
-  slots: ["receipt"]
+  slots: { receipt: { job: SendPrivateReceipt, queue: BillingQueue, policy: receiptPolicy } }
 })
 
 const receipt = yield* Schema.decodeUnknownEffect(ReceiptDocument)({
@@ -425,24 +420,23 @@ const receipt = yield* Schema.decodeUnknownEffect(ReceiptDocument)({
 })
 
 yield* jobsStorage.withTransaction(() =>
-  SendPrivateReceipt.enqueue({
-    producer: PrivateReceiptProducer.identity({ operationId, slot: "receipt" }),
-    payload: { invoiceId, document: receipt },
-    policy: receiptPolicy
+  PrivateReceiptProducer.enqueue({
+    operationId, slot: "receipt",
+    payload: { invoiceId, document: receipt }
   })
 )
 ```
 
 ```ts
-const PrivateReceiptHandler = SendPrivateReceipt.handlerLayer(
-  ({ payload, context }) =>
+const PrivateJobs = JobGroup.make("private-receipts", { receipt: SendPrivateReceipt })
+const PrivateReceiptHandler = PrivateJobs.toLayer({
+  receipt: (input) =>
     Effect.gen(function* () {
       const mailer = yield* PrivateReceiptMailer
 
-      yield* mailer.send({ document: payload.document, idempotencyKey: context.jobId })
-    }),
-  Codec.decodeJobPayload
-)
+      yield* mailer.send({ document: input.payload.document, idempotencyKey: input.context.jobId })
+    })
+})
 ```
 
 `ReceiptEncryption` is an application codec with `envelope`, `seal` and `open`.
@@ -484,29 +478,34 @@ const GeneratePdf = Job.make({
 
 const CloudInvoiceProducer = JobProducer.make({
   operation: "billing.cloudflare.issue-invoice",
-  slots: ["send-receipt", "generate-pdf"]
+  slots: {
+    "send-receipt": { job: SendReceipt, queue: BillingQueue },
+    "generate-pdf": { job: GeneratePdf, queue: BillingQueue }
+  }
 })
 
 // Consumer composition: application mailer/PDF services own external effects.
-const PdfHandler = GeneratePdf.handlerLayer(
-  ({ payload, context }) =>
+const CloudJobs = JobGroup.make("cloud-billing", { receipt: SendReceipt, pdf: GeneratePdf })
+const BillingHandlers = CloudJobs.toLayer({
+  receipt: (input) => Effect.gen(function* () {
+    const mailer = yield* ReceiptMailer
+    yield* mailer.send({ invoiceId: input.payload.invoiceId, idempotencyKey: input.context.jobId })
+  }),
+  pdf: (input) =>
     Effect.gen(function* () {
       const renderer = yield* InvoicePdfRenderer
 
       yield* renderer.generate({
-        invoiceId: payload.invoiceId,
-        idempotencyKey: context.jobId
+        invoiceId: input.payload.invoiceId,
+        idempotencyKey: input.context.jobId
       })
-    }),
-  Codec.decodeJobPayload
-)
+    })
+})
 
-const BillingWorkerLayer = Worker.layer(jobsStorage.store, {
-  catalog: [SendReceipt, GeneratePdf],
-  operationResponseBudgetMillis: 100
+const BillingWorkerLayer = Worker.layer(CloudJobs, jobsStorage, {
+  queues: [{ queue: BillingQueue, concurrency: 2 }]
 }).pipe(
-  Layer.provideMerge(Layer.mergeAll(ReceiptHandler, PdfHandler)),
-  Layer.provide(Registry.layer),
+  Layer.provide(BillingHandlers),
   Layer.provide(Layer.mergeAll(ReceiptMailerLayer, InvoicePdfRendererLayer))
 )
 ```
@@ -522,13 +521,7 @@ export class BillingConsumer extends Cloudflare.DurableObject<BillingConsumer>()
         Effect.fn(function* (_payload: null) {
           yield* jobsStorage.ready
 
-          const billing = yield* Consumer.make(BillingQueue, {
-            localConcurrency: 2,
-            claimLimitPerRun: 20,
-            recoveryLimitPerRun: 20
-          })
-
-          yield* Runtime.drain(billing).pipe(Effect.provide(BillingWorkerLayer))
+          yield* Worker.drain(BillingQueue, { maxJobs: 20, recoveryLimit: 20 }).pipe(Effect.provide(BillingWorkerLayer))
         })
       )
 
@@ -555,22 +548,14 @@ export default Cloudflare.Worker(
             Effect.gen(function* () {
               yield* invoices.createOnce({ operationId, invoiceId })
 
-              const receipt = yield* SendReceipt.enqueue({
-                producer: CloudInvoiceProducer.identity({
-                  operationId,
-                  slot: "send-receipt"
-                }),
-                payload: { invoiceId },
-                policy: JobPolicy.defaultPolicy
+              const receipt = yield* CloudInvoiceProducer.enqueue({
+                operationId, slot: "send-receipt",
+                payload: { invoiceId }
               })
 
-              const pdf = yield* GeneratePdf.enqueue({
-                producer: CloudInvoiceProducer.identity({
-                  operationId,
-                  slot: "generate-pdf"
-                }),
-                payload: { invoiceId },
-                policy: JobPolicy.defaultPolicy
+              const pdf = yield* CloudInvoiceProducer.enqueue({
+                operationId, slot: "generate-pdf",
+                payload: { invoiceId }
               })
 
               return { receipt: receipt.jobId, pdf: pdf.jobId }

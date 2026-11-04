@@ -23,18 +23,18 @@ import * as Payload from "../../../src/JobPayload.js"
 import * as Policy from "../../../src/JobPolicy.js"
 import { JobFailures } from "../../../src/JobFailure.js"
 import { JobRegistry, layer as registryLayer } from "../../../src/JobRegistry.js"
-import * as Worker from "../../../src/JobWorker.js"
-import { drain } from "../../../src/JobWorkerRuntime.js"
+import * as Worker from "./ProtocolWorker.js"
+import { drain } from "./ProtocolWorker.js"
 import { drainWithOptions } from "../../../src/internal/worker/Drain.js"
 import { WorkerCapability } from "../../../src/internal/worker/Capability.js"
 import { withJoinedTransaction } from "../../../src/internal/JobTransaction.js"
-import { EnqueueResults } from "../../../src/JobContract.js"
+import { EnqueueResult } from "../../../src/JobContract.js"
 import { JobId } from "../../../src/JobId.js"
 import {
-  ClaimReconciliations,
-  ClaimResults,
-  FinalizationReconciliations,
-  FinalizationResults
+  ClaimReconciliation,
+  ClaimResult,
+  FinalizationReconciliation,
+  FinalizationResult
 } from "../../../src/JobStore.js"
 import { harness, policy } from "./Harness.js"
 import type { PreparedJob, HandlerInput } from "../../../src/JobContract.js"
@@ -64,7 +64,7 @@ const seed = Effect.fnUntraced(function* (count = 1, jobPolicy = policy) {
         (job) =>
           Effect.sync(() => {
             captured = job
-            return EnqueueResults.Inserted({ jobId })
+            return EnqueueResult.Inserted({ jobId })
           }),
         (tx) =>
           definition.enqueueInTransaction(tx, {
@@ -370,13 +370,13 @@ for (const tag of ["Applied", "StillOwned", "OwnershipLost", "Unknown"] as const
               Effect.sync(() => {
                 test.calls.finalizations.push(request)
                 writes++
-                return FinalizationResults.Unknown()
+                return FinalizationResult.Unknown()
               }),
             reconcileFinalization: (request) =>
               Effect.sync(() => {
                 test.calls.finalizationReconciliations.push(request)
                 reconciles++
-                return FinalizationReconciliations[tag]()
+                return FinalizationReconciliation[tag]()
               })
           },
           () =>
@@ -409,9 +409,9 @@ it("reconciles response-lost applied writes with original ownership and exact tr
         {
           ...test.store,
           claim: (request) =>
-            test.store.claim(request).pipe(Effect.as(ClaimResults.Unknown())),
+            test.store.claim(request).pipe(Effect.as(ClaimResult.Unknown())),
           finalize: (request) =>
-            test.store.finalize(request).pipe(Effect.as(FinalizationResults.Unknown()))
+            test.store.finalize(request).pipe(Effect.as(FinalizationResult.Unknown()))
         },
         () =>
           Effect.sync(() => {
@@ -439,8 +439,8 @@ for (const tag of ["Unknown", "NotOwned"] as const) {
         const worker = yield* make({
           ...test.store,
           claim: (request) =>
-            test.store.claim(request).pipe(Effect.as(ClaimResults.Unknown())),
-          reconcileClaim: () => Effect.succeed(ClaimReconciliations[tag]())
+            test.store.claim(request).pipe(Effect.as(ClaimResult.Unknown())),
+          reconcileClaim: () => Effect.succeed(ClaimReconciliation[tag]())
         })
         const result = yield* drain(consumer()).pipe(
           Effect.provideService(Worker.JobWorker, worker)
@@ -460,13 +460,13 @@ it("releases only a confirmed insufficient lease and reports backoff, not idle",
       const worker = yield* make({
         ...test.store,
         claim: (request) =>
-          test.store.claim(request).pipe(Effect.as(ClaimResults.Unknown())),
+          test.store.claim(request).pipe(Effect.as(ClaimResult.Unknown())),
         reconcileClaim: (token) =>
           test.store.reconcileClaim(token).pipe(
             Effect.map((result) => {
               assert.equal(result._tag, "Owned")
               return result._tag === "Owned"
-                ? ClaimReconciliations.InsufficientLease({
+                ? ClaimReconciliation.InsufficientLease({
                     ownership: result.claim.ownership
                   })
                 : result
@@ -507,13 +507,13 @@ for (const phase of [
           ...(phase === "reconcile-claim" || phase === "release"
             ? {
                 claim: (request: import("../../../src/JobStore.js").ClaimRequest) =>
-                  test.store.claim(request).pipe(Effect.as(ClaimResults.Unknown()))
+                  test.store.claim(request).pipe(Effect.as(ClaimResult.Unknown()))
               }
             : {}),
           ...(phase === "reconcile-claim" ? { reconcileClaim: () => Effect.never } : {}),
           ...(phase === "reconcile-finalize"
             ? {
-                finalize: () => Effect.succeed(FinalizationResults.Unknown()),
+                finalize: () => Effect.succeed(FinalizationResult.Unknown()),
                 reconcileFinalization: () => Effect.never
               }
             : {}),
@@ -524,7 +524,7 @@ for (const phase of [
                   test.store.reconcileClaim(token).pipe(
                     Effect.map((result) =>
                       result._tag === "Owned"
-                        ? ClaimReconciliations.InsufficientLease({
+                        ? ClaimReconciliation.InsufficientLease({
                             ownership: result.claim.ownership
                           })
                         : result
@@ -670,15 +670,16 @@ for (const boundary of ["before", "after", "claim", "permit"] as const) {
   })
 }
 
-it("splits store-wide recovery into batches <=500 within the total budget", async () => {
+it("splits queue-scoped recovery into batches <=500 within the total budget", async () => {
   await run(
     Effect.gen(function* () {
       const test = harness()
       const limits: Array<number> = []
       const worker = yield* make({
         ...test.store,
-        recoverExpired: (limit) =>
+        recoverExpired: (queueName, limit) =>
           Effect.sync(() => {
+            assert.equal(queueName, queue.name)
             limits.push(limit)
             return limit
           })
@@ -724,7 +725,7 @@ it("runs notification and protected OTP-style adapters on the SAME generic engin
         (job) =>
           Effect.sync(() => {
             jobs.push(job)
-            return EnqueueResults.Inserted({ jobId })
+            return EnqueueResult.Inserted({ jobId })
           }),
         (tx) =>
           Effect.gen(function* () {
@@ -948,7 +949,7 @@ it("leaves malformed durable ownership/snapshot Active without handler or guesse
             test.store.claim(request).pipe(
               Effect.map((result) =>
                 result._tag === "Claimed"
-                  ? ClaimResults.Claimed({
+                  ? ClaimResult.Claimed({
                       claim: {
                         ...result.claim,
                         snapshot: {
@@ -981,12 +982,12 @@ it("never adopts a reconciliation belonging to a different token", async () => {
       const worker = yield* make({
         ...test.store,
         claim: (request) =>
-          test.store.claim(request).pipe(Effect.as(ClaimResults.Unknown())),
+          test.store.claim(request).pipe(Effect.as(ClaimResult.Unknown())),
         reconcileClaim: (token) =>
           test.store.reconcileClaim(token).pipe(
             Effect.map((result) =>
               result._tag === "Owned"
-                ? ClaimReconciliations.Owned({
+                ? ClaimReconciliation.Owned({
                     claim: {
                       ...result.claim,
                       ownership: { ...result.claim.ownership, leaseToken: "deadbeef" }

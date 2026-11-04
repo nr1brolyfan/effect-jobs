@@ -56,6 +56,7 @@ for (const queue of Executor.queueNames) {
 checks.push("All four exported queues retire without worker, generation or hint activity")
 let alarms = []
 const runtime = {
+  concurrency: () => 2,
   ready: () => Effect.void,
   permits: () => Effect.succeed(Semaphore.makeUnsafe(2)),
   recover: () => Effect.fail(new JobWorkerUnavailable()),

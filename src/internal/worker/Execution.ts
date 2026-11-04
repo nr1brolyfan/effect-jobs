@@ -13,7 +13,7 @@ import { EpochMillis, PersistedJobPolicy } from "../../JobPolicy.js"
 import { observe, schedulingLag } from "../../JobTelemetry.js"
 import type { JobHandler } from "../../JobRegistry.js"
 import type { ClaimedJob, FinalizationRequest, JobStoreService } from "../../JobStore.js"
-import { FinalizationResults } from "../../JobStore.js"
+import { FinalizationResult } from "../../JobStore.js"
 import type { JobFinalization } from "../../JobLifecycle.js"
 
 type AttemptResult = Data.TaggedEnum<{
@@ -147,7 +147,7 @@ export const executionFor = <E>(
           : { _tag: "Unknown" as const }
       }).pipe(
         observe("finalize", "protocol"),
-        Effect.orElseSucceed(() => FinalizationResults.Unknown()),
+        Effect.orElseSucceed(() => FinalizationResult.Unknown()),
         Effect.map((result): AttemptResult =>
           result._tag === "Unknown"
             ? AttemptResult.Unknown()

@@ -1,7 +1,6 @@
 import { Effect, Schema } from "effect"
 import { CatalogIdentity } from "effect-jobs/JobIdentity"
 import * as Codec from "effect-jobs/JobPayloadCodec"
-import * as JobProducer from "effect-jobs/JobProducer"
 import type { JobOperatorCommand } from "@effect-jobs/playground-contracts/Operators"
 import type { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import * as Definitions from "../../scenarios/Definitions.js"
@@ -23,10 +22,7 @@ const artifact = Schema.Struct({
   payloadBytes: byteBuffer,
   semanticProjectionBytes: byteBuffer
 })
-const producer = JobProducer.make({
-  operation: "playground.operator-redrive",
-  slots: ["replacement"]
-})
+const operation = "playground.operator-redrive"
 
 // Includes the whole scoped source/request tuple, with a bounded library operationId.
 // This creates a new provider ledger identity; no original acceptance is transferred.
@@ -47,7 +43,7 @@ export const producerIdentity = (command: JobOperatorCommand) =>
         ).join(""),
       catch: invalid
     })
-    return producer.identity({ operationId, slot: "replacement" })
+    return { operationId, slot: "replacement", operation }
   })
 
 // Command-only private decoding. Ordinary detail/list reads never call this.

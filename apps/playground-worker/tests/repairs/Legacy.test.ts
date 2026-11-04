@@ -38,6 +38,8 @@ const access = {
 }
 const unexpected = () => Effect.die("Legacy redrive must not invoke core")
 const backend = Layer.mock(PostgreSqlJobs, {
+  operationResponseBudgetMillis: 100,
+  health: { sample: unexpected },
   tables: Tables.tables(),
   producer: { enqueue: unexpected, enqueueStandalone: unexpected },
   store: {

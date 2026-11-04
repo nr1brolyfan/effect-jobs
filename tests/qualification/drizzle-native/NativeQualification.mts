@@ -65,9 +65,12 @@ const definition = Job.make({
   payload: Schema.Struct({ invoiceId: Schema.String }),
   encodePayload: encodeJobPayload
 })
-const producer = Producer.make({ operation: "billing.native", slots: ["generate"] })
+const producer = Producer.make({
+  operation: "billing.native",
+  slots: { generate: { job: definition, queue: definition.queue } }
+})
 const input = (id: string, value = id) => ({
-  producer: producer.identity({ operationId: id, slot: "generate" }),
+  producer: { operation: producer.operation, operationId: id, slot: "generate" },
   payload: { invoiceId: value },
   policy: Policy.defaultPolicy
 })

@@ -76,6 +76,8 @@ const setup = (override: Partial<RepairTransaction> = {}) =>
     })
     const unexpected = () => Effect.die("Unexpected backend operation")
     const core = Layer.mock(PostgreSqlJobs, {
+      operationResponseBudgetMillis: 100,
+      health: { sample: unexpected },
       tables: PostgreSqlSchema.tables(),
       producer: { enqueue: unexpected, enqueueStandalone: unexpected },
       store: {

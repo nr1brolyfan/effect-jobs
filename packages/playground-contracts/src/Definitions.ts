@@ -19,5 +19,5 @@ export const ScenarioJob = Job.make({
 })
 export const ScenarioProducer = JobProducer.make({
   operation: "playground.scenario",
-  slots: ["execute"]
+  slots: { execute: { job: ScenarioJob, queue } }
 })

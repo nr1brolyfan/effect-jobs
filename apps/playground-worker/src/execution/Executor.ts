@@ -2,9 +2,7 @@
 import { Clock, Context, Effect, Layer, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import * as Consumer from "effect-jobs/JobConsumer"
-import * as Runtime from "effect-jobs/JobWorkerRuntime"
 import * as Worker from "effect-jobs/JobWorker"
-import * as Registry from "effect-jobs/JobRegistry"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
@@ -59,12 +57,15 @@ export const workerLayerNoDeps = (schema: string) =>
   Layer.unwrap(
     Effect.gen(function* () {
       const backend = yield* PostgreSqlJobs
-      return Worker.layer(backend.store, {
-        catalog: Definitions.definitions,
-        operationResponseBudgetMillis: 500
+      return Worker.layer(Definitions.group, backend, {
+        queues: queueNames.map((name) => ({
+          queue: Definitions.definitions.find(
+            (definition) => definition.queue.name === name
+          )!.queue,
+          concurrency: limits.concurrency
+        }))
       }).pipe(
         Layer.provide(Handlers.layerNoDeps),
-        Layer.provide(Registry.layer),
         Layer.provide(Provider.layerNoDeps(schema))
       )
     })
@@ -187,7 +188,10 @@ export const run = (schema: string, queue: QueueName) =>
     }
     const plans = yield* consumers
     const consumer = plans.find((plan) => plan.queue.name === queue)!
-    const result = yield* Runtime.drain(consumer)
+    const result = yield* Worker.drain(consumer.queue, {
+      maxJobs: limits.claimLimit,
+      recoveryLimit: limits.recoveryLimit
+    })
     yield* RepairReconciliation.run(schema, { limit: 50 })
     yield* hints.reconcile
     const after = yield* snapshot(schema, queue)

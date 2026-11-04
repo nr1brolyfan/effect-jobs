@@ -1,5 +1,10 @@
 import { Effect } from "effect"
-import type { EnqueueResult, JobIntegrityConflict, PreparedJob } from "../JobContract.js"
+import type {
+  EnqueueResult,
+  JobIntegrityConflict,
+  JobPolicyIncompatible,
+  PreparedJob
+} from "../JobContract.js"
 import { JobsTransactionClosed, type JobsTransaction } from "../JobTransaction.js"
 
 /** Internal-only: never a package subpath or root export. */
@@ -11,7 +16,7 @@ export const withJoinedTransaction = <A, E, R, BackendError, BackendRequirements
     prepared: PreparedJob
   ) => Effect.Effect<
     EnqueueResult,
-    BackendError | JobIntegrityConflict,
+    BackendError | JobIntegrityConflict | JobPolicyIncompatible,
     BackendRequirements
   >,
   body: (
@@ -24,10 +29,18 @@ export const withJoinedTransaction = <A, E, R, BackendError, BackendRequirements
       const transaction: JobsTransaction<BackendError, BackendRequirements> =
         Object.freeze({
           [JobsTransactionTypeId]: Object.freeze({
+            assertActive: Effect.suspend(() =>
+              lifetime.active
+                ? Effect.void
+                : Effect.fail(new JobsTransactionClosed({ reason: "callback-exited" }))
+            ),
             insertOrCompare: (prepared: PreparedJob) =>
               Effect.suspend<
                 EnqueueResult,
-                BackendError | JobIntegrityConflict | JobsTransactionClosed,
+                | BackendError
+                | JobIntegrityConflict
+                | JobPolicyIncompatible
+                | JobsTransactionClosed,
                 BackendRequirements
               >(() =>
                 lifetime.active
@@ -50,3 +63,13 @@ export const insertPrepared = <E, R>(
   transaction: JobsTransaction<E, R>,
   prepared: PreparedJob
 ) => transaction[JobsTransactionTypeId].insertOrCompare(prepared)
+
+/** Check invocation lifetime before asynchronous Schema services, then again at insertion. */
+export const insertPreparing = <E, R, PreparationError, PreparationServices>(
+  transaction: JobsTransaction<E, R>,
+  prepare: Effect.Effect<PreparedJob, PreparationError, PreparationServices>
+) =>
+  transaction[JobsTransactionTypeId].assertActive.pipe(
+    Effect.andThen(prepare),
+    Effect.flatMap((prepared) => insertPrepared(transaction, prepared))
+  )

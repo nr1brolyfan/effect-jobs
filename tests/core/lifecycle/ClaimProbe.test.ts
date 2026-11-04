@@ -1,6 +1,6 @@
 import { Cause, Effect } from "effect"
 import { expect, it } from "vitest"
-import { ClaimResults } from "../../../src/JobStore.js"
+import { ClaimResult } from "../../../src/JobStore.js"
 import { makeStore } from "../../../src/internal/postgresql/Store.js"
 import {
   PostgreSqlFailure,
@@ -103,7 +103,7 @@ it.each(failures)(
     const expected = await Effect.runPromiseExit(
       Effect.failCause(cause).pipe(
         Effect.catchTags({
-          PostgreSqlFailure: () => Effect.succeed(ClaimResults.Unknown())
+          PostgreSqlFailure: () => Effect.succeed(ClaimResult.Unknown())
         })
       )
     )

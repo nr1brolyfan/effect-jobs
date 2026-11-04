@@ -62,10 +62,11 @@ export const dashboard = profiles.map((profile, index) => ({
         redrive: { enabled: false, reason: "public-read-only" },
         correctedRedrive: { enabled: false, reason: "public-read-only" }
       },
-      producer: Definitions.Producer.identity({
+      producer: {
+        operation: Definitions.Producer.operation,
         operationId: `synthetic-fixture-${index}`,
         slot: "welcome-email"
-      }),
+      },
       policy: Policy.defaultPolicy,
       relations: { syntheticActor: "demo-customer", syntheticOrderId: "demo-order-a" },
       ...(profile.label === "unknown"

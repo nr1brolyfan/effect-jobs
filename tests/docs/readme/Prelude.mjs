@@ -26,17 +26,15 @@ export const names = [
 export const imports = `import "effect/Schema"
 import { Context, Duration, Effect, Layer, Match, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
+import * as JobGroup from "effect-jobs/JobGroup"
 import * as JobQueue from "effect-jobs/JobQueue"
 import * as JobProducer from "effect-jobs/JobProducer"
 import * as JobPolicy from "effect-jobs/JobPolicy"
 import * as Retry from "effect-jobs/JobRetryPolicy"
 import * as JobPayload from "effect-jobs/JobPayload"
 import * as Codec from "effect-jobs/JobPayloadCodec"
-import * as Consumer from "effect-jobs/JobConsumer"
-import * as Registry from "effect-jobs/JobRegistry"
 import * as Worker from "effect-jobs/JobWorker"
-import * as Runtime from "effect-jobs/JobWorkerRuntime"
-import * as Polling from "effect-jobs/PollingJobWorker"
+import * as Polling from "effect-jobs/JobPolling"
 import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
 import * as PostgreSqlNative from "effect-jobs/PostgreSqlNative"
 import * as PostgreSqlSchema from "effect-jobs/PostgreSqlSchema"
@@ -44,7 +42,13 @@ import * as FailureCode from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 `
-const common = ["BillingQueue", "SendReceipt", "IssueInvoice", "GeneratePdf"]
+const common = [
+  "BillingQueue",
+  "SendReceipt",
+  "BillingJobs",
+  "IssueInvoice",
+  "GeneratePdf"
+]
 const fixtures = [
   "jobsStorage",
   "ApplicationPostgresLayer",
@@ -61,7 +65,6 @@ const fixtures = [
   "InvoicePdfRenderer",
   "InvoicePdfRendererLayer",
   "receiptPolicy",
-  "billing",
   "WorkerLayer",
   "ReceiptHandler",
   "issueInvoice",
@@ -160,9 +163,9 @@ export const wrap = (name, code) => {
     handler: "ReceiptHandler",
     codes: "Codes",
     failures: "ReceiptHandler",
-    "private-handler": "PrivateReceiptHandler",
+    "private-handler": "PrivateReceiptHandler, PrivateJobs",
     "cloud-contracts":
-      "GeneratePdf, CloudInvoiceProducer, PdfHandler, BillingWorkerLayer",
+      "GeneratePdf, CloudInvoiceProducer, BillingHandlers, BillingWorkerLayer",
     drizzle: "jobTables",
     indexes: "jobTables"
   }

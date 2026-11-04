@@ -24,6 +24,7 @@ import { dbTime, snapshot, integer, lineage } from "./Rows.js"
 import { EpochMillis } from "../../JobPolicy.js"
 import { PostgreSqlConfigurationError } from "../../PostgreSqlSchema.js"
 import { insertOrCompareAt } from "./Producer.js"
+import { JobPolicyIncompatible } from "../../JobContract.js"
 
 const reject = (reason: JobOperatorRejected["reason"]) =>
   new JobOperatorRejected({ reason })
@@ -150,7 +151,7 @@ export const makeOperators = (
         before.policy.leaseDurationMillis - before.policy.attemptTimeoutMillis <
         operationResponseBudgetMillis
       ) {
-        return yield* reject("invalid-artifact")
+        return yield* reject("policy-incompatible")
       }
       yield* lineage(row).pipe(Effect.mapError(() => reject("invalid-artifact")))
       const metadata = yield* Schema.decodeUnknownEffect(
@@ -214,8 +215,13 @@ export const makeOperators = (
         payloads,
         { ...metadata, encoded, producer: request.producer, availableAt: now },
         now,
+        operationResponseBudgetMillis,
         undefined,
         edge
+      ).pipe(
+        Effect.mapError((error) =>
+          error instanceof JobPolicyIncompatible ? reject("policy-incompatible") : error
+        )
       )
       return {
         source: request.expected,

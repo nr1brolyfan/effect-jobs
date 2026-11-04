@@ -6,6 +6,7 @@ import { CatalogIdentity as CatalogSchema, QueueName } from "./JobIdentity.js"
 import { LeaseToken } from "./JobLifecycle.js"
 import type { CatalogIdentity } from "./JobIdentity.js"
 import type { JobFinalization, JobOwnership, JobSnapshot } from "./JobLifecycle.js"
+import type { JobPolicyIncompatible } from "./JobContract.js"
 
 /**
  * Fenced claim plus untrusted prepared artifact; validate fully before handler dispatch.
@@ -34,7 +35,7 @@ export type ClaimResult = Data.TaggedEnum<{
  *
  * @category constructors
  */
-export const ClaimResults = Data.taggedEnum<ClaimResult>()
+export const ClaimResult = Data.taggedEnum<ClaimResult>()
 /**
  * Read-only original-token result: usable Owned, InsufficientLease, NotOwned or Unknown.
  *
@@ -51,7 +52,7 @@ export type ClaimReconciliation = Data.TaggedEnum<{
  *
  * @category constructors
  */
-export const ClaimReconciliations = Data.taggedEnum<ClaimReconciliation>()
+export const ClaimReconciliation = Data.taggedEnum<ClaimReconciliation>()
 /**
  * Applied or Unknown write result; response loss does not prove rollback.
  *
@@ -63,7 +64,7 @@ export type FinalizationResult = Data.TaggedEnum<{ Applied: {}; Unknown: {} }>
  *
  * @category constructors
  */
-export const FinalizationResults = Data.taggedEnum<FinalizationResult>()
+export const FinalizationResult = Data.taggedEnum<FinalizationResult>()
 /**
  * Read-only exact-transition result; StillOwned permits only bounded identical
  * finalization retry, never immediate handler replay.
@@ -81,7 +82,7 @@ export type FinalizationReconciliation = Data.TaggedEnum<{
  *
  * @category constructors
  */
-export const FinalizationReconciliations = Data.taggedEnum<FinalizationReconciliation>()
+export const FinalizationReconciliation = Data.taggedEnum<FinalizationReconciliation>()
 
 /**
  * Typed rejection of a stale or expired ownership capability.
@@ -162,7 +163,7 @@ export interface JobStoreService<E = never, R = never> {
   /** Atomically claims at most one due supported row, reserving timeout plus response budget. */
   readonly claim: (
     request: ClaimRequest
-  ) => Effect.Effect<ClaimResult, E | JobStoreProtocolError, R>
+  ) => Effect.Effect<ClaimResult, E | JobStoreProtocolError | JobPolicyIncompatible, R>
   /** Reads once using the original caller token; never invokes a handler or claims another row. */
   readonly reconcileClaim: (
     leaseToken: string
@@ -180,8 +181,9 @@ export interface JobStoreService<E = never, R = never> {
   readonly reconcileFinalization: (
     request: FinalizationRequest
   ) => Effect.Effect<FinalizationReconciliation, E | JobStoreProtocolError, R>
-  /** Atomic, bounded 1–500 batch; expiry <= DB time; no handler invocation. */
+  /** Atomic queue-scoped 1–500 batch; expiry <= DB time; no handler invocation. */
   readonly recoverExpired: (
+    queue: string,
     limit: number
   ) => Effect.Effect<number, E | JobStoreProtocolError, R>
 }

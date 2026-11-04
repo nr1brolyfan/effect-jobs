@@ -1,0 +1,49 @@
+import { Context, Effect, Schema } from "effect"
+import * as Group from "../../src/JobGroup.js"
+import * as Queue from "../../src/JobQueue.js"
+import * as Worker from "../../src/JobWorker.js"
+import type { JobStoreService } from "../../src/JobStore.js"
+
+class Database extends Context.Service<Database, {}>()("types/group-worker/Database") {}
+declare const store: JobStoreService<"provider-error", Database>
+const definitions = {
+  receipt: { kind: "billing.receipt", version: 1, payload: Schema.String }
+} as const
+const group = Group.make("billing-worker", definitions)
+const queue = Queue.make("billing")
+export const made = Worker.make(
+  group,
+  {
+    store,
+    operationResponseBudgetMillis: 100
+  },
+  { queues: [{ queue, concurrency: 2 }] }
+)
+
+type ExpectFalse<T extends false> = T
+export type GroupIsRequired = ExpectFalse<
+  typeof made extends Effect.Effect<unknown, unknown, Database> ? true : false
+>
+export type StoreServicesAreRequired = ExpectFalse<
+  typeof made extends Effect.Effect<
+    unknown,
+    unknown,
+    Group.Handlers<"billing-worker", typeof definitions>
+  >
+    ? true
+    : false
+>
+declare const worker: Effect.Success<typeof made>
+export const invalidDrain = worker.drain(queue, {
+  // @ts-expect-error Concurrency belongs to worker construction, not a drain.
+  concurrency: 3
+})
+export const invalidBudget = Worker.make(
+  group,
+  { store, operationResponseBudgetMillis: 100 },
+  {
+    queues: [{ queue }],
+    // @ts-expect-error The worker cannot duplicate or override its storage budget.
+    operationResponseBudgetMillis: 200
+  }
+)
