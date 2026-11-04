@@ -8,6 +8,10 @@
   "sideEffects": false,
   "packageManager": "bun@1.4.2",
   "exports": {
+    "./JobStorage": {
+      "types": "./dist/JobStorage.d.ts",
+      "import": "./dist/JobStorage.js"
+    },
     "./JobGroup": {
       "types": "./dist/JobGroup.d.ts",
       "import": "./dist/JobGroup.js"

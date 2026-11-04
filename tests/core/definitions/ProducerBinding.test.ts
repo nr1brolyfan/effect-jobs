@@ -4,6 +4,7 @@ import * as Producer from "../../../src/JobProducer.js"
 import * as Queue from "../../../src/JobQueue.js"
 import * as Group from "../../../src/JobGroup.js"
 import * as Worker from "../../../src/JobWorker.js"
+import * as Storage from "../../../src/JobStorage.js"
 import * as Policy from "../../../src/JobPolicy.js"
 import * as Payload from "../../../src/JobPayload.js"
 import { EnqueueResult } from "../../../src/JobContract.js"
@@ -89,10 +90,12 @@ describe("contract-first producer binding", () => {
         )
         expect(prepared[0]!.policy).toEqual(Policy.defaultPolicy)
         const test = harness(prepared)
-        const worker = yield* Worker.make(
-          group,
-          { store: test.store, operationResponseBudgetMillis: 100 },
-          { queues: [{ queue }, { queue: other }] }
+        const worker = yield* Worker.make(group, {
+          queues: [{ queue }, { queue: other }]
+        }).pipe(
+          Effect.provide(
+            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+          )
         )
         yield* worker.drain(queue)
         yield* worker.drain(other)

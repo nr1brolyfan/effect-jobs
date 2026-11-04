@@ -47,6 +47,15 @@ const types = publicImports(
   readFileSync(join(root, "tests/types/api-refinements.ts"), "utf8")
 ).replace('"../core/codec/EncryptedFixture.js"', '"./EncryptedFixture.mjs"')
 writeFileSync(join(work, "Types.mts"), types)
+for (const [source, target] of [
+  ["worker", "WorkerTypes"],
+  ["group-worker", "GroupWorkerTypes"]
+]) {
+  writeFileSync(
+    join(work, target + ".mts"),
+    publicImports(readFileSync(join(root, "tests/types/" + source + ".ts"), "utf8"))
+  )
+}
 writeFileSync(
   join(work, "Retry.mts"),
   publicImports(readFileSync(join(root, "tests/types/retry-policy.ts"), "utf8"))
@@ -82,6 +91,9 @@ import { JobOperators, JobOperatorExpected } from "effect-jobs/JobOperators"
 import { JobId } from "effect-jobs/JobId"
 import * as Group from "effect-jobs/JobGroup"
 import * as Producer from "effect-jobs/JobProducer"
+import * as Storage from "effect-jobs/JobStorage"
+import * as Worker from "effect-jobs/JobWorker"
+import * as Store from "effect-jobs/JobStore"
 import { encodeJobPayload, decodeJobPayload } from "effect-jobs/JobPayloadCodec"
 import { DocumentKeys, EncryptedDocument, keys, keysLayer } from "./EncryptedFixture.mjs"
 for (const name of ["JobRegistry", "JobConsumer", "JobPlan"]) {
@@ -146,6 +158,19 @@ await Effect.runPromise(Effect.gen(function* () {
    yield* Effect.flip(handlers.receipt(bad, context))
 }).pipe(Effect.provide(handler)))
 assert.equal(calls, 1)
+let claims = 0
+const storageLayer = Storage.layer({ operationResponseBudgetMillis: 100, store: {
+  claim: () => Effect.sync(() => { claims++; return Store.ClaimResult.Empty() }),
+  reconcileClaim: () => Effect.succeed(Store.ClaimReconciliation.Unknown()),
+  release: () => Effect.succeed(Store.FinalizationResult.Unknown()),
+  finalize: () => Effect.succeed(Store.FinalizationResult.Unknown()),
+  reconcileFinalization: () => Effect.succeed(Store.FinalizationReconciliation.Unknown()),
+  recoverExpired: () => Effect.succeed(0)
+} })
+const workerLayer = Worker.layer(group, { queues: [{ queue }] }).pipe(Layer.provide(Layer.mergeAll(handler, storageLayer)))
+assert.equal(claims, 0)
+assert.deepEqual(await Effect.runPromise(Worker.drain(queue).pipe(Effect.provide(workerLayer))), { _tag: "Idle", claimed: 0, recovered: 0 })
+assert.equal(claims, 1)
 const missing = await Effect.runPromiseExit(Effect.void.pipe(Effect.provide(keysLayer({ ...keys(), active: "missing" }))))
 assert.equal(missing._tag, "Failure")
 console.log("Installed new API literals/brands/defaults, local AES-GCM/HMAC service rotation and handler boundary PASS")
@@ -177,7 +202,9 @@ writeFileSync(
         "EncryptedFixture.mts",
         "Runtime.mts",
         "Operators.mts",
-        "Repairs.mts"
+        "Repairs.mts",
+        "WorkerTypes.mts",
+        "GroupWorkerTypes.mts"
       ]
     },
     null,

@@ -18,6 +18,7 @@ import * as Queue from "effect-jobs/JobQueue"
 import * as Producer from "effect-jobs/JobProducer"
 import * as Group from "effect-jobs/JobGroup"
 import * as Worker from "effect-jobs/JobWorker"
+import * as Storage from "effect-jobs/JobStorage"
 import type { JobStoreService } from "effect-jobs/JobStore"
 import * as WakeCycle from "../../src/cloudflare/WakeCycle.js"
 
@@ -77,10 +78,10 @@ export class Probe extends DurableObject {
         finalize: unexpected,
         reconcileFinalization: unexpected
       }
-      const worker = Worker.layer(group, {
+      const worker = Worker.layer(group, { queues: [{ queue, concurrency: 2 }] }).pipe(Layer.provide(Storage.layer({
         store,
         operationResponseBudgetMillis: 100
-      }, { queues: [{ queue, concurrency: 2 }] }).pipe(
+      })),
         Layer.provide(group.toLayer({ synthetic: () => Effect.void }))
       )
       const result = await Effect.runPromise(

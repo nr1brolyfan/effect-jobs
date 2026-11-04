@@ -3,6 +3,7 @@ import * as Job from "../../src/Job.js"
 import * as Queue from "../../src/JobQueue.js"
 import * as Group from "../../src/JobGroup.js"
 import * as Worker from "../../src/JobWorker.js"
+import * as Storage from "../../src/JobStorage.js"
 import * as Polling from "../../src/JobPolling.js"
 import type { JobStoreService } from "../../src/JobStore.js"
 
@@ -47,15 +48,25 @@ const storage = { store, operationResponseBudgetMillis: 100 }
 const made: Effect.Effect<
   Worker.JobWorkerService,
   Worker.JobWorkerConfigurationError,
-  Provider | Group.Handlers<"typed-worker", typeof group.definitions>
-> = Worker.make(group, storage, { queues: [{ queue }] })
+  Storage.JobStorage | Group.Handlers<"typed-worker", typeof group.definitions>
+> = Worker.make(group, { queues: [{ queue }] })
 void made
 const built: Layer.Layer<
   Worker.JobWorker,
   Worker.JobWorkerConfigurationError,
-  Provider | Group.Handlers<"typed-worker", typeof group.definitions>
-> = Worker.layer(group, storage, { queues: [{ queue }] })
+  Storage.JobStorage | Group.Handlers<"typed-worker", typeof group.definitions>
+> = Worker.layer(group, { queues: [{ queue }] })
 void built
+export const capturedStorage: Layer.Layer<
+  Storage.JobStorage,
+  Storage.JobStorageConfigurationError,
+  Provider
+> = Storage.layer(storage)
+export const composed: Effect.Effect<
+  Worker.JobWorkerService,
+  Worker.JobWorkerConfigurationError | Storage.JobStorageConfigurationError,
+  Provider | Group.Handlers<"typed-worker", typeof group.definitions>
+> = made.pipe(Effect.provide(capturedStorage))
 const drained: Effect.Effect<
   Worker.DrainResult,
   Worker.JobWorkerNotReady | Worker.JobWorkerConfigurationError,
@@ -68,8 +79,10 @@ const polling: Layer.Layer<
   Worker.JobWorker
 > = Polling.layer([queue])
 void polling
-// @ts-expect-error Response budget comes from configured storage.
-export const missingBudget = Worker.make(group, { store }, { queues: [{ queue }] })
+// @ts-expect-error Response budget comes from configured storage, not a worker argument.
+export const explicitStorage = Worker.make(group, storage, { queues: [{ queue }] })
+// @ts-expect-error Configured storage requires its admission reserve.
+export const missingBudget = Storage.layer({ store })
 // @ts-expect-error No domain error classifier callback.
 Polling.layer([queue], { classifyError: () => "Retry" })
 // @ts-expect-error Internal hooks are not public polling configuration.

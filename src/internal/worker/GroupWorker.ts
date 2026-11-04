@@ -1,7 +1,7 @@
 /** Group-to-engine construction and bounded drain. */
 import { Effect, Schema } from "effect"
 import type { JobGroup, Definitions } from "../../JobGroup.js"
-import type { JobStoreService } from "../../JobStore.js"
+import { JobStorage } from "../../JobStorage.js"
 import type { JobQueue } from "../../JobQueue.js"
 import { QueueName } from "../../JobIdentity.js"
 import type { JobHandler } from "./Handler.js"
@@ -10,12 +10,6 @@ import type { QueueRun } from "./QueueRun.js"
 import { JobWorkerConfigurationError, WorkerCapability } from "./Capability.js"
 import { makeWithHandlers } from "./Runtime.js"
 import { drainWithOptions } from "./Drain.js"
-
-/** One configured store owns the budget; group/queue options do not duplicate it. */
-export interface Storage<E, R> {
-  readonly store: JobStoreService<E, R>
-  readonly operationResponseBudgetMillis: number
-}
 
 export interface QueueOptions {
   readonly queue: JobQueue
@@ -46,13 +40,13 @@ export const DrainLimitsSchema = Schema.Struct({
  * Resolves complete group handlers and fixes all queue semaphores at acquisition.
  * Uses the existing claim/reconciliation/finalization engine, not a second runtime.
  */
-export const make = <Name extends string, D extends Definitions, E, R>(
+export const make = <Name extends string, D extends Definitions>(
   group: JobGroup<Name, D>,
-  storage: Storage<E, R>,
   options: Options
 ) =>
   Effect.gen(function* () {
     const handlers = yield* group.handlers
+    const storage = yield* JobStorage
     const queues = options.queues.map((entry) =>
       Object.freeze({
         queue: Object.freeze({ ...entry.queue }),

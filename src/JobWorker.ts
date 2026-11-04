@@ -4,7 +4,7 @@ import type { JobGroup, Definitions } from "./JobGroup.js"
 import { WorkerCapability } from "./internal/worker/Capability.js"
 import type { RuntimeCapability } from "./internal/worker/Capability.js"
 import * as GroupWorker from "./internal/worker/GroupWorker.js"
-import type { Storage, Options } from "./internal/worker/GroupWorker.js"
+import type { Options } from "./internal/worker/GroupWorker.js"
 
 /**
  * Runs bounded recovery and claims with concurrency fixed at worker construction.
@@ -17,7 +17,7 @@ import type { Storage, Options } from "./internal/worker/GroupWorker.js"
  * import * as Queue from "effect-jobs/JobQueue"
  * import * as Group from "effect-jobs/JobGroup"
  * import * as Worker from "effect-jobs/JobWorker"
- * import type { Storage } from "effect-jobs/JobWorker"
+ * import * as Storage from "effect-jobs/JobStorage"
  *
  * const queue = Queue.make("billing")
  * const group = Group.make("billing", {
@@ -25,11 +25,11 @@ import type { Storage, Options } from "./internal/worker/GroupWorker.js"
  *     payload: Schema.Struct({ invoiceId: Schema.String }) }
  * })
  * // Application supplies qualified storage; construction starts no activity.
- * const runOnce = <E, R>(storage: Storage<E, R>) => {
+ * const runOnce = <E, R>(storage: Storage.Options<E, R>) => {
  *   const HandlerLayer = group.toLayer({ invoice: () => Effect.void })
- *   const WorkerLayer = Worker.layer(group, storage, {
+ *   const WorkerLayer = Worker.layer(group, {
  *     queues: [{ queue, concurrency: 2 }]
- *   }).pipe(Layer.provide(HandlerLayer))
+ *   }).pipe(Layer.provide(Layer.mergeAll(HandlerLayer, Storage.layer(storage))))
  *   return Worker.drain(queue, { maxJobs: 20, recoveryLimit: 10 }).pipe(
  *     Effect.provide(WorkerLayer)
  *   )
@@ -38,12 +38,7 @@ import type { Storage, Options } from "./internal/worker/GroupWorker.js"
  */
 export const drain = GroupWorker.drain
 export { DrainResult } from "./internal/worker/Results.js"
-export type {
-  Storage,
-  Options,
-  QueueOptions,
-  DrainLimits
-} from "./internal/worker/GroupWorker.js"
+export type { Options, QueueOptions, DrainLimits } from "./internal/worker/GroupWorker.js"
 
 export {
   JobWorkerConfigurationError,
@@ -65,8 +60,7 @@ export class JobWorker extends Context.Service<JobWorker, JobWorkerService>()(
 export const make = GroupWorker.make
 
 /** Construction is inert; drain and polling have explicit application-owned lifetimes. */
-export const layer = <Name extends string, D extends Definitions, E, R>(
+export const layer = <Name extends string, D extends Definitions>(
   group: JobGroup<Name, D>,
-  storage: Storage<E, R>,
   options: Options
-) => Layer.effect(JobWorker, make(group, storage, options))
+) => Layer.effect(JobWorker, make(group, options))

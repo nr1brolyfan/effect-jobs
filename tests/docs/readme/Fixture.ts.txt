@@ -5,6 +5,7 @@ import * as Jobs from "effect-jobs/PostgreSqlJobs"
 import { PostgreSqlApplication, PostgreSqlFailure } from "effect-jobs/PostgreSqlTransaction"
 import * as Payload from "effect-jobs/JobPayload"
 import * as Worker from "effect-jobs/JobWorker"
+import * as JobStorage from "effect-jobs/JobStorage"
 import * as Policy from "effect-jobs/JobPolicy"
 import * as Tables from "effect-jobs/PostgreSqlSchema"
 import * as Job from "effect-jobs/Job"
@@ -64,6 +65,6 @@ export const receiptPolicy = Policy.defaultPolicy
 export const tables = Tables.tables()
 export const ReceiptHandler = BillingJobs.toLayer({ receipt: () => Effect.void })
 export const SendPrivateReceipt = Job.make({ kind: "invoice.private-receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: Payload.encrypted({ schema: Document, codec: ReceiptEncryption }) }) })
-export const WorkerLayer = Worker.layer(BillingJobs, jobsStorage, { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(ReceiptHandler))
+export const WorkerLayer = Worker.layer(BillingJobs, { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(Layer.succeed(JobStorage.JobStorage, jobsStorage.storage)), Layer.provide(ReceiptHandler))
 export const BillingWorkerLayer = WorkerLayer
 export const issueInvoice = (operationId: string, invoiceId: string) => jobsStorage.withTransaction(() => IssueInvoice.enqueue({ operationId, slot: "receipt", payload: { invoiceId } }))

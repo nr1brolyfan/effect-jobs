@@ -6,6 +6,7 @@ import * as Queue from "../../../src/JobQueue.js"
 import * as Codec from "../../../src/JobPayloadCodec.js"
 import { FinalizationResult } from "../../../src/JobStore.js"
 import * as Worker from "../../../src/JobWorker.js"
+import * as Storage from "../../../src/JobStorage.js"
 import { harness, policy } from "./Harness.js"
 
 const queue = Queue.make("billing")
@@ -63,13 +64,12 @@ describe("group-backed worker construction", () => {
         }
         const untouched = test.rows[1]!.snapshot
         yield* TestClock.adjust(policy.leaseDurationMillis)
-        const worker = yield* Worker.make(
-          group,
-          {
-            store: test.store,
-            operationResponseBudgetMillis: 100
-          },
-          { queues: [{ queue }, { queue: other }] }
+        const worker = yield* Worker.make(group, {
+          queues: [{ queue }, { queue: other }]
+        }).pipe(
+          Effect.provide(
+            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+          )
         )
         const result = yield* worker.drain(queue)
         expect(result).toMatchObject({ _tag: "Idle", recovered: 1, claimed: 1 })
@@ -108,13 +108,12 @@ describe("group-backed worker construction", () => {
             encoded
           }))
         )
-        const worker = yield* Worker.make(
-          group,
-          {
-            store: test.store,
-            operationResponseBudgetMillis: 100
-          },
-          { queues: [{ queue }, { queue: other }] }
+        const worker = yield* Worker.make(group, {
+          queues: [{ queue }, { queue: other }]
+        }).pipe(
+          Effect.provide(
+            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+          )
         )
         yield* worker.drain(other)
         yield* worker.drain(queue)
@@ -141,13 +140,12 @@ describe("group-backed worker construction", () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const test = yield* seed(2)
-        const worker = yield* Worker.make(
-          group,
-          {
-            store: test.store,
-            operationResponseBudgetMillis: 100
-          },
-          { queues: [{ queue, concurrency: 1 }] }
+        const worker = yield* Worker.make(group, {
+          queues: [{ queue, concurrency: 1 }]
+        }).pipe(
+          Effect.provide(
+            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+          )
         )
         expect(test.calls.claims).toHaveLength(0)
         expect(test.calls.recoveries).toHaveLength(0)
@@ -199,14 +197,16 @@ describe("group-backed worker construction", () => {
               )
             )
         })
-        const worker = yield* Worker.make(
-          group,
-          {
-            store: test.store,
-            operationResponseBudgetMillis: 100
-          },
-          { queues: [{ queue, concurrency: 1 }] }
-        ).pipe(Effect.provide(handlers))
+        const worker = yield* Worker.make(group, {
+          queues: [{ queue, concurrency: 1 }]
+        }).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 }),
+              handlers
+            )
+          )
+        )
         const first = yield* worker.drain(queue, { maxJobs: 1 }).pipe(Effect.forkChild)
         yield* Deferred.await(entered)
         const second = yield* worker.drain(queue, { maxJobs: 1 }).pipe(Effect.forkChild)
@@ -228,15 +228,13 @@ describe("group-backed worker construction", () => {
     async (concurrency) => {
       const test = harness()
       const result = await Effect.runPromise(
-        Worker.make(
-          group,
-          {
-            store: test.store,
-            operationResponseBudgetMillis: 100
-          },
-          { queues: [{ queue, concurrency }] }
-        ).pipe(
-          Effect.provide(group.toLayer({ receipt: () => Effect.void })),
+        Worker.make(group, { queues: [{ queue, concurrency }] }).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 }),
+              group.toLayer({ receipt: () => Effect.void })
+            )
+          ),
           Effect.result
         )
       )
@@ -249,15 +247,16 @@ describe("group-backed worker construction", () => {
   it("rejects repeated or empty queue configuration", async () => {
     for (const queues of [[], [{ queue }, { queue }]]) {
       const result = await Effect.runPromise(
-        Worker.make(
-          group,
-          {
-            store: harness().store,
-            operationResponseBudgetMillis: 100
-          },
-          { queues }
-        ).pipe(
-          Effect.provide(group.toLayer({ receipt: () => Effect.void })),
+        Worker.make(group, { queues }).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              Storage.layer({
+                store: harness().store,
+                operationResponseBudgetMillis: 100
+              }),
+              group.toLayer({ receipt: () => Effect.void })
+            )
+          ),
           Effect.result
         )
       )
@@ -269,13 +268,10 @@ describe("group-backed worker construction", () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         const test = yield* seed()
-        const worker = yield* Worker.make(
-          group,
-          {
-            store: test.store,
-            operationResponseBudgetMillis: 100
-          },
-          { queues: [{ queue }] }
+        const worker = yield* Worker.make(group, { queues: [{ queue }] }).pipe(
+          Effect.provide(
+            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+          )
         )
         for (const limits of [
           { maxJobs: 0 },
@@ -302,13 +298,12 @@ describe("group-backed worker construction", () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         const test = harness()
-        const worker = yield* Worker.make(
-          group,
-          {
-            store: test.store,
-            operationResponseBudgetMillis: 100
-          },
-          { queues: [{ queue, concurrency: 64 }] }
+        const worker = yield* Worker.make(group, {
+          queues: [{ queue, concurrency: 64 }]
+        }).pipe(
+          Effect.provide(
+            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+          )
         )
         expect(test.calls.claims).toHaveLength(0)
         expect(test.calls.recoveries).toHaveLength(0)
@@ -328,17 +323,19 @@ describe("group-backed worker construction", () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         const test = yield* seed()
-        const worker = yield* Worker.make(
-          group,
-          {
-            operationResponseBudgetMillis: 100,
-            store: {
-              ...test.store,
-              finalize: (request) =>
-                test.store.finalize(request).pipe(Effect.as(FinalizationResult.Unknown()))
-            }
-          },
-          { queues: [{ queue }] }
+        const worker = yield* Worker.make(group, { queues: [{ queue }] }).pipe(
+          Effect.provide(
+            Storage.layer({
+              operationResponseBudgetMillis: 100,
+              store: {
+                ...test.store,
+                finalize: (request) =>
+                  test.store
+                    .finalize(request)
+                    .pipe(Effect.as(FinalizationResult.Unknown()))
+              }
+            })
+          )
         )
         yield* worker.drain(queue)
         expect(test.calls.finalizations).toHaveLength(1)

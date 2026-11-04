@@ -2,6 +2,7 @@
 import { Clock, Context, Effect, Layer, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import * as Worker from "effect-jobs/JobWorker"
+import * as Storage from "effect-jobs/JobStorage"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
@@ -51,12 +52,13 @@ export const workerLayerNoDeps = (schema: string) =>
   Layer.unwrap(
     Effect.gen(function* () {
       const backend = yield* PostgreSqlJobs
-      return Worker.layer(Definitions.group, backend, {
+      return Worker.layer(Definitions.group, {
         queues: queues.map((queue) => ({
           queue,
           concurrency: limits.concurrency
         }))
       }).pipe(
+        Layer.provide(Layer.succeed(Storage.JobStorage, backend.storage)),
         Layer.provide(Handlers.layerNoDeps),
         Layer.provide(Provider.layerNoDeps(schema))
       )

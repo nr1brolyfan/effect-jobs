@@ -6,9 +6,8 @@ import { JobOperators, type JobOperatorsService } from "./JobOperators.js"
 import { makeOperators } from "./internal/postgresql/Operators.js"
 import { JobIntegrityConflict, JobPolicyIncompatible } from "./JobContract.js"
 import { PostgreSqlFailure, PostgreSqlInvalidHandle } from "./PostgreSqlTransaction.js"
-import { Cause, Context, Effect, Layer, Schema } from "effect"
+import { Cause, Context, Effect, Layer } from "effect"
 import { JobBackendError, JobEnqueue, type JobEnqueueService } from "./JobEnqueue.js"
-import { EpochMillis } from "./JobPolicy.js"
 import type { JobsTransaction } from "./JobTransaction.js"
 import { PostgreSqlApplication, type PostgreSqlError } from "./PostgreSqlTransaction.js"
 import {
@@ -27,6 +26,7 @@ import {
 import { insertOrCompare } from "./internal/postgresql/Producer.js"
 import { makeCleanup, makeStore } from "./internal/postgresql/Store.js"
 import { ready } from "./internal/postgresql/Readiness.js"
+import * as Storage from "./JobStorage.js"
 
 const backendError = (error: PostgreSqlError): JobBackendError =>
   new JobBackendError({
@@ -148,6 +148,8 @@ export interface Options extends TableOptions {
  * @category models
  */
 export interface Backend {
+  /** Portable execution service captured with this backend's admission budget. */
+  readonly storage: Storage.JobStorageService
   /** Shared execution reserve, resolved once with this storage configuration. */
   readonly operationResponseBudgetMillis: number
   /** Explicit bounded schema/index introspection; never creates or migrates storage. */
@@ -224,11 +226,6 @@ export const make = (options: Options) =>
       catch: (error) => error as PostgreSqlConfigurationError
     })
     const budget = options.operationResponseBudgetMillis
-    if (!Schema.is(EpochMillis)(budget) || budget === 0) {
-      return yield* new PostgreSqlConfigurationError({
-        field: "operationResponseBudgetMillis"
-      })
-    }
     const { jobs, payloads } = relations(mapping)
     const joinTransaction: Backend["joinTransaction"] = (handle, body) =>
       adapter.validate(handle).pipe(
@@ -285,13 +282,21 @@ export const make = (options: Options) =>
     }
     const operators = makeOperators(adapter, jobs, payloads, budget)
     const neutral = neutralOperators(operators)
+    const store = makeStore(adapter, jobs, payloads, budget)
+    const storage = yield* Storage.make({
+      store,
+      operationResponseBudgetMillis: budget
+    }).pipe(
+      Effect.mapError((error) => new PostgreSqlConfigurationError({ field: error.field }))
+    )
     return PostgreSqlJobs.of({
       operationResponseBudgetMillis: budget,
+      storage,
       operators,
       producer,
       ready: ready(adapter, jobs, payloads),
       tables: mapping,
-      store: makeStore(adapter, jobs, payloads, budget),
+      store,
       cleanup: makeCleanup(adapter, jobs),
       health: makeHealth(adapter, jobs),
       joinTransaction,
@@ -339,7 +344,8 @@ export const layerNoDeps = (options: Options) =>
         Layer.mergeAll(
           Layer.succeed(PostgreSqlJobs, backend),
           Layer.succeed(JobEnqueue, backend.producer),
-          Layer.succeed(JobOperators, neutralOperators(backend.operators))
+          Layer.succeed(JobOperators, neutralOperators(backend.operators)),
+          Layer.succeed(Storage.JobStorage, backend.storage)
         )
       )
     )

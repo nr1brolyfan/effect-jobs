@@ -18,6 +18,7 @@ import * as Policy from "effect-jobs/JobPolicy"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Group from "effect-jobs/JobGroup"
 import * as Worker from "effect-jobs/JobWorker"
+import * as Storage from "effect-jobs/JobStorage"
 import * as Polling from "effect-jobs/JobPolling"
 import * as Lifecycle from "effect-jobs/JobLifecycle"
 import * as Store from "effect-jobs/JobStore"
@@ -84,6 +85,7 @@ await Effect.runPromise(
         policy,
         encoded
       }
+      /** @type {import("effect-jobs/JobStore").JobStoreService} */
       const store = {
         claim: (request) =>
           Effect.sync(() => {
@@ -116,14 +118,14 @@ await Effect.runPromise(
             executions++
           })
       })
-      const worker = yield* Worker.make(
-        group,
-        {
-          store,
-          operationResponseBudgetMillis: 100
-        },
-        { queues: [{ queue }] }
-      ).pipe(Effect.provide(handlers))
+      const worker = yield* Worker.make(group, { queues: [{ queue }] }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Storage.layer({ store, operationResponseBudgetMillis: 100 }),
+            handlers
+          )
+        )
+      )
       yield* Worker.drain(queue, limits).pipe(
         Effect.provideService(Worker.JobWorker, worker)
       )

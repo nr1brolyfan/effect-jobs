@@ -176,9 +176,10 @@ const jobsStorage = yield* PostgreSqlJobs.make({
   operationResponseBudgetMillis: 100
 }).pipe(Effect.provide(ApplicationPostgresLayer))
 
-const WorkerLayer = Worker.layer(BillingJobs, jobsStorage, {
+const WorkerLayer = Worker.layer(BillingJobs, {
   queues: [{ queue: BillingQueue, concurrency: 2 }]
 }).pipe(
+  Layer.provide(Layer.succeed(JobStorage.JobStorage, jobsStorage.storage)),
   Layer.provide(ReceiptHandler),
   Layer.provide(ReceiptMailerLayer)
 )
@@ -198,6 +199,14 @@ NodeRuntime.runMain(runWorker)
 ```
 
 The Scope owns polling shutdown. Construction starts no workers. Concurrency is fixed per worker instance and shared across its concurrent drains, not a global queue limit.
+
+Worker construction requires `JobStorage` and the complete group's handlers.
+`PostgreSqlJobs.layerNoDeps(options)` provides `JobStorage` together with the
+backend's producer/operator services; reuse that Layer when composing workers.
+When using `PostgreSqlJobs.make`, provide its captured `backend.storage` as above.
+Custom qualified ports use `JobStorage.layer({ store, operationResponseBudgetMillis })`;
+their provider requirements remain explicit on the Layer. The source owns its
+lifetime, migrations and admission checks; this composition does not prove atomicity.
 
 For a bounded invocation instead of a server:
 
@@ -499,9 +508,10 @@ const BillingHandlers = CloudJobs.toLayer({
     })
 })
 
-const BillingWorkerLayer = Worker.layer(CloudJobs, jobsStorage, {
+const BillingWorkerLayer = Worker.layer(CloudJobs, {
   queues: [{ queue: BillingQueue, concurrency: 2 }]
 }).pipe(
+  Layer.provide(Layer.succeed(JobStorage.JobStorage, jobsStorage.storage)),
   Layer.provide(BillingHandlers),
   Layer.provide(Layer.mergeAll(ReceiptMailerLayer, InvoicePdfRendererLayer))
 )

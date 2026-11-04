@@ -38,18 +38,20 @@ const { OtlpExporter, OtlpLogger, OtlpMetrics, OtlpSerialization, OtlpTracer } =
   await pkg("effect/observability")
 const { makeWithTransaction } = await pkg("effect/sql/SqlClient")
 const { ConnectionError, SqlError } = await pkg("effect/sql/SqlError")
-const [Job, Queue, Producer, Enqueue, Policy, Group, Worker, Native] = await Promise.all(
-  [
-    "Job",
-    "JobQueue",
-    "JobProducer",
-    "JobEnqueue",
-    "JobPolicy",
-    "JobGroup",
-    "JobWorker",
-    "PostgreSqlNative"
-  ].map(library)
-)
+const [Job, Queue, Producer, Enqueue, Policy, Group, Worker, Native, Storage] =
+  await Promise.all(
+    [
+      "Job",
+      "JobQueue",
+      "JobProducer",
+      "JobEnqueue",
+      "JobPolicy",
+      "JobGroup",
+      "JobWorker",
+      "PostgreSqlNative",
+      "JobStorage"
+    ].map(library)
+  )
 const base = process.env.OBS_COLLECTOR_URL
 const metricBase = process.env.OBS_METRIC_URL
 assert.match(base, /^http:\/\/127\.0\.0\.1:\d+$/)
@@ -193,14 +195,14 @@ const program = Effect.gen(function* () {
             invoked++
           })
       })
-      const worker = yield* Worker.make(
-        group,
-        {
-          store,
-          operationResponseBudgetMillis: 100
-        },
-        { queues: [{ queue }] }
-      ).pipe(Effect.provide(handlers))
+      const worker = yield* Worker.make(group, { queues: [{ queue }] }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Storage.layer({ store, operationResponseBudgetMillis: 100 }),
+            handlers
+          )
+        )
+      )
       yield* Worker.drain(queue, { maxJobs: 1, recoveryLimit: 1 }).pipe(
         Effect.provideService(Worker.JobWorker, worker)
       )

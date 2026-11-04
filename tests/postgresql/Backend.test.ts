@@ -1,7 +1,7 @@
 import * as FailureCodes from "../../src/FailureCode.js"
 import { readFileSync, writeFileSync } from "node:fs"
 import { randomBytes, randomUUID } from "node:crypto"
-import { Effect, Exit, Duration, Schema, Deferred, Fiber, Option } from "effect"
+import { Effect, Exit, Duration, Schema, Deferred, Fiber, Option, Layer } from "effect"
 import type { PoolConfig } from "pg"
 import { Pool } from "../qualification/d6-pg/PgDriver.js"
 import { beforeAll, afterAll, describe, expect, test } from "vitest"
@@ -24,6 +24,7 @@ import type {
 } from "../../src/PostgreSqlTransaction.js"
 import * as Payload from "../../src/JobPayload.js"
 import * as Worker from "../../src/JobWorker.js"
+import * as Storage from "../../src/JobStorage.js"
 import { JobFailures, type JobFailure } from "../../src/JobFailure.js"
 import type { HandlerInput, EnqueueResult } from "../../src/JobContract.js"
 import { readQualificationResource } from "../qualification/Resource.mjs"
@@ -257,9 +258,12 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const worker = yield* Worker.make(workerGroup, backend, {
+          const worker = yield* Worker.make(workerGroup, {
             queues: [{ queue }]
-          }).pipe(Effect.provide(workerGroup.toLayer({ generate: execute })))
+          }).pipe(
+            Effect.provideService(Storage.JobStorage, backend.storage),
+            Effect.provide(workerGroup.toLayer({ generate: execute }))
+          )
           return yield* worker.drain(queue, { maxJobs: 1, recoveryLimit: 1 })
         })
       )
@@ -278,6 +282,35 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       ).rows[0].now
     )
 
+  test("backend Layer provides the same configured JobStorage to a group worker", async () => {
+    await clear()
+    await enqueue("storage-service")
+    const borrows = source.counters.borrows
+    const backendLayer = Jobs.layerNoDeps({
+      ...mapping,
+      operationResponseBudgetMillis: 100
+    }).pipe(Layer.provide(Layer.succeed(PostgreSqlApplication, adapter)))
+    const workerLayer = Worker.layer(workerGroup, { queues: [{ queue }] }).pipe(
+      Layer.provideMerge(backendLayer),
+      Layer.provide(workerGroup.toLayer({ generate: () => Effect.void }))
+    )
+    expect(source.counters.borrows).toBe(borrows)
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const configured = yield* Jobs.PostgreSqlJobs
+        const storage = yield* Storage.JobStorage
+        expect(storage).toBe(configured.storage)
+        expect(storage.operationResponseBudgetMillis).toBe(
+          configured.operationResponseBudgetMillis
+        )
+        expect(source.counters.borrows).toBe(borrows)
+        expect(
+          yield* Worker.drain(queue, { maxJobs: 1, recoveryLimit: 1 })
+        ).toMatchObject({ _tag: "MoreWork", claimed: 1 })
+      }).pipe(Effect.provide(workerLayer))
+    )
+    expect((await row("storage-service")).state).toBe("Completed")
+  })
   test("actual pinned runtime/server and no runtime DDL, savepoint or pool ownership", async () => {
     expect(version.split(" ")[0]).toBe("16.15")
     expect(process.versions.bun === undefined ? "node" : "bun").toBe(
@@ -621,9 +654,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     const group = Group.make("retained-policy", { generate: definition })
     await Effect.runPromise(
       Effect.gen(function* () {
-        const blocked = yield* Worker.make(group, incompatible, {
+        const blocked = yield* Worker.make(group, {
           queues: [{ queue }]
-        })
+        }).pipe(Effect.provideService(Storage.JobStorage, incompatible.storage))
         expect(yield* blocked.drain(queue)).toMatchObject({
           _tag: "Backoff",
           phase: "claim",
@@ -631,9 +664,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         })
         expect(yield* Effect.promise(() => row("retained-policy"))).toEqual(before)
         expect(executions).toBe(0)
-        const restored = yield* Worker.make(group, backend, {
+        const restored = yield* Worker.make(group, {
           queues: [{ queue }]
-        })
+        }).pipe(Effect.provideService(Storage.JobStorage, backend.storage))
         expect(yield* restored.drain(queue)).toMatchObject({
           _tag: "Idle",
           claimed: 1

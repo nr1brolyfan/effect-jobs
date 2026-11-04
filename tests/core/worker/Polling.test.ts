@@ -17,6 +17,7 @@ import * as Queue from "../../../src/JobQueue.js"
 import * as Group from "../../../src/JobGroup.js"
 import * as Codec from "../../../src/JobPayloadCodec.js"
 import * as Worker from "../../../src/JobWorker.js"
+import * as Storage from "../../../src/JobStorage.js"
 import * as Polling from "../../../src/JobPolling.js"
 import { harness, policy } from "./Harness.js"
 import { JobOwnershipLost } from "../../../src/JobStore.js"
@@ -47,13 +48,14 @@ const run = <A, E>(program: Effect.Effect<A, E, Scope.Scope>, value = 0) =>
     )
   )
 const make = (store: JobStoreService<unknown>) =>
-  Worker.make(
-    group,
-    { store, operationResponseBudgetMillis: 100 },
-    {
-      queues: [{ queue, concurrency: 2 }]
-    }
-  ).pipe(Effect.provide(handlers))
+  Worker.make(group, { queues: [{ queue, concurrency: 2 }] }).pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        Storage.layer({ store, operationResponseBudgetMillis: 100 }),
+        handlers
+      )
+    )
+  )
 const start = (worker: Worker.JobWorkerService) =>
   Layer.build(
     Polling.layer([queue], pollingOptions).pipe(
@@ -264,15 +266,15 @@ it("captures provider requirements once at worker construction, not as ambient p
             return yield* test.store.claim(request)
           })
       }
-      const worker = yield* Worker.make(
-        group,
-        {
-          store,
-          operationResponseBudgetMillis: 100
-        },
-        { queues: [{ queue, concurrency: 2 }] }
-      ).pipe(
-        Effect.provide(handlers),
+      const worker = yield* Worker.make(group, {
+        queues: [{ queue, concurrency: 2 }]
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Storage.layer({ store, operationResponseBudgetMillis: 100 }),
+            handlers
+          )
+        ),
         Effect.provideService(Connection, { marker: "borrowed" })
       )
       yield* start(worker)
@@ -311,14 +313,16 @@ it("closes active executions with the polling scope and never releases after exe
             )
           )
       })
-      const worker = yield* Worker.make(
-        group,
-        {
-          store: test.store,
-          operationResponseBudgetMillis: 100
-        },
-        { queues: [{ queue, concurrency: 2 }] }
-      ).pipe(Effect.provide(activeHandlers))
+      const worker = yield* Worker.make(group, {
+        queues: [{ queue, concurrency: 2 }]
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 }),
+            activeHandlers
+          )
+        )
+      )
       const scope = yield* Scope.make()
       yield* Scope.provide(scope)(start(worker))
       yield* Deferred.await(reached)

@@ -4,6 +4,7 @@ import * as Job from "effect-jobs/Job"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Group from "effect-jobs/JobGroup"
 import * as Worker from "effect-jobs/JobWorker"
+import * as Storage from "effect-jobs/JobStorage"
 import type { JobStoreService } from "effect-jobs/JobStore"
 import { Schema } from "effect"
 import { TestClock } from "effect/testing"
@@ -44,14 +45,10 @@ const exercise = (
     finalize: unexpected,
     reconcileFinalization: unexpected
   }
-  const worker = Worker.layer(
-    group,
-    {
-      store,
-      operationResponseBudgetMillis: 100
-    },
-    { queues: [{ queue, concurrency: 2 }] }
-  ).pipe(Layer.provide(handlers))
+  const worker = Worker.layer(group, { queues: [{ queue, concurrency: 2 }] }).pipe(
+    Layer.provide(Storage.layer({ store, operationResponseBudgetMillis: 100 })),
+    Layer.provide(handlers)
+  )
   const program = WakeCycle.run(queue).pipe(
     Effect.provide(worker),
     Effect.provideService(WakeCycle.WakeSchedule, {
@@ -135,23 +132,22 @@ describe("finite wake cycle (mock storage, not PostgreSQL evidence)", () => {
   it("rejects invalid worker concurrency before touching alarm or storage", async () => {
     const program = WakeCycle.run(queue).pipe(
       Effect.provide(
-        Worker.layer(
-          group,
-          {
-            operationResponseBudgetMillis: 100,
-            store: {
-              claim: () => Effect.die("must not claim"),
-              recoverExpired: () => Effect.die("must not recover"),
-              reconcileClaim: () => Effect.die("must not reconcile"),
-              release: () => Effect.die("must not release"),
-              finalize: () => Effect.die("must not finalize"),
-              reconcileFinalization: () => Effect.die("must not reconcile")
-            } satisfies JobStoreService
-          },
-          {
-            queues: [{ queue, concurrency: 65 }]
-          }
-        ).pipe(Layer.provide(handlers))
+        Worker.layer(group, { queues: [{ queue, concurrency: 65 }] }).pipe(
+          Layer.provide(
+            Storage.layer({
+              operationResponseBudgetMillis: 100,
+              store: {
+                claim: () => Effect.die("must not claim"),
+                recoverExpired: () => Effect.die("must not recover"),
+                reconcileClaim: () => Effect.die("must not reconcile"),
+                release: () => Effect.die("must not release"),
+                finalize: () => Effect.die("must not finalize"),
+                reconcileFinalization: () => Effect.die("must not reconcile")
+              } satisfies JobStoreService
+            })
+          ),
+          Layer.provide(handlers)
+        )
       ),
       Effect.provideService(WakeCycle.WakeSchedule, {
         read: Effect.die("must not read")

@@ -315,8 +315,8 @@ Current checkpoint evidence on Node 24.15.0 / Bun 1.4.2:
   recovery and factory-name issues were fixed and rechecked. Raw automated
   findings are retained, not represented as an automated all-clean pass.
 
-Remaining implementation after the checkpoints below: configured `JobStorage` service
-composition, `JobSchedule` observations, accepted retry/counter naming and finite
+Remaining implementation after the checkpoints below: `JobSchedule` observations,
+accepted retry/counter naming and finite
 graceful shutdown. Final caller/documentation migration, qualification of that
 final snapshot and one independent review remain required. This checkpoint is
 not a release candidate. The owner authorized local checkpoint commits before
@@ -387,8 +387,8 @@ Evidence on Node 24.15.0 / Bun 1.4.2:
   test-helper edit was checked again. Findings were manually compared with exact
   rule scope and surrounding source, not reported as an automated clean pass.
 
-Still outstanding after the checkpoints below: configured `JobStorage`
-service composition, `JobSchedule` observations, retry/counter naming, finite
+Still outstanding after the checkpoints below: `JobSchedule` observations,
+retry/counter naming, finite
 graceful shutdown, final caller/documentation migration, integrated qualification
 and one independent review. This is a local implementation checkpoint, not a
 finished redesign or release candidate. No push, merge, publication or deployment
@@ -466,7 +466,69 @@ Current evidence on Node 24.15.0 / Bun 1.4.2:
   findings were manually triaged against exact applicability and source, not
   represented as an automated clean report.
 
-Still outstanding: configured `JobStorage`, `JobSchedule` observations, accepted
+Still outstanding after the checkpoint below: `JobSchedule` observations, accepted
 retry/counter naming, finite graceful shutdown, final integrated documentation and
 qualification, and the single independent review. No release, push, merge,
 publication or deployment is authorized or performed by this checkpoint.
+
+## Implementation checkpoint: configured JobStorage service
+
+The consumer/plan removal is committed locally as `207c0a8`.
+`JobWorker.make(group, options)` and `layer(group, options)` now require the
+portable `JobStorage` Context service and complete group handlers. The explicit
+backend argument and `JobWorker.Storage` type are removed, not overloaded or
+aliased. Worker/drain options cannot supply a second response budget.
+
+`JobStorage.make/layer` validate a positive bounded response reserve and capture
+the raw store's provider requirements at construction. Construction performs no
+readiness, database borrowing, migrations, cleanup, polling or pool ownership.
+The service freezes its budget and exposes captured per-operation ports. Typed
+provider failures become a safe `JobStorageUnavailable`, never a rollback proof;
+operation-specific protocol, ownership and policy-admission errors retain their
+identities. Explicit Unknown results, defects, interruptions and mixed cause
+structure are preserved, with no mutation replay. Native low-level backend ports
+retain their original typed errors for callers that need them.
+
+PostgreSQL validates that one budget through storage assembly, uses it for
+admission and execution, and exposes the captured service as `backend.storage`.
+`PostgreSqlJobs.layerNoDeps` provides that same service alongside PostgreSqlJobs,
+JobEnqueue and JobOperators. Readiness and source lifetime remain explicit.
+Real-PG coverage proves the Layer supplies the identical service to a group worker,
+construction borrows nothing, and a bounded drain durably completes the job.
+
+Callers, README/JSDoc, native/installed execution fixtures, observability fixtures,
+playground and Cloudflare probes use Context/Layer composition. New unit tests
+exercise invalid budgets, inert construction, dependency capture and budget
+snapshots, exact argument/result forwarding, sanitized errors without raw-port
+mutation, no replay, policy/ownership/protocol identity, composite causes and
+application-owned resource release. Type tests retain storage/provider/group
+requirements and reject the removed signature. Those type consumers and an inert
+storage-backed drain are also qualified from the installed package.
+
+Current evidence on Node 24.15.0 / Bun 1.4.2:
+
+- Full `verify`: 1,048 passed, 94 skipped; eight JSDoc examples against source and
+  packed bytes, with 27 current public subpaths. The additional skipped test is the
+  real-PG service-composition case, qualified separately below.
+- Playground typecheck/lint and README source/packed qualification pass.
+- Real source PostgreSQL: 76 tests pass per runtime. Installed PostgreSQL: 47 pass
+  per runtime, including the new storage-service composition regression.
+- Installed public API strict types/runtime and native Drizzle A+B/runtime pass.
+  The separate full foreign-declaration audit remains diagnostic FAIL.
+- Backend logs and exact-container cleanup receipt:
+  `/tmp/opencode/jobs-redesign-pg-alm6_w1z/`; private configurations removed.
+  Packed artifact SHA-256:
+  `7ce01fcf1c7b3dee2c199b7b225753446a25c2686bf898d2143ad4420d67c4c3`.
+- Standalone sustained observability qualification passes slow/offline loopback
+  transport cases on Node/Bun, including actual storage-backed handler completion:
+  `/tmp/opencode/jobs-storage-sustained-node.json` and
+  `/tmp/opencode/jobs-storage-sustained-bun.json`.
+- Current changed TypeScript was checked against all stored traits; findings were
+  manually triaged against actual operation channels, trust boundaries and source.
+  This is not an automated clean report. Maintained observability code typechecks;
+  full collector/workerd/hosted qualification is not claimed for this checkpoint.
+
+Remaining: `JobSchedule` observations, accepted retry/counter naming, finite
+graceful shutdown, final integrated documentation/qualification and one independent
+review. This local checkpoint is not a finished redesign or release candidate.
+No push, merge, publication or deployment has occurred.

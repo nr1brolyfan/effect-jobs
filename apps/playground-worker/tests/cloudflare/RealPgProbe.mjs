@@ -23,6 +23,7 @@ import * as Queue from "effect-jobs/JobQueue"
 import * as Policy from "effect-jobs/JobPolicy"
 import * as Group from "effect-jobs/JobGroup"
 import * as Worker from "effect-jobs/JobWorker"
+import * as Storage from "effect-jobs/JobStorage"
 import * as Wake from "../../src/cloudflare/WakeCycle.js"
 import * as Retry from "effect-jobs/JobRetryPolicy"
 
@@ -224,9 +225,10 @@ export const probe = (url, schema, alarm, checks = []) =>
         yield* producer.enqueueStandalone(input("worker"))
         let calls = 0
         const group = Group.make("cloudflare-real-pg", { synthetic: definition })
-        const worker = Worker.layer(group, backend, {
+        const worker = Worker.layer(group, {
           queues: [{ queue, concurrency: 2 }]
         }).pipe(
+          Layer.provide(Layer.succeed(Storage.JobStorage, backend.storage)),
           Layer.provide(
             group.toLayer({
               synthetic: () =>

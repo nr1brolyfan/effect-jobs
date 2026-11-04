@@ -36,10 +36,16 @@ const library = (name) =>
           )
     ).href
   )
-const [Job, JobQueue, Codec, Policy, Group, Worker] = await Promise.all(
-  ["Job", "JobQueue", "JobPayloadCodec", "JobPolicy", "JobGroup", "JobWorker"].map(
-    library
-  )
+const [Job, JobQueue, Codec, Policy, Group, Worker, Storage] = await Promise.all(
+  [
+    "Job",
+    "JobQueue",
+    "JobPayloadCodec",
+    "JobPolicy",
+    "JobGroup",
+    "JobWorker",
+    "JobStorage"
+  ].map(library)
 )
 const queue = JobQueue.make("load-proof")
 const definition = Job.make({ kind: "load-proof", payload: Schema.String })
@@ -103,14 +109,14 @@ const runJob = () =>
       reconcileClaim: () => Effect.succeed({ _tag: "Unknown" }),
       reconcileFinalization: () => Effect.succeed({ _tag: "Unknown" })
     }
-    const worker = yield* Worker.make(
-      group,
-      {
-        store,
-        operationResponseBudgetMillis: 100
-      },
-      { queues: [{ queue }] }
-    ).pipe(Effect.provide(handlers))
+    const worker = yield* Worker.make(group, { queues: [{ queue }] }).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          Storage.layer({ store, operationResponseBudgetMillis: 100 }),
+          handlers
+        )
+      )
+    )
     yield* Worker.drain(queue, { maxJobs: 1, recoveryLimit: 1 }).pipe(
       Effect.provideService(Worker.JobWorker, worker)
     )
