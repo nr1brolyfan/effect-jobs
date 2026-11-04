@@ -291,8 +291,8 @@ export const probe = (url, schema, alarm, checks = []) =>
       )
       const recovering = yield* produce("recover")
       const old = yield* backend.store.claim({
-        queue: Definitions.WelcomeEmail.queue.name,
-        supportedCatalog: [Definitions.WelcomeEmail.catalog],
+        queue: Definitions.catalogFor(Definitions.WelcomeEmail).queue,
+        supportedCatalog: [Definitions.catalogFor(Definitions.WelcomeEmail)],
         leaseToken: crypto.randomUUID()
       })
       assert.equal(old._tag, "Claimed")

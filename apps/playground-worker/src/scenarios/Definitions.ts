@@ -82,37 +82,30 @@ const media = JobQueue.make("playground-media")
 const commerce = JobQueue.make("playground-commerce")
 const privateData = JobQueue.make("playground-private")
 export const WelcomeEmail = Job.make({
-  queue: communications,
   kind: "playground.welcome-email",
   payload: Payload
 })
 export const ImageProcessing = Job.make({
-  queue: media,
   kind: "playground.image-processing",
   payload: Payload
 })
 export const WebhookDelivery = Job.make({
-  queue: communications,
   kind: "playground.webhook-delivery",
   payload: Payload
 })
 export const PrivateDataExport = Job.make({
-  queue: privateData,
   kind: "playground.private-data-export",
   payload: ExportPayload
 })
 export const CatalogSync = Job.make({
-  queue: commerce,
   kind: "playground.catalog-sync",
   payload: Payload
 })
 export const SimulatedPayment = Job.make({
-  queue: commerce,
   kind: "playground.simulated-payment",
   payload: Payload
 })
 export const SyntheticDocumentExport = Job.make({
-  queue: privateData,
   kind: "playground.synthetic-document-export",
   payload: SyntheticExportPayload
 })
@@ -139,6 +132,24 @@ export const definitions = [
   SimulatedPayment,
   SyntheticDocumentExport
 ] as const
+
+/** Application routing inventory; job contracts themselves have no queue. */
+export const routes = [
+  { job: WelcomeEmail, queue: communications },
+  { job: ImageProcessing, queue: media },
+  { job: WebhookDelivery, queue: communications },
+  { job: PrivateDataExport, queue: privateData },
+  { job: CatalogSync, queue: commerce },
+  { job: SimulatedPayment, queue: commerce },
+  { job: SyntheticDocumentExport, queue: privateData }
+] as const
+
+/** Fixture/read metadata from the application's explicit routing inventory. */
+export const catalogFor = (job: (typeof definitions)[number]) => ({
+  queue: routes.find((route) => route.job === job)!.queue.name,
+  kind: job.kind,
+  version: job.version
+})
 
 export const group = JobGroup.make("playground-scenarios", {
   welcomeEmail: WelcomeEmail,

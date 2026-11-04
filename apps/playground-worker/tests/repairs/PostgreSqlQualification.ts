@@ -113,11 +113,13 @@ export const qualify = (client: PgClient, schema: string) =>
           }
           const inserted = yield* client.withTransaction(
             Effect.gen(function* () {
-              const result = yield* Definitions.WelcomeEmail.enqueue({
-                producer,
-                payload,
-                policy: Fixture.detail.policy
-              }).pipe(Effect.provideService(JobEnqueue, backend.producer))
+              const result = yield* Definitions.makeProducer(Fixture.detail.policy)
+                .enqueue({
+                  operationId: producer.operationId,
+                  slot: "welcome-email",
+                  payload
+                })
+                .pipe(Effect.provideService(JobEnqueue, backend.producer))
               assert.equal(result._tag, "Inserted")
               if (result._tag !== "Inserted") {
                 return yield* Effect.die(new Error("Fresh producer identity required"))
@@ -142,8 +144,8 @@ export const qualify = (client: PgClient, schema: string) =>
             })
           )
           const claimed = yield* backend.store.claim({
-            queue: Definitions.WelcomeEmail.catalog.queue,
-            supportedCatalog: [Definitions.WelcomeEmail.catalog],
+            queue: Definitions.catalogFor(Definitions.WelcomeEmail).queue,
+            supportedCatalog: [Definitions.catalogFor(Definitions.WelcomeEmail)],
             leaseToken: crypto.randomUUID()
           })
           assert.equal(claimed._tag, "Claimed")
@@ -184,8 +186,8 @@ export const qualify = (client: PgClient, schema: string) =>
       const complete = (jobId: string) =>
         Effect.gen(function* () {
           const claimed = yield* backend.store.claim({
-            queue: Definitions.WelcomeEmail.catalog.queue,
-            supportedCatalog: [Definitions.WelcomeEmail.catalog],
+            queue: Definitions.catalogFor(Definitions.WelcomeEmail).queue,
+            supportedCatalog: [Definitions.catalogFor(Definitions.WelcomeEmail)],
             leaseToken: crypto.randomUUID()
           })
           assert.equal(claimed._tag, "Claimed")

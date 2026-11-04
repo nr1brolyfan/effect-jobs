@@ -1,6 +1,6 @@
 import { Cause, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
-import * as Job from "../../../src/Job.js"
+import * as Job from "../definitions/ProtocolJob.js"
 import * as Queue from "../../../src/JobQueue.js"
 import * as Registry from "../../../src/JobRegistry.js"
 import * as Payload from "../../../src/JobPayload.js"

@@ -315,8 +315,7 @@ Current checkpoint evidence on Node 24.15.0 / Bun 1.4.2:
   recovery and factory-name issues were fixed and rechecked. Raw automated
   findings are retained, not represented as an automated all-clean pass.
 
-Remaining implementation: pure `Job` contracts (the queue-bound declaration,
-direct enqueue, handler installation and encoder override still exist), removal
+Remaining implementation after the checkpoints below: removal
 of public registry/consumer/plan concepts, configured `JobStorage` service
 composition, `JobSchedule` observations, accepted retry/counter naming and finite
 graceful shutdown. Final caller/documentation migration, qualification of that
@@ -348,3 +347,50 @@ redrive regressions. Evidence and exact-container cleanup receipt:
 removed. Earlier failed fixture attempts are not successful qualification.
 Native Drizzle's separate checkpoint evidence above is not a fresh run for this
 operator slice. Traits findings are manually triaged, not an automated clean pass.
+
+## Implementation checkpoint: pure Job contracts
+
+The operator cutover is committed locally as `4fb4881`. `Job.make` now returns a
+frozen kind/version/payload contract only. Routing, direct production, handler
+installation and artifact encoder overrides are removed from this public API,
+without compatibility aliases. Omitted/optional version inference is preserved;
+invalid identities, superseded runtime options and unsupported static Schema
+structures fail at declaration without acquiring encoding services.
+`JobGroup` and producer bindings share `JobDefinition` rather than a second
+definition interface.
+
+Real PostgreSQL/native Drizzle, installed API consumers, playground, website read
+projections, README, JSDoc, observability and Cloudflare fixtures use pure contracts
+and explicit producer routing. Native post-COMMIT response-loss injection uses a
+Schema encoding transformation, not a public codec override. Application-owned
+routing inventories remain distinct from contract identity.
+
+`tests/core/definitions/ProtocolJob.ts` is explicitly test-only scaffolding for
+low-level protocol/custom-codec failure controls. It is not exported or copied
+into installed consumers; public API/type and backend qualification use actual
+producers and complete groups. Eight new contract tests cover frozen snapshots,
+invalid declarations and one serviceful Schema shared across two routes.
+
+Evidence on Node 24.15.0 / Bun 1.4.2:
+
+- Full `verify`: 1,044 passed, 93 skipped, plus Field/Theme, release imports,
+  JSDoc source/packed consumers and the maintained observability example.
+- README source/packed qualification and playground typecheck pass.
+- Real source PostgreSQL: all 75 tests pass on each runtime, including operator
+  and creation-time suites. Installed PostgreSQL: 46 tests pass per runtime.
+- Packed native Drizzle A+B/runtime and installed public API qualification pass.
+  The separate full foreign-declaration audit remains diagnostic FAIL, not repaired.
+- Evidence and cleanup receipt: `/tmp/opencode/jobs-redesign-pg-y_kl2rxy/`.
+  The exact owned container's absence was verified and private configurations
+  removed. Packed artifact SHA-256:
+  `f1ccde3deb9630314bdaacb8b9f450dc63f0d0bf695f3a3fae870fba13cc7489`.
+- Current changed TypeScript was assessed by Traits; the subsequent comment-only
+  test-helper edit was checked again. Findings were manually compared with exact
+  rule scope and surrounding source, not reported as an automated clean pass.
+
+Still outstanding: public registry/consumer/plan removal, configured `JobStorage`
+service composition, `JobSchedule` observations, retry/counter naming, finite
+graceful shutdown, final caller/documentation migration, integrated qualification
+and one independent review. This is a local implementation checkpoint, not a
+finished redesign or release candidate. No push, merge, publication or deployment
+has occurred.

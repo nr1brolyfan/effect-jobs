@@ -146,7 +146,8 @@ import * as Payload from "./JobPayload.ts"
 import * as Codec from "./JobPayloadCodec.ts"
 import { ClaimResult, ClaimReconciliation, FinalizationResult, FinalizationReconciliation } from "effect-jobs/JobStore"
 import type { JobStoreService } from "effect-jobs/JobStore"
-assert.equal(Definition.definition.queue.name, "billing")
+assert.equal(Definition.definition.kind, "invoice.generate")
+assert.deepEqual(Object.keys(Definition.definition).sort(), ["kind", "payload", "version"])
 assert.equal(Producer.producer.operation, "invoice.create")
 assert.equal(Producer.producer.slots.generate.job.kind, "invoice.generate")
 const resolvedPolicy = await Effect.runPromise(Policy.policy)

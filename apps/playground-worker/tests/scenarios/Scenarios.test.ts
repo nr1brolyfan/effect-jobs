@@ -85,9 +85,7 @@ describe("deterministic application planning", () => {
     const first = await Effect.runPromise(jobs())
     expect(await Effect.runPromise(jobs())).toEqual(first)
     expect(first.map((job) => job.workload)).toEqual(Definitions.Workload.literals)
-    expect(
-      new Set(Definitions.definitions.map((definition) => definition.queue.name)).size
-    ).toBe(4)
+    expect(new Set(Definitions.routes.map((route) => route.queue.name)).size).toBe(4)
     expect(new Set(first.map((job) => job.producer.slot)).size).toBe(6)
     expect(
       (await Effect.runPromise(Plan.plan(command, sandbox.ref, 1)))[0]?.workload
@@ -293,7 +291,7 @@ describe("encrypted consumer payload and installed handlers", () => {
           payload,
           context: {
             jobId,
-            catalog: Definitions.WelcomeEmail.catalog,
+            catalog: Definitions.catalogFor(Definitions.WelcomeEmail),
             producer,
             attemptNumber: 1
           }
@@ -336,7 +334,7 @@ describe("encrypted consumer payload and installed handlers", () => {
             payload: { ...payload, tenant: "demo-tenant-a" },
             context: {
               jobId,
-              catalog: Definitions.PrivateDataExport.catalog,
+              catalog: Definitions.catalogFor(Definitions.PrivateDataExport),
               producer,
               attemptNumber: 1
             }
@@ -364,7 +362,7 @@ describe("encrypted consumer payload and installed handlers", () => {
           const handler = handlers.welcomeEmail
           const context = {
             jobId,
-            catalog: Definitions.WelcomeEmail.catalog,
+            catalog: Definitions.catalogFor(Definitions.WelcomeEmail),
             producer: job.producer,
             attemptNumber: 1
           }
@@ -499,7 +497,9 @@ describe("encrypted consumer payload and installed handlers", () => {
           ))._tag
         ).toBe("JobIntegrityConflict")
         const prepared = [...stored.values()][0]!
-        expect(prepared.catalog).toEqual(Definitions.SyntheticDocumentExport.catalog)
+        expect(prepared.catalog).toEqual(
+          Definitions.catalogFor(Definitions.SyntheticDocumentExport)
+        )
         expect(
           yield* Codec.decodeJobPayload(
             Definitions.SyntheticExportPayload,
@@ -546,7 +546,7 @@ describe("encrypted consumer payload and installed handlers", () => {
           )!
           yield* handlers[alias](encoded, {
             jobId,
-            catalog: definition.catalog,
+            catalog: Definitions.catalogFor(definition),
             producer:
               definition === Definitions.SyntheticDocumentExport
                 ? {
@@ -570,7 +570,7 @@ describe("encrypted consumer payload and installed handlers", () => {
           const failure = yield* Effect.flip(
             handlers.welcomeEmail(encoded, {
               jobId,
-              catalog: Definitions.WelcomeEmail.catalog,
+              catalog: Definitions.catalogFor(Definitions.WelcomeEmail),
               producer: {
                 operation: Definitions.Producer.operation,
                 slot: job.producer.slot,

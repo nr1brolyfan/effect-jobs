@@ -49,7 +49,7 @@ export const detail = Schema.decodeUnknownSync(JobDetail)({
   sandbox: ref,
   job: {
     jobId: sourceId,
-    catalog: Definitions.WelcomeEmail.catalog,
+    catalog: Definitions.catalogFor(Definitions.WelcomeEmail),
     state: "Dead",
     availableAt: 100,
     updatedAt: 900,
@@ -70,7 +70,7 @@ export const detail = Schema.decodeUnknownSync(JobDetail)({
   payload: {
     _tag: "Available",
     formatVersion: 1,
-    catalog: Definitions.WelcomeEmail.catalog,
+    catalog: Definitions.catalogFor(Definitions.WelcomeEmail),
     encoded: payload,
     validation: "Valid",
     encryption: "None"

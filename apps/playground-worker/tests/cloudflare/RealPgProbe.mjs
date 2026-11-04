@@ -18,6 +18,7 @@ import * as Backend from "effect-jobs/PostgreSqlJobs"
 import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import * as Job from "effect-jobs/Job"
+import * as Producer from "effect-jobs/JobProducer"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Policy from "effect-jobs/JobPolicy"
 import * as Group from "effect-jobs/JobGroup"
@@ -50,8 +51,8 @@ export const probe = (url, schema, alarm, checks = []) =>
       }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
       yield* backend.ready
       checks.push("real connection and packed backend readiness")
+      const queue = Queue.make("cf-real")
       const definition = Job.make({
-        queue: Queue.make("cf-real"),
         kind: "synthetic",
         payload: Schema.String
       })
@@ -61,11 +62,20 @@ export const probe = (url, schema, alarm, checks = []) =>
         retry: Retry.fixed(Duration.millis(500)).pipe(Retry.maxAttempts(2))
       })
       const input = (id, payload = id, availableAt) => ({
-        producer: { operation: "cf.real", operationId: id, slot: "one" },
+        operationId: id,
+        slot: "one",
         payload,
-        policy,
         ...(availableAt === undefined ? {} : { availableAt })
       })
+      const producer = Producer.make({
+        operation: "cf.real",
+        slots: { one: { job: definition, queue, policy } }
+      })
+      const catalog = {
+        queue: queue.name,
+        kind: definition.kind,
+        version: definition.version
+      }
       const sql = (text, values = []) => client.unsafe(text, values)
       const row = (id) =>
         sql(`SELECT * FROM ${schema}.jobs WHERE operation_id=$1`, [id]).pipe(
@@ -86,7 +96,7 @@ export const probe = (url, schema, alarm, checks = []) =>
               "SELECT pg_backend_pid() AS pid, txid_current()::text AS xid"
             ))[0]
             yield* sql(`INSERT INTO ${schema}.domain VALUES ($1)`, [id])
-            const job = yield* definition.enqueue(input(id))
+            const job = yield* producer.enqueue(input(id))
             yield* sql(`INSERT INTO ${schema}.receipts VALUES ($1,$2)`, [id, job.jobId])
             const after = (yield* sql(
               "SELECT pg_backend_pid() AS pid, txid_current()::text AS xid"
@@ -104,7 +114,7 @@ export const probe = (url, schema, alarm, checks = []) =>
           })
         )
       return yield* Effect.gen(function* () {
-        const absent = yield* Effect.flip(definition.enqueue(input("outside")))
+        const absent = yield* Effect.flip(producer.enqueue(input("outside")))
         assert.equal(absent.reason, "transaction-required")
         assert.equal(absent.commitKnowledge, "NotCommitted")
         yield* transact("commit", false)
@@ -116,7 +126,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         )
         const duplicates = yield* Effect.all(
           [0, 1].map(() =>
-            backend.withTransaction(() => definition.enqueue(input("duplicate")))
+            backend.withTransaction(() => producer.enqueue(input("duplicate")))
           ),
           { concurrency: 2 }
         )
@@ -128,7 +138,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         const conflicts = yield* Effect.all(
           ["a", "b"].map((value) =>
             Effect.exit(
-              backend.withTransaction(() => definition.enqueue(input("conflict", value)))
+              backend.withTransaction(() => producer.enqueue(input("conflict", value)))
             )
           ),
           { concurrency: 2 }
@@ -141,8 +151,8 @@ export const probe = (url, schema, alarm, checks = []) =>
         yield* sql(`DELETE FROM ${schema}.jobs`)
         const claim = () =>
           backend.store.claim({
-            queue: definition.queue.name,
-            supportedCatalog: [definition.catalog],
+            queue: queue.name,
+            supportedCatalog: [catalog],
             leaseToken: crypto.randomUUID()
           })
         const finish = (c, finalization) =>
@@ -156,7 +166,7 @@ export const probe = (url, schema, alarm, checks = []) =>
             "SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now"
           ))[0].now
         )
-        yield* definition.enqueueStandalone(input("delayed", "delayed", now + 1000))
+        yield* producer.enqueueStandalone(input("delayed", "delayed", now + 1000))
         assert.equal((yield* claim())._tag, "Empty")
         yield* Effect.sleep("1100 millis")
         const first = yield* claim()
@@ -172,7 +182,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         yield* finish(second.claim, { _tag: "Complete" })
         assert.equal((yield* row("delayed")).state, "Completed")
         checks.push("DB-time delayed eligibility and persisted retry delay")
-        yield* definition.enqueueStandalone(input("recovery"))
+        yield* producer.enqueueStandalone(input("recovery"))
         const old = yield* claim()
         assert.equal(old._tag, "Claimed")
         const fixed = Number(old.claim.ownership.leaseExpiresAt)
@@ -180,7 +190,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         assert(
           Exit.isFailure(yield* Effect.exit(finish(old.claim, { _tag: "Complete" })))
         )
-        assert.equal(yield* backend.store.recoverExpired(definition.queue.name, 1), 1)
+        assert.equal(yield* backend.store.recoverExpired(queue.name, 1), 1)
         const fresh = yield* claim()
         assert.equal(fresh._tag, "Claimed")
         assert.notEqual(fresh.claim.ownership.leaseToken, old.claim.ownership.leaseToken)
@@ -194,7 +204,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         const sleeping = client.withTransaction(
           Effect.gen(function* () {
             yield* sql(`INSERT INTO ${schema}.domain VALUES ('interrupted')`)
-            yield* definition.enqueue(input("interrupted"))
+            yield* producer.enqueue(input("interrupted"))
             yield* Deferred.succeed(entered, undefined)
             yield* sql("SELECT pg_sleep(8)")
           })
@@ -212,11 +222,11 @@ export const probe = (url, schema, alarm, checks = []) =>
         })
         assert.equal(Number((yield* sql("SELECT 1 AS ok"))[0].ok), 1)
         checks.push("interruption during genuine SQL; rollback and reusable client")
-        yield* definition.enqueueStandalone(input("worker"))
+        yield* producer.enqueueStandalone(input("worker"))
         let calls = 0
         const group = Group.make("cloudflare-real-pg", { synthetic: definition })
         const worker = Worker.layer(group, backend, {
-          queues: [{ queue: definition.queue, concurrency: 2 }]
+          queues: [{ queue, concurrency: 2 }]
         }).pipe(
           Layer.provide(
             group.toLayer({
@@ -227,7 +237,7 @@ export const probe = (url, schema, alarm, checks = []) =>
             })
           )
         )
-        const consumer = yield* Consumer.make(definition.queue, {
+        const consumer = yield* Consumer.make(queue, {
           localConcurrency: 2,
           claimLimitPerRun: 10,
           recoveryLimitPerRun: 10

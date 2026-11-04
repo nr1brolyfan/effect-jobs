@@ -172,13 +172,22 @@ export interface Backend {
    * import type { Schema } from "effect"
    * import type { Backend } from "effect-jobs/PostgreSqlJobs"
    * import type { JobDefinition } from "effect-jobs/Job"
-   * import type { EnqueueInput } from "effect-jobs/JobContract"
+   * import type { JobQueue } from "effect-jobs/JobQueue"
+   * import * as Producer from "effect-jobs/JobProducer"
    *
    * // Call inside the application's owning transaction with its registered handle.
    * const enqueueInside = <S extends Schema.Top>(
    *   backend: Backend, handle: unknown,
-   *   definition: JobDefinition<S>, input: EnqueueInput<S["Type"]>
-   * ) => backend.joinTransaction(handle, (tx) => definition.enqueueInTransaction(tx, input))
+   *   definition: JobDefinition<S>, queue: JobQueue,
+   *   operationId: string, payload: S["Type"]
+   * ) => {
+   *   const producer = Producer.make({ operation: "invoice.issue", slots: {
+   *     generate: { job: definition, queue }
+   *   } })
+   *   return backend.joinTransaction(handle, (tx) => producer.enqueueInTransaction(tx, {
+   *     slot: "generate", operationId, payload
+   *   }))
+   * }
    * ```
    */
   readonly joinTransaction: <A, E, R>(

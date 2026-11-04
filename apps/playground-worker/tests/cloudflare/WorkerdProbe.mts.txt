@@ -15,7 +15,6 @@ import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import * as Job from "effect-jobs/Job"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Queue from "effect-jobs/JobQueue"
-import * as Policy from "effect-jobs/JobPolicy"
 import * as Producer from "effect-jobs/JobProducer"
 import * as Consumer from "effect-jobs/JobConsumer"
 import * as Group from "effect-jobs/JobGroup"
@@ -28,10 +27,8 @@ declare const Response: typeof import("@cloudflare/workers-types").Response
 
 const queue = Queue.make("cloudflare-probe")
 const definition = Job.make({
-  queue,
   kind: "synthetic",
-  payload: Schema.String,
-  encodePayload: Codec.encodeJobPayload
+  payload: Schema.String
 })
 const group = Group.make("cloudflare-probe", { synthetic: definition })
 const producer = Producer.make({ operation: "cloudflare.probe", slots: { synthetic: { job: definition, queue } } })
@@ -51,11 +48,10 @@ const nativeProbe = Effect.scoped(
     const backend = yield* Backend.make({ operationResponseBudgetMillis: 100 }).pipe(
       Effect.provideService(PostgreSqlApplication, adapter)
     )
-    const result = yield* definition
+    const result = yield* producer
       .enqueue({
-        producer: { operation: producer.operation, operationId: "synthetic-1", slot: "synthetic" },
+        operationId: "synthetic-1", slot: "synthetic",
         payload: "synthetic",
-        policy: Policy.defaultPolicy
       })
       .pipe(Effect.provideService(JobEnqueue, backend.producer), Effect.result)
     return result._tag === "Failure" && result.failure._tag === "JobBackendError"

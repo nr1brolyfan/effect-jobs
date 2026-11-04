@@ -5,6 +5,7 @@ import { Pool } from "../qualification/d6-pg/PgDriver.js"
 import { Cause, Effect, Exit, Option, Schema } from "effect"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import * as Job from "../../src/Job.js"
+import * as Producer from "../../src/JobProducer.js"
 import * as Queue from "../../src/JobQueue.js"
 import { define } from "../../src/FailureCode.js"
 import * as Policy from "../../src/JobPolicy.js"
@@ -30,15 +31,19 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     payloadsTable: "artifacts"
   })
   const { jobs } = Tables.relations(mapping)
+  const queue = Queue.make("creation")
   const definition = Job.make({
-    queue: Queue.make("creation"),
     kind: "fixture",
     payload: Schema.String
   })
   const policy = Policy.defaultPolicy
+  const producer = Producer.make({
+    operation: "fixture",
+    slots: { job: { job: definition, queue, policy } }
+  })
   const input = (operationId: string, availableAt?: number) => ({
-    producer: { operation: "fixture", operationId, slot: "job" },
-    policy,
+    operationId,
+    slot: "job" as const,
     payload: "fixture",
     ...(availableAt === undefined ? {} : { availableAt })
   })
@@ -47,7 +52,7 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
   const enqueue = (id: string, availableAt?: number) =>
     Effect.runPromise(
       backend.withTransaction((tx) =>
-        definition.enqueueInTransaction(tx, input(id, availableAt))
+        producer.enqueueInTransaction(tx, input(id, availableAt))
       )
     )
   beforeAll(async () => {
@@ -143,7 +148,7 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
       adapter.applicationTransaction((handle) =>
         backend.joinTransaction(handle, (tx) =>
           Effect.gen(function* () {
-            const result = yield* definition.enqueueInTransaction(tx, input("receipt"))
+            const result = yield* producer.enqueueInTransaction(tx, input("receipt"))
             yield* handle.query(`INSERT INTO "${schema}".receipts VALUES ('one',$1)`, [
               result.jobId
             ])
@@ -168,7 +173,7 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
       adapter.applicationTransaction((handle) =>
         backend.joinTransaction(handle, (tx) =>
           Effect.gen(function* () {
-            const row = yield* definition.enqueueInTransaction(tx, input("rollback"))
+            const row = yield* producer.enqueueInTransaction(tx, input("rollback"))
             yield* handle.query(
               `INSERT INTO "${schema}".receipts VALUES ('rollback',$1)`,
               [row.jobId]
@@ -195,7 +200,7 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     ).toBe(0)
     const result = await Effect.runPromiseExit(
       backend.withTransaction((tx) =>
-        definition.enqueueInTransaction(tx, {
+        producer.enqueueInTransaction(tx, {
           ...input("delayed"),
           payload: "changed"
         })
@@ -213,7 +218,9 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     const original = (await read(inserted.jobId)).created_at
     const request = () => ({
       queue: "creation",
-      supportedCatalog: [definition.catalog],
+      supportedCatalog: [
+        { queue: queue.name, kind: definition.kind, version: definition.version }
+      ],
       leaseToken: randomUUID()
     })
     const claim = async () => {
@@ -257,7 +264,7 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     await pool.query(`UPDATE ${jobs} SET lease_expires_at=1 WHERE id=$1`, [
       inserted.jobId
     ])
-    await Effect.runPromise(backend.store.recoverExpired(definition.queue.name, 10))
+    await Effect.runPromise(backend.store.recoverExpired(queue.name, 10))
     expect((await read(inserted.jobId)).created_at).toBe(original)
     const recovered = await read(inserted.jobId)
     await Effect.runPromise(
@@ -283,7 +290,11 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
       )
       const source = await read(first.jobId)
       const expected = { jobId: first.jobId, state: "Dead" as const, lifecycleVersion: 0 }
-      const producer = input(kind + "-successor").producer
+      const producer = {
+        operation: "fixture",
+        operationId: kind + "-successor",
+        slot: "job"
+      }
       const successor = await Effect.runPromise(
         adapter.applicationTransaction((handle) =>
           backend.joinTransaction(handle, () =>

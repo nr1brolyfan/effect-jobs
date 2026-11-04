@@ -65,8 +65,8 @@ export const seed = (
       if (state !== "Pending") {
         const definition = Definitions.definitions[workload]!
         const claim = yield* backend.store.claim({
-          queue: definition.queue.name,
-          supportedCatalog: [definition.catalog],
+          queue: Definitions.catalogFor(definition).queue,
+          supportedCatalog: [Definitions.catalogFor(definition)],
           leaseToken: crypto.randomUUID()
         })
         if (claim._tag !== "Claimed" || claim.claim.snapshot.jobId !== id) {

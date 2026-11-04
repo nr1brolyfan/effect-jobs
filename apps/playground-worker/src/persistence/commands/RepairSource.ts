@@ -155,13 +155,13 @@ export const producerIdentity = (command: JobRepairCommand) =>
   ).pipe(Effect.map((operationId) => ({ operationId, slot: "replacement", operation })))
 
 export const definition = (row: Readonly<Record<string, unknown>>) => {
-  const found = Definitions.definitions.find(
+  const found = Definitions.routes.find(
     (candidate) =>
-      candidate.catalog.queue === row.queue &&
-      candidate.catalog.kind === row.kind &&
-      candidate.catalog.version === Number(row.version)
+      candidate.queue.name === row.queue &&
+      candidate.job.kind === row.kind &&
+      candidate.job.version === Number(row.version)
   )
-  return found ? Effect.succeed(found) : Effect.fail(rejected("unsupported-catalog"))
+  return found ? Effect.succeed(found.job) : Effect.fail(rejected("unsupported-catalog"))
 }
 export const artifact = (row: Readonly<Record<string, unknown>>) =>
   Effect.try({

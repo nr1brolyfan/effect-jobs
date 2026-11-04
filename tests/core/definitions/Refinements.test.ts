@@ -1,6 +1,6 @@
 import { Duration, Effect, Result, Schema } from "effect"
 import { it, expect } from "vitest"
-import * as Job from "../../../src/Job.js"
+import * as Job from "./ProtocolJob.js"
 import * as Queue from "../../../src/JobQueue.js"
 import * as Policy from "../../../src/JobPolicy.js"
 import * as Retry from "../../../src/JobRetryPolicy.js"

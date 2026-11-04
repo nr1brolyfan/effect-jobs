@@ -25,7 +25,6 @@ import {
 import * as Job from "effect-jobs/Job"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Producer from "effect-jobs/JobProducer"
-import * as Policy from "effect-jobs/JobPolicy"
 import { encodeJobPayload } from "effect-jobs/JobPayloadCodec"
 import * as Application from "./NativeApplication.mjs"
 
@@ -61,18 +60,16 @@ const receipts = pgSchema(schema).table("receipts", {
 const definition = Job.make({
   kind: "invoice.generate",
   version: 1,
-  queue: Queue.make("billing"),
-  payload: Schema.Struct({ invoiceId: Schema.String }),
-  encodePayload: encodeJobPayload
+  payload: Schema.Struct({ invoiceId: Schema.String })
 })
 const producer = Producer.make({
   operation: "billing.native",
-  slots: { generate: { job: definition, queue: definition.queue } }
+  slots: { generate: { job: definition, queue: Queue.make("billing") } }
 })
 const input = (id: string, value = id) => ({
-  producer: { operation: producer.operation, operationId: id, slot: "generate" },
-  payload: { invoiceId: value },
-  policy: Policy.defaultPolicy
+  operationId: id,
+  slot: "generate" as const,
+  payload: { invoiceId: value }
 })
 const config = {
   host: "127.0.0.1",
@@ -144,7 +141,7 @@ try {
             backend.joinTransaction(handle, (jobsTx) =>
               Effect.gen(function* () {
                 yield* tx.insert(domain).values({ id })
-                const result = yield* definition.enqueueInTransaction(jobsTx, input(id))
+                const result = yield* producer.enqueueInTransaction(jobsTx, input(id))
                 yield* tx.insert(receipts).values({ id, jobId: result.jobId })
                 return result
               })
@@ -181,7 +178,7 @@ try {
             "native duplicate equality and first stored bytes",
             Effect.gen(function* () {
               const duplicate = yield* backend.withTransaction((tx) =>
-                definition.enqueueInTransaction(tx, input("commit"))
+                producer.enqueueInTransaction(tx, input("commit"))
               )
               assert.equal(duplicate._tag, "AlreadyPresent")
               assert.deepEqual(yield* Effect.promise(() => count("commit")), all)
@@ -199,7 +196,7 @@ try {
                         Effect.gen(function* () {
                           invocations++
                           yield* db.insert(domain).values({ id: "caught-conflict" })
-                          yield* definition
+                          yield* producer
                             .enqueueInTransaction(jobsTx, input("commit", "changed"))
                             .pipe(
                               Effect.catchTags({
@@ -384,7 +381,7 @@ try {
                   | undefined
                 const body = backend.withTransaction((tx) =>
                   Effect.gen(function* () {
-                    escaped = definition.enqueueInTransaction(
+                    escaped = producer.enqueueInTransaction(
                       tx,
                       input(`escaped-${channel}`)
                     )

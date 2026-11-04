@@ -58,12 +58,12 @@ export const validate = (row: Readonly<Record<string, unknown>>, current: Sandbo
     }).pipe(
       Effect.mapError(() => new OperatorSourceRejected({ reason: "unsupported-catalog" }))
     )
-    const definition = Definitions.definitions.find(
+    const definition = Definitions.routes.find(
       (candidate) =>
-        candidate.catalog.queue === catalog.queue &&
-        candidate.catalog.kind === catalog.kind &&
-        candidate.catalog.version === catalog.version
-    )
+        candidate.queue.name === catalog.queue &&
+        candidate.job.kind === catalog.kind &&
+        candidate.job.version === catalog.version
+    )?.job
     if (!definition) {
       return yield* new OperatorSourceRejected({ reason: "unsupported-catalog" })
     }

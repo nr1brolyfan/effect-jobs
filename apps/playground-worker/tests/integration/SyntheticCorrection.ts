@@ -4,7 +4,7 @@ import { Effect, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
-import * as Policy from "effect-jobs/JobPolicy"
+import * as Producer from "effect-jobs/JobProducer"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import * as Definitions from "../../src/scenarios/Definitions.js"
@@ -38,15 +38,22 @@ export const seed = (
               order: "demo-order-a",
               document: { subject: "demo-customer", tenant: "demo-tenant-a", note }
             }
-            const result = yield* Definitions.SyntheticDocumentExport.enqueue({
-              producer: {
-                operation: "playground.correction-qualification",
+            const producer = Producer.make({
+              operation: "playground.correction-qualification",
+              slots: {
+                document: {
+                  job: Definitions.SyntheticDocumentExport,
+                  queue: Definitions.Producer.slots["private-data-export"].queue
+                }
+              }
+            })
+            const result = yield* producer
+              .enqueue({
                 operationId: crypto.randomUUID(),
-                slot: "document"
-              },
-              payload,
-              policy: Policy.defaultPolicy
-            }).pipe(Effect.provideService(JobEnqueue, backend.producer))
+                slot: "document",
+                payload
+              })
+              .pipe(Effect.provideService(JobEnqueue, backend.producer))
             yield* sql.unsafe(
               `INSERT INTO "${config.schema}".associations(sandbox_id,generation,job_id,relations) VALUES($1,$2,$3,$4::jsonb)`,
               [

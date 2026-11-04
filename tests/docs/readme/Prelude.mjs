@@ -173,7 +173,7 @@ export const wrap = (name, code) => {
     prefix +
     (name === "contracts"
       ? code +
-        '\nexport const GeneratePdf = Job.make({ queue: BillingQueue, kind: "invoice.generate-pdf", payload: Schema.Struct({ invoiceId: Schema.String }) })\n'
+        '\nexport const GeneratePdf = Job.make({ kind: "invoice.generate-pdf", payload: Schema.Struct({ invoiceId: Schema.String }) })\n'
       : code) +
     (exportBindings[name] ? `\nexport { ${exportBindings[name]} }\n` : "")
   )

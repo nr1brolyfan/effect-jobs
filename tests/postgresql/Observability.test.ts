@@ -9,8 +9,8 @@ import * as Adapter from "./Adapter.js"
 import * as Jobs from "../../src/PostgreSqlJobs.js"
 import * as Tables from "../../src/PostgreSqlSchema.js"
 import * as Job from "../../src/Job.js"
+import * as Producer from "../../src/JobProducer.js"
 import * as Queue from "../../src/JobQueue.js"
-import * as Policy from "../../src/JobPolicy.js"
 import { JobFinalizations } from "../../src/JobLifecycle.js"
 import { PostgreSqlApplication } from "../../src/PostgreSqlTransaction.js"
 
@@ -46,8 +46,17 @@ it.skipIf(!directory)(
       created = true
       await pool.query(Tables.migration(mapping))
       const queue = Queue.make("observability")
-      const job = Job.make({ queue, kind: "supported", payload: Schema.String })
-      const unsupported = Job.make({ queue, kind: "unsupported", payload: Schema.String })
+      const job = Job.make({ kind: "supported", payload: Schema.String })
+      const unsupported = Job.make({ kind: "unsupported", payload: Schema.String })
+      const catalog = { queue: queue.name, kind: job.kind, version: job.version }
+      const producer = Producer.make({
+        operation: "observability",
+        slots: { run: { job, queue } }
+      })
+      const unsupportedProducer = Producer.make({
+        operation: "observability",
+        slots: { run: { job: unsupported, queue } }
+      })
       const adapter = Adapter.make(App.source(pool))
       await Effect.runPromise(
         Effect.gen(function* () {
@@ -57,21 +66,21 @@ it.skipIf(!directory)(
           }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
           const input = (id: string) => ({
             payload: "SYNTHETIC_PRIVATE_PAYLOAD",
-            producer: { operation: "observability", operationId: id, slot: "run" },
-            policy: Policy.defaultPolicy,
+            operationId: id,
+            slot: "run" as const,
             availableAt: 1000
           })
           for (const id of ["one", "two", "three"]) {
             yield* backend.withTransaction((tx) =>
-              job.enqueueInTransaction(tx, input(id))
+              producer.enqueueInTransaction(tx, input(id))
             )
           }
           yield* backend.withTransaction((tx) =>
-            unsupported.enqueueInTransaction(tx, input("unsupported"))
+            unsupportedProducer.enqueueInTransaction(tx, input("unsupported"))
           )
           const health = yield* backend.health.sample({
             queue: queue.name,
-            supportedCatalog: [job.catalog],
+            supportedCatalog: [catalog],
             limit: 1
           })
           assert.deepEqual(health.supported, {
@@ -87,7 +96,7 @@ it.skipIf(!directory)(
           assert.deepEqual(health.expired, { count: 0, saturated: false, oldestAt: null })
           const claim = yield* backend.store.claim({
             queue: queue.name,
-            supportedCatalog: [job.catalog],
+            supportedCatalog: [catalog],
             leaseToken: globalThis.crypto.randomUUID()
           })
           assert.equal(claim._tag, "Claimed")
@@ -102,7 +111,7 @@ it.skipIf(!directory)(
           assert.equal(result._tag, "Applied")
           const exact = yield* backend.health.sample({
             queue: queue.name,
-            supportedCatalog: [job.catalog],
+            supportedCatalog: [catalog],
             limit: 500
           })
           assert.equal(exact.supported.count, 2)
@@ -119,7 +128,7 @@ it.skipIf(!directory)(
           )
           // Invalid runtime input fails before SQL and does not replace the last healthy sample.
           const invalid = yield* backend.health
-            .sample({ queue: queue.name, supportedCatalog: [job.catalog], limit: 501 })
+            .sample({ queue: queue.name, supportedCatalog: [catalog], limit: 501 })
             .pipe(Effect.result)
           assert.ok(Result.isFailure(invalid))
         }).pipe(Effect.provideService(Metric.MetricRegistry, new Map()))

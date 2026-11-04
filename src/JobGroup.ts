@@ -10,16 +10,10 @@ import { JobKind, JobVersion } from "./JobIdentity.js"
 import { decodeJobPayload } from "./JobPayloadCodec.js"
 import { observe } from "./JobTelemetry.js"
 import { prepareProjection } from "./internal/codec/ProtectedProjection.js"
-
-/** Routing is deliberately absent: handlers implement kind/version contracts. */
-export interface Definition {
-  readonly kind: string
-  readonly version: number
-  readonly payload: Schema.Top
-}
+import type { JobDefinition } from "./Job.js"
 
 /** Named job contracts, independent of queue routing. */
-export type Definitions = Readonly<Record<string, Definition>>
+export type Definitions = Readonly<Record<string, JobDefinition>>
 
 /** Complete decoded handler implementations inferred from the group contracts. */
 export type HandlersFrom<D extends Definitions> = {

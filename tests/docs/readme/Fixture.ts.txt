@@ -63,7 +63,7 @@ export const InvoicePdfRendererLayer = Layer.succeed(InvoicePdfRenderer, { gener
 export const receiptPolicy = Policy.defaultPolicy
 export const tables = Tables.tables()
 export const ReceiptHandler = BillingJobs.toLayer({ receipt: () => Effect.void })
-export const SendPrivateReceipt = Job.make({ queue: BillingQueue, kind: "invoice.private-receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: Payload.encrypted({ schema: Document, codec: ReceiptEncryption }) }) })
+export const SendPrivateReceipt = Job.make({ kind: "invoice.private-receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: Payload.encrypted({ schema: Document, codec: ReceiptEncryption }) }) })
 export const WorkerLayer = Worker.layer(BillingJobs, jobsStorage, { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(ReceiptHandler))
 export const BillingWorkerLayer = WorkerLayer
 export const issueInvoice = (operationId: string, invoiceId: string) => jobsStorage.withTransaction(() => IssueInvoice.enqueue({ operationId, slot: "receipt", payload: { invoiceId } }))

@@ -38,11 +38,11 @@ const { OtlpExporter, OtlpLogger, OtlpMetrics, OtlpSerialization, OtlpTracer } =
   await pkg("effect/observability")
 const { makeWithTransaction } = await pkg("effect/sql/SqlClient")
 const { ConnectionError, SqlError } = await pkg("effect/sql/SqlError")
-const [Job, Queue, Codec, Enqueue, Policy, Group, Worker, Native] = await Promise.all(
+const [Job, Queue, Producer, Enqueue, Policy, Group, Worker, Native] = await Promise.all(
   [
     "Job",
     "JobQueue",
-    "JobPayloadCodec",
+    "JobProducer",
     "JobEnqueue",
     "JobPolicy",
     "JobGroup",
@@ -56,12 +56,14 @@ assert.match(base, /^http:\/\/127\.0\.0\.1:\d+$/)
 assert.match(metricBase, /^http:\/\/127\.0\.0\.1:\d+$/)
 const queue = Queue.make("synthetic")
 const job = Job.make({
-  queue,
   kind: "synthetic",
-  payload: Schema.Struct({ value: Schema.String }),
-  encodePayload: Codec.encodeJobPayload
+  payload: Schema.Struct({ value: Schema.String })
 })
 const policy = Policy.defaultPolicy
+const production = Producer.make({
+  operation: "synthetic",
+  slots: { run: { job, queue, policy } }
+})
 const group = Group.make("synthetic", { synthetic: job })
 const controlCanary = "SYNTHETIC_NATIVE_CONTROL_CANARY"
 const transactionService = Context.Service("synthetic/transaction")
@@ -178,15 +180,11 @@ const program = Effect.gen(function* () {
         ).pipe(Effect.as({ _tag: "Inserted", jobId: "synthetic-job" }))
     }
     const work = Effect.gen(function* () {
-      yield* job
+      yield* production
         .enqueue({
           payload: { value: "SYNTHETIC_PAYLOAD_CANARY" },
-          producer: {
-            operation: "synthetic",
-            operationId: "SYNTHETIC_PRODUCER_CANARY",
-            slot: "run"
-          },
-          policy
+          operationId: "SYNTHETIC_PRODUCER_CANARY",
+          slot: "run"
         })
         .pipe(Effect.provideService(Enqueue.JobEnqueue, producer))
       const handlers = group.toLayer({

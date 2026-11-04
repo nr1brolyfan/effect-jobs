@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 import { Cause, Effect, Exit, Fiber, Layer } from "effect"
 import * as Consumer from "effect-jobs/JobConsumer"
 import * as Job from "effect-jobs/Job"
-import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Group from "effect-jobs/JobGroup"
 import * as Worker from "effect-jobs/JobWorker"
@@ -13,10 +12,8 @@ import * as WakeCycle from "../../src/cloudflare/WakeCycle.js"
 
 const queue = Queue.make("cloudflare-probe")
 const definition = Job.make({
-  queue,
   kind: "synthetic",
-  payload: Schema.String,
-  encodePayload: Codec.encodeJobPayload
+  payload: Schema.String
 })
 const group = Group.make("cloudflare-probe", { synthetic: definition })
 const handlers = group.toLayer({ synthetic: () => Effect.void })

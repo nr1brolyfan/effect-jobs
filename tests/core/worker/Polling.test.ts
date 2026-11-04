@@ -12,7 +12,7 @@ import {
 } from "effect"
 import { TestClock } from "effect/testing"
 import { it } from "vitest"
-import * as Job from "../../../src/Job.js"
+import * as Job from "../definitions/ProtocolJob.js"
 import * as Queue from "../../../src/JobQueue.js"
 import * as Group from "../../../src/JobGroup.js"
 import * as Codec from "../../../src/JobPayloadCodec.js"

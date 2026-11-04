@@ -21,7 +21,7 @@ const producer = Producer.make({
   slots: {
     "encrypted-document": {
       job: Definitions.SyntheticDocumentExport,
-      queue: Definitions.SyntheticDocumentExport.queue
+      queue: Definitions.Producer.slots["private-data-export"].queue
     }
   }
 })

@@ -266,7 +266,7 @@ Choose ordinary Effect composition in the handler adapter rather than a separate
 `classifyError` callback in handler configuration. Domain services retain their
 domain errors. The application-owned adapter maps those errors into explicit job
 failures, for example using `Effect.mapError` and exhaustive matching, before
-installing the handler through `handlerLayer(execute)`.
+installing the complete handler record through `JobGroup.toLayer`.
 
 Both proposed variants can preserve exhaustive typing, shared mapping, and
 domain independence. Variant A avoids an extra library classification mechanism
@@ -578,7 +578,7 @@ capability ceremony for the qualified Effect-native PostgreSQL/Drizzle path.
 The owner explicitly accepted this complete scope; no compatibility/migration or
 deprecation machinery is required. Other D1–D8 safety properties remain in force.
 
-`definition.enqueue(input)` resolves the generic `JobEnqueue` Effect service.
+`producer.enqueue(input)` resolves the generic `JobEnqueue` Effect service.
 The configured native adapter uses the exact application's `PgClient.transactionService`.
 An active transaction of that SAME client is required; missing/foreign context
 fails before preparation. There is no implicit BEGIN, second connection, commit,
@@ -588,9 +588,9 @@ schema/query building in that same Effect/Context. `db.transaction` retains an
 upstream error-type limitation and is excluded from the positive route.
 
 `PostgreSqlJobs.layerNoDeps` provides storage plus this producer service.
-`backend.withTransaction(() => definition.enqueue(input))` delegates explicit
+`backend.withTransaction(() => producer.enqueue(input))` delegates explicit
 join-or-establish behavior to the application's manager and supplies the service.
-`definition.enqueueStandalone(input)` owns a bounded transaction for preparation,
+`producer.enqueueStandalone(input)` owns a bounded transaction for preparation,
 job/payload insertion and deduplication, and resolves after acknowledged commit.
 It rejects an active transaction of the configured client and never independently
 commits a consequence inside its parent's business transaction.

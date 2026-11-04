@@ -34,7 +34,9 @@ export const dashboard = profiles.map((profile, index) => ({
       sandbox: sandbox.ref,
       job: {
         jobId: `synthetic-${profile.label}`,
-        catalog: Definitions.definitions[index % Definitions.definitions.length]!.catalog,
+        catalog: Definitions.catalogFor(
+          Definitions.definitions[index % Definitions.definitions.length]!
+        ),
         state: profile.state,
         availableAt: profile.label === "delayed" ? now + 60_000 : now,
         updatedAt: now,

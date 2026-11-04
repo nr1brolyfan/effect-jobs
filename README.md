@@ -9,15 +9,15 @@ For example, save an invoice and enqueue its receipt email in the same transacti
 then handle delivery in a separate worker.
 
 ```ts
+const BillingQueue = JobQueue.make("billing")
 const SendReceipt = Job.make({
-  queue: JobQueue.make("billing"),
   kind: "invoice.receipt",
   payload: Schema.Struct({ invoiceId: Schema.String })
 })
 
 const IssueInvoice = JobProducer.make({
   operation: "billing.issue-invoice",
-  slots: { receipt: { job: SendReceipt, queue: SendReceipt.queue } }
+  slots: { receipt: { job: SendReceipt, queue: BillingQueue } }
 })
 
 // App setup: its Layer supplies a qualified PostgreSqlApplication adapter.
@@ -85,7 +85,6 @@ Share the contract, not the email provider or database connection.
 export const BillingQueue = JobQueue.make("billing")
 
 export const SendReceipt = Job.make({
-  queue: BillingQueue,
   kind: "invoice.receipt",
   payload: Schema.Struct({ invoiceId: Schema.String })
 })
@@ -395,7 +394,6 @@ const ReceiptDocument = Schema.Struct({
 })
 
 const SendPrivateReceipt = Job.make({
-  queue: BillingQueue,
   kind: "invoice.private-receipt",
 
   payload: Schema.Struct({
@@ -471,7 +469,6 @@ invoice PDF. Each consequence has its own producer slot.
 ```ts
 // Shared definitions: reuse SendReceipt and BillingQueue from above.
 const GeneratePdf = Job.make({
-  queue: BillingQueue,
   kind: "invoice.generate-pdf",
   payload: Schema.Struct({ invoiceId: Schema.String })
 })

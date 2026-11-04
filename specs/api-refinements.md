@@ -1,11 +1,14 @@
 # Job API refinements
 
-`Job.make` defaults omitted version to exactly `1` and uses the standard encoder
-unless `encodePayload` is supplied. Returned identity always contains a validated
-concrete version. Literal inference preserves omission and explicit versions;
+`Job.make` declares only kind/version/payload and defaults omitted version to
+exactly `1`. Queue routing and resolved policy belong to `JobProducer` slots;
+complete handlers are installed through `JobGroup.toLayer`. The standard artifact
+codec is fixed; domain transformations and encryption belong in Schema, with no
+per-definition encoder override or per-handler decoder parameter. Static
+unsupported Schema structures fail during declaration/group setup before traffic.
+Returned identity always contains a validated concrete version. Literal inference preserves omission and explicit versions;
 optional version variables conservatively include `1`. Incompatible payload
-changes need an explicit new version and its decoder. The handler decoder remains
-explicit. `JobPolicy.defaultPolicy` is deeply frozen and readonly; `make()` has the
+changes need an explicit new version and its Schema. `JobPolicy.defaultPolicy` is deeply frozen and readonly; `make()` has the
 same defaults and never freezes/mutates caller options.
 
 ## Diagnostic codes

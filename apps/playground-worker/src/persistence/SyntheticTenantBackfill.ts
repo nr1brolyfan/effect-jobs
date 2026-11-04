@@ -37,12 +37,12 @@ export const run = (schema: string) =>
             kind: row.kind,
             version: Number(row.version)
           })
-          const definition = Definitions.definitions.find(
+          const definition = Definitions.routes.find(
             (d) =>
-              d.catalog.queue === catalog.queue &&
-              d.catalog.kind === catalog.kind &&
-              d.catalog.version === catalog.version
-          )
+              d.queue.name === catalog.queue &&
+              d.job.kind === catalog.kind &&
+              d.job.version === catalog.version
+          )?.job
           if (!definition) {
             return null
           }

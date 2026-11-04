@@ -1,6 +1,6 @@
 /** Declares producer operations with typed contract, routing and default-policy bindings. */
 import { Data, Effect, Exit, Schema } from "effect"
-import type { Definition } from "./JobGroup.js"
+import type { JobDefinition } from "./Job.js"
 import type { JobQueue } from "./JobQueue.js"
 import type { JobPolicy } from "./JobPolicy.js"
 import { defaultPolicy, EpochMillis, PersistedJobPolicy } from "./JobPolicy.js"
@@ -24,7 +24,7 @@ import { prepareProjection } from "./internal/codec/ProtectedProjection.js"
 
 /** One consequence's job contract, destination and resolved default policy. */
 export interface Binding {
-  readonly job: Definition
+  readonly job: JobDefinition
   readonly queue: JobQueue
   readonly policy?: JobPolicy
 }

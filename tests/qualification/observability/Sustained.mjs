@@ -42,7 +42,8 @@ const [Job, JobQueue, Codec, Policy, Group, Worker] = await Promise.all(
   )
 )
 const queue = JobQueue.make("load-proof")
-const definition = Job.make({ queue, kind: "load-proof", payload: Schema.String })
+const definition = Job.make({ kind: "load-proof", payload: Schema.String })
+const catalog = { queue: queue.name, kind: definition.kind, version: definition.version }
 const group = Group.make("load-proof", { synthetic: definition })
 const runJob = () =>
   Effect.gen(function* () {
@@ -68,7 +69,7 @@ const runJob = () =>
               lifecycleVersion: 1
             },
             prepared: {
-              catalog: definition.catalog,
+              catalog,
               policy: Policy.defaultPolicy,
               encoded,
               producer: {

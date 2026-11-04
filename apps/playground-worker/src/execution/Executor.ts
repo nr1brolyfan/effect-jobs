@@ -44,14 +44,11 @@ export class ExecutionDeadline extends Schema.TaggedError<ExecutionDeadline>()(
 ) {}
 
 export const consumers = Effect.forEach(queueNames, (name) =>
-  Consumer.make(
-    Definitions.definitions.find((definition) => definition.queue.name === name)!.queue,
-    {
-      localConcurrency: limits.concurrency,
-      claimLimitPerRun: limits.claimLimit,
-      recoveryLimitPerRun: limits.recoveryLimit
-    }
-  )
+  Consumer.make(Definitions.routes.find((route) => route.queue.name === name)!.queue, {
+    localConcurrency: limits.concurrency,
+    claimLimitPerRun: limits.claimLimit,
+    recoveryLimitPerRun: limits.recoveryLimit
+  })
 )
 export const workerLayerNoDeps = (schema: string) =>
   Layer.unwrap(
@@ -59,9 +56,7 @@ export const workerLayerNoDeps = (schema: string) =>
       const backend = yield* PostgreSqlJobs
       return Worker.layer(Definitions.group, backend, {
         queues: queueNames.map((name) => ({
-          queue: Definitions.definitions.find(
-            (definition) => definition.queue.name === name
-          )!.queue,
+          queue: Definitions.routes.find((route) => route.queue.name === name)!.queue,
           concurrency: limits.concurrency
         }))
       }).pipe(

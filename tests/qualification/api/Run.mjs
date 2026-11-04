@@ -80,7 +80,8 @@ import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import { EnqueueResult, type PreparedJob } from "effect-jobs/JobContract"
 import { JobOperators, JobOperatorExpected } from "effect-jobs/JobOperators"
 import { JobId } from "effect-jobs/JobId"
-import * as Registry from "effect-jobs/JobRegistry"
+import * as Group from "effect-jobs/JobGroup"
+import * as Producer from "effect-jobs/JobProducer"
 import { encodeJobPayload, decodeJobPayload } from "effect-jobs/JobPayloadCodec"
 import { DocumentKeys, EncryptedDocument, keys, keysLayer } from "./EncryptedFixture.mjs"
 assert.equal(typeof JobOperators.of, "function")
@@ -112,30 +113,33 @@ for (const removed of [{ retryDelay: Duration.seconds(5) }, { maxAttempts: 3 }])
   assert(reason.error instanceof Policy.JobPolicyConfigurationError)
   assert.equal(reason.error.field, "options")
 }
-const definition = Job.make({ queue: Queue.make("billing"), kind: "receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: EncryptedDocument }) })
+const queue = Queue.make("billing")
+const definition = Job.make({ kind: "receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: EncryptedDocument }) })
+const producer = Producer.make({ operation: "billing.issue", slots: { receipt: { job: definition, queue } } })
+const catalog = { queue: queue.name, kind: definition.kind, version: definition.version }
 assert.equal(definition.version, 1)
-const input = { producer: { operation: "billing.issue", operationId: "id", slot: "receipt" }, policy: Policy.defaultPolicy,
+const input = { operationId: "id", slot: "receipt" as const,
   payload: { invoiceId: "public", document: { recipient: "PRIVATE fixture", total: 12n } } }
 const prepared: PreparedJob[] = []
 const backend = JobEnqueue.of({ enqueue: (prepare) => prepare.pipe(Effect.map((value) => {
   prepared.push(value); return EnqueueResult.Inserted({ jobId: Schema.decodeSync(JobId)("fixture-job") })
 })), enqueueStandalone: () => Effect.die("fake backend does not qualify transactions") })
-for (const active of ["one", "one", "two"]) await Effect.runPromise(definition.enqueue(input).pipe(Effect.provideService(JobEnqueue, backend), Effect.provide(keysLayer(keys(active)))))
+for (const active of ["one", "one", "two"]) await Effect.runPromise(producer.enqueue(input).pipe(Effect.provideService(JobEnqueue, backend), Effect.provide(keysLayer(keys(active)))))
 assert.notDeepEqual(prepared[0]!.encoded.payloadBytes, prepared[1]!.encoded.payloadBytes)
 assert.deepEqual(prepared[0]!.encoded.semanticProjectionBytes, prepared[1]!.encoded.semanticProjectionBytes)
 assert.deepEqual(prepared[0]!.encoded.semanticProjectionBytes, prepared[2]!.encoded.semanticProjectionBytes)
 assert(!new TextDecoder().decode(prepared[0]!.encoded.payloadBytes).includes("PRIVATE"))
 assert.deepEqual(await Effect.runPromise(decodeJobPayload(definition.payload, prepared[0]!.encoded).pipe(Effect.provide(keysLayer(keys("two"))))), input.payload)
 let calls = 0
-const reg = Registry.layer
-const handler = definition.handlerLayer(({ payload }) => Effect.sync(() => { assert.equal(payload.document.total, 12n); calls++ }), decodeJobPayload).pipe(Layer.provide(keysLayer(keys())), Layer.provide(reg))
+const group = Group.make("installed-receipts", { receipt: definition })
+const handler = group.toLayer({ receipt: (input) => Effect.sync(() => { assert.equal(input.payload.document.total, 12n); calls++ }) }).pipe(Layer.provide(keysLayer(keys())))
 await Effect.runPromise(Effect.gen(function* () {
-  const registry = yield* Registry.JobRegistry
-  const context = { jobId: yield* Schema.decodeEffect(JobId)("fixture-job"), catalog: definition.catalog, producer: input.producer, attemptNumber: 1 }
-  yield* registry.find(definition.catalog)!.execute(prepared[0]!.encoded, context)
+   const handlers = yield* group.handlers
+   const context = { jobId: yield* Schema.decodeEffect(JobId)("fixture-job"), catalog, producer: prepared[0]!.producer, attemptNumber: 1 }
+   yield* handlers.receipt(prepared[0]!.encoded, context)
   const bad = { ...prepared[0]!.encoded, payloadBytes: new TextEncoder().encode("{}") }
-  yield* Effect.flip(registry.find(definition.catalog)!.execute(bad, context))
-}).pipe(Effect.provide(Layer.merge(reg, handler))))
+   yield* Effect.flip(handlers.receipt(bad, context))
+}).pipe(Effect.provide(handler)))
 assert.equal(calls, 1)
 const missing = await Effect.runPromiseExit(Effect.void.pipe(Effect.provide(keysLayer({ ...keys(), active: "missing" }))))
 assert.equal(missing._tag, "Failure")

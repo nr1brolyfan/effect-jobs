@@ -26,13 +26,12 @@ import { JobId } from "effect-jobs/JobId"
 const sentinel = "PRIVATE_INSTALLED_PAYLOAD"
 const queue = Queue.make("installed")
 const definition = Job.make({
-  queue,
   kind: "neutral",
   version: 1,
-  payload: Schema.Struct({ value: Schema.String }),
-  encodePayload: Codec.encodeJobPayload
+  payload: Schema.Struct({ value: Schema.String })
 })
 const group = Group.make("installed", { neutral: definition })
+const catalog = { queue: queue.name, kind: definition.kind, version: definition.version }
 const limits = { maxJobs: 1, recoveryLimit: 1 }
 const policy = Policy.defaultPolicy
 const spans = []
@@ -76,7 +75,7 @@ await Effect.runPromise(
       )
       const ownership = Result.getOrThrow(Lifecycle.ownershipOf(snapshot))
       const prepared = {
-        catalog: definition.catalog,
+        catalog,
         producer: {
           operation: "installed.produce",
           operationId: "PRIVATE_INSTALLED_OPERATION",

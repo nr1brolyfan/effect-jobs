@@ -1,7 +1,7 @@
 import * as FailureCodes from "../../../src/FailureCode.js"
 import { Cause, Context, Effect, Exit, Layer, Schema, SchemaGetter } from "effect"
 import { describe, expect, it } from "vitest"
-import * as Job from "../../../src/Job.js"
+import * as Job from "./ProtocolJob.js"
 import * as JobConsumer from "../../../src/JobConsumer.js"
 import * as JobProducer from "../../../src/JobProducer.js"
 import * as JobQueue from "../../../src/JobQueue.js"

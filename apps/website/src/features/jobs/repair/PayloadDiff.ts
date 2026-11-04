@@ -65,16 +65,16 @@ export const parseReplacement = (
   if (new TextEncoder().encode(text).length > 65536) {
     return { valid: false as const, rule: "payload-too-large" }
   }
-  const definition = Definitions.definitions.find(
+  const definition = Definitions.routes.find(
     (entry) =>
-      entry.catalog.kind === detail.job.catalog.kind &&
-      entry.catalog.queue === detail.job.catalog.queue &&
-      entry.catalog.version === detail.job.catalog.version
-  )
+      entry.job.kind === detail.job.catalog.kind &&
+      entry.queue.name === detail.job.catalog.queue &&
+      entry.job.version === detail.job.catalog.version
+  )?.job
   if (
     !definition ||
     (definition === Definitions.SyntheticDocumentExport && !synthetic) ||
-    definition.catalog.kind === Definitions.PrivateDataExport.catalog.kind ||
+    definition.kind === Definitions.PrivateDataExport.kind ||
     (detail.payload._tag === "Available" &&
       detail.payload.encryption !== "None" &&
       !synthetic)
