@@ -10,7 +10,10 @@ import * as Codec from "../../src/JobPayloadCodec.js"
 import * as Policy from "../../src/JobPolicy.js"
 import { JobPayloadCodecError } from "../../src/JobContract.js"
 import { JobFailures } from "../../src/JobFailure.js"
-import { JobRegistry, layer as registryLayer } from "../../src/JobRegistry.js"
+import {
+  JobRegistry,
+  layer as registryLayer
+} from "../core/definitions/ProtocolRegistry.js"
 import { canonicalText } from "../../src/internal/codec/CanonicalJson.js"
 import { project } from "../../src/internal/codec/ProtectedProjection.js"
 import { executionFor } from "../../src/internal/worker/Execution.js"

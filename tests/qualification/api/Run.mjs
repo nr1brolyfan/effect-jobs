@@ -84,6 +84,10 @@ import * as Group from "effect-jobs/JobGroup"
 import * as Producer from "effect-jobs/JobProducer"
 import { encodeJobPayload, decodeJobPayload } from "effect-jobs/JobPayloadCodec"
 import { DocumentKeys, EncryptedDocument, keys, keysLayer } from "./EncryptedFixture.mjs"
+const removedRegistry = "effect-jobs/JobRegistry"
+await assert.rejects(import(removedRegistry), {
+  code: process.versions.bun ? "ERR_MODULE_NOT_FOUND" : "ERR_PACKAGE_PATH_NOT_EXPORTED"
+})
 assert.equal(typeof JobOperators.of, "function")
 assert(Schema.is(JobOperatorExpected)({ jobId: "fixture", state: "Pending", lifecycleVersion: 0 }))
 const code = Codes.define({ boundary: "a".repeat(128) }).boundary

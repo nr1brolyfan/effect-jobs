@@ -21,7 +21,7 @@ import * as Codec from "../../../src/JobPayloadCodec.js"
 import * as Worker from "./ProtocolWorker.js"
 import { observe } from "../../../src/JobTelemetry.js"
 import { drain } from "./ProtocolWorker.js"
-import { layer as registryLayer } from "../../../src/JobRegistry.js"
+import { layer as registryLayer } from "../definitions/ProtocolRegistry.js"
 import { WorkerCapability } from "../../../src/internal/worker/Capability.js"
 import { harness, policy } from "./Harness.js"
 

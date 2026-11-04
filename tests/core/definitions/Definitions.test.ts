@@ -5,7 +5,7 @@ import * as Job from "./ProtocolJob.js"
 import * as JobConsumer from "../../../src/JobConsumer.js"
 import * as JobProducer from "../../../src/JobProducer.js"
 import * as JobQueue from "../../../src/JobQueue.js"
-import * as JobRegistry from "../../../src/JobRegistry.js"
+import * as JobRegistry from "./ProtocolRegistry.js"
 import {
   EnqueueResult,
   JobPayloadCodecError,

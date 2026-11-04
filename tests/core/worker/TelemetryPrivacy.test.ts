@@ -9,7 +9,7 @@ import * as Queue from "../../../src/JobQueue.js"
 import * as Consumer from "../../../src/JobConsumer.js"
 import * as Worker from "./ProtocolWorker.js"
 import { drain } from "./ProtocolWorker.js"
-import { layer as registryLayer } from "../../../src/JobRegistry.js"
+import { layer as registryLayer } from "../definitions/ProtocolRegistry.js"
 import { FinalizationResult } from "../../../src/JobStore.js"
 import { harness, policy } from "./Harness.js"
 

@@ -316,7 +316,7 @@ Current checkpoint evidence on Node 24.15.0 / Bun 1.4.2:
   findings are retained, not represented as an automated all-clean pass.
 
 Remaining implementation after the checkpoints below: removal
-of public registry/consumer/plan concepts, configured `JobStorage` service
+of public consumer/plan concepts, configured `JobStorage` service
 composition, `JobSchedule` observations, accepted retry/counter naming and finite
 graceful shutdown. Final caller/documentation migration, qualification of that
 final snapshot and one independent review remain required. This checkpoint is
@@ -388,9 +388,36 @@ Evidence on Node 24.15.0 / Bun 1.4.2:
   test-helper edit was checked again. Findings were manually compared with exact
   rule scope and surrounding source, not reported as an automated clean pass.
 
-Still outstanding: public registry/consumer/plan removal, configured `JobStorage`
+Still outstanding after the checkpoint below: public consumer/plan removal, configured `JobStorage`
 service composition, `JobSchedule` observations, retry/counter naming, finite
 graceful shutdown, final caller/documentation migration, integrated qualification
 and one independent review. This is a local implementation checkpoint, not a
 finished redesign or release candidate. No push, merge, publication or deployment
 has occurred.
+
+## Implementation checkpoint: no public mutable registry
+
+The pure-contract cutover is committed locally as `4b31369`.
+`JobRegistry` is removed from package exports and production source. The engine
+depends only on internal `JobHandler`/`HandlerLookup` ports; group-backed worker
+construction supplies its captured complete handlers. No public alias or mutable
+installation path remains. Protocol failure controls retain a test-owned
+`ProtocolRegistry`, which is not part of the built library. Package import tests
+and the installed public API consumer reject the removed registry subpath.
+
+This is a surface/type-dependency change, not a new execution engine or changed
+transaction/fencing protocol. Earlier real-PG evidence belongs to the preceding
+pure-contract snapshot; final integrated backend qualification and the single
+independent review are still required.
+
+Current evidence: full `verify` passes (1,044 tests, 93 skipped; 27 public subpaths
+in the JSDoc source/packed gate), playground typecheck passes, and installed API
+qualification passes on Node/Bun. The archive contains neither the removed
+`JobRegistry` output nor the test registry. Evidence:
+`/tmp/opencode/jobs-registry-removal-verify.log`,
+`/tmp/opencode/jobs-registry-removal-8hkc73rf/` and
+`/tmp/opencode/effect-jobs-public-api-OZkyyY/`. The first installed negative-import
+assertion was corrected to account for Bun's `ERR_MODULE_NOT_FOUND` versus Node's
+`ERR_PACKAGE_PATH_NOT_EXPORTED`; both prove the removed export is inaccessible.
+Traits findings were manually triaged against their exact scope and source, with
+no confirmed applicable violation remaining; raw findings are retained separately.

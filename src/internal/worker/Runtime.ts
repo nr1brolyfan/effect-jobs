@@ -6,7 +6,7 @@ import { CatalogIdentity } from "../../JobIdentity.js"
 import { EpochMillis } from "../../JobPolicy.js"
 import { observe } from "../../JobTelemetry.js"
 import { JobOwnership } from "../../JobLifecycle.js"
-import type { JobRegistryService } from "../../JobRegistry.js"
+import type { HandlerLookup } from "./Handler.js"
 import {
   DispatchResult,
   JobWorkerConfigurationError,
@@ -42,7 +42,7 @@ const unavailable = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
 export const makeWithHandlers = <E, R>(
   store: JobStoreService<E, R>,
   options: RuntimeOptions,
-  registry: Pick<JobRegistryService, "find">
+  handlers: HandlerLookup
 ) =>
   Effect.gen(function* () {
     const services = yield* Effect.context<R>()
@@ -95,7 +95,7 @@ export const makeWithHandlers = <E, R>(
     const ready: RuntimeCapability["ready"] = (queue) =>
       Effect.suspend(() =>
         catalogs.some((entry) => entry.queue === queue) &&
-        catalogs.every((entry) => registry.find(entry) !== undefined)
+        catalogs.every((entry) => handlers.find(entry) !== undefined)
           ? Effect.void
           : Effect.fail(new JobWorkerNotReady())
       )
@@ -125,7 +125,7 @@ export const makeWithHandlers = <E, R>(
           return executionFor(
             bound,
             claim,
-            registry.find,
+            handlers.find,
             catalogs.filter((entry) => entry.queue === queue),
             budget
           )

@@ -1,6 +1,6 @@
 /** Protocol fixtures use the engine directly, not a legacy public constructor. */
 import { Effect, Layer } from "effect"
-import { JobRegistry } from "../../../src/JobRegistry.js"
+import { JobRegistry } from "../definitions/ProtocolRegistry.js"
 import type { JobStoreService } from "../../../src/JobStore.js"
 import { JobWorker } from "../../../src/JobWorker.js"
 import { makeWithHandlers } from "../../../src/internal/worker/Runtime.js"

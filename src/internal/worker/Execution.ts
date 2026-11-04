@@ -11,7 +11,7 @@ import {
 } from "../../JobLifecycle.js"
 import { EpochMillis, PersistedJobPolicy } from "../../JobPolicy.js"
 import { observe, schedulingLag } from "../../JobTelemetry.js"
-import type { JobHandler } from "../../JobRegistry.js"
+import type { JobHandler } from "./Handler.js"
 import type { ClaimedJob, FinalizationRequest, JobStoreService } from "../../JobStore.js"
 import { FinalizationResult } from "../../JobStore.js"
 import type { JobFinalization } from "../../JobLifecycle.js"
