@@ -65,6 +65,8 @@ export const workerLayerNoDeps = (schema: string) =>
     })
   )
 
+// JobSchedule provides storage-wide hints; this app-specific observation must also
+// retain live sandbox/generation authority and its separate traffic-generation wakeup.
 export const snapshot = (schema: string, queue: QueueName) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient

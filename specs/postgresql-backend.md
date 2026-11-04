@@ -12,7 +12,9 @@ and does not restart their review or qualify arbitrary transaction adapters.
 - `PostgreSqlJobs`: `make(options)` / `layerNoDeps(options)` produce
   `PostgreSqlJobs` and require `PostgreSqlApplication`. The value exposes an
   explicit `ready` Effect, the generic `store`, optional separately selected
-  `cleanup`, `joinTransaction(handle, callback)` and `withTransaction(callback)`.
+  `cleanup`, read-only `schedule`, `joinTransaction(handle, callback)` and
+  `withTransaction(callback)`. The Layer also provides the configured portable
+  `JobStorage` and `JobSchedule`, plus producer/operator services.
 - `PostgreSqlTransaction`: the trusted application-adapter extension contract,
   exact-connection `TransactionQuery`, and sanitized backend errors. This is **not**
   a structural query-only transaction constructor or a supplied transaction engine.
@@ -21,6 +23,30 @@ and does not restart their review or qualify arbitrary transaction adapters.
 - `PostgreSqlDrizzleSchema`: optional, migration-only Drizzle declarations.
   Neither core nor the PostgreSQL runtime imports Drizzle. These declarations do
   **not** qualify a Drizzle transaction adapter.
+
+### Read-only wake observations
+
+`JobSchedule.observe(group, queue, { limit })` uses the configured observation
+service without requiring handlers or a worker. PostgreSQL exposes its native-error
+port as `backend.schedule`; `JobSchedule.layer(backend.schedule)` captures it for
+portable callers. `PostgreSqlJobs.layerNoDeps` already provides that service.
+
+One SELECT observes a materialized PostgreSQL-time sample, the queue's bounded
+Pending/RetryScheduled head ordered by availability/ID, and its earliest Active
+lease. No payload bytes, producer IDs or lease tokens are selected, and there is no
+row locking or lifecycle write. Requests allow 1–500 sampled pending rows and at
+most 500 supported queue/kind/version entries; one lookahead row detects saturation.
+Contract filtering applies within that head, so `nextAvailableAt: null` with
+`saturated: true` is inconclusive, not proof no supported work exists. Recovery
+includes all Active contracts in the selected queue, matching drain recovery.
+
+`observedAt`, `nextAvailableAt` and `nextRecoveryAt` are bounded epoch milliseconds.
+Past timestamps are already due. Derive relative delays from the observed database
+time, not the host clock. Hints can immediately become stale; applications retain
+finite repair wakeups, authorization/activation checks and one explicit alarm owner.
+The row limit bounds returned metadata, not total PostgreSQL query work; qualified
+adapter acquisition/statement/operation/release deadlines bound latency. Ambient
+transactions are rejected through the same owned-operation guard as worker reads.
 
 Construction performs no SQL, readiness, DDL, pool allocation/closing, worker
 startup or maintenance. Applications invoke readiness/maintenance and explicitly

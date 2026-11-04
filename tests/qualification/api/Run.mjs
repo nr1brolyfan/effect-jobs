@@ -48,6 +48,7 @@ const types = publicImports(
 ).replace('"../core/codec/EncryptedFixture.js"', '"./EncryptedFixture.mjs"')
 writeFileSync(join(work, "Types.mts"), types)
 for (const [source, target] of [
+  ["schedule", "ScheduleTypes"],
   ["worker", "WorkerTypes"],
   ["group-worker", "GroupWorkerTypes"]
 ]) {
@@ -94,6 +95,7 @@ import * as Producer from "effect-jobs/JobProducer"
 import * as Storage from "effect-jobs/JobStorage"
 import * as Worker from "effect-jobs/JobWorker"
 import * as Store from "effect-jobs/JobStore"
+import * as Schedule from "effect-jobs/JobSchedule"
 import { encodeJobPayload, decodeJobPayload } from "effect-jobs/JobPayloadCodec"
 import { DocumentKeys, EncryptedDocument, keys, keysLayer } from "./EncryptedFixture.mjs"
 for (const name of ["JobRegistry", "JobConsumer", "JobPlan"]) {
@@ -171,6 +173,13 @@ const workerLayer = Worker.layer(group, { queues: [{ queue }] }).pipe(Layer.prov
 assert.equal(claims, 0)
 assert.deepEqual(await Effect.runPromise(Worker.drain(queue).pipe(Effect.provide(workerLayer))), { _tag: "Idle", claimed: 0, recovered: 0 })
 assert.equal(claims, 1)
+const scheduleLayer = Schedule.layer({ read: (request) => Effect.sync(() => {
+  assert.equal(request.queue, queue.name)
+  assert.deepEqual(request.supportedCatalog, [catalog])
+  assert.equal(request.limit, 100)
+  return { observedAt: 1000, nextAvailableAt: 1200, nextRecoveryAt: null, saturated: false }
+}) })
+assert.deepEqual(await Effect.runPromise(Schedule.observe(group, queue).pipe(Effect.provide(scheduleLayer))), { observedAt: 1000, nextAvailableAt: 1200, nextRecoveryAt: null, saturated: false })
 const missing = await Effect.runPromiseExit(Effect.void.pipe(Effect.provide(keysLayer({ ...keys(), active: "missing" }))))
 assert.equal(missing._tag, "Failure")
 console.log("Installed new API literals/brands/defaults, local AES-GCM/HMAC service rotation and handler boundary PASS")
@@ -204,7 +213,8 @@ writeFileSync(
         "Operators.mts",
         "Repairs.mts",
         "WorkerTypes.mts",
-        "GroupWorkerTypes.mts"
+        "GroupWorkerTypes.mts",
+        "ScheduleTypes.mts"
       ]
     },
     null,

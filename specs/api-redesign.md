@@ -315,8 +315,7 @@ Current checkpoint evidence on Node 24.15.0 / Bun 1.4.2:
   recovery and factory-name issues were fixed and rechecked. Raw automated
   findings are retained, not represented as an automated all-clean pass.
 
-Remaining implementation after the checkpoints below: `JobSchedule` observations,
-accepted retry/counter naming and finite
+Remaining implementation after the checkpoints below: accepted retry/counter naming and finite
 graceful shutdown. Final caller/documentation migration, qualification of that
 final snapshot and one independent review remain required. This checkpoint is
 not a release candidate. The owner authorized local checkpoint commits before
@@ -387,8 +386,7 @@ Evidence on Node 24.15.0 / Bun 1.4.2:
   test-helper edit was checked again. Findings were manually compared with exact
   rule scope and surrounding source, not reported as an automated clean pass.
 
-Still outstanding after the checkpoints below: `JobSchedule` observations,
-retry/counter naming, finite
+Still outstanding after the checkpoints below: retry/counter naming, finite
 graceful shutdown, final caller/documentation migration, integrated qualification
 and one independent review. This is a local implementation checkpoint, not a
 finished redesign or release candidate. No push, merge, publication or deployment
@@ -466,7 +464,7 @@ Current evidence on Node 24.15.0 / Bun 1.4.2:
   findings were manually triaged against exact applicability and source, not
   represented as an automated clean report.
 
-Still outstanding after the checkpoint below: `JobSchedule` observations, accepted
+Still outstanding after the checkpoints below: accepted
 retry/counter naming, finite graceful shutdown, final integrated documentation and
 qualification, and the single independent review. No release, push, merge,
 publication or deployment is authorized or performed by this checkpoint.
@@ -528,7 +526,67 @@ Current evidence on Node 24.15.0 / Bun 1.4.2:
   This is not an automated clean report. Maintained observability code typechecks;
   full collector/workerd/hosted qualification is not claimed for this checkpoint.
 
-Remaining: `JobSchedule` observations, accepted retry/counter naming, finite
+Remaining after the checkpoint below: accepted retry/counter naming, finite
 graceful shutdown, final integrated documentation/qualification and one independent
 review. This local checkpoint is not a finished redesign or release candidate.
 No push, merge, publication or deployment has occurred.
+
+## Implementation checkpoint: bounded JobSchedule observations
+
+The configured-storage cutover is committed locally as `d8ec557`.
+`JobSchedule.observe(group, queue, { limit })` now provides explicit read-only wake
+hints through a separately configured Context service. Observation needs neither
+installed handlers nor a worker, and Schema decoding dependencies do not leak into
+its requirements. PostgreSQL exposes `backend.schedule` with native errors;
+`PostgreSqlJobs.layerNoDeps` also provides the captured portable schedule service.
+Imports and construction start no reads, alarms, polling, claims or migrations.
+
+The PostgreSQL reader uses one SELECT with a materialized authoritative clock and
+a single statement snapshot. It returns only time/kind/version metadata from a
+queue's Pending/RetryScheduled head, capped at the requested 1–500 rows plus one
+lookahead row. Supported contracts are matched within that sample. Recovery is the
+earliest Active lease in the same queue, including other contracts, matching drain
+recovery. No payload bytes, producer identities or lease tokens are selected;
+there are no lifecycle mutations or row locks.
+
+The result contains `observedAt`, nullable `nextAvailableAt` and `nextRecoveryAt`,
+and `saturated`. Null availability with saturation is explicitly inconclusive,
+never an assertion that the queue has no supported jobs. Even unsaturated hints
+can become stale after observation. Applications calculate relative delays from
+database time, retain finite repair wakeups and own authorization, activation
+expiry and exclusive alarm responsibility. The row cap does not claim a bound on
+total query work; the qualified adapter's finite deadlines bound source latency.
+Requests are snapshotted before asynchronous work; malformed options, selections
+or stored metadata produce bounded errors without exposing values.
+
+The playground's existing observation intentionally remains application-owned:
+it additionally scopes live sandbox/generation authority and traffic-generation
+wakeups. A storage-wide hint cannot replace those predicates. No new SQLite/DO
+backend or hosted alarm support is claimed.
+
+Evidence on Node 24.15.0 / Bun 1.4.2:
+
+- Full `verify`: 1,068 passed, 96 skipped; eight source/packed JSDoc examples and
+  28 public subpaths. Twenty added unit cases cover empty/saturated samples,
+  unsupported versions, snapshotting, invalid input/output, safe errors and cause
+  preservation. Type tests prove observations need no handlers/decoding services.
+- README source/packed qualification and playground typecheck/lint pass.
+- Real source PostgreSQL: 78 tests pass per runtime. Installed PostgreSQL: 49 pass
+  per runtime. New oracles prove authoritative-clock bounds, future retry hints,
+  queue-scoped recovery, exact row preservation, no locking/mutation SQL, input
+  rejection before borrowing and rejection inside an ambient business transaction.
+- Native Drizzle A+B/runtime and installed API/type/runtime gates pass, including
+  a native schedule read and ambient-ownership negative control. The separate full
+  foreign-declaration audit remains diagnostic FAIL, not repaired by this work.
+- Backend logs and exact-container cleanup receipt:
+  `/tmp/opencode/jobs-redesign-pg-8pkcgbd3/`; private configurations removed.
+  Packed artifact SHA-256:
+  `1f720d40ad77c5a338ec784039aeba76fe4097a0b8a44a5fd302fdb2306114a2`.
+- Changed authored TypeScript was assessed against all traits and raw findings
+  manually triaged against exact applicability/source. This is not an automated
+  all-clean report or a substitute for the final independent integrated review.
+
+Remaining implementation: accepted retry/counter naming and finite graceful
+shutdown, then final integrated documentation/qualification and one independent
+review. This is a local checkpoint, not a release candidate. No push, merge,
+publication or deployment has occurred.

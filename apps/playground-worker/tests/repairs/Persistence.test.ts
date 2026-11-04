@@ -88,6 +88,7 @@ const setup = (override: Partial<RepairTransaction> = {}) =>
       operationResponseBudgetMillis: 100,
       storage: yield* Storage.make({ store, operationResponseBudgetMillis: 100 }),
       health: { sample: unexpected },
+      schedule: { read: unexpected },
       tables: PostgreSqlSchema.tables(),
       producer: { enqueue: unexpected, enqueueStandalone: unexpected },
       store,

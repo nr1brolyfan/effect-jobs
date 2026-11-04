@@ -50,6 +50,7 @@ const backend = Layer.mock(PostgreSqlJobs, {
   operationResponseBudgetMillis: 100,
   storage: Effect.runSync(Storage.make({ store, operationResponseBudgetMillis: 100 })),
   health: { sample: unexpected },
+  schedule: { read: unexpected },
   tables: Tables.tables(),
   producer: { enqueue: unexpected, enqueueStandalone: unexpected },
   store,

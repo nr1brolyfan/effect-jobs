@@ -483,6 +483,20 @@ try {
       checks.push(
         "bounded opt-in health distinguishes supported work and rejects ambient ownership"
       )
+      const scheduleRequest = { queue: "billing", supportedCatalog: [catalog], limit: 1 }
+      const schedule = yield* backend.schedule.read(scheduleRequest)
+      assert(schedule.observedAt > 0)
+      assert.deepEqual(Object.keys(schedule).sort(), [
+        "nextAvailableAt",
+        "nextRecoveryAt",
+        "observedAt",
+        "saturated"
+      ])
+      const ambientSchedule = yield* Effect.exit(
+        client.withTransaction(backend.schedule.read(scheduleRequest))
+      )
+      assert(Exit.isFailure(ambientSchedule))
+      checks.push("read-only bounded DB-time schedule hints reject ambient ownership")
       return checks
     }).pipe(Effect.provideService(JobEnqueue, backend.producer))
   })

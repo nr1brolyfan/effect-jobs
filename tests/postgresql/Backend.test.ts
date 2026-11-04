@@ -25,6 +25,7 @@ import type {
 import * as Payload from "../../src/JobPayload.js"
 import * as Worker from "../../src/JobWorker.js"
 import * as Storage from "../../src/JobStorage.js"
+import * as Schedule from "../../src/JobSchedule.js"
 import { JobFailures, type JobFailure } from "../../src/JobFailure.js"
 import type { HandlerInput, EnqueueResult } from "../../src/JobContract.js"
 import { readQualificationResource } from "../qualification/Resource.mjs"
@@ -282,6 +283,140 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       ).rows[0].now
     )
 
+  test("read-only schedule hints use one DB clock, bound unsupported heads and isolate queue recovery", async () => {
+    await clear()
+    const now = await serverNow()
+    await enqueue("schedule-active", "active", policy, now - 1000)
+    const active = await claim()
+    const retryPolicy = Effect.runSync(
+      Policy.make({ retry: Retry.fixed(Duration.seconds(30)).pipe(Retry.maxAttempts(3)) })
+    )
+    await enqueue("schedule-retry", "retry", retryPolicy, now - 500)
+    await finish(await claim(), {
+      _tag: "Retry",
+      code: FailureCodes.define({ temporary: "schedule_retry" }).temporary
+    })
+    await enqueue("schedule-terminal", "terminal", policy, now - 500)
+    await finish(await claim())
+    await enqueue("schedule-future", "future", policy, now + 60000)
+    const unsupported = Producer.make({
+      operation: "billing.schedule-v2",
+      slots: {
+        generate: {
+          job: Job.make({
+            kind: definition.kind,
+            version: 2,
+            payload: definition.payload
+          }),
+          queue,
+          policy
+        }
+      }
+    })
+    await Effect.runPromise(
+      backend.withTransaction(() =>
+        unsupported.enqueue({
+          slot: "generate",
+          operationId: "schedule-unsupported",
+          payload: { invoiceId: "PRIVATE_SCHEDULE_PAYLOAD" },
+          availableAt: now - 10000
+        })
+      )
+    )
+    const otherQueue = Queue.make("schedule-other")
+    const other = Producer.make({
+      operation: "billing.schedule-other",
+      slots: { generate: { job: definition, queue: otherQueue, policy } }
+    })
+    await Effect.runPromise(
+      backend.withTransaction(() =>
+        other.enqueue({
+          slot: "generate",
+          operationId: "schedule-other",
+          payload: { invoiceId: "other" },
+          availableAt: now - 20000
+        })
+      )
+    )
+    const otherClaim = await Effect.runPromise(
+      backend.store.claim({
+        queue: otherQueue.name,
+        supportedCatalog: [{ ...catalog, queue: otherQueue.name }],
+        leaseToken: randomUUID()
+      })
+    )
+    expect(otherClaim._tag).toBe("Claimed")
+    await observer.query(
+      "UPDATE backend_fixture.tasks SET lease_expires_at=1 WHERE operation_id='schedule-other'"
+    )
+    const beforeRows = (
+      await observer.query("SELECT * FROM backend_fixture.tasks ORDER BY id")
+    ).rows
+    const beforeRead = source.counters.sql.length
+    const clockBefore = await serverNow()
+    const small = await Effect.runPromise(
+      backend.schedule.read({ queue: queue.name, supportedCatalog: [catalog], limit: 1 })
+    )
+    expect(small).toMatchObject({
+      nextAvailableAt: null,
+      nextRecoveryAt: active.ownership.leaseExpiresAt,
+      saturated: true
+    })
+    const full = await Effect.runPromise(
+      Schedule.observe(workerGroup, queue, { limit: 500 }).pipe(
+        Effect.provide(Schedule.layer(backend.schedule))
+      )
+    )
+    const clockAfter = await serverNow()
+    expect(full.observedAt).toBeGreaterThanOrEqual(clockBefore)
+    expect(full.observedAt).toBeLessThanOrEqual(clockAfter)
+    expect(full.nextAvailableAt).toBe(Number((await row("schedule-retry")).available_at))
+    expect(full.nextRecoveryAt).toBe(active.ownership.leaseExpiresAt)
+    expect(full.saturated).toBe(false)
+    expect(Object.keys(full).sort()).toEqual([
+      "nextAvailableAt",
+      "nextRecoveryAt",
+      "observedAt",
+      "saturated"
+    ])
+    expect(JSON.stringify(full)).not.toContain("PRIVATE_SCHEDULE_PAYLOAD")
+    expect(
+      (await observer.query("SELECT * FROM backend_fixture.tasks ORDER BY id")).rows
+    ).toEqual(beforeRows)
+    expect(
+      source.counters.sql
+        .slice(beforeRead)
+        .some((sql) => /\b(?:UPDATE|DELETE|INSERT|FOR UPDATE|SKIP LOCKED)\b/.test(sql))
+    ).toBe(false)
+  })
+
+  test("schedule rejects invalid selections before SQL and rejects an ambient owning transaction", async () => {
+    const request = { queue: queue.name, supportedCatalog: [catalog], limit: 100 }
+    const borrows = source.counters.borrows
+    const sql = source.counters.sql.length
+    for (const invalid of [
+      { ...request, limit: 501 },
+      { ...request, supportedCatalog: [{ ...catalog, queue: "other" }] }
+    ]) {
+      expect(
+        await Effect.runPromise(backend.schedule.read(invalid).pipe(Effect.result))
+      ).toMatchObject({
+        _tag: "Failure",
+        failure: { _tag: "JobScheduleProtocolError", reason: "invalid-input" }
+      })
+    }
+    expect(source.counters.borrows).toBe(borrows)
+    expect(source.counters.sql).toHaveLength(sql)
+    expect(
+      await Effect.runPromise(
+        backend.withTransaction(() => backend.schedule.read(request)).pipe(Effect.result)
+      )
+    ).toMatchObject({
+      _tag: "Failure",
+      failure: { _tag: "PostgreSqlInvalidHandle", reason: "active-transaction" }
+    })
+  })
+
   test("backend Layer provides the same configured JobStorage to a group worker", async () => {
     await clear()
     await enqueue("storage-service")
@@ -304,6 +439,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
           configured.operationResponseBudgetMillis
         )
         expect(source.counters.borrows).toBe(borrows)
+        const hint = yield* Schedule.observe(workerGroup, queue)
+        expect(hint.nextAvailableAt).not.toBeNull()
+        expect(hint.nextRecoveryAt).toBeNull()
         expect(
           yield* Worker.drain(queue, { maxJobs: 1, recoveryLimit: 1 })
         ).toMatchObject({ _tag: "MoreWork", claimed: 1 })

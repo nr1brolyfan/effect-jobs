@@ -27,6 +27,8 @@ import { insertOrCompare } from "./internal/postgresql/Producer.js"
 import { makeCleanup, makeStore } from "./internal/postgresql/Store.js"
 import { ready } from "./internal/postgresql/Readiness.js"
 import * as Storage from "./JobStorage.js"
+import * as Schedule from "./JobSchedule.js"
+import { makeSchedule } from "./internal/postgresql/Schedule.js"
 
 const backendError = (error: PostgreSqlError): JobBackendError =>
   new JobBackendError({
@@ -164,6 +166,8 @@ export interface Backend {
   readonly cleanup: JobCleanupService<PostgreSqlError>
   /** Opt-in read-only bounded health sample; app selects ONE reporter per queue/storage. */
   readonly health: ReturnType<typeof makeHealth>
+  /** Read-only queue wake hints; this raw port retains native backend errors. */
+  readonly schedule: Schedule.Reader<PostgreSqlError>
   /** Joins the adapter-registered exact active source/connection and supplies an
    * invocation-bound JobEnqueue service. No BEGIN/savepoint,
    * independent commit or replay. Sequence enqueue inside this callback; its capability
@@ -299,6 +303,7 @@ export const make = (options: Options) =>
       store,
       cleanup: makeCleanup(adapter, jobs),
       health: makeHealth(adapter, jobs),
+      schedule: makeSchedule(adapter, jobs),
       joinTransaction,
       withTransaction: (body) =>
         adapter.withTransaction((handle) =>
@@ -345,7 +350,8 @@ export const layerNoDeps = (options: Options) =>
           Layer.succeed(PostgreSqlJobs, backend),
           Layer.succeed(JobEnqueue, backend.producer),
           Layer.succeed(JobOperators, neutralOperators(backend.operators)),
-          Layer.succeed(Storage.JobStorage, backend.storage)
+          Layer.succeed(Storage.JobStorage, backend.storage),
+          Schedule.layer(backend.schedule)
         )
       )
     )

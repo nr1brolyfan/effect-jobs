@@ -213,7 +213,24 @@ For a bounded invocation instead of a server:
 ```ts
 yield* Worker.drain(BillingQueue, { maxJobs: 20, recoveryLimit: 20 }).pipe(Effect.provide(WorkerLayer))
 // One bounded run, not “wait until every future retry has finished”.
+
+const hint = yield* JobSchedule.observe(BillingJobs, BillingQueue, { limit: 100 }).pipe(
+  Effect.provide(JobSchedule.layer(jobsStorage.schedule))
+)
+// Compute delays from hint.observedAt, not the host clock.
+// Keep a finite repair wakeup even if both timestamps are null.
 ```
+
+`JobSchedule` is read-only and needs no worker or installed handlers. It reports
+`observedAt`, `nextAvailableAt`, `nextRecoveryAt` and `saturated`. Availability is
+filtered by the group's contracts within a bounded queue head (1–500 rows);
+`saturated` means that head is incomplete. In particular, null availability with
+saturation does **not** mean no supported job exists. Recovery includes all active
+leases in that queue, matching queue-scoped drain recovery. Timestamps may already
+be due and can become stale immediately. The backend bounds query latency; the row
+limit is not a bound on total database work. Authorization, activation expiry,
+exclusive alarm ownership and repair notifications remain application-owned.
+`PostgreSqlJobs.layerNoDeps` also provides the configured `JobSchedule` service.
 
 The backend exposes its producer service as `jobsStorage.producer`.
 Provide it as `JobEnqueue` to effects that call `enqueue` or `enqueueStandalone`.
