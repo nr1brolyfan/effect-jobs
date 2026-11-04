@@ -155,7 +155,7 @@ describe("contract-first producer binding", () => {
     })
     contract.kind = "changed"
     destination.name = "changed" as typeof queue.name
-    configured.maxAttempts++
+    configured.maxFinalizedAttempts++
     const prepared: PreparedJob[] = []
     const result = await Effect.runPromise(
       producer
@@ -168,7 +168,9 @@ describe("contract-first producer binding", () => {
       kind: "billing.receipt",
       version: 1
     })
-    expect(prepared[0]!.policy.maxAttempts).toBe(Policy.defaultPolicy.maxAttempts)
+    expect(prepared[0]!.policy.maxFinalizedAttempts).toBe(
+      Policy.defaultPolicy.maxFinalizedAttempts
+    )
     expect(Object.isFrozen(contract)).toBe(false)
     expect(Object.isFrozen(configured)).toBe(false)
   })

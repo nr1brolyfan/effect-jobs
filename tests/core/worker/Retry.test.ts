@@ -32,12 +32,12 @@ it.each([
       const built = yield* Policy.make({
         retry: Retry.exponential(Duration.seconds(1)).pipe(
           Retry.jittered(),
-          Retry.maxAttempts(5)
+          Retry.maxFinalizedAttempts(5)
         )
       })
       // Full is a previously stored format, not a new builder option.
       const policy = yield* Schema.decodeUnknownEffect(Policy.PersistedJobPolicy)({
-        ...built,
+        ...Schema.encodeSync(Policy.PersistedJobPolicy)(built),
         retrySchedule: { ...built.retrySchedule, jitter: scenario.jitter }
       })
       const test = harness([
@@ -102,7 +102,7 @@ it.each([
           ? Math.floor(command.jitterSample * 1001)
           : 800 + Math.floor(command.jitterSample * 401)
       )
-      assert.equal(row.attemptsMade, 1)
+      assert.equal(row.finalizedAttempts, 1)
     }).pipe(Effect.provide(Layer.merge(Registry.layer, TestClock.layer())), Effect.scoped)
   )
 })

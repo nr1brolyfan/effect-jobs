@@ -289,7 +289,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     await enqueue("schedule-active", "active", policy, now - 1000)
     const active = await claim()
     const retryPolicy = Effect.runSync(
-      Policy.make({ retry: Retry.fixed(Duration.seconds(30)).pipe(Retry.maxAttempts(3)) })
+      Policy.make({
+        retry: Retry.fixed(Duration.seconds(30)).pipe(Retry.maxFinalizedAttempts(3))
+      })
     )
     await enqueue("schedule-retry", "retry", retryPolicy, now - 500)
     await finish(await claim(), {
@@ -573,7 +575,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       Effect.suspend((): Effect.Effect<void, JobFailure> => {
         expect(value.payload.invoiceId).toBe(id)
         expect(value.context.jobId).toBe(produced.jobId)
-        seen.push(value.context.attemptNumber)
+        seen.push(value.context.nextFinalizationNumber)
         if (seen.length === 1) {
           return Effect.fail(
             JobFailures.Retry({ code: FailureCodes.define({ value: "temporary" }).value })
@@ -959,7 +961,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
           expect(await row(operationId)).toBeUndefined()
         } else {
           expect(result).toMatchObject({ _tag: "Success", success: { _tag: "Inserted" } })
-          expect((await row(operationId)).policy).toEqual(configured)
+          expect((await row(operationId)).policy).toEqual(
+            Schema.encodeSync(Policy.PersistedJobPolicy)(configured)
+          )
         }
       }
     }
@@ -981,7 +985,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     const first = await enqueue("duplicate", "same", policy, 1)
     const changed = await Effect.runPromise(
       Policy.make({
-        retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(10))
+        retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxFinalizedAttempts(10))
       })
     )
     const before = await row("duplicate")
@@ -1149,7 +1153,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     expect(new Set(results.map((c) => c.ownership.jobId)).size).toBe(3)
     expect(
       results.every(
-        (c) => c.snapshot.attemptsMade === 0 && c.snapshot.lifecycleVersion === 1
+        (c) => c.snapshot.finalizedAttempts === 0 && c.snapshot.lifecycleVersion === 1
       )
     ).toBe(true)
   })
@@ -1463,7 +1467,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       "retry",
       await Effect.runPromise(
         Policy.make({
-          retry: Retry.fixed(Duration.millis(10000)).pipe(Retry.maxAttempts(2))
+          retry: Retry.fixed(Duration.millis(10000)).pipe(Retry.maxFinalizedAttempts(2))
         })
       )
     )
@@ -1496,7 +1500,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         retry: Retry.exponential(Duration.seconds(10)).pipe(
           Retry.capped(Duration.minutes(1)),
           Retry.jittered(),
-          Retry.maxAttempts(5)
+          Retry.maxFinalizedAttempts(5)
         )
       })
     )

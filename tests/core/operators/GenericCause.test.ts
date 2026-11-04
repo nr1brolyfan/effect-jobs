@@ -183,7 +183,7 @@ for (const path of paths) {
           policy: defaultPolicy,
           availableAt: 100,
           updatedAt: 200,
-          attemptsMade: 0,
+          finalizedAttempts: 0,
           stalledCount: 0,
           leaseToken: null,
           leaseExpiresAt: null,

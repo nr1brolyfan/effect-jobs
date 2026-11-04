@@ -401,7 +401,7 @@ for (const mode of [
           test.rows[0]!.snapshot.state,
           mode === "valid" ? "Completed" : "Isolated"
         )
-        assert.equal(test.rows[0]!.snapshot.attemptsMade, 1)
+        assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 1)
         if (mode !== "valid") {
           assert.equal(test.rows[0]!.snapshot.lastFailureCode, "invalid_claimed_artifact")
         }
@@ -433,8 +433,8 @@ for (const mode of [
   })
 }
 
-for (const maxAttempts of [1, 3]) {
-  it(`proposal control: explicit transient decode Retry with maxAttempts=${maxAttempts}`, async () => {
+for (const maxFinalizedAttempts of [1, 3]) {
+  it(`proposal control: explicit transient decode Retry with maxFinalizedAttempts=${maxFinalizedAttempts}`, async () => {
     const keys = keyFixture("receipt")
     let handlerCalls = 0
     await Effect.runPromise(
@@ -451,7 +451,9 @@ for (const maxAttempts of [1, 3]) {
               slot: "document"
             },
             policy: yield* Policy.make({
-              retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(maxAttempts))
+              retry: Retry.fixed(Duration.seconds(5)).pipe(
+                Retry.maxFinalizedAttempts(maxFinalizedAttempts)
+              )
             }),
             encoded
           }
@@ -502,9 +504,9 @@ for (const maxAttempts of [1, 3]) {
         )
         assert.equal(
           test.rows[0]!.snapshot.state,
-          maxAttempts === 1 ? "Dead" : "RetryScheduled"
+          maxFinalizedAttempts === 1 ? "Dead" : "RetryScheduled"
         )
-        assert.equal(test.rows[0]!.snapshot.attemptsMade, 1)
+        assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 1)
         assert.equal(test.rows[0]!.snapshot.stalledCount, 0)
         assert.equal(test.rows[0]!.snapshot.lastFailureCode, "payload_key_unavailable")
         assert.equal(handlerCalls, 0)
@@ -515,7 +517,7 @@ for (const maxAttempts of [1, 3]) {
           supportedCatalog: [definition.catalog],
           leaseToken: "00000000-0000-4000-8000-000000000002"
         })
-        if (maxAttempts === 1) {
+        if (maxFinalizedAttempts === 1) {
           assert.equal(resumed._tag, "Empty")
         } else {
           assert.equal(resumed._tag, "Claimed")
@@ -529,7 +531,7 @@ for (const maxAttempts of [1, 3]) {
             )
           }
           assert.equal(test.rows[0]!.snapshot.state, "Completed")
-          assert.equal(test.rows[0]!.snapshot.attemptsMade, 2)
+          assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 2)
           assert.equal(handlerCalls, 1)
         }
       }).pipe(

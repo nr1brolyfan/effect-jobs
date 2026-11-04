@@ -338,7 +338,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
           queue: Queue.make("billing"),
           policy: Effect.runSync(
             Policy.make({
-              retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(7))
+              retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxFinalizedAttempts(7))
             })
           )
         }

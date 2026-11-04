@@ -23,7 +23,7 @@ export const pending = (
   state: "Pending",
   availableAt: now,
   updatedAt: now - 1,
-  attemptsMade: 0,
+  finalizedAttempts: 0,
   stalledCount: 0,
   lifecycleVersion: 0,
   leaseToken: null,

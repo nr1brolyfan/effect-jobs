@@ -12,7 +12,7 @@ import type {
   ApplicationAdapter,
   TransactionQuery
 } from "../../../src/PostgreSqlTransaction.js"
-import { defaultPolicy } from "../../../src/JobPolicy.js"
+import { defaultPolicy, PersistedJobPolicy } from "../../../src/JobPolicy.js"
 import { DocumentKeys, EncryptedDocument, keys } from "../codec/EncryptedFixture.js"
 
 const expected = Schema.decodeSync(JobOperatorExpected)({
@@ -31,7 +31,7 @@ const row = () => ({
   id: "source",
   state: "Dead",
   lifecycle_version: 4,
-  policy: defaultPolicy,
+  policy: Schema.encodeSync(PersistedJobPolicy)(defaultPolicy),
   available_at: 100,
   updated_at: 100,
   created_at: null,
@@ -139,7 +139,7 @@ test.each(["Dead", "Isolated"] as const)(
     expect(calls[0]!.sql).not.toContain("JOIN")
     const values = calls.find((c) => c.sql.startsWith('INSERT INTO "jobs"'))!.values!
     expect(values.slice(7)).toEqual([
-      JSON.stringify(defaultPolicy),
+      JSON.stringify(Schema.encodeSync(PersistedJobPolicy)(defaultPolicy)),
       200,
       200,
       200,
@@ -222,7 +222,7 @@ test.each([9, 10, 11])(
     const { calls, service } = fixture({
       ...row(),
       policy: {
-        ...defaultPolicy,
+        ...Schema.encodeSync(PersistedJobPolicy)(defaultPolicy),
         leaseDurationMillis: defaultPolicy.attemptTimeoutMillis + reserve
       }
     })

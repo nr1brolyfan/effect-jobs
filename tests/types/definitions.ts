@@ -89,7 +89,7 @@ export const handler = group.toLayer({
     Effect.gen(function* () {
       yield* HandlerService
       const amount: number = input.payload.amount
-      const attempt: number = input.context.attemptNumber
+      const attempt: number = input.context.nextFinalizationNumber
       // @ts-expect-error Handler context has no finalization authority.
       input.context.complete()
       if (amount < attempt) {

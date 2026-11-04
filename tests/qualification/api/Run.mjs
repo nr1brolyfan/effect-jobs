@@ -109,12 +109,12 @@ const code = Codes.define({ boundary: "a".repeat(128) }).boundary
 assert.equal(JobFailures.Retry({ code }).code.length, 128)
 assert(Result.isFailure(Codes.parse("a".repeat(129))))
 assert(Object.isFrozen(Policy.defaultPolicy.retrySchedule))
-const retry = Retry.exponential(Duration.seconds(1)).pipe(Retry.capped(Duration.minutes(1)), Retry.jittered(), Retry.maxAttempts(5))
+const retry = Retry.exponential(Duration.seconds(1)).pipe(Retry.capped(Duration.minutes(1)), Retry.jittered(), Retry.maxFinalizedAttempts(5))
 const retryPolicy = await Effect.runPromise(Policy.make({ retry }))
-assert.equal(retryPolicy.maxAttempts, 5)
+assert.equal(retryPolicy.maxFinalizedAttempts, 5)
 assert.equal(retryPolicy.retrySchedule._tag, "BackoffV1")
 assert.equal(retryPolicy.retrySchedule.jitter, "ProportionalV1")
-assert.deepEqual(Schema.decodeUnknownSync(Policy.PersistedJobPolicy)(JSON.parse(JSON.stringify(retryPolicy))), retryPolicy)
+assert.deepEqual(Schema.decodeUnknownSync(Policy.PersistedJobPolicy)(JSON.parse(JSON.stringify(Schema.encodeSync(Policy.PersistedJobPolicy)(retryPolicy)))) , retryPolicy)
 const invalidRetry = Retry.exponential(Duration.seconds(1), { factor: 0 })
 const invalidExit = await Effect.runPromiseExit(Policy.make({ retry: invalidRetry }))
 assert(Exit.isFailure(invalidExit))
@@ -154,7 +154,7 @@ const group = Group.make("installed-receipts", { receipt: definition })
 const handler = group.toLayer({ receipt: (input) => Effect.sync(() => { assert.equal(input.payload.document.total, 12n); calls++ }) }).pipe(Layer.provide(keysLayer(keys())))
 await Effect.runPromise(Effect.gen(function* () {
    const handlers = yield* group.handlers
-   const context = { jobId: yield* Schema.decodeEffect(JobId)("fixture-job"), catalog, producer: prepared[0]!.producer, attemptNumber: 1 }
+   const context = { jobId: yield* Schema.decodeEffect(JobId)("fixture-job"), catalog, producer: prepared[0]!.producer, nextFinalizationNumber: 1 }
    yield* handlers.receipt(prepared[0]!.encoded, context)
   const bad = { ...prepared[0]!.encoded, payloadBytes: new TextEncoder().encode("{}") }
    yield* Effect.flip(handlers.receipt(bad, context))

@@ -46,7 +46,7 @@ export const dashboard = profiles.map((profile, index) => ({
           profile.state === "Cancelled"
             ? now
             : null,
-        attemptsMade: profile.attempts,
+        finalizedAttempts: profile.attempts,
         stalledCount: profile.stalls,
         lifecycleVersion:
           profile.label === "pending" || profile.label === "delayed" ? 0 : 2,

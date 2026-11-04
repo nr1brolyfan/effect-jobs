@@ -93,7 +93,7 @@ const runJob = () =>
               policy: Policy.defaultPolicy,
               availableAt: 1725000000000,
               updatedAt: 1725000000010,
-              attemptsMade: 0,
+              finalizedAttempts: 0,
               stalledCount: 0,
               completedAt: null,
               lastFailureCode: null

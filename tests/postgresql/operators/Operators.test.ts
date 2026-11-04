@@ -162,7 +162,7 @@ describe.skipIf(!configPath)(
           return accepted
         })
       )
-      expect(result.after.attemptsMade).toBe(0)
+      expect(result.after.finalizedAttempts).toBe(0)
       const rollback = await seed()
       await expect(
         run((q) =>
@@ -190,8 +190,10 @@ describe.skipIf(!configPath)(
       const result = await run(() => operators.retryNow(expected))
       expect(result.after.availableAt).toBe(result.after.updatedAt)
       expect(result.after.availableAt).toBeLessThan(Number(before.available_at))
-      expect(result.after.attemptsMade).toBe(Number(before.attempts_made))
-      expect(result.after.policy).toEqual(before.policy)
+      expect(result.after.finalizedAttempts).toBe(Number(before.attempts_made))
+      expect(result.after.policy).toEqual(
+        Schema.decodeUnknownSync(Policy.PersistedJobPolicy)(before.policy)
+      )
       const after = (
         await query(`SELECT * FROM ${jobs} WHERE id=$1`, [expected.jobId])
       )[0]

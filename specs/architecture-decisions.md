@@ -302,12 +302,12 @@ Only explicit bounded failure codes are persisted, not arbitrary error messages
 or raw `Cause.pretty`. Preserve the existing persisted FixedDelayV1 retry and
 bounded recovery protocol during extraction rather than adding exponential retry.
 The owner subsequently accepted preserving the existing attempt-counting protocol:
-`context.attemptNumber = attemptsMade + 1`. Claim/release do not increment
-`attemptsMade`; a confirmed, fenced Complete/Retry/Dead/Isolate transition
+`context.nextFinalizationNumber = finalizedAttempts + 1`. Claim/release do not increment
+`finalizedAttempts`; a confirmed, fenced Complete/Retry/Dead/Isolate transition
 increments it exactly once. An unknown outcome leaves it unchanged; recovery
 uses a separate `stalledCount` and limit. Thus the exposed one-based attempt number
 may repeat after an unknown outcome and recovery. It is neither an external
-idempotency key nor a count of all handler invocations. `maxAttempts` bounds
+idempotency key nor a count of all handler invocations. `maxFinalizedAttempts` bounds
 finalized attempts, while `maxStalledCount` separately bounds uncertain recovery.
 This accepts counter semantics, not unpresented exact time-boundary comparisons.
 
@@ -355,7 +355,9 @@ Illustrative public input:
 const policy =
   yield *
   JobPolicy.make({
-    retry: JobRetryPolicy.fixed(Duration.seconds(5)).pipe(JobRetryPolicy.maxAttempts(3)),
+    retry: JobRetryPolicy.fixed(Duration.seconds(5)).pipe(
+      JobRetryPolicy.maxFinalizedAttempts(3)
+    ),
     completedRetention: Duration.days(90),
     deadRetention: Duration.infinity
   })
@@ -371,7 +373,7 @@ The owner accepted these execution defaults (public names remain illustrative):
 {
   leaseDuration: Duration.seconds(90),
   attemptTimeout: Duration.seconds(30),
-  retry: JobRetryPolicy.fixed(Duration.seconds(5)).pipe(JobRetryPolicy.maxAttempts(3)),
+  retry: JobRetryPolicy.fixed(Duration.seconds(5)).pipe(JobRetryPolicy.maxFinalizedAttempts(3)),
   maxStalledCount: 1
 }
 ```
@@ -383,7 +385,7 @@ attempt number and lead to additional handler invocations. An attempt timeout
 does not prove that external effects did not occur.
 
 Fixed-delay-only retry was the extraction baseline. On 2026-10-30 the owner
-accepted the composable `JobRetryPolicy` API with `maxAttempts` and explicit
+accepted the composable `JobRetryPolicy` API with `maxFinalizedAttempts` and explicit
 `Policy.make({ retry })` assembly, and authorized direct local implementation.
 The API, full-jitter arithmetic, versioned persistence, compatibility and rollout
 contract are specified in [retry policy](retry-policy.md). The 2026-10-31 refinement

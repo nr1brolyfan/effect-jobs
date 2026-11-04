@@ -43,7 +43,7 @@ const makeJobsColumns = () => ({
   availableAt: bigint("available_at", { mode: "number" }).notNull(),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
   createdAt: bigint("created_at", { mode: "number" }),
-  attemptsMade: bigint("attempts_made", { mode: "number" }).notNull().default(0),
+  finalizedAttempts: bigint("attempts_made", { mode: "number" }).notNull().default(0),
   stalledCount: bigint("stalled_count", { mode: "number" }).notNull().default(0),
   lifecycleVersion: bigint("lifecycle_version", { mode: "number" }).notNull().default(0),
   leaseToken: text("lease_token"),
@@ -105,7 +105,7 @@ export const makeJobTables = (options: Options = {}) => {
       `${prefix}_state`,
       sql`${j.state} IN ('Pending','Active','RetryScheduled','Completed','Dead','Isolated','Cancelled')`
     ),
-    check(`${prefix}_attempts`, sql`${j.attemptsMade} >= 0`),
+    check(`${prefix}_attempts`, sql`${j.finalizedAttempts} >= 0`),
     check(`${prefix}_stalls`, sql`${j.stalledCount} >= 0`),
     check(`${prefix}_version`, sql`${j.lifecycleVersion} >= 0`),
     check(

@@ -231,9 +231,9 @@ describe("bounded unknown reconciliation", () => {
       { lifecycleVersion: 3 },
       { lastFailureCode: "different" },
       { availableAt: now + 99 },
-      { attemptsMade: 2 },
+      { finalizedAttempts: 2 },
       { stalledCount: 1 },
-      { policy: { ...applied.policy, maxAttempts: 4 } }
+      { policy: { ...applied.policy, maxFinalizedAttempts: 4 } }
     ]) {
       expect(
         value(R.inspectFinalization(input, { ...applied, ...change }, now + 200))._tag

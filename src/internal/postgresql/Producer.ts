@@ -11,7 +11,7 @@ import type { TransactionQuery } from "../../PostgreSqlTransaction.js"
 import { JobOperatorRejected, type JobLineage } from "../../JobOperators.js"
 import { dbTime, lineage as readLineage } from "./Rows.js"
 import { PostgreSqlFailure } from "../../PostgreSqlTransaction.js"
-import { maximumMillis } from "../../JobPolicy.js"
+import { maximumMillis, PersistedJobPolicy } from "../../JobPolicy.js"
 
 /** READ COMMITTED is required: the post-conflict statement sees the committed winner. */
 export const insertOrCompare = (
@@ -72,7 +72,7 @@ export const insertOrCompareAt = (
         catalog.queue,
         catalog.kind,
         catalog.version,
-        JSON.stringify(prepared.policy),
+        JSON.stringify(Schema.encodeSync(PersistedJobPolicy)(prepared.policy)),
         prepared.availableAt ?? null,
         prepared.availableAt ?? now,
         now,

@@ -361,7 +361,7 @@ const ReceiptHandler = BillingJobs.toLayer({
 | `Isolate`        | Quarantine the job for investigation.        |
 | `OutcomeUnknown` | The side effect may already have happened.   |
 
-A timeout is not proof that no email was sent. Unknown outcomes use bounded lease recovery, not a normal finalized retry; attempt numbers can repeat. Keep the provider key and body stable, and reconcile before its idempotency window expires. Never persist raw errors or sensitive response bodies as failure codes.
+A timeout is not proof that no email was sent. Unknown outcomes use bounded lease recovery, not a normal finalized retry. `context.nextFinalizationNumber` is `finalizedAttempts + 1` and may repeat; it is not an invocation count or an idempotency key. Only confirmed fenced Complete/Retry/Dead/Isolate transitions increment `finalizedAttempts`; claim, release and unknown outcomes do not. `maxFinalizedAttempts` includes the first finalization, while stalled recovery has a separate budget. Keep the provider key and body stable, and reconcile before its idempotency window expires. Never persist raw errors or sensitive response bodies as failure codes.
 
 ## Policy belongs to the job
 
@@ -371,7 +371,7 @@ Compose retry settings with `effect-jobs/JobRetryPolicy`, imported as `Retry`.
 const retry = Retry.exponential(Duration.seconds(1)).pipe(
   Retry.capped(Duration.minutes(1)),
   Retry.jittered(),
-  Retry.maxAttempts(4)
+  Retry.maxFinalizedAttempts(4)
 )
 
 const receiptPolicy = yield* JobPolicy.make({
@@ -395,6 +395,11 @@ yield* ScheduledInvoice.enqueue({
 ```
 
 Policy is persisted at enqueue. Changing this constant affects new jobs, not existing ones; a matching duplicate keeps its first policy. Retention makes terminal jobs eligible for explicit cleanup—it does not start a cleanup worker. Removing identity evidence ends deduplication.
+
+For storage integrations, `JobPolicy` validates the resolved in-memory model;
+`PersistedJobPolicy` is the storage codec. Encode with that codec instead of
+serializing resolved policy directly: retained JSON uses `maxAttempts`, mapped
+to public `maxFinalizedAttempts`. The physical `attempts_made` counter is unchanged.
 
 Use `Retry.fixed(Duration.seconds(5))` for a constant delay. Exponential retries
 start at the base delay, grow by a factor of two, and stop growing at the cap.

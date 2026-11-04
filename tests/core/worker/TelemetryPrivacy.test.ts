@@ -149,7 +149,7 @@ for (const phase of ["finalize", "reconcileFinalization"] as const) {
         assert.equal(invoked, 1)
         assert.equal(defects, 1)
         assert.equal(test.rows[0]!.snapshot.state, "Active")
-        assert.equal(test.rows[0]!.snapshot.attemptsMade, 0)
+        assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 0)
         assert.equal(test.calls.releases, 0)
         for (const span of spans) {
           assert.equal(span.status._tag, "Ended")

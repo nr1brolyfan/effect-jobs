@@ -51,7 +51,7 @@ export const rawDuration = Retry.fixed(5000)
 export const incompletePolicy: JobPolicy.JobPolicy = {
   leaseDurationMillis: 90000,
   attemptTimeoutMillis: 30000,
-  maxAttempts: 3,
+  maxFinalizedAttempts: 3,
   maxStalledCount: 1,
   retrySchedule: { _tag: "FixedDelayV1", delayMillis: 5000 }
 }
@@ -88,6 +88,11 @@ export const removedRetryCutoff = JobFailures.Retry({
 // @ts-expect-error Arbitrary domain errors are not library handler failures.
 export const domainFailure: JobFailure = { _tag: "DomainError", code: "x" }
 declare const handlerInput: HandlerInput<string>
+// @ts-expect-error The ordinal describes the next finalization, not every invocation.
+export const removedOrdinal = handlerInput.context.attemptNumber
+declare const snapshot: import("../../src/JobLifecycle.js").JobSnapshot
+// @ts-expect-error Physical attempts_made maps to finalizedAttempts, not the removed public field.
+export const removedCounter = snapshot.attemptsMade
 // @ts-expect-error Handler context has no transaction or finalization authority.
 export const noTransaction = handlerInput.context.transaction
 // @ts-expect-error Callback capability cannot be fabricated structurally.

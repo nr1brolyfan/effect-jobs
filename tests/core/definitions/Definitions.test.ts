@@ -53,7 +53,7 @@ const context: HandlerContext = {
   jobId,
   catalog: job.catalog,
   producer: identity,
-  attemptNumber: 1
+  nextFinalizationNumber: 1
 }
 const failure = <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.flip(effect)
 
@@ -237,7 +237,10 @@ describe("explicit transaction enqueue", () => {
         },
         "producer"
       ],
-      [{ ...input, payload: "ok", policy: { ...policy, maxAttempts: 0 } }, "policy"],
+      [
+        { ...input, payload: "ok", policy: { ...policy, maxFinalizedAttempts: 0 } },
+        "policy"
+      ],
       [{ ...input, payload: "ok", availableAt: 0 }, "availableAt"]
     ] as const) {
       const error = await Effect.runPromise(

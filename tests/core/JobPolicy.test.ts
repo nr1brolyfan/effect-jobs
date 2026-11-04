@@ -74,7 +74,7 @@ describe("complete immutable policy with typed validation", () => {
     expect(policy).toEqual({
       leaseDurationMillis: 90_000,
       attemptTimeoutMillis: 30_000,
-      maxAttempts: 3,
+      maxFinalizedAttempts: 3,
       maxStalledCount: 1,
       retrySchedule: { _tag: "FixedDelayV1", delayMillis: 5_000 },
       completedRetention: { _tag: "Duration", millis: 90 * 86_400_000 },
@@ -99,7 +99,7 @@ describe("complete immutable policy with typed validation", () => {
         leaseDuration: Duration.millis(JobPolicy.maximumMillis),
         attemptTimeout: Duration.millis(1),
         retry: Retry.fixed(Duration.millis(JobPolicy.maximumMillis)).pipe(
-          Retry.maxAttempts(100)
+          Retry.maxFinalizedAttempts(100)
         ),
         maxStalledCount: 0,
         completedRetention: Duration.infinity,
@@ -113,11 +113,11 @@ describe("complete immutable policy with typed validation", () => {
       (
         await Effect.runPromise(
           JobPolicy.make({
-            retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(1)),
+            retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxFinalizedAttempts(1)),
             maxStalledCount: 100
           })
         )
-      ).maxAttempts
+      ).maxFinalizedAttempts
     ).toBe(1)
   })
   it.each([0, -1, 0.5, JobPolicy.maximumMillis + 1, Infinity, -Infinity])(
@@ -143,14 +143,16 @@ describe("complete immutable policy with typed validation", () => {
   )
   it.each([0, -1, 101, 1.5, NaN, Infinity])(
     "rejects attempt limits through Fail",
-    async (maxAttempts) => {
+    async (maxFinalizedAttempts) => {
       expect(
         (
           await configurationFailure({
-            retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(maxAttempts))
+            retry: Retry.fixed(Duration.seconds(5)).pipe(
+              Retry.maxFinalizedAttempts(maxFinalizedAttempts)
+            )
           })
         ).field
-      ).toBe("retry.maxAttempts")
+      ).toBe("retry.maxFinalizedAttempts")
     }
   )
   it.each([-1, 101, 0.5, NaN, Infinity])(
@@ -194,21 +196,25 @@ describe("complete immutable policy with typed validation", () => {
     ).toBe(false)
     expect(
       Schema.decodeUnknownSync(JobPolicy.PersistedJobPolicy)(
-        JSON.parse(JSON.stringify(JobPolicy.defaultPolicy))
+        JSON.parse(
+          JSON.stringify(
+            Schema.encodeSync(JobPolicy.PersistedJobPolicy)(JobPolicy.defaultPolicy)
+          )
+        )
       )
     ).toEqual(JobPolicy.defaultPolicy)
   })
   it("supports ordinary catchTags recovery from expected configuration failure", async () => {
     const field = await Effect.runPromise(
       JobPolicy.make({
-        retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(0))
+        retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxFinalizedAttempts(0))
       }).pipe(
         Effect.catchTags({
           JobPolicyConfigurationError: (error) => Effect.succeed(error.field)
         })
       )
     )
-    expect(field).toBe("retry.maxAttempts")
+    expect(field).toBe("retry.maxFinalizedAttempts")
   })
   it("reports malformed JavaScript duration inputs through Fail rather than throwing", async () => {
     for (const field of [
@@ -233,7 +239,7 @@ describe("complete immutable policy with typed validation", () => {
   it("rejects unsupported option names instead of silently treating them as defaults", async () => {
     for (const input of [
       { retryDelay: Duration.seconds(5) },
-      { maxAttempts: 3 },
+      { maxFinalizedAttempts: 3 },
       { typo: true }
     ]) {
       expect(

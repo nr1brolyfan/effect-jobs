@@ -2,8 +2,7 @@
 import { Data, Effect, Exit, Schema } from "effect"
 import type { JobDefinition } from "./Job.js"
 import type { JobQueue } from "./JobQueue.js"
-import type { JobPolicy } from "./JobPolicy.js"
-import { defaultPolicy, EpochMillis, PersistedJobPolicy } from "./JobPolicy.js"
+import { defaultPolicy, EpochMillis, JobPolicy } from "./JobPolicy.js"
 import {
   JobKind,
   JobVersion,
@@ -121,7 +120,7 @@ export const make = <const Operation extends string, const D extends Bindings>(o
     if (!Schema.is(QueueName)(binding.queue.name)) {
       throw new InvalidProducerBinding({ slot: entry[0], field: "queue" })
     }
-    if (!Schema.is(PersistedJobPolicy)(binding.policy ?? defaultPolicy)) {
+    if (!Schema.is(JobPolicy)(binding.policy ?? defaultPolicy)) {
       throw new InvalidProducerBinding({ slot: entry[0], field: "policy" })
     }
     // Declaration-time traversal is pure and requires no Schema encoding services.

@@ -61,7 +61,7 @@ await Effect.runPromise(
             state: "Pending",
             availableAt: 100000,
             updatedAt: 100000,
-            attemptsMade: 0,
+            finalizedAttempts: 0,
             stalledCount: 0,
             lifecycleVersion: 0,
             leaseToken: null,

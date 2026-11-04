@@ -119,13 +119,13 @@ No raw millisecond input or hand-written `_tag` is required publicly. `make`
 validates when its Effect is evaluated and fails through `JobPolicyConfigurationError`
 with the exact `field` and `expected` constraint; expected configuration failures
 are not synchronous throws or defects. Counters retain source limits:
-maxAttempts 1–100, maxStalledCount 0–100. Finite durations must resolve to integer
+maxFinalizedAttempts 1–100, maxStalledCount 0–100. Finite durations must resolve to integer
 milliseconds 1–253,402,300,799,999; no rounding, truncation or clamping. Zero,
 negative, fractional-millisecond and negative-infinity retention are rejected.
 Only positive infinity is Forever, and only for retention.
 
-`Retry.fixed`/`Retry.exponential` describe delays and `Retry.maxAttempts` sets the
-attempt limit. There is no `retryDelay` or top-level `maxAttempts` configuration
+`Retry.fixed`/`Retry.exponential` describe delays and `Retry.maxFinalizedAttempts` sets the
+attempt limit. There is no `retryDelay` or top-level attempt-limit configuration
 option and no deprecated compatibility path. Unknown option names are rejected.
 
 `attemptTimeoutMillis < leaseDurationMillis` is mandatory. Response budget is
@@ -138,7 +138,7 @@ The resolved policy and every nested configuration object are frozen:
 interface JobPolicy {
   readonly leaseDurationMillis: number
   readonly attemptTimeoutMillis: number
-  readonly maxAttempts: number
+  readonly maxFinalizedAttempts: number
   readonly maxStalledCount: number
   readonly retrySchedule:
     | { readonly _tag: "FixedDelayV1"; readonly delayMillis: number }
@@ -174,10 +174,10 @@ implemented in this unit.
 
 `JobContract.HandlerInput<Payload>` is `{ readonly payload: Payload; readonly
 context: HandlerContext }`. Context contains exactly jobId, catalog, producer and
-attemptNumber, all readonly. No client, lease token, transaction, finalizer or
+nextFinalizationNumber, all readonly. No client, lease token, transaction, finalizer or
 ambient handler dependency service is exposed.
 
-attemptNumber is `attemptsMade + 1`. Claim/release do not increment attempts;
+nextFinalizationNumber is `finalizedAttempts + 1`. Claim/release do not increment finalized attempts;
 confirmed fenced Complete/Retry/Dead/Isolate increments exactly once. Unknown
 leaves attempts unchanged; stalled recovery has its own counter. Consequently
 attempt numbers may repeat and are not external idempotency keys or invocation

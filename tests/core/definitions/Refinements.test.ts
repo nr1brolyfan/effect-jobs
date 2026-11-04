@@ -25,12 +25,12 @@ it("deeply immutable defaults do not freeze or alter caller options", () => {
     Object.assign(Policy.defaultPolicy.retrySchedule, { delayMillis: 1 })
   ).toThrow(TypeError)
   const duration = Duration.seconds(8)
-  const options = { retry: Retry.fixed(duration).pipe(Retry.maxAttempts(5)) }
-  expect(Effect.runSync(Policy.make(options)).maxAttempts).toBe(5)
+  const options = { retry: Retry.fixed(duration).pipe(Retry.maxFinalizedAttempts(5)) }
+  expect(Effect.runSync(Policy.make(options)).maxFinalizedAttempts).toBe(5)
   expect(Object.isFrozen(options)).toBe(false)
   expect(Object.isFrozen(duration)).toBe(false)
-  options.retry = options.retry.pipe(Retry.maxAttempts(6))
-  expect(Policy.defaultPolicy.maxAttempts).toBe(3)
+  options.retry = options.retry.pipe(Retry.maxFinalizedAttempts(6))
+  expect(Policy.defaultPolicy.maxFinalizedAttempts).toBe(3)
 })
 it("validated catalogs and nonthrowing parser share 128-character storage boundaries", () => {
   const codes = Codes.define({ boundary: "a".repeat(128), historic: "old_catalog_code" })

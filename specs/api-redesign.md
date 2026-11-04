@@ -114,8 +114,11 @@ declarations, invalid input and invalid durable artifacts. Diagnostics can expos
 static Schema paths and declaration names, never private payload values.
 
 Use `retryBefore` for the retry-scheduling cutoff, not an apparent execution
-deadline. Counter names must express finalized attempts rather than claiming to
-count every handler invocation. Preserve counter arithmetic and recovery semantics;
+deadline. Use `finalizedAttempts`, `maxFinalizedAttempts` and
+`nextFinalizationNumber` rather than claiming to count every handler invocation.
+The ordinal is `finalizedAttempts + 1` and may repeat after unknown outcomes.
+Retain physical `attempts_made` and JSON `maxAttempts` through the storage codec.
+Preserve counter arithmetic and recovery semantics;
 do not add or change a delivery budget merely as a naming cleanup.
 
 ## Transactions and backend guarantees
@@ -624,3 +627,55 @@ plus repository workflow, architecture decisions and affected contract specs.
 Remaining: finalized-counter/limit/ordinal naming, finite graceful shutdown, then
 final integrated qualification/documentation and one independent review. No push,
 merge, publication or deployment has occurred.
+
+## Implementation checkpoint: finalized-attempt model names
+
+The cutoff rename is committed locally as `3790b35`.
+Public model names now state the existing protocol precisely:
+
+- `JobSnapshot.finalizedAttempts` counts confirmed fenced Complete/Retry/Dead/Isolate
+  transitions. Claim/release, unknown outcomes and expiry recovery do not increment it.
+- `JobRetryPolicy.maxFinalizedAttempts(n)` and resolved
+  `JobPolicy.maxFinalizedAttempts` bound those finalizations, including the first.
+- Handler `context.nextFinalizationNumber` and the lifecycle helper of that name
+  expose `finalizedAttempts + 1`. Recovery can repeat this ordinal; it is not an
+  invocation counter or external idempotency key.
+
+Removed source names have no compatibility aliases. Strict negative type tests
+reject the old builder, resolved field, snapshot counter and context ordinal.
+Existing lifecycle, retry/jitter, unknown/reconciliation, worker, operators and
+real callers have been migrated without changing arithmetic or budgets.
+
+Durable representation is deliberately unchanged. `PersistedJobPolicy` is now a
+bidirectional Schema codec mapping retained JSON `maxAttempts` to the resolved
+field and back, without applying defaults. `JobPolicy` is the separate resolved
+schema used for in-memory snapshots/prepared artifacts and producer validation.
+PostgreSQL reads decode stored policy before lifecycle validation; claims reuse
+that decoded value, and inserts encode policy before serialization. Physical
+`attempts_made`, SQL constraints/indexes, retained payload bytes and first-write-wins
+policy semantics are unchanged. Public Drizzle properties use the new counter name
+while mapping to the same physical column.
+
+Playground shared/wire models use resolved policy, SQL detail reads decode policy
+at their storage boundary, and repair reconciliation decodes retained policy before
+snapshot validation. UI projections and test fixtures use the new counter names;
+provider invocation counts remain distinct. Packed playground qualification also
+now explicitly permits the two already-published observability documents in its
+package inventory, matching the existing manifest rather than a stale allowlist.
+
+Qualification: full `verify` passes 1,074 tests (96 skipped), eight source/packed
+JSDoc examples and 28 subpaths. Five new regression cases cover retained FixedDelayV1,
+BackoffV1 Full/ProportionalV1 round-trips, physical-to-public mappings, no default
+filling, and unchanged claim/recovery/finalization counter separation. README
+source/packed, playground types/lint and packed contracts qualification pass.
+PostgreSQL passes 78 source tests and 49 installed tests per Node/Bun runtime;
+native Drizzle A+B/runtime and installed public API/type gates pass. The separate
+full foreign-declaration audit remains diagnostic FAIL. Disposable PG receipt:
+`/tmp/opencode/jobs-redesign-pg-nspkftx_/`; its exact container and private
+configuration were removed. All changed authored TS/TSX was assessed against all
+traits, with manual triage and a minimal named-schema fixture correction; raw
+findings are not represented as an automated clean pass.
+
+Remaining implementation: finite graceful shutdown, then final integrated
+documentation/qualification and one independent review. This is not a release
+candidate. No push, merge, publication or deployment has occurred.

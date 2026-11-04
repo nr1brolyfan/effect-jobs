@@ -39,7 +39,7 @@ come from the parent issue, D1–D8 in `architecture-decisions.md`, and
 
 Important limits: handler signature is `Effect<void, JobFailure, R>`. There is no
 stored handler return value, created timestamp, per-attempt start/end record,
-progress trace or complete failure history. `attemptsMade` counts confirmed fenced
+progress trace or complete failure history. `finalizedAttempts` counts confirmed fenced
 finalizations; unknown outcomes can repeat an attempt number. `stalledCount` is
 separate. The durable ledger counts provider invocations, not library attempts,
 and has no event timestamps. `FakeProvider.inspect` deliberately returns no mock
@@ -458,7 +458,7 @@ Unavailable with no data echo. Return cache-control no-store for all detail APIs
   retained retry/cancel/redrive/corrected repair receipt.
 - `Resolution {rootJobId,state,kind,reason:Reason|null,observedAt}`: recorded app audit.
 
-No expansion of attemptsMade into fake attempt rows. No invented timestamps for
+No expansion of finalizedAttempts into fake attempt rows. No invented timestamps for
 provider invocations or source deletion. Only actual scoped receipts/audit may be
 shown. Missing older facts display incomplete retained history. First detail page
 contains at most 50 facts; additional `JobsRead.history` and `related` take

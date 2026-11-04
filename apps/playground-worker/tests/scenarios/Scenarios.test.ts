@@ -39,7 +39,7 @@ const initial = (availableAt = 1000): Lifecycle.JobSnapshot => ({
   state: "Pending",
   availableAt,
   updatedAt: 1000,
-  attemptsMade: 0,
+  finalizedAttempts: 0,
   stalledCount: 0,
   lifecycleVersion: 0,
   leaseToken: null,
@@ -127,8 +127,10 @@ describe("deterministic application planning", () => {
     ).toBe(true)
     const recovered = unwrap(Lifecycle.recoverExpired(active, active.leaseExpiresAt!))
     expect(recovered.stalledCount).toBe(1)
-    expect(recovered.attemptsMade).toBe(0)
-    expect(Lifecycle.attemptNumber(recovered)).toBe(Lifecycle.attemptNumber(active))
+    expect(recovered.finalizedAttempts).toBe(0)
+    expect(Lifecycle.nextFinalizationNumber(recovered)).toBe(
+      Lifecycle.nextFinalizationNumber(active)
+    )
     expect(unwrap(Lifecycle.claim(recovered, "b", active.leaseExpiresAt!, 1)).state).toBe(
       "Active"
     )
@@ -293,7 +295,7 @@ describe("encrypted consumer payload and installed handlers", () => {
             jobId,
             catalog: Definitions.catalogFor(Definitions.WelcomeEmail),
             producer,
-            attemptNumber: 1
+            nextFinalizationNumber: 1
           }
         }).pipe(Effect.provide(providerLayer))
       )
@@ -336,7 +338,7 @@ describe("encrypted consumer payload and installed handlers", () => {
               jobId,
               catalog: Definitions.catalogFor(Definitions.PrivateDataExport),
               producer,
-              attemptNumber: 1
+              nextFinalizationNumber: 1
             }
           })
         )
@@ -364,7 +366,7 @@ describe("encrypted consumer payload and installed handlers", () => {
             jobId,
             catalog: Definitions.catalogFor(Definitions.WelcomeEmail),
             producer: job.producer,
-            attemptNumber: 1
+            nextFinalizationNumber: 1
           }
           const active = unwrap(Lifecycle.claim(initial(), "a", 1000, 1))
           const failure = yield* Effect.flip(handler(encoded, context))
@@ -386,10 +388,12 @@ describe("encrypted consumer payload and installed handlers", () => {
           const resumedAt =
             finalization === null ? active.leaseExpiresAt! : waiting.availableAt
           const resumed = unwrap(Lifecycle.claim(waiting, "b", resumedAt, 1))
-          expect(Lifecycle.attemptNumber(resumed)).toBe(finalization === null ? 1 : 2)
+          expect(Lifecycle.nextFinalizationNumber(resumed)).toBe(
+            finalization === null ? 1 : 2
+          )
           yield* handler(encoded, {
             ...context,
-            attemptNumber: Lifecycle.attemptNumber(resumed)
+            nextFinalizationNumber: Lifecycle.nextFinalizationNumber(resumed)
           })
           const completed = unwrap(
             Lifecycle.finalize(
@@ -555,7 +559,7 @@ describe("encrypted consumer payload and installed handlers", () => {
                     operationId: "synthetic-document-fixture"
                   }
                 : job.producer,
-            attemptNumber: 1
+            nextFinalizationNumber: 1
           })
         }
         for (const [behavior, expected] of [
@@ -576,7 +580,7 @@ describe("encrypted consumer payload and installed handlers", () => {
                 slot: job.producer.slot,
                 operationId: behavior
               },
-              attemptNumber: 1
+              nextFinalizationNumber: 1
             })
           )
           expect(failure._tag).toBe(expected)

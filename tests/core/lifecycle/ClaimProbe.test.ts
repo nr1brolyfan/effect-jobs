@@ -1,4 +1,5 @@
-import { Cause, Effect } from "effect"
+import { Cause, Effect, Schema } from "effect"
+import { PersistedJobPolicy } from "../../../src/JobPolicy.js"
 import { expect, it } from "vitest"
 import { ClaimResult } from "../../../src/JobStore.js"
 import { makeStore } from "../../../src/internal/postgresql/Store.js"
@@ -18,12 +19,12 @@ const row = () => {
   const artifact = prepared()
   return {
     id: snapshot.jobId,
-    policy: snapshot.policy,
+    policy: Schema.encodeSync(PersistedJobPolicy)(snapshot.policy),
     state: snapshot.state,
     available_at: snapshot.availableAt,
     updated_at: snapshot.updatedAt,
     created_at: null,
-    attempts_made: snapshot.attemptsMade,
+    attempts_made: snapshot.finalizedAttempts,
     stalled_count: snapshot.stalledCount,
     lifecycle_version: snapshot.lifecycleVersion,
     lease_token: null,

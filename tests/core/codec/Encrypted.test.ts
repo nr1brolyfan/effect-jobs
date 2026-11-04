@@ -97,7 +97,7 @@ describe("schema-bound local encrypted fields", () => {
           jobId: Schema.decodeSync(JobId)("job"),
           catalog: definition.catalog,
           producer: { operation: "billing.issue", operationId: "id", slot: "receipt" },
-          attemptNumber: 1
+          nextFinalizationNumber: 1
         })
       }).pipe(Effect.provide(Layer.merge(RegistryLayer, HandlerLayer)))
     )
@@ -315,7 +315,7 @@ it("actual worker isolates invalid opened artifacts before the handler under exi
     expect(store.rows[0]!.snapshot).toMatchObject({
       state: "Isolated",
       lastFailureCode: "invalid_claimed_artifact",
-      attemptsMade: 1
+      finalizedAttempts: 1
     })
     expect(store.calls.finalizations).toHaveLength(1)
   }

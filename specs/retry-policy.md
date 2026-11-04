@@ -12,7 +12,7 @@ import * as Retry from "effect-jobs/JobRetryPolicy"
 const retry = Retry.exponential(Duration.seconds(1)).pipe(
   Retry.capped(Duration.minutes(1)),
   Retry.jittered(),
-  Retry.maxAttempts(5)
+  Retry.maxFinalizedAttempts(5)
 )
 
 const policy = yield * Policy.make({ retry })
@@ -28,7 +28,7 @@ const policy = yield * Policy.make({ retry })
 - `capped(duration)` sets the maximum base delay. It may be below the initial
   delay. `jittered()` selects bounded proportional jitter; cap always applies before jitter,
   irrespective of combinator order. Repeated setters use the last value.
-- `maxAttempts(n)` accepts integer 1–100 and includes the first finalized attempt.
+- `maxFinalizedAttempts(n)` accepts integer 1–100 and includes the first finalized attempt.
   Defaults remain three attempts and, when `retry` is absent, a fixed five-second
   delay. One attempt disables subsequent scheduling, not the first execution.
 - Duration inputs are Effect `Duration` values representing exact integer
@@ -37,17 +37,23 @@ const policy = yield * Policy.make({ retry })
 - `yield* Policy.make({ retry })` remains the only assembly spelling. It returns
   `Effect<JobPolicy, JobPolicyConfigurationError>` and reports expected validation
   failures as Fail, not throw/Die. Retry diagnostics identify `retry.delay`,
-  `retry.factor`, `retry.maxDelay` or `retry.maxAttempts`. There is no implicit
+  `retry.factor`, `retry.maxDelay` or `retry.maxFinalizedAttempts`. There is no implicit
   conversion to a full job policy, `Retry.toPolicy`, or shortcut on a job definition.
 - Retry configuration has one input path: `retry`. The former `retryDelay` and
   top-level `maxAttempts` options are removed, without deprecated aliases or
-  compatibility branches. Use `fixed`/`exponential` and `Retry.maxAttempts`.
+  compatibility branches. Use `fixed`/`exponential` and `Retry.maxFinalizedAttempts`.
   Unsupported option names fail validation instead of silently selecting defaults.
 
 ## Persistence and evaluation
 
 The existing policy JSON retains a top-level `maxAttempts`. Construction resolves
-the public builder into ordinary data; functions/prototypes are not persisted.
+the public `maxFinalizedAttempts` field. `PersistedJobPolicy` decodes the retained
+key to that field and encodes it back; use `JobPolicy` for in-memory validation
+and `Schema.encodeEffect(PersistedJobPolicy)` before writing stored JSON. The
+physical `attempts_made` column likewise maps to public `finalizedAttempts`;
+`nextFinalizationNumber` is that count plus one, not an invocation count.
+
+Construction resolves the public builder into ordinary data; functions/prototypes are not persisted.
 Unmodified fixed schedules retain their exact `FixedDelayV1` representation.
 The new `BackoffV1` schedule contains `delayMillis`, `factor`, `maxDelayMillis`
 and `jitter` (`None`, legacy `Full`, or `ProportionalV1`). A capped/jittered fixed schedule uses factor 1.

@@ -8,14 +8,14 @@ const TypeId = "~effect-jobs/JobRetryPolicy"
 export interface JobRetryPolicy extends Pipeable.Pipeable {
   readonly [TypeId]: typeof TypeId
   readonly schedule: Model.RetryDescription
-  readonly maxAttempts: number
+  readonly maxFinalizedAttempts: number
 }
 
 class RetryPolicy extends Pipeable.Class implements JobRetryPolicy {
   readonly [TypeId] = TypeId
   constructor(
     readonly schedule: Model.RetryDescription,
-    readonly maxAttempts: number
+    readonly maxFinalizedAttempts: number
   ) {
     super()
     Object.freeze(schedule)
@@ -53,17 +53,20 @@ export const exponential = (
 export const capped = (maxDelay: Duration.Duration) => {
   const maxDelayMillis = Model.durationMillis(maxDelay)
   return (self: JobRetryPolicy): JobRetryPolicy =>
-    new RetryPolicy({ ...self.schedule, maxDelayMillis }, self.maxAttempts)
+    new RetryPolicy({ ...self.schedule, maxDelayMillis }, self.maxFinalizedAttempts)
 }
 
 /** Integer jitter in 80–120% of nominal delay, with the range bounded by the hard cap. */
 export const jittered =
   () =>
   (self: JobRetryPolicy): JobRetryPolicy =>
-    new RetryPolicy({ ...self.schedule, jitter: "ProportionalV1" }, self.maxAttempts)
+    new RetryPolicy(
+      { ...self.schedule, jitter: "ProportionalV1" },
+      self.maxFinalizedAttempts
+    )
 
 /** Maximum finalized attempts including the first, 1–100; 1 disables retries. */
-export const maxAttempts =
+export const maxFinalizedAttempts =
   (count: number) =>
   (self: JobRetryPolicy): JobRetryPolicy =>
     new RetryPolicy(self.schedule, count)

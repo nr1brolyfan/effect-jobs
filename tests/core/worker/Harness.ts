@@ -30,7 +30,7 @@ export const harness = (prepared: ReadonlyArray<PreparedJob> = []) => {
       availableAt: job.availableAt ?? epoch,
       updatedAt: epoch,
       createdAt: epoch,
-      attemptsMade: 0,
+      finalizedAttempts: 0,
       stalledCount: 0,
       lifecycleVersion: 0,
       leaseToken: null,

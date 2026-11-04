@@ -6,10 +6,10 @@ import {
   JobFinalizations,
   JobOwnership,
   JobSnapshot,
-  attemptNumber,
+  nextFinalizationNumber,
   finalizationFromFailure
 } from "../../JobLifecycle.js"
-import { EpochMillis, PersistedJobPolicy } from "../../JobPolicy.js"
+import { EpochMillis, JobPolicy } from "../../JobPolicy.js"
 import { observe, schedulingLag } from "../../JobTelemetry.js"
 import type { JobHandler } from "./Handler.js"
 import type { ClaimedJob, FinalizationRequest, JobStoreService } from "../../JobStore.js"
@@ -31,7 +31,7 @@ const AttemptResult = Data.taggedEnum<AttemptResult>()
 const PreparedMetadata = Schema.Struct({
   catalog: CatalogIdentity,
   producer: ProducerIdentity,
-  policy: PersistedJobPolicy,
+  policy: JobPolicy,
   availableAt: EpochMillis.pipe(Schema.optional),
   encoded: Schema.Struct({
     formatVersion: Schema.Literal(1),
@@ -43,7 +43,7 @@ const PreparedMetadata = Schema.Struct({
     )
   })
 })
-const policyEquals = Schema.toEquivalence(PersistedJobPolicy)
+const policyEquals = Schema.toEquivalence(JobPolicy)
 
 const finalizationFor = (exit: Exit.Exit<void, unknown>): JobFinalization | null => {
   if (Exit.isSuccess(exit)) {
@@ -99,7 +99,7 @@ export const executionFor = <E>(
       yield* Effect.annotateCurrentSpan({ "jobs.attempt_phase": "finalization" })
       const command =
         finalization._tag === "Retry" &&
-        before.attemptsMade + 1 < before.policy.maxAttempts &&
+        before.finalizedAttempts + 1 < before.policy.maxFinalizedAttempts &&
         before.policy.retrySchedule._tag === "BackoffV1" &&
         before.policy.retrySchedule.jitter !== "None"
           ? JobFinalizations.Retry({ ...finalization, jitterSample: yield* Random.next })
@@ -198,7 +198,7 @@ export const executionFor = <E>(
         jobId: before.jobId,
         catalog: Object.freeze(catalog),
         producer: Object.freeze(producer),
-        attemptNumber: attemptNumber(before)
+        nextFinalizationNumber: nextFinalizationNumber(before)
       })
       const copied = {
         formatVersion: encoded.formatVersion,

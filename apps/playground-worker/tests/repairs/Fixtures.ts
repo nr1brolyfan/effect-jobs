@@ -54,7 +54,7 @@ export const detail = Schema.decodeUnknownSync(JobDetail)({
     availableAt: 100,
     updatedAt: 900,
     completedAt: 900,
-    attemptsMade: 2,
+    finalizedAttempts: 2,
     stalledCount: 0,
     lifecycleVersion: 2,
     lastFailureCode: "fake_provider_terminal_rejected"

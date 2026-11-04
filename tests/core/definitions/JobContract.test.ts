@@ -90,7 +90,7 @@ describe("pure Job contracts", () => {
             jobId: yield* Schema.decodeEffect(JobId)("fixture"),
             catalog: value.catalog,
             producer: value.producer,
-            attemptNumber: 1
+            nextFinalizationNumber: 1
           })
         }
       }).pipe(

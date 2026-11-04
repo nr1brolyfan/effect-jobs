@@ -1,7 +1,7 @@
 import { Result, Schema } from "effect"
 import * as Contract from "../../JobContract.js"
 import { CatalogIdentity, ProducerIdentity } from "../../JobIdentity.js"
-import { EpochMillis, PersistedJobPolicy } from "../../JobPolicy.js"
+import { EpochMillis, JobPolicy } from "../../JobPolicy.js"
 import * as Lifecycle from "../../JobLifecycle.js"
 import { JobStoreProtocolError, type ClaimedJob } from "../../JobStore.js"
 
@@ -14,7 +14,7 @@ const bytes = (maximum: number) =>
 export const PreparedArtifact = Schema.Struct({
   catalog: CatalogIdentity,
   producer: ProducerIdentity,
-  policy: PersistedJobPolicy,
+  policy: JobPolicy,
   availableAt: EpochMillis.pipe(Schema.optional),
   encoded: Schema.Struct({
     formatVersion: Schema.Literal(Contract.jobPayloadFormatVersion),
@@ -44,7 +44,7 @@ export const validateClaimArtifact = (
     )
     if (
       !Schema.toEquivalence(Lifecycle.JobOwnership)(ownership, suppliedOwnership) ||
-      !Schema.toEquivalence(PersistedJobPolicy)(row.policy, prepared.policy)
+      !Schema.toEquivalence(JobPolicy)(row.policy, prepared.policy)
     ) {
       return yield* Result.fail(fail())
     }

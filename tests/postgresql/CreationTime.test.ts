@@ -73,7 +73,7 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     await pool.query(
       `INSERT INTO ${jobs} (id,operation,operation_id,slot,queue,kind,version,policy,state,available_at,updated_at)
       VALUES ('legacy','fixture','legacy','job','creation','fixture',1,$1,'Pending',123,456)`,
-      [policy]
+      [Schema.encodeSync(Policy.PersistedJobPolicy)(policy)]
     )
     adapter = Adapter.make(App.source(pool))
     backend = await Effect.runPromise(

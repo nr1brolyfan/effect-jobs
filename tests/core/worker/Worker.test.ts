@@ -126,9 +126,9 @@ it("executes a neutral schema-defined job on the real codec/registry/lifecycle e
           assert.equal(test.isLocked(), false)
           inputs.push(input)
           assert.deepEqual(Object.keys(input.context).sort(), [
-            "attemptNumber",
             "catalog",
             "jobId",
+            "nextFinalizationNumber",
             "producer"
           ])
         })
@@ -138,9 +138,9 @@ it("executes a neutral schema-defined job on the real codec/registry/lifecycle e
       )
       assert.deepEqual(result, { _tag: "Idle", claimed: 2, recovered: 0 })
       assert.equal(inputs.length, 2)
-      assert.equal(inputs[0]!.context.attemptNumber, 1)
+      assert.equal(inputs[0]!.context.nextFinalizationNumber, 1)
       assert.equal(test.rows[0]!.snapshot.state, "Completed")
-      assert.equal(test.rows[0]!.snapshot.attemptsMade, 1)
+      assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 1)
     })
   )
 })
@@ -179,7 +179,7 @@ for (const [name, failure, state] of [
         yield* drain(consumer(1)).pipe(Effect.provideService(Worker.JobWorker, worker))
         const row = test.rows[0]!.snapshot
         assert.equal(row.state, state)
-        assert.equal(row.attemptsMade, name === "unknown" ? 0 : 1)
+        assert.equal(row.finalizedAttempts, name === "unknown" ? 0 : 1)
         if (name === "retry") {
           assert.equal(row.availableAt - row.updatedAt, 5_000)
         }
@@ -272,7 +272,9 @@ for (const corruption of [
               ? {
                   ...prepared,
                   policy: yield* Policy.make({
-                    retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(4))
+                    retry: Retry.fixed(Duration.seconds(5)).pipe(
+                      Retry.maxFinalizedAttempts(4)
+                    )
                   })
                 }
               : {
@@ -321,7 +323,7 @@ it("does not claim unsupported durable versions or consume their counters", asyn
       )
       assert.equal(result._tag, "Idle")
       assert.equal(other.rows[0]!.snapshot.state, "Pending")
-      assert.equal(other.rows[0]!.snapshot.attemptsMade, 0)
+      assert.equal(other.rows[0]!.snapshot.finalizedAttempts, 0)
       assert.deepEqual(other.calls.claims[0]!.supportedCatalog, [definition.catalog])
     })
   )
@@ -426,7 +428,7 @@ it("reconciles response-lost applied writes with original ownership and exact tr
       assert.equal(test.calls.finalizations.length, 1)
       assert.equal(test.calls.finalizationReconciliations.length, 1)
       assert.equal(handlers, 1)
-      assert.equal(test.rows[0]!.snapshot.attemptsMade, 1)
+      assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 1)
     })
   )
 })
@@ -479,7 +481,7 @@ it("releases only a confirmed insufficient lease and reports backoff, not idle",
       assert.equal(result._tag, "Backoff")
       assert.equal(test.calls.releases, 1)
       assert.equal(test.rows[0]!.snapshot.state, "Pending")
-      assert.equal(test.rows[0]!.snapshot.attemptsMade, 0)
+      assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 0)
     })
   )
 })
@@ -1024,7 +1026,7 @@ it("does not finalize a store-returned unsupported artifact even if that handler
       const worker = yield* make(test.store)
       yield* drain(consumer(1)).pipe(Effect.provideService(Worker.JobWorker, worker))
       assert.equal(test.rows[0]!.snapshot.state, "Active")
-      assert.equal(test.rows[0]!.snapshot.attemptsMade, 0)
+      assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 0)
       assert.equal(test.calls.finalizations.length, 0)
     })
   )
@@ -1062,14 +1064,14 @@ it("guarded internal dispatch cannot execute or release ownership twice", async 
   )
 })
 
-it("recovery repeats attemptNumber but consumes only the independent stalled budget", async () => {
+it("recovery repeats nextFinalizationNumber but consumes only the independent stalled budget", async () => {
   await run(
     Effect.gen(function* () {
       const test = yield* seed()
       const attempts: Array<number> = []
       const worker = yield* make(test.store, (input) =>
         Effect.sync(() => {
-          attempts.push(input.context.attemptNumber)
+          attempts.push(input.context.nextFinalizationNumber)
         }).pipe(
           Effect.andThen(
             Effect.fail(
@@ -1087,7 +1089,7 @@ it("recovery repeats attemptNumber but consumes only the independent stalled bud
       yield* TestClock.adjust(90_000)
       yield* once
       assert.deepEqual(attempts, [1, 1])
-      assert.equal(test.rows[0]!.snapshot.attemptsMade, 0)
+      assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 0)
       assert.equal(test.rows[0]!.snapshot.stalledCount, 1)
       yield* TestClock.adjust(90_000)
       yield* once
@@ -1105,7 +1107,7 @@ it("limits finalized retries to three attempts using the fixed persisted delay",
       const attempts: Array<number> = []
       const worker = yield* make(test.store, (input) =>
         Effect.sync(() => {
-          attempts.push(input.context.attemptNumber)
+          attempts.push(input.context.nextFinalizationNumber)
         }).pipe(
           Effect.andThen(
             Effect.fail(
@@ -1128,7 +1130,7 @@ it("limits finalized retries to three attempts using the fixed persisted delay",
       }
       assert.deepEqual(attempts, [1, 2, 3])
       assert.equal(test.rows[0]!.snapshot.state, "Dead")
-      assert.equal(test.rows[0]!.snapshot.attemptsMade, 3)
+      assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 3)
       assert.equal(test.rows[0]!.snapshot.stalledCount, 0)
     })
   )

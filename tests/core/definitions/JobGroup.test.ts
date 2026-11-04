@@ -14,7 +14,7 @@ const metadata: HandlerContext = {
   jobId: Schema.decodeSync(JobId)("group-test"),
   catalog: { queue: "billing", kind: receipt.kind, version: 1 },
   producer: { operation: "billing.issue", operationId: "one", slot: "receipt" },
-  attemptNumber: 1
+  nextFinalizationNumber: 1
 }
 
 describe("contract-first groups", () => {

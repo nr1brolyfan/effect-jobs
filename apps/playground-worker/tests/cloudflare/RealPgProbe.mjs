@@ -59,7 +59,7 @@ export const probe = (url, schema, alarm, checks = []) =>
       const policy = yield* Policy.make({
         leaseDuration: Duration.millis(1800),
         attemptTimeout: Duration.millis(200),
-        retry: Retry.fixed(Duration.millis(500)).pipe(Retry.maxAttempts(2))
+        retry: Retry.fixed(Duration.millis(500)).pipe(Retry.maxFinalizedAttempts(2))
       })
       const input = (id, payload = id, availableAt) => ({
         operationId: id,

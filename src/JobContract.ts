@@ -9,7 +9,7 @@ import type { JobPolicy } from "./JobPolicy.js"
 
 /**
  * Handler metadata without SQL, lease tokens or finalization authority.
- * attemptNumber is one-based and may repeat after unknown outcomes and recovery.
+ * nextFinalizationNumber is one-based and may repeat after unknown outcomes and recovery.
  *
  * @category models
  */
@@ -17,8 +17,8 @@ export interface HandlerContext {
   readonly jobId: JobId
   readonly catalog: CatalogIdentity
   readonly producer: ProducerIdentity
-  /** attemptsMade + 1; may repeat after unknown outcomes and stalled recovery. */
-  readonly attemptNumber: number
+  /** finalizedAttempts + 1; may repeat after unknown outcomes and stalled recovery. */
+  readonly nextFinalizationNumber: number
 }
 /**
  * Decoded Schema payload plus library metadata; handler dependencies use Effect services.

@@ -75,7 +75,7 @@ or finalization as those boundaries are entered; this is local phase context, no
 a new deadline or an assertion about an interrupted provider outcome. Unconfirmed/abandoned execution remains Active for existing recovery.
 An attempt's Complete/Retry/Dead/Isolate result describes acknowledged _requested_
 finalization, not its policy-resolved state. The adapter can turn Retry into Dead.
-`attemptNumber=attemptsMade+1` can repeat after Unknown and is neither invocation
+`nextFinalizationNumber=finalizedAttempts+1` can repeat after Unknown and is neither invocation
 count nor an external idempotency key. Health/telemetry performs no lifecycle replay.
 
 | Additional name                          | OTLP unit / labels                                     | Interpretation                                                                                                  |

@@ -1,6 +1,7 @@
 /** Qualification prototype only. No pool construction, DDL, transaction control or replay. */
 import { randomUUID } from "node:crypto"
-import { Context, Effect, Layer } from "effect"
+import { Context, Effect, Layer, Schema } from "effect"
+import { PersistedJobPolicy } from "../../../src/JobPolicy.js"
 import {
   EnqueueResult,
   JobIntegrityConflict,
@@ -41,7 +42,7 @@ const insert = (handle: App.Handle, prepared: PreparedJob) =>
         producer.operationId,
         producer.slot,
         JSON.stringify(catalog),
-        JSON.stringify(prepared.policy)
+        JSON.stringify(Schema.encodeSync(PersistedJobPolicy)(prepared.policy))
       ]
     )
     if (rows.length === 0) {

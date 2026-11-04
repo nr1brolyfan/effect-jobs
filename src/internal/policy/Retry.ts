@@ -26,7 +26,7 @@ export const RetryInput = Schema.Struct({
     factor: Schema.Unknown.pipe(Schema.optional),
     jitter: Schema.Literals(["None", "ProportionalV1"])
   }),
-  maxAttempts: Schema.Unknown
+  maxFinalizedAttempts: Schema.Unknown
 })
 
 export const maximumMillis = 253_402_300_799_999
@@ -73,7 +73,7 @@ export const durationMillis = (value: Duration.Duration): number =>
 /** Bounded integer delay after the one-based finalized attempt. */
 export const delay = (
   schedule: RetrySchedule,
-  attemptsMade: number,
+  finalizedAttempts: number,
   jitterSample: number | undefined
 ): number => {
   if (schedule._tag === "FixedDelayV1") {
@@ -81,7 +81,11 @@ export const delay = (
   }
   // Saturate before multiplying: even a huge finite factor cannot overflow.
   let limit = Math.min(schedule.delayMillis, schedule.maxDelayMillis)
-  for (let index = 1; index < attemptsMade && limit < schedule.maxDelayMillis; index++) {
+  for (
+    let index = 1;
+    index < finalizedAttempts && limit < schedule.maxDelayMillis;
+    index++
+  ) {
     limit =
       limit >= schedule.maxDelayMillis / schedule.factor
         ? schedule.maxDelayMillis

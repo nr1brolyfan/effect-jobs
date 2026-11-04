@@ -51,7 +51,7 @@ function detail(jobId: JobId): JobDetail {
     ...Fixtures.detail.job,
     jobId,
     state: "Dead" as const,
-    attemptsMade: 2,
+    finalizedAttempts: 2,
     stalledCount: 1,
     completedAt: Fixtures.detail.job.updatedAt
   }

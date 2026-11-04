@@ -83,7 +83,7 @@ const assertUnfinalized = async (
   assert.equal(store.calls.finalizations.length, 0)
   assert.equal(store.calls.finalizationReconciliations.length, 0)
   assert.equal(store.rows[0]!.snapshot.state, "Active")
-  assert.equal(store.rows[0]!.snapshot.attemptsMade, 0)
+  assert.equal(store.rows[0]!.snapshot.finalizedAttempts, 0)
 }
 
 const assertMixed = (exit: Exit.Exit<unknown, unknown>, kind: ReleaseKind) => {

@@ -31,7 +31,7 @@ const installed: Layer.Layer<
     Effect.gen(function* () {
       const dependency = yield* HandlerDependency
       const text: string = input.payload.text
-      const attempt: number = input.context.attemptNumber
+      const attempt: number = input.context.nextFinalizationNumber
       void text
       void attempt
       // @ts-expect-error Handlers do not receive ownership powers.

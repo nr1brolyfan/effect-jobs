@@ -5,7 +5,7 @@ import { define as defineFailureCodes } from "./FailureCode.js"
 import { Data, Result, Schema } from "effect"
 import { JobId } from "./JobId.js"
 import { FailureCode, JobFailure } from "./JobFailure.js"
-import { EpochMillis, PersistedJobPolicy, maximumMillis } from "./JobPolicy.js"
+import { EpochMillis, JobPolicy, maximumMillis } from "./JobPolicy.js"
 import * as Retry from "./internal/policy/Retry.js"
 
 /**
@@ -70,14 +70,14 @@ export const JobOwnership = Schema.Struct({
 
 const SnapshotStruct = Schema.Struct({
   jobId: JobId,
-  policy: PersistedJobPolicy,
+  policy: JobPolicy,
   state: JobState,
   availableAt: EpochMillis,
   updatedAt: EpochMillis,
   /** Initial durable insertion, in Unix epoch milliseconds. Null for migrated rows;
    * omitted only by older/custom snapshot producers for source compatibility. */
   createdAt: EpochMillis.pipe(Schema.NullOr, Schema.optionalKey),
-  attemptsMade: Counter,
+  finalizedAttempts: Counter,
   stalledCount: Counter,
   lifecycleVersion: Counter,
   leaseToken: LeaseToken.pipe(Schema.NullOr),
@@ -92,7 +92,7 @@ export const JobSnapshot = SnapshotStruct.pipe(
   Schema.check(
     Schema.makeFilter(
       (row) =>
-        row.attemptsMade <= row.policy.maxAttempts &&
+        row.finalizedAttempts <= row.policy.maxFinalizedAttempts &&
         row.stalledCount <= row.policy.maxStalledCount + 1 &&
         (row.state === "Active"
           ? row.leaseToken !== null &&
@@ -107,7 +107,7 @@ export const JobSnapshot = SnapshotStruct.pipe(
           row.state === "RetryScheduled" ||
           row.state === "Active"
         ) ||
-          (row.attemptsMade < row.policy.maxAttempts &&
+          (row.finalizedAttempts < row.policy.maxFinalizedAttempts &&
             row.stalledCount <= row.policy.maxStalledCount))
     )
   )
@@ -230,12 +230,13 @@ export const usableLease = (
     operationResponseBudgetMillis
 
 /**
- * One-based attemptsMade + 1; may repeat after unknown outcomes and recovery.
+ * One-based finalizedAttempts + 1; may repeat after unknown outcomes and recovery.
  * Not an invocation count or external idempotency key.
  *
  * @category operations
  */
-export const attemptNumber = (row: JobSnapshot): number => row.attemptsMade + 1
+export const nextFinalizationNumber = (row: JobSnapshot): number =>
+  row.finalizedAttempts + 1
 
 /**
  * Plans a due Pending/RetryScheduled claim (availableAt <= dbNow) with a fixed lease.
@@ -357,9 +358,9 @@ export const finalize = (
       return yield* Result.fail(invalid("ownership-lost"))
     }
     const lifecycleVersion = yield* increment(row.lifecycleVersion)
-    const attemptsMade = yield* increment(row.attemptsMade)
+    const finalizedAttempts = yield* increment(row.finalizedAttempts)
     const shouldSchedule =
-      finalization._tag === "Retry" && attemptsMade < row.policy.maxAttempts
+      finalization._tag === "Retry" && finalizedAttempts < row.policy.maxFinalizedAttempts
     if (
       shouldSchedule &&
       finalization._tag === "Retry" &&
@@ -371,7 +372,11 @@ export const finalize = (
     }
     const delay =
       shouldSchedule && finalization._tag === "Retry"
-        ? Retry.delay(row.policy.retrySchedule, attemptsMade, finalization.jitterSample)
+        ? Retry.delay(
+            row.policy.retrySchedule,
+            finalizedAttempts,
+            finalization.jitterSample
+          )
         : undefined
     const nextAvailableAt =
       delay === undefined
@@ -385,7 +390,7 @@ export const finalize = (
         : finalization._tag === "Isolate"
           ? "Isolated"
           : finalization._tag === "Dead" ||
-              attemptsMade >= row.policy.maxAttempts ||
+              finalizedAttempts >= row.policy.maxFinalizedAttempts ||
               (finalization.retryBefore !== undefined &&
                 nextAvailableAt >= finalization.retryBefore)
             ? "Dead"
@@ -393,7 +398,7 @@ export const finalize = (
     return {
       ...row,
       state,
-      attemptsMade,
+      finalizedAttempts,
       lifecycleVersion,
       availableAt: nextAvailableAt,
       updatedAt: dbNow,

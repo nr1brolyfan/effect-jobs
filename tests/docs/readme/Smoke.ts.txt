@@ -56,7 +56,7 @@ assert.deepEqual(prepared.slice(1, 3).map((p) => p.producer.slot), ["send-receip
 await Effect.runPromise(standalone)
 const policy = await Effect.runPromise(policySnippet.pipe(Effect.provideService(JobEnqueue, producer)))
 assert.equal(policy.attemptTimeoutMillis, 20000)
-assert.equal(policy.maxAttempts, 4)
+assert.equal(policy.maxFinalizedAttempts, 4)
 assert(Exit.isFailure(await Effect.runPromiseExit(migration)), "readiness requires real app SQL, never silently runs DDL")
 const ring = Fixture.keys()
 const privateDefinitions = await Effect.runPromise(encrypted.pipe(Effect.provide(Fixture.keysLayer(ring))))
@@ -75,7 +75,7 @@ assert(Exit.isFailure(await Effect.runPromiseExit(Codec.encodeJobPayload(private
 assert(Exit.isFailure(await Effect.runPromiseExit(Effect.void.pipe(Effect.provide(Fixture.keysLayer({ ...ring, encryption: {} }))))))
 assert(Exit.isFailure(await Effect.runPromiseExit(Codec.decodeJobPayload(privateDefinitions.SendPrivateReceipt.payload, a).pipe(Effect.provide(Fixture.keysLayer({ ...ring, encryption: { one: new Uint8Array(32) } }))))))
 const catalog = { queue: BillingQueue.name, kind: SendReceipt.kind, version: SendReceipt.version }
-const context = { jobId: Schema.decodeSync(JobId)("handler-job"), catalog, producer: { operation: IssueInvoice.operation, operationId: "op", slot: "receipt" }, attemptNumber: 1 }
+const context = { jobId: Schema.decodeSync(JobId)("handler-job"), catalog, producer: { operation: IssueInvoice.operation, operationId: "op", slot: "receipt" }, nextFinalizationNumber: 1 }
 const encoded = await Effect.runPromise(Codec.encodeJobPayload(SendReceipt.payload, { invoiceId: "invoice" }))
 let calls = 0
 await Effect.runPromise(Effect.gen(function* () {
@@ -100,7 +100,7 @@ await Effect.runPromise(Effect.gen(function* () {
 assert.equal(privateCalls, 1)
 // A real worker consumes a claimed job and owns finalization. The store is a double.
 let claims = 0, finalized = 0
-const snapshot = Result.getOrThrow(Lifecycle.claim({ jobId: context.jobId, policy: Policy.defaultPolicy, state: "Pending", availableAt: 100000, updatedAt: 100000, attemptsMade: 0, stalledCount: 0, lifecycleVersion: 0, leaseToken: null, leaseExpiresAt: null, completedAt: null, lastFailureCode: null }, "abcd-1234-feed-5678", 100000, 100))
+const snapshot = Result.getOrThrow(Lifecycle.claim({ jobId: context.jobId, policy: Policy.defaultPolicy, state: "Pending", availableAt: 100000, updatedAt: 100000, finalizedAttempts: 0, stalledCount: 0, lifecycleVersion: 0, leaseToken: null, leaseExpiresAt: null, completedAt: null, lastFailureCode: null }, "abcd-1234-feed-5678", 100000, 100))
 const ownership = Result.getOrThrow(Lifecycle.ownershipOf(snapshot))
 const unexpected = () => Effect.die("Unexpected harness operation")
 const store: Store.JobStoreService = {
