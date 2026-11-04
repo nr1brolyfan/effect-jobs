@@ -1,5 +1,5 @@
 import { Context, Effect, Layer, Schema, Scope } from "effect"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import * as Group from "../../../src/JobGroup.js"
 import * as Codec from "../../../src/JobPayloadCodec.js"
 import type { HandlerContext } from "../../../src/JobContract.js"
@@ -18,6 +18,19 @@ const metadata: HandlerContext = {
 }
 
 describe("contract-first groups", () => {
+  it("allocates distinct keys across module copies without global-scope crypto", async () => {
+    vi.stubGlobal("crypto", undefined)
+    try {
+      const first = Group.make("portable", { receipt })
+      vi.resetModules()
+      const copy = await import("../../../src/JobGroup.js")
+      const second = copy.make("portable", { receipt })
+      expect(first.handlers.key).not.toBe(second.handlers.key)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it("rejects empty groups and repeated kind/version independently of aliases", () => {
     expect(() => Group.make("empty", {})).toThrow(Group.InvalidJobGroup)
     expect(() => Group.make("duplicate", { first: receipt, second: receipt })).toThrow(

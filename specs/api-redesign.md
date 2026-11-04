@@ -1,5 +1,18 @@
 # Contract-first API redesign
 
+## Integrated qualification correction: portable group declarations
+
+Real local workerd qualification found that using `crypto.randomUUID()` for a
+group's Context key violates the Workers global-scope restriction when groups
+are declared at module scope. Group construction now allocates a realm-local
+sequence key synchronously, sharing the sequence across module copies without
+sharing installed handlers. The key is neither durable identity nor random
+security material. A regression disables global crypto and constructs groups
+through separate module instances; the existing handler-isolation test remains.
+Focused Node group/worker tests passed (21 tests). Final archive and real
+workerd/browser qualification must be rerun on this correction before handoff;
+the preceding snapshot's failed runtime receipts remain historical evidence.
+
 ## Authorization and delivery boundary
 
 The owner authorized a direct breaking redesign following the API assessment of

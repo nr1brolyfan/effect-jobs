@@ -35,6 +35,14 @@ export type DecodingServices<D extends Definitions> =
 
 const HandlersTypeId: unique symbol = Symbol("effect-jobs/JobGroup/Handlers")
 
+// Context keys need realm-local uniqueness, not randomness or durable identity.
+// Share the counter across module copies without requiring request-scoped crypto.
+const sequenceId = Symbol.for("effect-jobs/JobGroup/sequence")
+const realm = globalThis as typeof globalThis & {
+  [sequenceId]?: { value: bigint }
+}
+const sequence = (realm[sequenceId] ??= { value: 0n })
+
 /** The group name and definitions participate in the worker's service requirement. */
 export interface Handlers<Name extends string, D extends Definitions> {
   readonly [HandlersTypeId]: {
@@ -117,7 +125,7 @@ export const make = <const Name extends string, const D extends Definitions>(
     Object.fromEntries(entries.map((entry) => [entry[0], Object.freeze({ ...entry[1] })]))
   ) as D
   const service = Context.Service<Handlers<Name, D>, InstalledHandlers<D>>(
-    `effect-jobs/JobGroup/${name}/${globalThis.crypto.randomUUID()}`
+    `effect-jobs/JobGroup/${name}/${sequence.value++}`
   )
   const toLayer = <H extends HandlersFrom<D>, E = never, R = never>(
     build: H | Effect.Effect<H, E, R>
