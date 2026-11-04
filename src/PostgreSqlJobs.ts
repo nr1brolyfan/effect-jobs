@@ -284,8 +284,6 @@ export const make = (options: Options) =>
             )
           )
     }
-    const operators = makeOperators(adapter, jobs, payloads, budget)
-    const neutral = neutralOperators(operators)
     const store = makeStore(adapter, jobs, payloads, budget)
     const storage = yield* Storage.make({
       store,
@@ -293,6 +291,8 @@ export const make = (options: Options) =>
     }).pipe(
       Effect.mapError((error) => new PostgreSqlConfigurationError({ field: error.field }))
     )
+    const operators = makeOperators(adapter, jobs, payloads, budget)
+    const neutral = neutralOperators(operators)
     return PostgreSqlJobs.of({
       operationResponseBudgetMillis: budget,
       storage,

@@ -1,5 +1,19 @@
 # Contract-first API redesign
 
+## Accepted review correction: typed backend configuration errors
+
+The single integrated review (UPVE-2744) and findings-only triage (UPVE-2745)
+accepted R1/P2: invalid response budgets could reach the synchronous operator
+guard before effectful storage validation, turning the promised configuration
+failure into a defect. Backend assembly now validates through `JobStorage.make`
+before constructing operators, preserving `PostgreSqlConfigurationError` in the
+typed channel without broad defect conversion or duplicate validation.
+Regressions cover `make` and `layerNoDeps` for zero, negative, fractional, NaN and
+infinite budgets, actual `catchTags` recovery, zero adapter construction/execution
+on invalid input and a valid-budget control. Source reproduction and 120 focused
+backend/storage/operator/transaction tests passed. Final build/packed and affected
+qualification receipts must bind the corrected bytes; no second review is planned.
+
 ## Integrated qualification correction: portable group declarations
 
 Real local workerd qualification found that using `crypto.randomUUID()` for a
