@@ -1,7 +1,7 @@
 import * as FailureCodes from "../../src/FailureCode.js"
 import { readFileSync, writeFileSync } from "node:fs"
 import { randomBytes, randomUUID } from "node:crypto"
-import { Effect, Exit, Duration, Schema, Deferred, Fiber } from "effect"
+import { Effect, Exit, Duration, Schema, Deferred, Fiber, Option } from "effect"
 import type { PoolConfig } from "pg"
 import { Pool } from "../qualification/d6-pg/PgDriver.js"
 import { beforeAll, afterAll, describe, expect, test } from "vitest"
@@ -15,7 +15,8 @@ import * as Jobs from "../../src/PostgreSqlJobs.js"
 import * as Tables from "../../src/PostgreSqlSchema.js"
 import {
   PostgreSqlApplication,
-  PostgreSqlFailure
+  PostgreSqlFailure,
+  PostgreSqlInvalidHandle
 } from "../../src/PostgreSqlTransaction.js"
 import type {
   ApplicationAdapter,
@@ -653,6 +654,75 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     expect(executions).toBe(1)
     expect((await row("retained-policy")).state).toBe("Completed")
   })
+
+  test.each(["Redrive", "CorrectedRedrive"] as const)(
+    "%s uses a queue-independent contract and the retained source route",
+    async (mode) => {
+      await clear()
+      const operatorBackend = await make({
+        ...adapter,
+        ambient: Effect.flatMap(App.activeHandle, (handle) =>
+          Option.isNone(handle)
+            ? Effect.fail(new PostgreSqlInvalidHandle({ reason: "inactive-handle" }))
+            : adapter.validate(handle.value)
+        )
+      })
+      const original = await enqueue("contract-source", "original")
+      await observer.query(
+        "UPDATE backend_fixture.tasks SET queue='retained-route',state='Dead',completed_at=updated_at WHERE id=$1",
+        [original.jobId]
+      )
+      const before = await row("contract-source")
+      const contract = {
+        kind: definition.kind,
+        version: definition.version,
+        payload: definition.payload
+      }
+      const request = {
+        expected: {
+          jobId: original.jobId,
+          state: "Dead" as const,
+          lifecycleVersion: Number(before.lifecycle_version)
+        },
+        producer: {
+          operation: "manual.contract",
+          operationId: "contract-successor",
+          slot: "replacement"
+        }
+      }
+      const result = await Effect.runPromise(
+        operatorBackend.withTransaction(() =>
+          mode === "Redrive"
+            ? operatorBackend.operators.redrive(contract, request)
+            : operatorBackend.operators.correctedRedrive(contract, {
+                ...request,
+                payload: { invoiceId: "corrected" }
+              })
+        )
+      )
+      expect(result.inserted).toBe(true)
+      expect(result.jobId).not.toBe(original.jobId)
+      expect(await row("contract-source")).toEqual(before)
+      const child = await row("contract-successor")
+      expect(child).toMatchObject({
+        queue: "retained-route",
+        kind: contract.kind,
+        version: contract.version,
+        policy: before.policy,
+        source_job_id: original.jobId,
+        redrive_kind: mode
+      })
+      const artifact = (
+        await observer.query(
+          "SELECT payload FROM backend_fixture.task_artifacts WHERE job_id=$1",
+          [result.jobId]
+        )
+      ).rows[0]
+      expect(artifact.payload.toString("utf8")).toBe(
+        JSON.stringify({ invoiceId: mode === "Redrive" ? "original" : "corrected" })
+      )
+    }
+  )
 
   test("new production validates the single storage response budget without persisting incompatible jobs", async () => {
     await clear()

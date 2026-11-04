@@ -1,6 +1,7 @@
 import { Cause, Context, Effect, Layer, Schema } from "effect"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
 import { PostgreSqlFailure } from "effect-jobs/PostgreSqlTransaction"
+import type { JobId } from "effect-jobs/JobId"
 import {
   Repairs,
   JobRepairCommand,
@@ -14,6 +15,7 @@ import type {
   JobRepairReason
 } from "@effect-jobs/playground-contracts/Repairs"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
+import type { PublicErrorCode } from "@effect-jobs/playground-contracts/Services"
 import {
   RepairTransactions,
   SyntheticRepairTransactions,
@@ -26,7 +28,7 @@ import * as OperatorSource from "./OperatorSource.js"
 import * as Definitions from "../../scenarios/Definitions.js"
 import { DocumentKeys } from "../../scenarios/PrivateDocument.js"
 
-const fail = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
+const fail = (code: PublicErrorCode) => new PlaygroundError({ code })
 const decode = <S extends Schema.Top & { readonly DecodingServices: never }>(
   schema: S,
   input: unknown
@@ -76,7 +78,7 @@ export const recover =
     )
   }
 export const implicitProblem = (
-  rootJobId: JobProblem["rootJobId"],
+  rootJobId: JobId,
   updatedAt: number,
   outcomeKnowledge: JobProblem["outcomeKnowledge"] = "Unknown"
 ): JobProblem => ({
@@ -243,7 +245,8 @@ const makeService = (transactions: typeof RepairTransactions.Service) =>
                     }
                     return yield* backend.operators.correctedRedrive(
                       {
-                        catalog: prepared.definition.catalog,
+                        kind: prepared.definition.kind,
+                        version: prepared.definition.version,
                         payload: Definitions.Payload
                       },
                       { expected, producer, payload: prepared.payload }

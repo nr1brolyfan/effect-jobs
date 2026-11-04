@@ -13,7 +13,7 @@ class Encoder extends Context.Service<Encoder, {}>()("tests/repair/Encoder") {}
 class Decoder extends Context.Service<Decoder, {}>()("tests/repair/Decoder") {}
 declare const definition: Pick<
   JobDefinition<Schema.Codec<{ readonly value: string }, string, Decoder, Encoder>>,
-  "catalog" | "payload"
+  "kind" | "version" | "payload"
 >
 declare const service: JobOperatorsService<"storage", Connection>
 declare const request: JobCorrectedRedriveRequest<{ readonly value: string }>

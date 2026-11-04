@@ -34,9 +34,11 @@ import { makeJobTables } from "../../../src/PostgreSqlDrizzleSchema.js"
 
 const configPath = process.env.OPERATORS_PG_CONFIG_FILE
 const definition = {
-  catalog: { queue: "billing", kind: "invoice", version: 1 },
+  kind: "invoice",
+  version: 1,
   payload: Schema.Struct({ value: Schema.String })
 }
+const catalog = { queue: "billing", kind: definition.kind, version: definition.version }
 const producer = (id = randomUUID()) => ({
   operation: "manual",
   operationId: id,
@@ -74,7 +76,7 @@ describe.skipIf(!configPath)(
             jobs,
             payloads,
             {
-              catalog: definition.catalog,
+              catalog,
               producer: producer(),
               policy,
               encoded,
@@ -262,7 +264,7 @@ describe.skipIf(!configPath)(
       await expect(
         run(() =>
           operators.redrive(
-            { ...definition, catalog: { ...definition.catalog, version: 2 } },
+            { ...definition, version: 2 },
             { expected, producer: producer() }
           )
         )
@@ -315,7 +317,7 @@ describe.skipIf(!configPath)(
           jobs,
           payloads,
           {
-            catalog: definition.catalog,
+            catalog,
             producer: producer(),
             policy: Policy.defaultPolicy,
             encoded
@@ -447,7 +449,7 @@ describe.skipIf(!configPath)(
       const claim = await Effect.runPromise(
         store.claim({
           queue: "billing",
-          supportedCatalog: [definition.catalog],
+          supportedCatalog: [catalog],
           leaseToken: randomUUID()
         })
       )
@@ -794,7 +796,7 @@ describe.skipIf(!configPath)(
               rel.jobs,
               rel.payloads,
               {
-                catalog: definition.catalog,
+                catalog,
                 producer: producer(),
                 policy: Policy.defaultPolicy,
                 encoded
@@ -955,7 +957,7 @@ describe.skipIf(!configPath)(
             rel.jobs,
             rel.payloads,
             {
-              catalog: definition.catalog,
+              catalog,
               producer: producer(),
               policy: Policy.defaultPolicy,
               encoded

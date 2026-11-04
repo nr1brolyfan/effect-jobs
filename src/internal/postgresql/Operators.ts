@@ -11,7 +11,7 @@ import {
   JobRedriveRequest
 } from "../../JobOperators.js"
 import * as Lifecycle from "../../JobLifecycle.js"
-import { CatalogIdentity, ProducerIdentity } from "../../JobIdentity.js"
+import { ProducerIdentity } from "../../JobIdentity.js"
 import { decodeJobPayload, encodeJobPayload } from "../../JobPayloadCodec.js"
 import { PreparedArtifact } from "../lifecycle/Artifacts.js"
 import { PostgreSqlInvalidHandle } from "../../PostgreSqlTransaction.js"
@@ -130,7 +130,7 @@ export const makeOperators = (
     availableAt: PreparedArtifact.fields.availableAt
   })
   const repair = <S extends Schema.Top>(
-    definition: Pick<JobDefinition<S>, "catalog" | "payload">,
+    definition: Pick<JobDefinition<S>, "kind" | "version" | "payload">,
     input: JobRedriveRequest | JobCorrectedRedriveRequest<S["Type"]>,
     corrected: boolean
   ) =>
@@ -169,9 +169,10 @@ export const makeOperators = (
           ? {}
           : { availableAt: integer(row.initial_available_at) })
       }).pipe(Effect.mapError(() => reject("invalid-artifact")))
+      // Routing comes from the locked source, not the current producer deployment.
       if (
-        !Schema.is(CatalogIdentity)(definition.catalog) ||
-        !Schema.toEquivalence(CatalogIdentity)(metadata.catalog, definition.catalog)
+        metadata.catalog.kind !== definition.kind ||
+        metadata.catalog.version !== definition.version
       ) {
         return yield* reject("unsupported-catalog")
       }
@@ -236,13 +237,13 @@ export const makeOperators = (
     cancel: transition("cancel"),
     redrive: Effect.fn("JobOperators.redrive")(
       <S extends Schema.Top>(
-        definition: Pick<JobDefinition<S>, "catalog" | "payload">,
+        definition: Pick<JobDefinition<S>, "kind" | "version" | "payload">,
         request: JobRedriveRequest
       ) => repair(definition, request, false)
     ),
     correctedRedrive: Effect.fn("JobOperators.correctedRedrive")(
       <S extends Schema.Top>(
-        definition: Pick<JobDefinition<S>, "catalog" | "payload">,
+        definition: Pick<JobDefinition<S>, "kind" | "version" | "payload">,
         request: JobCorrectedRedriveRequest<S["Type"]>
       ) => repair(definition, request, true)
     )

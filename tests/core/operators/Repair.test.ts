@@ -21,9 +21,11 @@ const expected = Schema.decodeSync(JobOperatorExpected)({
   lifecycleVersion: 4
 })
 const definition = {
-  catalog: { queue: "billing", kind: "invoice", version: 1 },
+  kind: "invoice",
+  version: 1,
   payload: Schema.Struct({ value: Schema.String })
 }
+const catalog = { queue: "billing", kind: definition.kind, version: definition.version }
 const producer = { operation: "repair", operationId: "new", slot: "replacement" }
 const row = () => ({
   id: "source",
@@ -180,6 +182,40 @@ test.each([
   expect(calls.some((c) => c.sql.startsWith("SELECT floor"))).toBe(false)
 })
 
+test.each(["Redrive", "CorrectedRedrive"] as const)(
+  "%s accepts a queue-independent contract and preserves the source route",
+  async (mode) => {
+    const encoded = await Effect.runPromise(
+      encodeJobPayload(definition.payload, { value: "original" })
+    )
+    const source = {
+      ...row(),
+      queue: "retained-route",
+      format_version: encoded.formatVersion,
+      payload: encoded.payloadBytes,
+      projection: encoded.semanticProjectionBytes
+    }
+    const before = structuredClone(source)
+    const { calls, service } = fixture(source)
+    const contract = {
+      kind: definition.kind,
+      version: definition.version,
+      payload: definition.payload
+    }
+    const request = { expected, producer }
+    const result = await Effect.runPromise(
+      mode === "Redrive"
+        ? service.redrive(contract, request)
+        : service.correctedRedrive(contract, { ...request, payload: { value: "fixed" } })
+    )
+    expect(result.inserted).toBe(true)
+    const inserted = calls.find((call) => call.sql.startsWith('INSERT INTO "jobs"'))!
+    expect(inserted.values!.slice(4, 7)).toEqual(["retained-route", "invoice", 1])
+    expect(source).toEqual(before)
+    expect(calls.some((call) => call.sql.startsWith("UPDATE"))).toBe(false)
+  }
+)
+
 test.each([9, 10, 11])(
   "distinguishes stored policy reserve %s from invalid artifact data",
   async (reserve) => {
@@ -214,7 +250,7 @@ test("replacement enforces schema, canonical bounds, catalog and original produc
     [definition, { expected, producer, payload: { value: "ok", excess: true } }],
     [definition, { expected, producer, payload: { value: "x".repeat(65537) } }],
     [
-      { ...definition, catalog: { ...definition.catalog, version: 2 } },
+      { ...definition, version: 2 },
       { expected, producer, payload: { value: "ok" } }
     ],
     [
@@ -272,7 +308,7 @@ test.each(["source", "kind", "absent", "inconsistent", "semantic"])(
           return [
             {
               id: "child",
-              ...definition.catalog,
+              ...catalog,
               format_version: 1,
               projection:
                 variant === "semantic"
@@ -308,7 +344,7 @@ test.each(["source", "kind", "absent", "inconsistent", "semantic"])(
         query,
         '"jobs"',
         '"payloads"',
-        { catalog: definition.catalog, producer, policy: defaultPolicy, encoded },
+        { catalog, producer, policy: defaultPolicy, encoded },
         200,
         100,
         undefined,
@@ -347,7 +383,7 @@ test("exact lineage duplicate accepts deleted live reference without reassignmen
         return [
           {
             id: "child",
-            ...definition.catalog,
+            ...catalog,
             format_version: 1,
             projection: encoded.semanticProjectionBytes,
             original_source_job_id: "source",
@@ -358,7 +394,7 @@ test("exact lineage duplicate accepts deleted live reference without reassignmen
       })
   }
   const prepared = {
-    catalog: definition.catalog,
+    catalog,
     producer,
     policy: defaultPolicy,
     encoded

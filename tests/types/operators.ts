@@ -19,7 +19,7 @@ class Decoder extends Context.Service<Decoder, {}>()("tests/operators/Decoder") 
 class Encoder extends Context.Service<Encoder, {}>()("tests/operators/Encoder") {}
 declare const definition: Pick<
   JobDefinition<Schema.Codec<{ readonly value: string }, string, Decoder, Encoder>>,
-  "catalog" | "payload"
+  "kind" | "version" | "payload"
 >
 declare const service: JobOperatorsService<"storage-failure", Connection>
 declare const expected: JobOperatorExpected
@@ -56,3 +56,8 @@ export type EncodingNotRequired = True<
 export const incomplete = service.cancel({ jobId: expected.jobId, state: expected.state })
 // @ts-expect-error Applications cannot choose a new job ID in a redrive request.
 export const chosenId = service.redrive(definition, { ...request, jobId: expected.jobId })
+export const catalogOnly = service.redrive<typeof Schema.String>(
+  // @ts-expect-error Catalog routing is no longer a replacement for a kind/version contract.
+  { catalog: { queue: "billing", kind: "invoice", version: 1 }, payload: Schema.String },
+  request
+)

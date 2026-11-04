@@ -91,16 +91,18 @@ export interface JobOperatorsService<E = never, R = never> {
   readonly cancel: (
     expected: JobOperatorExpected
   ) => Effect.Effect<JobOperatorTransition, E | JobOperatorRejected, R>
+  /** Validate against the kind/version contract; successors retain the source queue. */
   readonly redrive: <S extends Schema.Top>(
-    definition: Pick<JobDefinition<S>, "catalog" | "payload">,
+    definition: Pick<JobDefinition<S>, "kind" | "version" | "payload">,
     request: JobRedriveRequest
   ) => Effect.Effect<
     JobRedriveResult,
     E | JobOperatorRejected | JobPayloadCodecError | JobIntegrityConflict,
     R | S["DecodingServices"]
   >
+  /** Replace domain data through the standard codec without selecting a new route. */
   readonly correctedRedrive: <S extends Schema.Top>(
-    definition: Pick<JobDefinition<S>, "catalog" | "payload">,
+    definition: Pick<JobDefinition<S>, "kind" | "version" | "payload">,
     request: JobCorrectedRedriveRequest<S["Type"]>
   ) => Effect.Effect<
     JobRedriveResult,

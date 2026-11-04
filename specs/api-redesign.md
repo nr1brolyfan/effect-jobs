@@ -324,3 +324,27 @@ final snapshot and one independent review remain required. This checkpoint is
 not a release candidate. The owner authorized local checkpoint commits before
 continuing implementation. No push, merge, publication or deployment is authorized
 or has been performed.
+
+## Implementation checkpoint: contract-only operator inputs
+
+The preceding worker/producer/admission checkpoint is committed locally as
+`1faa200` on `refactor/jobs-api-redesign` in the dedicated worktree.
+
+`JobOperators.redrive` and `correctedRedrive` now accept only kind/version/payload
+contract fields rather than a queue-bound catalog. They validate kind/version
+against the locked source and inherit its retained queue; current deployment
+routing cannot move a successor. Both paths still authenticate the standard
+artifact semantics, preserve Schema service requirements, and leave the source
+unchanged. The playground repair caller and operator fixtures use this contract.
+Negative type tests reject catalog-only inputs. This is the operator dependency
+cutover, not completion of the pure public `Job` constructor migration.
+
+Evidence: full `verify` passes 1,036 tests with 93 skipped, plus Field/Theme,
+release import, JSDoc and observability checks. Source PostgreSQL now also enables
+the dedicated operator suite: 69 passed and 6 skipped on each runtime. Installed
+PostgreSQL passes 46 tests on each runtime, including both queue-independent
+redrive regressions. Evidence and exact-container cleanup receipt:
+`/tmp/opencode/jobs-redesign-pg-ixkj3fhj/`; both private configuration files were
+removed. Earlier failed fixture attempts are not successful qualification.
+Native Drizzle's separate checkpoint evidence above is not a fresh run for this
+operator slice. Traits findings are manually triaged, not an automated clean pass.
