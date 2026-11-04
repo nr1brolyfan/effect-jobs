@@ -56,9 +56,12 @@ const make = (store: JobStoreService<unknown>) =>
       )
     )
   )
-const start = (worker: Worker.JobWorkerService) =>
+const start = (
+  worker: Worker.JobWorkerService,
+  options: Polling.Options = pollingOptions
+) =>
   Layer.build(
-    Polling.layer([queue], pollingOptions).pipe(
+    Polling.layer([queue], options).pipe(
       Layer.provide(Layer.succeed(Worker.JobWorker, worker))
     )
   )
@@ -221,6 +224,14 @@ it("validates every plan queue before spawning loops and rejects invalid polling
         ).pipe(Effect.result)
         assert.equal(result._tag, "Failure")
       }
+      for (const shutdownGraceMillis of [-1, 0.5, 300_001, Infinity, NaN]) {
+        const result = yield* Layer.build(
+          Polling.layer([queue], { ...pollingOptions, shutdownGraceMillis }).pipe(
+            Layer.provide(Layer.succeed(Worker.JobWorker, worker))
+          )
+        ).pipe(Effect.result)
+        assert.equal(result._tag, "Failure")
+      }
       assert.equal(test.calls.claims.length, 0)
       assert.equal(test.calls.recoveries.length, 0)
     })
@@ -284,7 +295,7 @@ it("captures provider requirements once at worker construction, not as ambient p
   )
 })
 
-it("closes active executions with the polling scope and never releases after execution began", async () => {
+it("zero grace interrupts active executions and never releases after execution began", async () => {
   await run(
     Effect.gen(function* () {
       const encoded = yield* Codec.encodeJobPayload(job.payload, { value: "value" })
@@ -324,7 +335,9 @@ it("closes active executions with the polling scope and never releases after exe
         )
       )
       const scope = yield* Scope.make()
-      yield* Scope.provide(scope)(start(worker))
+      yield* Scope.provide(scope)(
+        start(worker, { ...pollingOptions, shutdownGraceMillis: 0 })
+      )
       yield* Deferred.await(reached)
       for (let index = 0; index < 10; index++) {
         yield* Effect.yieldNow

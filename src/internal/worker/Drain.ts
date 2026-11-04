@@ -1,5 +1,5 @@
 import { observe, trackExecution } from "../../JobTelemetry.js"
-import { Effect, Fiber, Semaphore } from "effect"
+import { Effect, Fiber, FiberSet, Semaphore } from "effect"
 import { JobWorker } from "../../JobWorker.js"
 import { WorkerCapability } from "./Capability.js"
 import { DrainResult } from "./Results.js"
@@ -8,6 +8,8 @@ import type { DispatchResult } from "./Capability.js"
 
 export interface DrainOptions {
   readonly recover?: boolean
+  /** Polling owns these executions independently of its interrupted claim loops. */
+  readonly executions?: FiberSet.FiberSet<void, never>
   /** Internal deterministic shutdown hook; never a public polling option. */
   readonly beforeExecutionBoundary?: Effect.Effect<void>
 }
@@ -41,7 +43,9 @@ export const drainWithOptions = (consumer: QueueRun, options: DrainOptions = {})
             const fiber = yield* restore(started.execution).pipe(
               trackExecution,
               Effect.ensuring(Semaphore.release(permits, 1)),
-              Effect.forkScoped
+              options.executions === undefined
+                ? Effect.forkScoped
+                : FiberSet.run(options.executions)
             )
             executions.push(fiber)
           })

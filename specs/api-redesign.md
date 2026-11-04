@@ -93,6 +93,15 @@ Graceful shutdown stops new claims and awaits existing executions within a finit
 grace period. Forced shutdown may leave unknown outcomes for lease recovery. No
 shutdown result promises that external side effects did not happen.
 
+`JobPolling.layer` owns graceful shutdown through its application Scope. It first
+quiesces admission loops, then gives started executions one shared
+`shutdownGraceMillis` (default 30,000; integer 0–300,000). Zero requests immediate
+interruption. After expiry, remaining execution fibers are interrupted before
+provided worker resources close. Admission/control/release and handler finalizers
+must be finitely bounded and interruption-cooperative; no timer hard-kills arbitrary
+uninterruptible or native code. In-flight claims can remain unknown. Direct bounded
+drain interruption keeps its immediate scoped-interruption behavior.
+
 ## Policy, codecs and errors
 
 The configured storage owns one finite response budget. Worker construction uses
@@ -679,3 +688,52 @@ findings are not represented as an automated clean pass.
 Remaining implementation: finite graceful shutdown, then final integrated
 documentation/qualification and one independent review. This is not a release
 candidate. No push, merge, publication or deployment has occurred.
+
+## Implementation checkpoint: finite graceful polling shutdown
+
+Finalized-attempt naming is committed locally as `a6c0088`.
+`JobPolling.layer` now accepts `shutdownGraceMillis`: integer 0–300,000, default
+30,000. Application Scope closure first interrupts admission loops (including
+permit waits, recovery and in-flight claims), then gives already-started executions
+one shared grace interval. Zero requests immediate interruption. At grace expiry
+remaining executions are interrupted before provided worker dependencies close.
+Direct bounded drains retain their existing immediate scoped-interruption path.
+
+Polling owns separate admission/execution FiberSets inside a private Scope and
+one acquireRelease finalizer. Ambient parallel finalizers cannot race the internal
+grace sequence. The shutdown finalizer stays masked while its wait/timer race
+children are interruptible, so an actual application interruption does not skip
+grace or erase the original interrupted exit. Completed fibers are removed by the
+FiberSet rather than accumulated over the polling lifetime. Construction remains
+inert, imports start no activity, and no global worker/alarm owner is introduced.
+
+No handler is rerun or executing job released as safely unexecuted on forced
+shutdown. Lost claim/finalization responses and external effects retain their
+unknown-outcome semantics for fencing/recovery. Counter arithmetic, retry policy,
+storage bytes and provider transaction ownership are unchanged. Grace starts after
+admission quiescence; qualified storage acquisition/control/release and handler
+finalizers must still be finitely bounded and interruption-cooperative. This is not
+a hard-kill guarantee for arbitrary native/uninterruptible user code.
+
+Qualification on Node 24.15.0 / Bun 1.4.2:
+
+- Full `verify`: 1,083 passed, 97 skipped; eight source/packed JSDoc examples and
+  28 public subpaths. Nine added deterministic shutdown cases prove successful
+  finalization, one global deadline across queues, blocked-permit admission stop,
+  default grace, actual parent interruption with graceful/forced completion, lost
+  claim/finalization responses, and provided-resource lifetime. Existing polling
+  tests prove zero grace and malformed options before any storage activity.
+- Real PostgreSQL: 79 source tests and 50 installed tests pass per runtime. The new
+  shutdown oracle proves graceful completion increments the durable finalized
+  counter once while a forced running handler remains Active with count zero.
+- Installed public API/type/runtime and native Drizzle A+B/runtime gates pass.
+  The separate full foreign-declaration audit remains diagnostic FAIL.
+- README source/packed and playground typecheck/lint pass. Exact-container cleanup
+  and backend receipts: `/tmp/opencode/jobs-redesign-pg-dkqkveg8/`; private
+  configuration removed. Changed authored TypeScript was checked against all
+  traits and raw findings manually triaged, not reported as an automated clean pass.
+
+Planned implementation phases are complete. Final integrated documentation and
+qualification consolidation, freezing the complete redesign snapshot, and one
+independent review remain. This is not a release candidate or integration approval.
+No push, merge, publication or deployment has occurred.

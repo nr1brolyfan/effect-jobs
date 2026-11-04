@@ -1,7 +1,17 @@
 import * as FailureCodes from "../../src/FailureCode.js"
 import { readFileSync, writeFileSync } from "node:fs"
 import { randomBytes, randomUUID } from "node:crypto"
-import { Effect, Exit, Duration, Schema, Deferred, Fiber, Option, Layer } from "effect"
+import {
+  Effect,
+  Exit,
+  Duration,
+  Schema,
+  Deferred,
+  Fiber,
+  Option,
+  Layer,
+  Scope
+} from "effect"
 import type { PoolConfig } from "pg"
 import { Pool } from "../qualification/d6-pg/PgDriver.js"
 import { beforeAll, afterAll, describe, expect, test } from "vitest"
@@ -26,6 +36,7 @@ import * as Payload from "../../src/JobPayload.js"
 import * as Worker from "../../src/JobWorker.js"
 import * as Storage from "../../src/JobStorage.js"
 import * as Schedule from "../../src/JobSchedule.js"
+import * as Polling from "../../src/JobPolling.js"
 import { JobFailures, type JobFailure } from "../../src/JobFailure.js"
 import type { HandlerInput, EnqueueResult } from "../../src/JobContract.js"
 import { readQualificationResource } from "../qualification/Resource.mjs"
@@ -417,6 +428,56 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       _tag: "Failure",
       failure: { _tag: "PostgreSqlInvalidHandle", reason: "active-transaction" }
     })
+  })
+
+  test("polling shutdown permits durable graceful finalization but forced execution remains Active", async () => {
+    for (const completes of [true, false]) {
+      await clear()
+      await enqueue(`shutdown-${completes}`)
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const reached = yield* Deferred.make<void>()
+            const finish = yield* Deferred.make<void>()
+            const worker = Worker.layer(workerGroup, { queues: [{ queue }] }).pipe(
+              Layer.provide(
+                Layer.mergeAll(
+                  Layer.succeed(Storage.JobStorage, backend.storage),
+                  workerGroup.toLayer({
+                    generate: () =>
+                      Deferred.succeed(reached, undefined).pipe(
+                        Effect.andThen(Deferred.await(finish))
+                      )
+                  })
+                )
+              )
+            )
+            const scope = yield* Scope.fork(yield* Scope.Scope)
+            yield* Scope.provide(scope)(
+              Layer.build(
+                Polling.layer([queue], {
+                  maxJobs: 1,
+                  recoveryLimit: 1,
+                  shutdownGraceMillis: completes ? 1000 : 10
+                }).pipe(Layer.provide(worker))
+              )
+            )
+            yield* Deferred.await(reached)
+            const closing = yield* Scope.close(scope, Exit.void).pipe(Effect.forkChild)
+            yield* Effect.yieldNow
+            if (completes) {
+              yield* Deferred.succeed(finish, undefined)
+            }
+            yield* Fiber.join(closing)
+          })
+        )
+      )
+      expect(await row(`shutdown-${completes}`)).toMatchObject({
+        state: completes ? "Completed" : "Active",
+        attempts_made: completes ? "1" : "0",
+        stalled_count: "0"
+      })
+    }
   })
 
   test("backend Layer provides the same configured JobStorage to a group worker", async () => {

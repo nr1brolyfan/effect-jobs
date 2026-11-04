@@ -189,7 +189,8 @@ const runWorker = Effect.gen(function* () {
 
   const PollingLayer = Polling.layer([BillingQueue], {
     maxJobs: 20, // Max jobs claimed during one bounded drain.
-    recoveryLimit: 20 // Max expired leases recovered in this queue per drain.
+    recoveryLimit: 20, // Max expired leases recovered in this queue per drain.
+    shutdownGraceMillis: 30_000 // Shared grace for already-started executions.
   }).pipe(Layer.provide(WorkerLayer))
 
   yield* Effect.never.pipe(Effect.provide(PollingLayer))
@@ -199,6 +200,17 @@ NodeRuntime.runMain(runWorker)
 ```
 
 The Scope owns polling shutdown. Construction starts no workers. Concurrency is fixed per worker instance and shared across its concurrent drains, not a global queue limit.
+
+On Scope closure, polling first interrupts admission loops (including permit waits,
+recovery and in-flight claims). Started executions retain their resources and may
+finalize within one shared grace period, not one period per queue/job. The default
+is 30 seconds; `shutdownGraceMillis` accepts integer 0–300,000, with zero requesting
+immediate interruption. After grace, remaining executions are interrupted. They
+are not released as safely unexecuted work: external outcomes can remain unknown
+until lease recovery. Qualified storage operations and handler finalizers must
+remain finitely bounded and interruption-cooperative; this timer cannot hard-kill
+arbitrary native/uninterruptible code. Direct one-shot drain interruption is still
+immediate, not graceful polling shutdown.
 
 Worker construction requires `JobStorage` and the complete group's handlers.
 `PostgreSqlJobs.layerNoDeps(options)` provides `JobStorage` together with the

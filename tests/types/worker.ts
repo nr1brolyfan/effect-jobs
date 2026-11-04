@@ -77,7 +77,7 @@ const polling: Layer.Layer<
   never,
   Worker.JobWorkerNotReady | Worker.JobWorkerConfigurationError,
   Worker.JobWorker
-> = Polling.layer([queue])
+> = Polling.layer([queue], { shutdownGraceMillis: 1000 })
 void polling
 // @ts-expect-error Response budget comes from configured storage, not a worker argument.
 export const explicitStorage = Worker.make(group, storage, { queues: [{ queue }] })
