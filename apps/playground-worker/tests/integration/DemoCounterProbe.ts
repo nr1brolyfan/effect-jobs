@@ -13,10 +13,10 @@ export const prepare = (config: Event.Config) =>
     Effect.void,
     Effect.gen(function* () {
       yield* Demo.tick(config.schema)
-      for (const consumer of yield* Executor.consumers) {
-        yield* Runtime.drain(consumer.queue, {
-          maxJobs: consumer.claimLimitPerRun,
-          recoveryLimit: consumer.recoveryLimitPerRun
+      for (const queue of Executor.queues) {
+        yield* Runtime.drain(queue, {
+          maxJobs: Executor.limits.claimLimit,
+          recoveryLimit: Executor.limits.recoveryLimit
         })
       }
       return yield* Demo.tick(config.schema)

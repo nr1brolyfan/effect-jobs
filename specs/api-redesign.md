@@ -315,8 +315,7 @@ Current checkpoint evidence on Node 24.15.0 / Bun 1.4.2:
   recovery and factory-name issues were fixed and rechecked. Raw automated
   findings are retained, not represented as an automated all-clean pass.
 
-Remaining implementation after the checkpoints below: removal
-of public consumer/plan concepts, configured `JobStorage` service
+Remaining implementation after the checkpoints below: configured `JobStorage` service
 composition, `JobSchedule` observations, accepted retry/counter naming and finite
 graceful shutdown. Final caller/documentation migration, qualification of that
 final snapshot and one independent review remain required. This checkpoint is
@@ -388,7 +387,7 @@ Evidence on Node 24.15.0 / Bun 1.4.2:
   test-helper edit was checked again. Findings were manually compared with exact
   rule scope and surrounding source, not reported as an automated clean pass.
 
-Still outstanding after the checkpoint below: public consumer/plan removal, configured `JobStorage`
+Still outstanding after the checkpoints below: configured `JobStorage`
 service composition, `JobSchedule` observations, retry/counter naming, finite
 graceful shutdown, final caller/documentation migration, integrated qualification
 and one independent review. This is a local implementation checkpoint, not a
@@ -421,3 +420,53 @@ assertion was corrected to account for Bun's `ERR_MODULE_NOT_FOUND` versus Node'
 `ERR_PACKAGE_PATH_NOT_EXPORTED`; both prove the removed export is inaccessible.
 Traits findings were manually triaged against their exact scope and source, with
 no confirmed applicable violation remaining; raw findings are retained separately.
+
+## Implementation checkpoint: queues and bounded drains without consumer plans
+
+The registry cutover is committed locally as `775f14e`. `JobConsumer` and its
+`JobPlan` are now removed from production source and exports, without aliases.
+`JobWorker` fixes queue concurrency at construction; `drain(queue, limits)` and
+`JobPolling.layer(queues, options)` resolve the internal `QueueRun` directly from
+validated invocation limits and that fixed concurrency. The durable engine and
+shared semaphores are unchanged. Internal permit acquisition needs only queue and
+concurrency, not invented per-run limits during construction.
+
+Playground execution exposes its fixed queue inventory, not consumer Effects.
+Cloudflare wake cycles accept a queue and use their own finite claim/recovery
+limits; callers configure worker concurrency separately. Real-PG probes and
+workerd fixtures use these forms. The application-owned scenario `Plan` remains
+domain workload planning, not a generic public execution plan.
+
+Direct protocol fixtures retain a test-only `ProtocolConsumer.make`; generic plan
+construction is deleted, not copied to tests. Obsolete consumer/plan-only tests
+are replaced by actual public-worker boundary coverage: invalid/fractional limits,
+concurrency bounds including NaN/infinity, upper limits, no storage activity on
+rejection and no per-drain concurrency. Existing duplicate/empty queue and shared
+parallel-drain tests remain. Type tests reject old consumer-shaped polling input.
+Source and installed import tests reject all three removed subpaths. The packed
+artifact contains neither obsolete production outputs nor protocol fixtures.
+
+Current evidence on Node 24.15.0 / Bun 1.4.2:
+
+- Full `verify`: 1,037 passed and 93 skipped; the lower count removes tests of the
+  deleted plan implementation rather than weakening public-worker oracles.
+- Eight JSDoc examples and 26 current public subpaths qualify against source and
+  packed bytes on both runtimes. README source/packed qualification passes.
+- Playground typecheck and lint pass. Mock finite wake-cycle tests pass in the
+  full suite; workerd/hosted app execution is not newly qualified by these results.
+- Source PostgreSQL: 75 tests pass on each runtime. Installed PostgreSQL: 46 pass
+  per runtime. Native Drizzle A+B/runtime and installed public API gates pass.
+  The separate full foreign-declaration audit remains diagnostic FAIL.
+- Backend evidence and exact-container cleanup receipt:
+  `/tmp/opencode/jobs-redesign-pg-araurqd9/`; private configuration files removed.
+  Packed artifact SHA-256:
+  `8d7627593c9621ff6528ed119a50ceef995f2ca027857ccb1971614642529934`.
+- Changed authored TypeScript was assessed by Traits; a needless custom Schema
+  error mapping in the test-only helper was removed and rechecked. Remaining
+  findings were manually triaged against exact applicability and source, not
+  represented as an automated clean report.
+
+Still outstanding: configured `JobStorage`, `JobSchedule` observations, accepted
+retry/counter naming, finite graceful shutdown, final integrated documentation and
+qualification, and the single independent review. No release, push, merge,
+publication or deployment is authorized or performed by this checkpoint.

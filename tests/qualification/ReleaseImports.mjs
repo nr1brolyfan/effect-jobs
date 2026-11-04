@@ -7,12 +7,14 @@ import { releaseImports } from "../../scripts/release-imports.mjs"
 
 const root = resolve(import.meta.dirname, "../..")
 
-test("mutable registry is not a public package subpath", async () => {
+test("obsolete registry/consumer/plan concepts are not public package subpaths", async () => {
   const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
-  assert.equal(Object.hasOwn(manifest.exports, "./JobRegistry"), false)
-  await assert.rejects(import("effect-jobs/JobRegistry"), {
-    code: "ERR_PACKAGE_PATH_NOT_EXPORTED"
-  })
+  for (const name of ["JobRegistry", "JobConsumer", "JobPlan"]) {
+    assert.equal(Object.hasOwn(manifest.exports, `./${name}`), false)
+    await assert.rejects(import(`effect-jobs/${name}`), {
+      code: "ERR_PACKAGE_PATH_NOT_EXPORTED"
+    })
+  }
 })
 
 test("archive graph ignores comments and literal prose, and parses import syntax", () => {

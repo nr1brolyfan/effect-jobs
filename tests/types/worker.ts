@@ -74,3 +74,9 @@ export const missingBudget = Worker.make(group, { store }, { queues: [{ queue }]
 Polling.layer([queue], { classifyError: () => "Retry" })
 // @ts-expect-error Internal hooks are not public polling configuration.
 Polling.layer([queue], { beforeExecutionBoundary: Effect.void })
+// @ts-expect-error Drain concurrency is fixed at worker construction.
+export const perDrainConcurrency = Worker.drain(queue, { concurrency: 2 })
+Polling.layer([
+  // @ts-expect-error Polling accepts queues, not consumer/plan configurations.
+  { queue, localConcurrency: 2, claimLimitPerRun: 10, recoveryLimitPerRun: 10 }
+])

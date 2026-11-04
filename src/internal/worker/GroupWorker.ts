@@ -6,7 +6,7 @@ import type { JobQueue } from "../../JobQueue.js"
 import { QueueName } from "../../JobIdentity.js"
 import type { JobHandler } from "./Handler.js"
 import { JobWorker } from "../../JobWorker.js"
-import * as Consumer from "../../JobConsumer.js"
+import type { QueueRun } from "./QueueRun.js"
 import { JobWorkerConfigurationError, WorkerCapability } from "./Capability.js"
 import { makeWithHandlers } from "./Runtime.js"
 import { drainWithOptions } from "./Drain.js"
@@ -106,9 +106,7 @@ export const make = <Name extends string, D extends Definitions, E, R>(
     for (const entry of queues) {
       yield* worker[WorkerCapability].permits({
         queue: entry.queue,
-        localConcurrency: entry.concurrency,
-        claimLimitPerRun: 1,
-        recoveryLimitPerRun: 1
+        localConcurrency: entry.concurrency
       })
     }
     return Object.freeze({
@@ -119,7 +117,7 @@ export const make = <Name extends string, D extends Definitions, E, R>(
   })
 
 /** Uses concurrency fixed at construction; callers supply only finite run limits. */
-export const consumerFor = Effect.fnUntraced(function* (
+export const runFor = Effect.fnUntraced(function* (
   queue: JobQueue,
   limits: DrainLimits = {}
 ) {
@@ -131,17 +129,19 @@ export const consumerFor = Effect.fnUntraced(function* (
   if (concurrency === undefined) {
     return yield* new JobWorkerConfigurationError({ field: "queues" })
   }
-  return yield* Consumer.make(queue, {
+  const run: QueueRun = Object.freeze({
+    queue: Object.freeze({ ...queue }),
     localConcurrency: concurrency,
     claimLimitPerRun: decoded.maxJobs ?? 20,
     recoveryLimitPerRun: decoded.recoveryLimit ?? 20
-  }).pipe(Effect.mapError(() => new JobWorkerConfigurationError({ field: "drain" })))
+  })
+  return run
 })
 
 export const drain = Effect.fnUntraced(function* (
   queue: JobQueue,
   limits: DrainLimits = {}
 ) {
-  const consumer = yield* consumerFor(queue, limits)
+  const consumer = yield* runFor(queue, limits)
   return yield* drainWithOptions(consumer)
 })

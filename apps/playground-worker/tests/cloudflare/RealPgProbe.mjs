@@ -23,7 +23,6 @@ import * as Queue from "effect-jobs/JobQueue"
 import * as Policy from "effect-jobs/JobPolicy"
 import * as Group from "effect-jobs/JobGroup"
 import * as Worker from "effect-jobs/JobWorker"
-import * as Consumer from "effect-jobs/JobConsumer"
 import * as Wake from "../../src/cloudflare/WakeCycle.js"
 import * as Retry from "effect-jobs/JobRetryPolicy"
 
@@ -237,11 +236,6 @@ export const probe = (url, schema, alarm, checks = []) =>
             })
           )
         )
-        const consumer = yield* Consumer.make(queue, {
-          localConcurrency: 2,
-          claimLimitPerRun: 10,
-          recoveryLimitPerRun: 10
-        })
         const schedule =
           sql(`WITH t AS MATERIALIZED (SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now)
       SELECT t.now,a.expires_at,
@@ -259,7 +253,7 @@ export const probe = (url, schema, alarm, checks = []) =>
             })),
             Effect.mapError(() => new Wake.WakeUnavailable())
           )
-        yield* Wake.run(consumer).pipe(
+        yield* Wake.run(queue).pipe(
           Effect.provide(worker),
           Effect.provideService(Wake.WakeSchedule, { read: schedule }),
           Effect.provideService(Wake.WakeAlarm, alarm)

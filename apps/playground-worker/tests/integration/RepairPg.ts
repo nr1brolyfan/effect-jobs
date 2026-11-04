@@ -96,11 +96,10 @@ export const prepareRecorded = async () => {
   report.stage = "actual trusted demo seed and handlers"
   await run(Manager.tick(cfg.schema))
   const drain = Effect.gen(function* () {
-    const plans = yield* Executor.consumers
-    for (const plan of plans) {
-      yield* Drain.drain(plan.queue, {
-        maxJobs: plan.claimLimitPerRun,
-        recoveryLimit: plan.recoveryLimitPerRun
+    for (const queue of Executor.queues) {
+      yield* Drain.drain(queue, {
+        maxJobs: Executor.limits.claimLimit,
+        recoveryLimit: Executor.limits.recoveryLimit
       })
     }
   })
@@ -134,10 +133,10 @@ export const drainRecorded = () => {
       config,
       Effect.void,
       Effect.gen(function* () {
-        for (const plan of yield* Executor.consumers) {
-          yield* Drain.drain(plan.queue, {
-            maxJobs: plan.claimLimitPerRun,
-            recoveryLimit: plan.recoveryLimitPerRun
+        for (const queue of Executor.queues) {
+          yield* Drain.drain(queue, {
+            maxJobs: Executor.limits.claimLimit,
+            recoveryLimit: Executor.limits.recoveryLimit
           })
         }
         const Reconcile = yield* Effect.promise(

@@ -119,7 +119,7 @@ for (const subpath of Object.keys(manifest.exports)) {
     }
   }
 }
-assert(examples.length === 9, "Expected the public constructor/codec/runtime examples")
+assert(examples.length === 8, "Expected the public constructor/codec/runtime examples")
 const compilerOptions = {
   target: "ES2022",
   module: "NodeNext",
@@ -138,7 +138,6 @@ import assert from "node:assert/strict"
 import { Effect } from "effect"
 import * as Definition from "./Job.ts"
 import * as Producer from "./JobProducer.ts"
-import * as Consumer from "./JobConsumer.ts"
 import * as Policy from "./JobPolicy.ts"
 import * as Runtime from "./JobWorker.ts"
 import * as Storage from "./PostgreSqlSchema.ts"
@@ -158,8 +157,6 @@ assert.equal(resolvedPolicy.completedRetention._tag, "Duration")
 assert(Storage.ddl.includes('CREATE TABLE "app_jobs"."jobs"'))
 assert(Payload.protectedValue)
 assert.deepEqual(await Effect.runPromise(Codec.roundTrip), { amount: 1.5 })
-const plan = await Effect.runPromise(Consumer.plan)
-assert.equal(plan.consumers[0]?.localConcurrency, 2)
 let claims = 0
 const unused = () => Effect.die("empty-store example must not execute/finalize")
 const store: JobStoreService = {
@@ -178,7 +175,6 @@ console.log("JSDoc constructor/codec/finite empty-store drain examples PASS")
 // Fixed extraction order makes checks fail visibly if the example inventory changes.
 assert.deepEqual(examples.map((example) => example.name).sort(), [
   "Job.ts",
-  "JobConsumer.ts",
   "JobPayload.ts",
   "JobPayloadCodec.ts",
   "JobPolicy.ts",
@@ -190,7 +186,6 @@ assert.deepEqual(examples.map((example) => example.name).sort(), [
 const exportedNames = {
   Job: "definition",
   JobProducer: "producer",
-  JobConsumer: "plan",
   JobPolicy: "policy",
   JobWorker: "runOnce",
   PostgreSqlSchema: "ddl",
@@ -301,5 +296,5 @@ const receipt = {
 writeFileSync(join(work, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n")
 writeFileSync(join(evidence, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n")
 console.log(
-  `9 extracted JSDoc examples: source and current packed strict types, Node/Bun runtime PASS; ${inventory.length} subpaths inventoried`
+  `${examples.length} extracted JSDoc examples: source and current packed strict types, Node/Bun runtime PASS; ${inventory.length} subpaths inventoried`
 )

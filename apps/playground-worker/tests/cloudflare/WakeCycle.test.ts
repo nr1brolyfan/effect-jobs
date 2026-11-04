@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest"
 import { Cause, Effect, Exit, Fiber, Layer } from "effect"
-import * as Consumer from "effect-jobs/JobConsumer"
 import * as Job from "effect-jobs/Job"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Group from "effect-jobs/JobGroup"
@@ -53,12 +52,7 @@ const exercise = (
     },
     { queues: [{ queue, concurrency: 2 }] }
   ).pipe(Layer.provide(handlers))
-  const program = Consumer.make(queue, {
-    localConcurrency: 2,
-    claimLimitPerRun: 10,
-    recoveryLimitPerRun: 10
-  }).pipe(
-    Effect.flatMap(WakeCycle.run),
+  const program = WakeCycle.run(queue).pipe(
     Effect.provide(worker),
     Effect.provideService(WakeCycle.WakeSchedule, {
       read: Effect.suspend(() =>
@@ -138,13 +132,8 @@ describe("finite wake cycle (mock storage, not PostgreSQL evidence)", () => {
     expect(await probe.run()).toEqual({ _tag: "Expired" })
     expect(probe.alarms[1]).toBe("clear")
   })
-  it("rejects an oversized consumer before touching alarm or storage", async () => {
-    const program = Consumer.make(queue, {
-      localConcurrency: 3,
-      claimLimitPerRun: 10,
-      recoveryLimitPerRun: 10
-    }).pipe(
-      Effect.flatMap(WakeCycle.run),
+  it("rejects invalid worker concurrency before touching alarm or storage", async () => {
+    const program = WakeCycle.run(queue).pipe(
       Effect.provide(
         Worker.layer(
           group,
@@ -160,7 +149,7 @@ describe("finite wake cycle (mock storage, not PostgreSQL evidence)", () => {
             } satisfies JobStoreService
           },
           {
-            queues: [{ queue, concurrency: 2 }]
+            queues: [{ queue, concurrency: 65 }]
           }
         ).pipe(Layer.provide(handlers))
       ),
@@ -174,6 +163,11 @@ describe("finite wake cycle (mock storage, not PostgreSQL evidence)", () => {
     )
     const exit = await Effect.runPromiseExit(program)
     expect(Exit.isFailure(exit) && Cause.hasFails(exit.cause)).toBe(true)
+    if (Exit.isFailure(exit)) {
+      expect(Cause.findErrorOption(exit.cause)).toMatchObject({
+        value: { _tag: "JobWorkerConfigurationError", field: "queues" }
+      })
+    }
   })
   it("bounds a hanging schedule read and closes the caller's scope", async () => {
     const probe = exercise(

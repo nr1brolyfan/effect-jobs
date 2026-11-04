@@ -7,10 +7,10 @@ import { EpochMillis } from "./JobPolicy.js"
 import { observe } from "./JobTelemetry.js"
 import { WorkerCapability } from "./internal/worker/Capability.js"
 import { drainWithOptions } from "./internal/worker/Drain.js"
-import { consumerFor, DrainLimitsSchema } from "./internal/worker/GroupWorker.js"
+import { runFor, DrainLimitsSchema } from "./internal/worker/GroupWorker.js"
 import type { DrainLimits } from "./JobWorker.js"
 import type { JobQueue } from "./JobQueue.js"
-import type { JobConsumer } from "./JobConsumer.js"
+import type { QueueRun } from "./internal/worker/QueueRun.js"
 
 /**
  * Polling configuration; idlePollMillis defaults to 1,000 positive integer
@@ -32,7 +32,7 @@ const sleepWithJitter = (millis: number) =>
       Effect.sleep(Math.max(1, Math.round(millis * (0.8 + random * 0.4))))
     )
   )
-const loop = (consumer: JobConsumer, idlePollMillis: number) =>
+const loop = (consumer: QueueRun, idlePollMillis: number) =>
   Effect.gen(function* () {
     let failures = 0
     let recover = true
@@ -94,7 +94,7 @@ export const layer = (queues: ReadonlyArray<JobQueue>, options: Options = {}) =>
       const worker = yield* JobWorker
       // Validate every queue and limit before starting even one child fiber.
       const consumers = yield* Effect.forEach(queues, (queue) =>
-        consumerFor(queue, {
+        runFor(queue, {
           ...(decoded.maxJobs === undefined ? {} : { maxJobs: decoded.maxJobs }),
           ...(decoded.recoveryLimit === undefined
             ? {}

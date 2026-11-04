@@ -2,7 +2,6 @@ import * as FailureCodes from "../../../src/FailureCode.js"
 import { Cause, Context, Effect, Exit, Layer, Schema, SchemaGetter } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Job from "./ProtocolJob.js"
-import * as JobConsumer from "../../../src/JobConsumer.js"
 import * as JobProducer from "../../../src/JobProducer.js"
 import * as JobQueue from "../../../src/JobQueue.js"
 import * as JobRegistry from "./ProtocolRegistry.js"
@@ -599,52 +598,5 @@ describe("local registry and Layer dependencies", () => {
       kind: job.catalog.kind,
       version: job.catalog.version
     })
-  })
-})
-
-describe("bounded consumer plans", () => {
-  const options = { localConcurrency: 1, claimLimitPerRun: 10, recoveryLimitPerRun: 10 }
-  it("creates frozen inert consumer/plan configuration", async () => {
-    const consumer = await Effect.runPromise(JobConsumer.make(queue, options))
-    const configured = await Effect.runPromise(JobConsumer.plan(consumer))
-    expect(consumer).toEqual({ queue, ...options })
-    expect(Object.isFrozen(consumer)).toBe(true)
-    expect(Object.isFrozen(configured)).toBe(true)
-    expect(Object.isFrozen(configured.consumers)).toBe(true)
-  })
-  it.each([
-    { ...options, localConcurrency: 0 },
-    { ...options, localConcurrency: 65 },
-    { ...options, claimLimitPerRun: 0 },
-    { ...options, claimLimitPerRun: 10001 },
-    { ...options, recoveryLimitPerRun: 0 },
-    { ...options, recoveryLimitPerRun: 10001 },
-    { ...options, localConcurrency: 1.5 },
-    { ...options, extra: true }
-  ])("rejects invalid options %j", async (invalid) => {
-    expect(await Effect.runPromise(failure(JobConsumer.make(queue, invalid)))).toEqual(
-      new JobConsumer.InvalidJobConsumer({ reason: "invalid-options" })
-    )
-  })
-  it("accepts upper bounds and detects duplicate logical queues", async () => {
-    const consumer = await Effect.runPromise(
-      JobConsumer.make(queue, {
-        localConcurrency: 64,
-        claimLimitPerRun: 10000,
-        recoveryLimitPerRun: 10000
-      })
-    )
-    const duplicate = await Effect.runPromise(
-      JobConsumer.make(JobQueue.make("billing"), options)
-    )
-    expect(
-      await Effect.runPromise(failure(JobConsumer.plan(consumer, duplicate)))
-    ).toMatchObject({ _tag: "DuplicateJobConsumer", queue: "billing" })
-    const other = await Effect.runPromise(
-      JobConsumer.make(JobQueue.make("other"), options)
-    )
-    expect(
-      (await Effect.runPromise(JobConsumer.plan(consumer, other))).consumers
-    ).toEqual([consumer, other])
   })
 })

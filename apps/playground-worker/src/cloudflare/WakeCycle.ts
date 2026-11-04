@@ -1,5 +1,5 @@
 import { Clock, Context, Effect, Schema } from "effect"
-import type { JobConsumer } from "effect-jobs/JobConsumer"
+import type { JobQueue } from "effect-jobs/JobQueue"
 import * as JobWorker from "effect-jobs/JobWorker"
 
 const Delay = Schema.Int.pipe(
@@ -51,15 +51,8 @@ export const limits = Object.freeze({
  * Repair alarms exist only within a finite activation. Idle is not proof no delayed job exists.
  * Prearming before drain preserves a repair hint on interruption/failure, without claiming rollback.
  */
-export const run = (consumer: JobConsumer) =>
+export const run = (queue: JobQueue) =>
   Effect.gen(function* () {
-    if (
-      consumer.claimLimitPerRun > limits.claimLimit ||
-      consumer.recoveryLimitPerRun > limits.recoveryLimit ||
-      consumer.localConcurrency > limits.concurrency
-    ) {
-      return yield* new WakeUnavailable()
-    }
     const schedule = yield* WakeSchedule
     const alarm = yield* WakeAlarm
     const read = schedule.read.pipe(
@@ -75,9 +68,9 @@ export const run = (consumer: JobConsumer) =>
     }
     const started = yield* Clock.currentTimeMillis
     yield* alarm.set(started + Math.min(initial.expiresInMillis, limits.repairMillis))
-    const result = yield* JobWorker.drain(consumer.queue, {
-      maxJobs: consumer.claimLimitPerRun,
-      recoveryLimit: consumer.recoveryLimitPerRun
+    const result = yield* JobWorker.drain(queue, {
+      maxJobs: limits.claimLimit,
+      recoveryLimit: limits.recoveryLimit
     }).pipe(
       Effect.timeout(limits.cycleMillis),
       Effect.mapError(() => new WakeUnavailable())

@@ -60,10 +60,6 @@
       "types": "./dist/JobProducer.d.ts",
       "import": "./dist/JobProducer.js"
     },
-    "./JobConsumer": {
-      "types": "./dist/JobConsumer.d.ts",
-      "import": "./dist/JobConsumer.js"
-    },
     "./JobPayload": {
       "types": "./dist/JobPayload.d.ts",
       "import": "./dist/JobPayload.js"

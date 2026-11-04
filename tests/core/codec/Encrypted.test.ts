@@ -249,7 +249,7 @@ it("actual worker isolates invalid opened artifacts before the handler under exi
     await Promise.all([
       import("../worker/Harness.js"),
       import("../worker/ProtocolWorker.js"),
-      import("../../../src/JobConsumer.js"),
+      import("../definitions/ProtocolConsumer.js"),
       import("../worker/ProtocolWorker.js"),
       import("effect/testing"),
       import("../../../src/JobPolicy.js")

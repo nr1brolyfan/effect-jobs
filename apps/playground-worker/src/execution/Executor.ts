@@ -1,7 +1,6 @@
 // @effect-diagnostics unstableApiUsage:off
 import { Clock, Context, Effect, Layer, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
-import * as Consumer from "effect-jobs/JobConsumer"
 import * as Worker from "effect-jobs/JobWorker"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
@@ -43,20 +42,18 @@ export class ExecutionDeadline extends Schema.TaggedError<ExecutionDeadline>()(
   {}
 ) {}
 
-export const consumers = Effect.forEach(queueNames, (name) =>
-  Consumer.make(Definitions.routes.find((route) => route.queue.name === name)!.queue, {
-    localConcurrency: limits.concurrency,
-    claimLimitPerRun: limits.claimLimit,
-    recoveryLimitPerRun: limits.recoveryLimit
-  })
+export const queues = Object.freeze(
+  queueNames.map(
+    (name) => Definitions.routes.find((route) => route.queue.name === name)!.queue
+  )
 )
 export const workerLayerNoDeps = (schema: string) =>
   Layer.unwrap(
     Effect.gen(function* () {
       const backend = yield* PostgreSqlJobs
       return Worker.layer(Definitions.group, backend, {
-        queues: queueNames.map((name) => ({
-          queue: Definitions.routes.find((route) => route.queue.name === name)!.queue,
+        queues: queues.map((queue) => ({
+          queue,
           concurrency: limits.concurrency
         }))
       }).pipe(
@@ -181,12 +178,13 @@ export const run = (schema: string, queue: QueueName) =>
         })
       )
     }
-    const plans = yield* consumers
-    const consumer = plans.find((plan) => plan.queue.name === queue)!
-    const result = yield* Worker.drain(consumer.queue, {
-      maxJobs: limits.claimLimit,
-      recoveryLimit: limits.recoveryLimit
-    })
+    const result = yield* Worker.drain(
+      queues.find((entry) => entry.name === queue)!,
+      {
+        maxJobs: limits.claimLimit,
+        recoveryLimit: limits.recoveryLimit
+      }
+    )
     yield* RepairReconciliation.run(schema, { limit: 50 })
     yield* hints.reconcile
     const after = yield* snapshot(schema, queue)

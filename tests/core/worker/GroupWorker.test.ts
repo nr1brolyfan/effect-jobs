@@ -223,7 +223,7 @@ describe("group-backed worker construction", () => {
     expect(active).toBe(0)
   })
 
-  it.each([0, 65, 1.5])(
+  it.each([0, 65, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
     "rejects concurrency %s before storage activity",
     async (concurrency) => {
       const test = harness()
@@ -279,7 +279,12 @@ describe("group-backed worker construction", () => {
         )
         for (const limits of [
           { maxJobs: 0 },
+          { maxJobs: 10001 },
+          { maxJobs: 1.5 },
+          { recoveryLimit: 0 },
           { recoveryLimit: 10001 },
+          { recoveryLimit: 1.5 },
+          { maxJobs: 1, extra: true },
           { maxJobs: 1, concurrency: 8 }
         ]) {
           const result = yield* worker.drain(queue, limits).pipe(Effect.result)
@@ -289,6 +294,31 @@ describe("group-backed worker construction", () => {
         expect(foreign).toMatchObject({ _tag: "Failure", failure: { field: "queues" } })
         expect(test.calls.claims).toHaveLength(0)
         expect(test.calls.recoveries).toHaveLength(0)
+      }).pipe(Effect.provide(group.toLayer({ receipt: () => Effect.void })))
+    )
+  })
+
+  it("accepts upper construction and drain bounds without consumer/plan configuration", async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const test = harness()
+        const worker = yield* Worker.make(
+          group,
+          {
+            store: test.store,
+            operationResponseBudgetMillis: 100
+          },
+          { queues: [{ queue, concurrency: 64 }] }
+        )
+        expect(test.calls.claims).toHaveLength(0)
+        expect(test.calls.recoveries).toHaveLength(0)
+        const result = yield* worker.drain(queue, {
+          maxJobs: 10000,
+          recoveryLimit: 10000
+        })
+        expect(result).toEqual({ _tag: "Idle", claimed: 0, recovered: 0 })
+        expect(test.calls.claims).toHaveLength(1)
+        expect(test.calls.recoveries).toEqual([500])
       }).pipe(Effect.provide(group.toLayer({ receipt: () => Effect.void })))
     )
   })

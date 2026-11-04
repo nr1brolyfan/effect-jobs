@@ -3,7 +3,7 @@ import { Effect, Fiber, Semaphore } from "effect"
 import { JobWorker } from "../../JobWorker.js"
 import { WorkerCapability } from "./Capability.js"
 import { DrainResult } from "./Results.js"
-import type { JobConsumer } from "../../JobConsumer.js"
+import type { QueueRun } from "./QueueRun.js"
 import type { DispatchResult } from "./Capability.js"
 
 export interface DrainOptions {
@@ -12,7 +12,7 @@ export interface DrainOptions {
   readonly beforeExecutionBoundary?: Effect.Effect<void>
 }
 
-export const drainWithOptions = (consumer: JobConsumer, options: DrainOptions = {}) =>
+export const drainWithOptions = (consumer: QueueRun, options: DrainOptions = {}) =>
   Effect.gen(function* () {
     const worker = yield* JobWorker
     const runtime = worker[WorkerCapability]

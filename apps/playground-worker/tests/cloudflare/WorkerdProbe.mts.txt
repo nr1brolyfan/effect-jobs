@@ -16,7 +16,6 @@ import * as Job from "effect-jobs/Job"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Producer from "effect-jobs/JobProducer"
-import * as Consumer from "effect-jobs/JobConsumer"
 import * as Group from "effect-jobs/JobGroup"
 import * as Worker from "effect-jobs/JobWorker"
 import type { JobStoreService } from "effect-jobs/JobStore"
@@ -85,12 +84,7 @@ export class Probe extends DurableObject {
         Layer.provide(group.toLayer({ synthetic: () => Effect.void }))
       )
       const result = await Effect.runPromise(
-        Consumer.make(queue, {
-          localConcurrency: 2,
-          claimLimitPerRun: 10,
-          recoveryLimitPerRun: 10
-        }).pipe(
-          Effect.flatMap(WakeCycle.run),
+        WakeCycle.run(queue).pipe(
           Effect.provide(worker),
           Effect.provideService(WakeCycle.WakeSchedule, {
             read: Effect.succeed({

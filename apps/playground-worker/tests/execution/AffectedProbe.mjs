@@ -144,9 +144,8 @@ export const probe = (url, schema, alarm, checks = []) =>
         (yield* sql(`SELECT count(*)::int AS n FROM ${schema}.jobs`))[0].n,
         beforeInitial + 6
       )
-      const queues = yield* Executor.consumers
       assert.deepEqual(
-        queues.map((q) => q.queue.name),
+        Executor.queues.map((queue) => queue.name),
         Executor.queueNames
       )
       for (const queue of Executor.queueNames) {
