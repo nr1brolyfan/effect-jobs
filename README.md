@@ -145,9 +145,16 @@ const IssueInvoiceWithPdf = JobProducer.make({
 })
 
 // Inside the application's transaction; GeneratePdf is another job definition.
+const PriorityBillingQueue = JobQueue.make("billing-priority")
+const priorityPolicy = yield* JobPolicy.make({
+  retry: Retry.fixed(Duration.seconds(2)).pipe(Retry.maxFinalizedAttempts(4))
+})
+
 yield* IssueInvoiceWithPdf.enqueue({
   operationId, slot: "send-receipt",
-  payload: { invoiceId }
+  payload: { invoiceId },
+  queue: PriorityBillingQueue,
+  policy: priorityPolicy
 })
 
 yield* IssueInvoiceWithPdf.enqueue({
@@ -160,6 +167,21 @@ Retrying with the same operation ID and slots returns the existing matching jobs
 Declared slots are checked by TypeScript. A slot names the consequence, not the
 job kind: two slots can enqueue the same job kind. Slots do not impose execution
 order or dependencies between jobs.
+
+Slots bind contracts and **default** execution configuration, not mandatory routes.
+All three enqueue methods accept optional `queue` and `policy` overrides. Each is
+independent; omitted values use the slot default. A policy override is a complete
+validated `JobPolicy` value, not a partial merge. Select configuration from trusted
+application context; this is not an authorization mechanism. Workers must be
+configured to drain the selected queue (the example above needs a priority-queue
+consumer). Malformed overrides fail in the typed enqueue channel before encoding.
+
+Replaying the same operation/ID/slot with another queue or policy still returns the
+original matching job and preserves its first configuration and artifact bytes.
+It does not move or reprioritize existing work. Shared queues by work class are a
+reasonable starting point on both CF and VPS; no per-tenant queue, tenant field or
+DO-per-tenant topology is required. Queue names do not create Cloudflare resources
+or enforce tenant/region isolation, and deduplication is scoped to one jobs storage.
 
 ## Long-running Node.js worker
 

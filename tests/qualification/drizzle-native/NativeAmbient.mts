@@ -35,6 +35,7 @@ import * as Job from "effect-jobs/Job"
 import * as Producer from "effect-jobs/JobProducer"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Payload from "effect-jobs/JobPayload"
+import * as Policy from "effect-jobs/JobPolicy"
 
 const resource = process.env.D6_RESOURCE_DIRECTORY!
 const ownership = readQualificationResource(resource)
@@ -270,6 +271,45 @@ try {
       assert.equal(conflict.filter(Exit.isSuccess).length, 1)
       assert.equal(conflict.filter(Exit.isFailure).length, 1)
       checks.push("parallel isolated transactions and matching/conflicting dedup")
+      const priority = Queue.make("billing-priority")
+      const priorityPolicy = { ...Policy.defaultPolicy, maxFinalizedAttempts: 7 }
+      for (const mode of ["ambient", "standalone"] as const) {
+        const command = {
+          ...input(`override-${mode}`),
+          queue: priority,
+          policy: priorityPolicy
+        }
+        const first =
+          mode === "ambient"
+            ? yield* client.withTransaction(producer.enqueue(command))
+            : yield* producer.enqueueStandalone(command)
+        const before = yield* client.unsafe(
+          `SELECT j.*,p.payload,p.projection FROM ${schema}.jobs j JOIN ${schema}.job_payloads p ON p.job_id=j.id WHERE j.id=$1`,
+          [first.jobId]
+        )
+        assert.equal(before[0]!.queue, priority.name)
+        assert.deepEqual(
+          before[0]!.policy,
+          Schema.encodeSync(Policy.PersistedJobPolicy)(priorityPolicy)
+        )
+        const replay = yield* producer.enqueueStandalone({
+          ...input(`override-${mode}`),
+          queue,
+          policy: Policy.defaultPolicy
+        })
+        assert.equal(replay._tag, "AlreadyPresent")
+        assert.equal(replay.jobId, first.jobId)
+        assert.deepEqual(
+          yield* client.unsafe(
+            `SELECT j.*,p.payload,p.projection FROM ${schema}.jobs j JOIN ${schema}.job_payloads p ON p.job_id=j.id WHERE j.id=$1`,
+            [first.jobId]
+          ),
+          before
+        )
+      }
+      checks.push(
+        "per-production native ambient/standalone overrides retain first routing, stored policy and artifact on replay"
+      )
       const absent = yield* Effect.flip(producer.enqueue(input("outside")))
       assert(absent instanceof JobBackendError)
       assert.equal(absent.reason, "transaction-required")

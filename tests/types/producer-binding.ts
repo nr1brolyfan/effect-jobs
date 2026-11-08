@@ -1,6 +1,7 @@
 import { Context, Effect, Schema } from "effect"
 import * as Producer from "../../src/JobProducer.js"
 import * as Queue from "../../src/JobQueue.js"
+import * as Policy from "../../src/JobPolicy.js"
 import type { EnqueueResult } from "../../src/JobContract.js"
 import type { JobEnqueueError, JobsTransaction } from "../../src/JobTransaction.js"
 import type { JobEnqueue, JobBackendError } from "../../src/JobEnqueue.js"
@@ -68,6 +69,45 @@ export const changedQueue = producer.enqueue({
   slot: "public",
   operationId: "one",
   payload: { id: "one" },
-  // @ts-expect-error Routing is selected once by the slot declaration, not per production.
-  queue
+  queue,
+  policy: Policy.defaultPolicy
+})
+export const routedPrivate: Effect.Effect<
+  EnqueueResult,
+  JobEnqueueError | JobBackendError,
+  JobEnqueue | Keys
+> = producer.enqueueStandalone({
+  slot: "private",
+  operationId: "one",
+  payload: "private",
+  queue: Queue.make("priority"),
+  policy: Policy.defaultPolicy
+})
+export const routedExplicit = producer.enqueueInTransaction(tx, {
+  slot: "private",
+  operationId: "one",
+  payload: "private",
+  queue: Queue.make("priority"),
+  policy: Policy.defaultPolicy
+})
+export const wrongQueue = producer.enqueue({
+  slot: "public",
+  operationId: "one",
+  payload: { id: "one" },
+  // @ts-expect-error Routing accepts a declared queue, not a raw string.
+  queue: "priority"
+})
+export const partialPolicy = producer.enqueue({
+  slot: "public",
+  operationId: "one",
+  payload: { id: "one" },
+  // @ts-expect-error Override is a complete resolved policy, not a partial merge.
+  policy: { maxFinalizedAttempts: 5 }
+})
+export const changedContract = producer.enqueue({
+  slot: "public",
+  operationId: "one",
+  payload: { id: "one" },
+  // @ts-expect-error Contract identity remains bound to the slot.
+  job: { kind: "other", version: 1, payload: Schema.String }
 })

@@ -49,7 +49,7 @@ snapshot is a release candidate.
 | ------------- | ------------------------------------------------------------------------ |
 | `Job`         | Immutable, namespaced kind/version and payload Schema contract.          |
 | `JobGroup`    | Named collection of definitions and complete typed handler installation. |
-| `JobProducer` | Immutable operation/slot bindings to job, queue and default policy.      |
+| `JobProducer` | Immutable operation/slot bindings to job and default queue/policy.       |
 | `JobWorker`   | Worker construction, queue concurrency and bounded `drain`.              |
 | `JobPolling`  | Explicit scoped polling; independent of storage and migrations.          |
 | `JobStorage`  | Portable configured execution store and its single response budget.      |
@@ -68,8 +68,14 @@ execution routing, not contract identity. Group keys are local implementation
 aliases, not persisted job identities. Different versions can coexist in a group.
 
 A producer declares its operation and consequence slots once. Each slot binds a
-definition to a queue and resolved default policy. Production supplies the stable
-operation ID and decoded payload. Dynamic IDs are rejected through the typed
+definition to a default queue and resolved default policy. Production supplies the
+stable operation ID and decoded payload, with independent optional `queue` and
+`policy` overrides on all three enqueue methods. Omitted values use slot defaults;
+policy overrides are complete resolved policies, never partial merges. Overrides
+are validated in the typed channel and copied before asynchronous encoding without
+mutating/freezing caller-owned configuration. Invalid routing reports
+`InvalidJobInput.field = "catalog"`; invalid policy reports `"policy"`.
+Dynamic IDs are rejected through the typed
 enqueue error channel, not synchronous exceptions from a runtime-value builder.
 Static malformed declarations may still fail synchronously.
 
@@ -80,6 +86,12 @@ job ID, queue, policy and availability. A deployment routing change neither move
 an existing job nor creates another consequence. A changed semantic contract or
 payload is still an integrity conflict. Moving production between databases or DO
 instances does not preserve deduplication evidence automatically.
+
+There is no mandatory tenant identity, per-tenant queue or DO topology. Shared
+queues by work class are a supported application starting point; tenant authority,
+globally unambiguous operation IDs, physical placement, fairness, DO alarm ownership
+and any later tenant/shard routing remain application-owned. A logical queue name
+does not create infrastructure or provide a storage/security/region boundary.
 
 All actual migrations remain application-owned. Breaking source API changes do
 not authorize reinterpretation or destruction of retained artifacts.

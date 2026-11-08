@@ -21,7 +21,7 @@ import { observe } from "./JobTelemetry.js"
 import { insertPreparing } from "./internal/JobTransaction.js"
 import { prepareProjection } from "./internal/codec/ProtectedProjection.js"
 
-/** One consequence's job contract, destination and resolved default policy. */
+/** One consequence's job contract, default destination and resolved default policy. */
 export interface Binding {
   readonly job: JobDefinition
   readonly queue: JobQueue
@@ -30,11 +30,15 @@ export interface Binding {
 /** Nonempty named consequences; aliases are persisted producer slots. */
 export type Bindings = Readonly<Record<string, Binding>>
 
-/** Per-production data; routing and policy are fixed by the selected slot. */
+/** Per-production data; omitted routing/policy use the selected slot's defaults. */
 export interface Input<D extends Bindings, K extends keyof D & string> {
   readonly slot: K
   readonly operationId: string
   readonly payload: NoInfer<D[K]["job"]["payload"]["Type"]>
+  /** Replaces only this production's default route; never moves a matching duplicate. */
+  readonly queue?: JobQueue
+  /** Complete resolved policy replacement, not a partial merge or retained-job update. */
+  readonly policy?: JobPolicy
   readonly availableAt?: number
 }
 
@@ -80,9 +84,12 @@ const snapshotPolicy = (policy: JobPolicy): JobPolicy =>
     deadRetention: Object.freeze({ ...policy.deadRetention })
   })
 
+const QueueRoute = Schema.Struct({ name: QueueName })
+
 /**
  * Binds consequences once; runtime operation IDs are validated by enqueue in Effect.
- * Omitted slot policy resolves to defaultPolicy. Imports and construction start no work.
+ * Omitted slot policy resolves to defaultPolicy. Enqueue may override queue/policy;
+ * matching duplicates retain their first configuration. Construction starts no work.
  * @example
  * ```ts
  * import { Schema } from "effect"
@@ -159,6 +166,17 @@ export const make = <const Operation extends string, const D extends Bindings>(o
       return yield* new InvalidJobInput({ field: "availableAt" })
     }
     const binding = slots[slot]!
+    const destination = input.queue
+    const configured = input.policy
+    if (destination !== undefined && !Schema.is(QueueRoute)(destination)) {
+      return yield* new InvalidJobInput({ field: "catalog" })
+    }
+    if (configured !== undefined && !Schema.is(JobPolicy)(configured)) {
+      return yield* new InvalidJobInput({ field: "policy" })
+    }
+    // Snapshot caller-owned overrides before Schema services can suspend encoding.
+    const queueName = destination === undefined ? binding.queue.name : destination.name
+    const policy = configured === undefined ? binding.policy! : snapshotPolicy(configured)
     const producer = Object.freeze({
       operation,
       operationId,
@@ -170,12 +188,12 @@ export const make = <const Operation extends string, const D extends Bindings>(o
     )
     return Object.freeze({
       catalog: Object.freeze({
-        queue: binding.queue.name,
+        queue: queueName,
         kind: binding.job.kind,
         version: binding.job.version
       }),
       producer,
-      policy: binding.policy!,
+      policy,
       encoded,
       ...(availableAt === undefined ? {} : { availableAt })
     }) satisfies PreparedJob

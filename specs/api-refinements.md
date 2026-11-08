@@ -1,7 +1,9 @@
 # Job API refinements
 
 `Job.make` declares only kind/version/payload and defaults omitted version to
-exactly `1`. Queue routing and resolved policy belong to `JobProducer` slots;
+exactly `1`. Default queue routing and resolved policy belong to `JobProducer` slots;
+each enqueue method accepts independent optional queue and complete-policy overrides.
+Matching duplicates preserve the first stored execution configuration and artifacts;
 complete handlers are installed through `JobGroup.toLayer`. The standard artifact
 codec is fixed; domain transformations and encryption belong in Schema, with no
 per-definition encoder override or per-handler decoder parameter. Static

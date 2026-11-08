@@ -51,7 +51,103 @@ const capture = (prepared: PreparedJob[]): JobEnqueueService => ({
     )
 })
 
+const methods = ["enqueue", "enqueueStandalone", "enqueueInTransaction"] as const
+const produce = (
+  method: (typeof methods)[number],
+  input: Producer.Input<typeof receipt.slots, "receipt">,
+  prepared: PreparedJob[]
+) =>
+  method === "enqueueInTransaction"
+    ? withJoinedTransaction(
+        (value) =>
+          Effect.sync(() => {
+            prepared.push(value)
+            return EnqueueResult.Inserted({ jobId: assigned })
+          }),
+        (tx) => receipt.enqueueInTransaction(tx, input)
+      )
+    : receipt[method](input).pipe(Effect.provideService(JobEnqueue, capture(prepared)))
+
 describe("contract-first producer binding", () => {
+  it.each(methods)(
+    "%s resolves independent overrides without changing defaults",
+    async (method) => {
+      const prepared: PreparedJob[] = []
+      const priority = Queue.make("billing-priority")
+      const policy = { ...Policy.defaultPolicy, maxFinalizedAttempts: 7 }
+      const input = {
+        slot: "receipt",
+        operationId: "same",
+        payload: { invoiceId: "one" }
+      } as const
+      for (const overrides of [
+        {},
+        { queue: priority },
+        { policy },
+        { queue: priority, policy },
+        {}
+      ]) {
+        await Effect.runPromise(produce(method, { ...input, ...overrides }, prepared))
+      }
+      expect(prepared.map((value) => value.catalog.queue)).toEqual([
+        queue.name,
+        priority.name,
+        queue.name,
+        priority.name,
+        queue.name
+      ])
+      expect(prepared.map((value) => value.policy.maxFinalizedAttempts)).toEqual([
+        Policy.defaultPolicy.maxFinalizedAttempts,
+        Policy.defaultPolicy.maxFinalizedAttempts,
+        7,
+        7,
+        Policy.defaultPolicy.maxFinalizedAttempts
+      ])
+      expect(prepared.every((value) => value.producer.operationId === "same")).toBe(true)
+      expect(receipt.slots.receipt.queue).toEqual(queue)
+    }
+  )
+
+  it.each(methods)(
+    "%s rejects malformed overrides through the typed channel before insertion",
+    async (method) => {
+      for (const overrides of [
+        { queue: { ...queue, name: "Invalid/queue" as typeof queue.name } },
+        { queue: null as unknown as Queue.JobQueue },
+        { policy: { ...Policy.defaultPolicy, maxFinalizedAttempts: 0 } },
+        {
+          policy: {
+            ...Policy.defaultPolicy,
+            attemptTimeoutMillis: Policy.defaultPolicy.leaseDurationMillis
+          }
+        },
+        { policy: null as unknown as Policy.JobPolicy }
+      ]) {
+        const prepared: PreparedJob[] = []
+        const result = await Effect.runPromise(
+          produce(
+            method,
+            {
+              slot: "receipt",
+              operationId: "same",
+              payload: { invoiceId: "one" },
+              ...overrides
+            },
+            prepared
+          ).pipe(Effect.result)
+        )
+        expect(result).toMatchObject({
+          _tag: "Failure",
+          failure: {
+            _tag: "InvalidJobInput",
+            field: "queue" in overrides ? "catalog" : "policy"
+          }
+        })
+        expect(prepared).toHaveLength(0)
+      }
+    }
+  )
+
   it("binds slots to one queue-independent contract and executes through the public group worker", async () => {
     const other = Queue.make("billing-slow")
     const producer = Producer.make({
@@ -207,6 +303,25 @@ describe("contract-first producer binding", () => {
       operationId: "one",
       payload: { recipient: "private", total: 1n }
     } as const
+    for (const overrides of [
+      { queue: { ...queue, name: "Invalid/queue" as typeof queue.name } },
+      { policy: { ...Policy.defaultPolicy, maxFinalizedAttempts: 0 } }
+    ]) {
+      const result = await Effect.runPromise(
+        producer
+          .enqueue({ ...input, ...overrides })
+          .pipe(
+            Effect.provideService(JobEnqueue, capture([])),
+            Effect.provide(keysLayer(keys())),
+            Effect.result
+          )
+      )
+      expect(result).toMatchObject({
+        _tag: "Failure",
+        failure: { _tag: "InvalidJobInput" }
+      })
+      expect(seals).toBe(0)
+    }
     const missing: JobEnqueueService = {
       enqueue: () =>
         Effect.fail(
@@ -251,7 +366,7 @@ describe("contract-first producer binding", () => {
     })
     expect(seals).toBe(0)
   })
-  it("snapshots the validated identity and availability before asynchronous encoding", async () => {
+  it("snapshots identity, availability and caller-owned overrides before asynchronous encoding", async () => {
     const prepared: PreparedJob[] = []
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -272,16 +387,27 @@ describe("contract-first producer binding", () => {
           operation: "billing.snapshot-input",
           slots: { receipt: { job: { ...job, payload }, queue } }
         })
+        const destination = { ...Queue.make("billing-priority") }
+        const configured = {
+          ...Policy.defaultPolicy,
+          maxFinalizedAttempts: 7,
+          retrySchedule: { ...Policy.defaultPolicy.retrySchedule }
+        }
         const input = {
           slot: "receipt" as const,
           operationId: "original",
           payload: { recipient: "private", total: 1n },
-          availableAt: 1
+          availableAt: 1,
+          queue: destination,
+          policy: configured
         }
         const fiber = yield* producer.enqueue(input).pipe(Effect.forkChild)
         yield* Deferred.await(entered)
         input.operationId = "changed\u0000"
         input.availableAt = 2
+        destination.name = "changed" as typeof destination.name
+        configured.maxFinalizedAttempts = 8
+        configured.retrySchedule.delayMillis = 123
         yield* Deferred.succeed(proceed, undefined)
         yield* Fiber.join(fiber)
         expect(prepared[0]!.producer).toEqual({
@@ -290,6 +416,15 @@ describe("contract-first producer binding", () => {
           slot: "receipt"
         })
         expect(prepared[0]!.availableAt).toBe(1)
+        expect(prepared[0]!.catalog.queue).toBe("billing-priority")
+        expect(prepared[0]!.policy.maxFinalizedAttempts).toBe(7)
+        expect(prepared[0]!.policy.retrySchedule).toEqual(
+          Policy.defaultPolicy.retrySchedule
+        )
+        expect(Object.isFrozen(prepared[0]!.policy)).toBe(true)
+        expect(Object.isFrozen(prepared[0]!.policy.retrySchedule)).toBe(true)
+        expect(Object.isFrozen(configured)).toBe(false)
+        expect(Object.isFrozen(configured.retrySchedule)).toBe(false)
       }).pipe(
         Effect.provideService(JobEnqueue, capture(prepared)),
         Effect.provide(keysLayer(keys()))

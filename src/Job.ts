@@ -9,7 +9,7 @@ export class InvalidJobDefinition extends Data.TaggedError("InvalidJobDefinition
 }> {}
 
 /** Schema preserves decoded/encoded types and both service requirements.
- * Routing and policy belong to producer slots, not this contract.
+ * Routing and policy are selected during production, not by this contract.
  * @category models
  */
 export interface JobDefinition<

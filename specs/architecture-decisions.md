@@ -154,6 +154,15 @@ const produce = IssueInvoiceProducer.enqueue({
 })
 ```
 
+The owner subsequently accepted independent optional `queue` and `policy`
+overrides on `enqueue`, `enqueueStandalone` and `enqueueInTransaction`. The slot
+keeps the job contract and default queue/policy; a policy override is complete,
+not a partial merge. Overrides do not change producer identity or move matching
+duplicates: D3's first-write-wins execution configuration remains authoritative.
+No mandatory tenant field, per-tenant queue or DO topology is introduced. Shared
+queues by work class are an application default; tenant access and unique operation
+IDs, physical routing and deployment resource sharing remain application-owned.
+
 The factory is immutable configuration, not a service or running producer.
 `operation` retains its literal type; `slot` is inferred as the union of declared
 literals. `operationId` is a bounded opaque string; application-branded strings

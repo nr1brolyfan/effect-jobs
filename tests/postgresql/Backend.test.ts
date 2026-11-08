@@ -1041,6 +1041,83 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     ).toBe(6)
   })
 
+  test.each(["enqueue", "enqueueStandalone", "enqueueInTransaction"] as const)(
+    "%s persists overrides and matching replays retain the first route, policy and artifact",
+    async (method) => {
+      await clear()
+      const priority = Queue.make("billing-priority")
+      const configured = { ...policy, maxFinalizedAttempts: 7 }
+      const produce = (
+        command: Producer.Input<typeof producer.slots, "generate">
+      ): Effect.Effect<
+        EnqueueResult,
+        JobEnqueueError | JobBackendError | PostgreSqlError
+      > =>
+        method === "enqueueStandalone"
+          ? producer
+              .enqueueStandalone(command)
+              .pipe(Effect.provideService(JobEnqueue, backend.producer))
+          : method === "enqueue"
+            ? backend.withTransaction(() => producer.enqueue(command))
+            : backend.withTransaction((tx) => producer.enqueueInTransaction(tx, command))
+      const first = await Effect.runPromise(
+        produce({
+          ...input("overrides", "same", 1),
+          queue: priority,
+          policy: configured
+        })
+      )
+      const before = await row("overrides")
+      expect(before.queue).toBe(priority.name)
+      expect(before.policy).toEqual(
+        Schema.encodeSync(Policy.PersistedJobPolicy)(configured)
+      )
+      const artifacts = await observer.query(
+        "SELECT * FROM backend_fixture.task_artifacts WHERE job_id=$1",
+        [first.jobId]
+      )
+      // Both omitted overrides and a valid but admission-incompatible replacement
+      // retain the first configuration instead of moving or revalidating old work.
+      for (const command of [
+        input("overrides", "same", 2),
+        {
+          ...input("overrides", "same", 3),
+          queue,
+          policy: {
+            ...policy,
+            leaseDurationMillis: policy.attemptTimeoutMillis + 1
+          }
+        }
+      ]) {
+        expect(await Effect.runPromise(produce(command))).toMatchObject({
+          _tag: "AlreadyPresent",
+          jobId: first.jobId
+        })
+        expect(await row("overrides")).toEqual(before)
+        expect(
+          (
+            await observer.query(
+              "SELECT * FROM backend_fixture.task_artifacts WHERE job_id=$1",
+              [first.jobId]
+            )
+          ).rows
+        ).toEqual(artifacts.rows)
+      }
+      expect(await Effect.runPromise(backend.store.claim(request()))).toMatchObject({
+        _tag: "Empty"
+      })
+      expect(
+        await Effect.runPromise(
+          backend.store.claim({
+            queue: priority.name,
+            supportedCatalog: [{ ...catalog, queue: priority.name }],
+            leaseToken: randomUUID()
+          })
+        )
+      ).toMatchObject({ _tag: "Claimed" })
+    }
+  )
+
   test("duplicate returns ID, preserves first payload/policy/availability; conflict aborts parent even when caught", async () => {
     await clear()
     const first = await enqueue("duplicate", "same", policy, 1)
@@ -1075,19 +1152,15 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       )
     ).toMatchObject({ _tag: "AlreadyPresent", jobId: first.jobId })
     expect(await row("duplicate")).toEqual(before)
-    const rerouted = Producer.make({
-      operation: producer.operation,
-      slots: {
-        generate: { job: definition, queue: Queue.make("billing-slow"), policy: changed }
-      }
-    })
     const movedRetry = await Effect.runPromise(
       backend.withTransaction(() =>
-        rerouted.enqueue({
+        producer.enqueue({
           slot: "generate",
           operationId: "duplicate",
           payload: { invoiceId: "same" },
-          availableAt: 3
+          availableAt: 3,
+          queue: Queue.make("billing-slow"),
+          policy: changed
         })
       )
     )
@@ -1139,20 +1212,17 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
   })
   test("concurrent producer routing changes converge without changing the winner's route", async () => {
     await clear()
-    const routes = ["billing", "billing-slow"].map((name) =>
-      Producer.make({
-        operation: producer.operation,
-        slots: { generate: { job: definition, queue: Queue.make(name), policy } }
-      })
-    )
+    const routes = [queue, Queue.make("billing-slow")]
     const results = await Promise.all(
       routes.map((route) =>
         Effect.runPromise(
           backend.withTransaction(() =>
-            route.enqueue({
+            producer.enqueue({
               slot: "generate",
               operationId: "routing-race",
-              payload: { invoiceId: "same" }
+              payload: { invoiceId: "same" },
+              queue: route,
+              policy: { ...policy, maxFinalizedAttempts: route === queue ? 3 : 7 }
             })
           )
         )
@@ -1162,15 +1232,17 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     expect(results.filter((result) => result._tag === "Inserted")).toHaveLength(1)
     const winner = results.findIndex((result) => result._tag === "Inserted")
     const before = await row("routing-race")
-    expect(before.queue).toBe(routes[winner]!.slots.generate.queue.name)
+    expect(before.queue).toBe(routes[winner]!.name)
+    expect(before.policy.maxAttempts).toBe(winner === 0 ? 3 : 7)
     for (const route of routes) {
       expect(
         await Effect.runPromise(
           backend.withTransaction(() =>
-            route.enqueue({
+            producer.enqueue({
               slot: "generate",
               operationId: "routing-race",
-              payload: { invoiceId: "same" }
+              payload: { invoiceId: "same" },
+              queue: route
             })
           )
         )

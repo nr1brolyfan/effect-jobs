@@ -150,6 +150,19 @@ assert.deepEqual(prepared[0]!.encoded.semanticProjectionBytes, prepared[1]!.enco
 assert.deepEqual(prepared[0]!.encoded.semanticProjectionBytes, prepared[2]!.encoded.semanticProjectionBytes)
 assert(!new TextDecoder().decode(prepared[0]!.encoded.payloadBytes).includes("PRIVATE"))
 assert.deepEqual(await Effect.runPromise(decodeJobPayload(definition.payload, prepared[0]!.encoded).pipe(Effect.provide(keysLayer(keys("two"))))), input.payload)
+const priority = Queue.make("billing-priority")
+const overridePolicy = { ...Policy.defaultPolicy, maxFinalizedAttempts: 7 }
+await Effect.runPromise(producer.enqueue({ ...input, queue: priority, policy: overridePolicy }).pipe(Effect.provideService(JobEnqueue, backend), Effect.provide(keysLayer(keys()))))
+assert.equal(prepared[3]!.catalog.queue, priority.name)
+assert.equal(prepared[3]!.policy.maxFinalizedAttempts, 7)
+assert.equal(prepared[3]!.producer.slot, input.slot)
+assert.equal(producer.slots.receipt.queue.name, queue.name)
+for (const invalid of [{ queue: { name: "INVALID/queue" } }, { policy: { ...overridePolicy, maxFinalizedAttempts: 0 } }]) {
+  const result = await Effect.runPromiseExit(producer.enqueue({ ...input, ...invalid } as Producer.Input<typeof producer.slots, "receipt">).pipe(Effect.provideService(JobEnqueue, backend), Effect.provide(keysLayer(keys()))))
+  assert(Exit.isFailure(result))
+  assert.equal(result.cause.reasons[0]!._tag, "Fail")
+}
+assert.equal(prepared.length, 4)
 let calls = 0
 const group = Group.make("installed-receipts", { receipt: definition })
 const handler = group.toLayer({ receipt: (input) => Effect.sync(() => { assert.equal(input.payload.document.total, 12n); calls++ }) }).pipe(Layer.provide(keysLayer(keys())))
