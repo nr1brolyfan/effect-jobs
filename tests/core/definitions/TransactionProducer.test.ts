@@ -16,15 +16,15 @@ import type {
 } from "../../../src/PostgreSqlTransaction.js"
 import type { PreparedJob } from "../../../src/JobContract.js"
 
-const producer = Producer.make({
-  operation: "billing.issue",
-  slots: {
-    receipt: {
-      job: { kind: "billing.receipt", version: 1, payload: Schema.String },
+const producer = Producer.make("billing.issue").pipe(
+  Producer.withSlot(
+    "receipt",
+    { kind: "billing.receipt", version: 1, payload: Schema.String },
+    {
       queue: Queue.make("billing")
     }
-  }
-})
+  )
+)
 
 const fixture = (native: boolean) => {
   const handle = {}

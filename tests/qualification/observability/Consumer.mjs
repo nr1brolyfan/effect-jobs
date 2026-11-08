@@ -62,10 +62,9 @@ const job = Job.make({
   payload: Schema.Struct({ value: Schema.String })
 })
 const policy = Policy.defaultPolicy
-const production = Producer.make({
-  operation: "synthetic",
-  slots: { run: { job, queue, policy } }
-})
+const production = Producer.make("synthetic").pipe(
+  Producer.withSlot("run", job, { queue, policy })
+)
 const group = Group.make("synthetic", { synthetic: job })
 const controlCanary = "SYNTHETIC_NATIVE_CONTROL_CANARY"
 const transactionService = Context.Service("synthetic/transaction")

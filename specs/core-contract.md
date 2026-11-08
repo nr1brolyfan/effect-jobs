@@ -91,12 +91,23 @@ Schema validation at the consumer boundary; do not export raw Schema diagnostics
 containing sensitive inputs as enqueue errors.
 
 `validateProducerDeclaration({ operation: string, slots: ReadonlyArray<string> }):
-void` validates names, nonempty slots and uniqueness synchronously. It throws
+void` validates names and uniqueness synchronously; an empty slot list is valid
+during assembly. It throws
 `JobDeclarationError` containing `field` (`operation`, `slots`, or `slots[index]`),
 the invalid declaration `value` where applicable, and actionable `expected` text.
-`JobProducer.make({ operation, slots })` calls this helper on the slot-record keys
-before returning its immutable declaration. Each slot binds `{ job, queue, policy? }`
-as its contract and default execution configuration; omitted policy resolves to the library default. Operation and slot literals and
+`JobProducer.make(operation)` validates the operation and returns an empty,
+immutable pipeable declaration. Add each consequence with
+`producer.pipe(JobProducer.withSlot(slot, job, { queue, policy? }))`. Each addition
+returns a new producer without mutating the original. Slot names and bindings are
+validated synchronously on application, including the pure supported-Schema check.
+Known duplicate slot names are rejected statically; every duplicate is rejected
+at runtime with `JobDeclarationError`, never silently overwritten. No `build`,
+`replaceSlot`, mutable builder or old record-constructor overload is exposed.
+An empty producer has no statically legal enqueue slot, and runtime invalid slots
+still fail through `InvalidJobInput` after transaction authority is checked.
+Each addition copies and freezes its binding without freezing caller-owned
+configuration; previously installed bindings are reused unchanged. Omitted policy
+resolves to the library default. Operation and slot literals and
 each Schema's payload/encoding services remain inferred. Production accepts
 `{ slot, operationId, payload, availableAt?, queue?, policy? }` on ambient,
 standalone and explicit-handle enqueue. Each override independently replaces its

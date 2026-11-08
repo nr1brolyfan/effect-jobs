@@ -49,14 +49,12 @@ it.skipIf(!directory)(
       const job = Job.make({ kind: "supported", payload: Schema.String })
       const unsupported = Job.make({ kind: "unsupported", payload: Schema.String })
       const catalog = { queue: queue.name, kind: job.kind, version: job.version }
-      const producer = Producer.make({
-        operation: "observability",
-        slots: { run: { job, queue } }
-      })
-      const unsupportedProducer = Producer.make({
-        operation: "observability",
-        slots: { run: { job: unsupported, queue } }
-      })
+      const producer = Producer.make("observability").pipe(
+        Producer.withSlot("run", job, { queue })
+      )
+      const unsupportedProducer = Producer.make("observability").pipe(
+        Producer.withSlot("run", unsupported, { queue })
+      )
       const adapter = Adapter.make(App.source(pool))
       await Effect.runPromise(
         Effect.gen(function* () {

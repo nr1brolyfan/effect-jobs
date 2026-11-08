@@ -65,10 +65,10 @@ describe("pure Job contracts", () => {
     const job = Job.make({ kind: "invoice.generate", payload })
     const a = Queue.make("billing-a")
     const b = Queue.make("billing-b")
-    const producer = Producer.make({
-      operation: "billing.issue",
-      slots: { a: { job, queue: a }, b: { job, queue: b } }
-    })
+    const producer = Producer.make("billing.issue").pipe(
+      Producer.withSlot("a", job, { queue: a }),
+      Producer.withSlot("b", job, { queue: b })
+    )
     const prepared: PreparedJob[] = []
     const group = Group.make("pure-contract", { generate: job })
     const seen: string[] = []

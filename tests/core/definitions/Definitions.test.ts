@@ -43,10 +43,10 @@ const job = Job.make({
   payload: Schema.Struct({ amount: Schema.Finite }),
   encodePayload: encode
 })
-const producer = JobProducer.make({
-  operation: "billing.issue",
-  slots: { pdf: { job, queue }, email: { job, queue } }
-})
+const producer = JobProducer.make("billing.issue").pipe(
+  JobProducer.withSlot("pdf", job, { queue }),
+  JobProducer.withSlot("email", job, { queue })
+)
 const identity = { operation: producer.operation, operationId: "operation", slot: "pdf" }
 const input = { producer: identity, payload: { amount: 1.5 }, policy }
 const context: HandlerContext = {
@@ -63,10 +63,11 @@ describe("immutable declarations", () => {
       pdf: { job, queue: JobQueue.make<string>("billing") },
       email: { job, queue }
     }
-    const options = { operation: "billing.issue", slots }
-    const declaration = JobProducer.make(options)
+    const declaration = JobProducer.make("billing.issue").pipe(
+      JobProducer.withSlot("pdf", slots.pdf.job, { queue: slots.pdf.queue }),
+      JobProducer.withSlot("email", slots.email.job, { queue: slots.email.queue })
+    )
     slots.pdf = { job, queue: JobQueue.make("sms") }
-    options.operation = "changed"
     expect(declaration.operation).toBe("billing.issue")
     expect(Object.keys(declaration.slots)).toEqual(["pdf", "email"])
     expect(declaration.slots.pdf.queue.name).toBe("billing")
@@ -77,13 +78,17 @@ describe("immutable declarations", () => {
 
   it.each([
     { operation: "Bad", slots: { pdf: { job, queue } } },
-    { operation: "ok", slots: {} },
     { operation: "ok", slots: { "pdf!": { job, queue } } },
     { operation: "ok", slots: { Bad: { job, queue } } }
   ])("validates declarations synchronously: %j", (options) => {
-    expect(() => JobProducer.make<string, JobProducer.Bindings>(options)).toThrow(
-      JobDeclarationError
-    )
+    expect(() => {
+      const initial = JobProducer.make(options.operation)
+      for (const entry of Object.entries(options.slots)) {
+        initial.pipe(
+          JobProducer.withSlot(entry[0], entry[1].job, { queue: entry[1].queue })
+        )
+      }
+    }).toThrow(JobDeclarationError)
   })
 
   it.each(["", "secret\u0000value", "\ud800", "x".repeat(257)])(

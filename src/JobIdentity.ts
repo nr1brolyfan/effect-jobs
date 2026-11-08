@@ -169,8 +169,8 @@ export class JobDeclarationError extends Data.TaggedError("JobDeclarationError")
 }> {}
 
 /**
- * Validates operation and nonempty unique slots synchronously; throws
- * JobDeclarationError. Called by JobProducer.make before returning configuration.
+ * Validates operation and unique slots synchronously; throws JobDeclarationError.
+ * Empty slots are valid during immutable producer assembly.
  *
  * @category operations
  */
@@ -184,12 +184,6 @@ export const validateProducerDeclaration = (input: {
       field: "operation",
       value: input.operation,
       expected
-    })
-  }
-  if (input.slots.length === 0) {
-    throw new JobDeclarationError({
-      field: "slots",
-      expected: "at least one unique slot"
     })
   }
   const seen = new Set<string>()

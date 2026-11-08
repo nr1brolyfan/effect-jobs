@@ -67,10 +67,9 @@ export const probe = (url, schema, alarm, checks = []) =>
         payload,
         ...(availableAt === undefined ? {} : { availableAt })
       })
-      const producer = Producer.make({
-        operation: "cf.real",
-        slots: { one: { job: definition, queue, policy } }
-      })
+      const producer = Producer.make("cf.real").pipe(
+        Producer.withSlot("one", definition, { queue, policy })
+      )
       const catalog = {
         queue: queue.name,
         kind: definition.kind,

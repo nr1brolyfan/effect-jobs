@@ -37,10 +37,9 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     payload: Schema.String
   })
   const policy = Policy.defaultPolicy
-  const producer = Producer.make({
-    operation: "fixture",
-    slots: { job: { job: definition, queue, policy } }
-  })
+  const producer = Producer.make("fixture").pipe(
+    Producer.withSlot("job", definition, { queue, policy })
+  )
   const input = (operationId: string, availableAt?: number) => ({
     operationId,
     slot: "job" as const,

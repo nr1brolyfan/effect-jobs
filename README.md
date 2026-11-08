@@ -15,10 +15,9 @@ const SendReceipt = Job.make({
   payload: Schema.Struct({ invoiceId: Schema.String })
 })
 
-const IssueInvoice = JobProducer.make({
-  operation: "billing.issue-invoice",
-  slots: { receipt: { job: SendReceipt, queue: BillingQueue } }
-})
+const IssueInvoice = JobProducer.make("billing.issue-invoice").pipe(
+  JobProducer.withSlot("receipt", SendReceipt, { queue: BillingQueue })
+)
 
 // App setup: its Layer supplies a qualified PostgreSqlApplication adapter.
 const jobsStorage = yield* PostgreSqlJobs.make({
@@ -91,10 +90,9 @@ export const SendReceipt = Job.make({
 
 export const BillingJobs = JobGroup.make("billing", { receipt: SendReceipt })
 
-export const IssueInvoice = JobProducer.make({
-  operation: "billing.issue-invoice",
-  slots: { receipt: { job: SendReceipt, queue: BillingQueue } }
-})
+export const IssueInvoice = JobProducer.make("billing.issue-invoice").pipe(
+  JobProducer.withSlot("receipt", SendReceipt, { queue: BillingQueue })
+)
 ```
 
 ```ts
@@ -136,13 +134,10 @@ invoice can send a receipt and generate a PDF without their enqueue identities
 colliding:
 
 ```ts
-const IssueInvoiceWithPdf = JobProducer.make({
-  operation: "billing.issue-invoice-with-pdf",
-  slots: {
-    "send-receipt": { job: SendReceipt, queue: BillingQueue },
-    "generate-pdf": { job: GeneratePdf, queue: BillingQueue }
-  }
-})
+const IssueInvoiceWithPdf = JobProducer.make("billing.issue-invoice-with-pdf").pipe(
+  JobProducer.withSlot("send-receipt", SendReceipt, { queue: BillingQueue }),
+  JobProducer.withSlot("generate-pdf", GeneratePdf, { queue: BillingQueue })
+)
 
 // Inside the application's transaction; GeneratePdf is another job definition.
 const PriorityBillingQueue = JobQueue.make("billing-priority")
@@ -167,6 +162,11 @@ Retrying with the same operation ID and slots returns the existing matching jobs
 Declared slots are checked by TypeScript. A slot names the consequence, not the
 job kind: two slots can enqueue the same job kind. Slots do not impose execution
 order or dependencies between jobs.
+
+`make(operation)` starts an immutable pipeable declaration; each `withSlot` adds
+one consequence and returns a new producer. There is no `build()` step or slot
+replacement. Duplicate slot names are rejected, not overwritten. An empty
+declaration has no statically legal enqueue slot. Assembly starts no background work.
 
 Slots bind contracts and **default** execution configuration, not mandatory routes.
 All three enqueue methods accept optional `queue` and `policy` overrides. Each is
@@ -417,10 +417,9 @@ const receiptPolicy = yield* JobPolicy.make({
   deadRetention: Duration.infinity // Retain failures for investigation.
 })
 
-const ScheduledInvoice = JobProducer.make({
-  operation: IssueInvoice.operation,
-  slots: { receipt: { job: SendReceipt, queue: BillingQueue, policy: receiptPolicy } }
-})
+const ScheduledInvoice = JobProducer.make(IssueInvoice.operation).pipe(
+  JobProducer.withSlot("receipt", SendReceipt, { queue: BillingQueue, policy: receiptPolicy })
+)
 yield* ScheduledInvoice.enqueue({
   operationId, slot: "receipt",
   payload: { invoiceId },
@@ -471,10 +470,9 @@ const SendPrivateReceipt = Job.make({
   })
 })
 
-const PrivateReceiptProducer = JobProducer.make({
-  operation: "billing.private-receipt",
-  slots: { receipt: { job: SendPrivateReceipt, queue: BillingQueue, policy: receiptPolicy } }
-})
+const PrivateReceiptProducer = JobProducer.make("billing.private-receipt").pipe(
+  JobProducer.withSlot("receipt", SendPrivateReceipt, { queue: BillingQueue, policy: receiptPolicy })
+)
 
 const receipt = yield* Schema.decodeUnknownEffect(ReceiptDocument)({
   recipient: "alex@example.com",
@@ -538,13 +536,10 @@ const GeneratePdf = Job.make({
   payload: Schema.Struct({ invoiceId: Schema.String })
 })
 
-const CloudInvoiceProducer = JobProducer.make({
-  operation: "billing.cloudflare.issue-invoice",
-  slots: {
-    "send-receipt": { job: SendReceipt, queue: BillingQueue },
-    "generate-pdf": { job: GeneratePdf, queue: BillingQueue }
-  }
-})
+const CloudInvoiceProducer = JobProducer.make("billing.cloudflare.issue-invoice").pipe(
+  JobProducer.withSlot("send-receipt", SendReceipt, { queue: BillingQueue }),
+  JobProducer.withSlot("generate-pdf", GeneratePdf, { queue: BillingQueue })
+)
 
 // Consumer composition: application mailer/PDF services own external effects.
 const CloudJobs = JobGroup.make("cloud-billing", { receipt: SendReceipt, pdf: GeneratePdf })

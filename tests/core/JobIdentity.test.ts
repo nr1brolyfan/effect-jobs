@@ -87,10 +87,10 @@ describe("identity boundaries", () => {
       }
     }
   )
-  it("rejects empty and duplicate slots at the declaration boundary", () => {
-    expect(() => validateProducerDeclaration({ operation: "ok", slots: [] })).toThrow(
-      JobDeclarationError
-    )
+  it("accepts empty assembly but rejects duplicate slots at the declaration boundary", () => {
+    expect(() =>
+      validateProducerDeclaration({ operation: "ok", slots: [] })
+    ).not.toThrow()
     expect(() =>
       validateProducerDeclaration({ operation: "ok", slots: ["ok", "ok"] })
     ).toThrow(JobDeclarationError)

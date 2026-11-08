@@ -16,15 +16,11 @@ import * as Definitions from "../scenarios/Definitions.js"
 import * as Tables from "../persistence/authority/Schema.js"
 import { maxRetainedJobs } from "./Traffic.js"
 
-const producer = Producer.make({
-  operation: "playground.synthetic-showcase",
-  slots: {
-    "encrypted-document": {
-      job: Definitions.SyntheticDocumentExport,
-      queue: Definitions.Producer.slots["private-data-export"].queue
-    }
-  }
-})
+const producer = Producer.make("playground.synthetic-showcase").pipe(
+  Producer.withSlot("encrypted-document", Definitions.SyntheticDocumentExport, {
+    queue: Definitions.Producer.slots["private-data-export"].queue
+  })
+)
 // Trusted maintenance only. No route accepts this capability or caller-selected flags.
 // All state/attempt changes belong to producer + real worker + repair reconciliation.
 export const run = (schema: string, sandbox: SandboxView) =>

@@ -65,10 +65,9 @@ const policy = Effect.runSync(
   })
 )
 const makeProducer = (configured = policy) =>
-  Producer.make({
-    operation: "billing.issue",
-    slots: { generate: { job: definition, queue, policy: configured } }
-  })
+  Producer.make("billing.issue").pipe(
+    Producer.withSlot("generate", definition, { queue, policy: configured })
+  )
 const producer = makeProducer()
 const input = (id: string, value = id, availableAt?: number) => ({
   operationId: id,
@@ -312,20 +311,17 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     await enqueue("schedule-terminal", "terminal", policy, now - 500)
     await finish(await claim())
     await enqueue("schedule-future", "future", policy, now + 60000)
-    const unsupported = Producer.make({
-      operation: "billing.schedule-v2",
-      slots: {
-        generate: {
-          job: Job.make({
-            kind: definition.kind,
-            version: 2,
-            payload: definition.payload
-          }),
-          queue,
-          policy
-        }
-      }
-    })
+    const unsupported = Producer.make("billing.schedule-v2").pipe(
+      Producer.withSlot(
+        "generate",
+        Job.make({
+          kind: definition.kind,
+          version: 2,
+          payload: definition.payload
+        }),
+        { queue, policy }
+      )
+    )
     await Effect.runPromise(
       backend.withTransaction(() =>
         unsupported.enqueue({
@@ -337,10 +333,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       )
     )
     const otherQueue = Queue.make("schedule-other")
-    const other = Producer.make({
-      operation: "billing.schedule-other",
-      slots: { generate: { job: definition, queue: otherQueue, policy } }
-    })
+    const other = Producer.make("billing.schedule-other").pipe(
+      Producer.withSlot("generate", definition, { queue: otherQueue, policy })
+    )
     await Effect.runPromise(
       backend.withTransaction(() =>
         other.enqueue({
@@ -575,10 +570,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
   test("recovery locks and changes only expired rows in the requested queue", async () => {
     await clear()
     const otherQueue = Queue.make("billing-other")
-    const other = Producer.make({
-      operation: producer.operation,
-      slots: { generate: { job: definition, queue: otherQueue, policy } }
-    })
+    const other = Producer.make(producer.operation).pipe(
+      Producer.withSlot("generate", definition, { queue: otherQueue, policy })
+    )
     const first = await Effect.runPromise(
       backend.withTransaction(() => producer.enqueue(input("recover-billing")))
     )
@@ -767,10 +761,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         )
       })
     })
-    const protectedProducer = Producer.make({
-      operation: producer.operation,
-      slots: { generate: { job: protectedDefinition, queue, policy } }
-    })
+    const protectedProducer = Producer.make(producer.operation).pipe(
+      Producer.withSlot("generate", protectedDefinition, { queue, policy })
+    )
     const produce = (envelope: string, fingerprint: string) =>
       Effect.runPromise(
         backend.withTransaction((tx) =>
@@ -961,12 +954,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     const overflowPolicy = await Effect.runPromise(
       Policy.make({ leaseDuration: Duration.millis(Policy.maximumMillis) })
     )
-    const overflow = Producer.make({
-      operation: "admission.fixture",
-      slots: {
-        generate: { job: definition, queue, policy: overflowPolicy }
-      }
-    })
+    const overflow = Producer.make("admission.fixture").pipe(
+      Producer.withSlot("generate", definition, { queue, policy: overflowPolicy })
+    )
     expect(
       await Effect.runPromise(
         backend
@@ -989,12 +979,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
           )
         })
       )
-      const route = Producer.make({
-        operation: "admission.fixture",
-        slots: {
-          generate: { job: definition, queue, policy: configured }
-        }
-      })
+      const route = Producer.make("admission.fixture").pipe(
+        Producer.withSlot("generate", definition, { queue, policy: configured })
+      )
       for (const mode of ["ambient", "explicit", "standalone"] as const) {
         const operationId = `admission-${mode}-${reserve}`
         const input = {
@@ -1130,16 +1117,12 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     const again = await enqueue("duplicate", "same", changed, 2)
     expect(again).toMatchObject({ _tag: "AlreadyPresent", jobId: first.jobId })
     expect(await row("duplicate")).toEqual(before)
-    const incompatible = Producer.make({
-      operation: producer.operation,
-      slots: {
-        generate: {
-          job: definition,
-          queue: Queue.make("billing-new-route"),
-          policy: { ...changed, leaseDurationMillis: changed.attemptTimeoutMillis + 1 }
-        }
-      }
-    })
+    const incompatible = Producer.make(producer.operation).pipe(
+      Producer.withSlot("generate", definition, {
+        queue: Queue.make("billing-new-route"),
+        policy: { ...changed, leaseDurationMillis: changed.attemptTimeoutMillis + 1 }
+      })
+    )
     expect(
       await Effect.runPromise(
         backend.withTransaction(() =>

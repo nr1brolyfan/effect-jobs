@@ -31,10 +31,9 @@ const definition = Job.make({
   version: 1,
   payload: Schema.Struct({ invoiceId: Schema.String })
 })
-const producer = Producer.make({
-  operation: "billing.issue",
-  slots: { generate: { job: definition, queue: Queue.make("billing") } }
-})
+const producer = Producer.make("billing.issue").pipe(
+  Producer.withSlot("generate", definition, { queue: Queue.make("billing") })
+)
 class CallerValue extends Context.Service<CallerValue, { readonly value: number }>()(
   "d6/CallerValue"
 ) {}
@@ -330,20 +329,16 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
         [prior.id]
       )
     ).rows[0].payload
-    const changed = Producer.make({
-      operation: producer.operation,
-      slots: {
-        generate: {
-          job: definition,
-          queue: Queue.make("billing"),
-          policy: Effect.runSync(
-            Policy.make({
-              retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxFinalizedAttempts(7))
-            })
-          )
-        }
-      }
-    })
+    const changed = Producer.make(producer.operation).pipe(
+      Producer.withSlot("generate", definition, {
+        queue: Queue.make("billing"),
+        policy: Effect.runSync(
+          Policy.make({
+            retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxFinalizedAttempts(7))
+          })
+        )
+      })
+    )
     const result = await Effect.runPromise(
       integration.withTransaction((tx) =>
         changed.enqueueInTransaction(tx, input("commit"))

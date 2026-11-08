@@ -139,13 +139,10 @@ all callers. The contract-first redesign refines the accepted API direction to
 bind each slot to its job, route and default policy:
 
 ```ts
-export const IssueInvoiceProducer = JobProducer.make({
-  operation: "billing.issue-invoice",
-  slots: {
-    "generate-pdf": { job: GenerateInvoicePdf, queue: BillingQueue },
-    "send-email": { job: SendInvoiceEmail, queue: BillingQueue }
-  }
-})
+export const IssueInvoiceProducer = JobProducer.make("billing.issue-invoice").pipe(
+  JobProducer.withSlot("generate-pdf", GenerateInvoicePdf, { queue: BillingQueue }),
+  JobProducer.withSlot("send-email", SendInvoiceEmail, { queue: BillingQueue })
+)
 
 const produce = IssueInvoiceProducer.enqueue({
   operationId,
@@ -186,9 +183,14 @@ The owner subsequently accepted these identifier boundaries and diagnostics:
   rules do not claim that runtime validation has already been implemented.
 
 Use slot-bound enqueue with `operationId` and decoded payload; runtime IDs are
-validated in the Effect error channel. Fluent `forOperation(...).slot(...)` is
-not required for the initial implementation. Do not introduce a mutable
-builder or global registry to detect semantically similar names. Where multiple
+validated in the Effect error channel. The owner accepted immutable pipeable
+assembly: `JobProducer.make(operation).pipe(JobProducer.withSlot(name, job, options), ...)`.
+There is no finalization/build step or slot-replacement API. Empty declarations
+are permitted but have no statically legal enqueue slot. Each addition returns a
+new producer, snapshots its new binding and preserves earlier bindings. Known
+duplicate names fail statically; every duplicate fails synchronously at runtime.
+The former record constructor is removed, not retained as an overload. Do not
+introduce a mutable builder or global registry to detect semantically similar names. Where multiple
 callers share the same production logic, use an ordinary application-domain
 function to bind producer slot, job definition, and input construction. Such
 wrappers are not mandatory for every enqueue.

@@ -16,7 +16,6 @@ export const ScenarioJob = Job.make({
   version: 1,
   payload: ScenarioPayload
 })
-export const ScenarioProducer = JobProducer.make({
-  operation: "playground.scenario",
-  slots: { execute: { job: ScenarioJob, queue } }
-})
+export const ScenarioProducer = JobProducer.make("playground.scenario").pipe(
+  JobProducer.withSlot("execute", ScenarioJob, { queue })
+)

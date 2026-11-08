@@ -110,17 +110,26 @@ export const SyntheticDocumentExport = Job.make({
   payload: SyntheticExportPayload
 })
 export const makeProducer = (policy: JobPolicy = defaultPolicy) =>
-  JobProducer.make({
-    operation: "playground.synthetic",
-    slots: {
-      "welcome-email": { job: WelcomeEmail, queue: communications, policy },
-      "image-processing": { job: ImageProcessing, queue: media, policy },
-      "webhook-delivery": { job: WebhookDelivery, queue: communications, policy },
-      "private-data-export": { job: SyntheticDocumentExport, queue: privateData, policy },
-      "catalog-sync": { job: CatalogSync, queue: commerce, policy },
-      "simulated-payment": { job: SimulatedPayment, queue: commerce, policy }
-    }
-  })
+  JobProducer.make("playground.synthetic").pipe(
+    JobProducer.withSlot("welcome-email", WelcomeEmail, {
+      queue: communications,
+      policy
+    }),
+    JobProducer.withSlot("image-processing", ImageProcessing, { queue: media, policy }),
+    JobProducer.withSlot("webhook-delivery", WebhookDelivery, {
+      queue: communications,
+      policy
+    }),
+    JobProducer.withSlot("private-data-export", SyntheticDocumentExport, {
+      queue: privateData,
+      policy
+    }),
+    JobProducer.withSlot("catalog-sync", CatalogSync, { queue: commerce, policy }),
+    JobProducer.withSlot("simulated-payment", SimulatedPayment, {
+      queue: commerce,
+      policy
+    })
+  )
 export const Producer = makeProducer()
 
 export const definitions = [

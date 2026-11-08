@@ -29,10 +29,9 @@ const job = {
   payload: Schema.Struct({ invoiceId: Schema.String })
 }
 const assigned = Schema.decodeSync(JobId)("assigned-by-storage")
-const receipt = Producer.make({
-  operation: "billing.issue",
-  slots: { receipt: { job, queue } }
-})
+const receipt = Producer.make("billing.issue").pipe(
+  Producer.withSlot("receipt", job, { queue })
+)
 
 const capture = (prepared: PreparedJob[]): JobEnqueueService => ({
   enqueue: (prepare) =>
@@ -150,13 +149,10 @@ describe("contract-first producer binding", () => {
 
   it("binds slots to one queue-independent contract and executes through the public group worker", async () => {
     const other = Queue.make("billing-slow")
-    const producer = Producer.make({
-      operation: "billing.issue",
-      slots: {
-        receipt: { job, queue },
-        deferred: { job, queue: other }
-      }
-    })
+    const producer = Producer.make("billing.issue").pipe(
+      Producer.withSlot("receipt", job, { queue }),
+      Producer.withSlot("deferred", job, { queue: other })
+    )
     const group = Group.make("billing-producer", { receipt: job })
     const prepared: PreparedJob[] = []
     const seen: string[] = []
@@ -245,10 +241,9 @@ describe("contract-first producer binding", () => {
     }
     const contract = { ...job }
     const destination = { ...queue }
-    const producer = Producer.make({
-      operation: "billing.snapshot",
-      slots: { receipt: { job: contract, queue: destination, policy: configured } }
-    })
+    const producer = Producer.make("billing.snapshot").pipe(
+      Producer.withSlot("receipt", contract, { queue: destination, policy: configured })
+    )
     contract.kind = "changed"
     destination.name = "changed" as typeof queue.name
     configured.maxFinalizedAttempts++
@@ -274,10 +269,9 @@ describe("contract-first producer binding", () => {
   it("diagnoses unsupported Schema structures before any production effect", () => {
     const recursive = Schema.suspend((): Schema.String => Schema.String)
     expect(() =>
-      Producer.make({
-        operation: "billing.invalid",
-        slots: { receipt: { job: { ...job, payload: recursive }, queue } }
-      })
+      Producer.make("billing.invalid").pipe(
+        Producer.withSlot("receipt", { ...job, payload: recursive }, { queue })
+      )
     ).toThrow(Producer.InvalidProducerBinding)
   })
 
@@ -294,10 +288,9 @@ describe("contract-first producer binding", () => {
           })
       }
     })
-    const producer = Producer.make({
-      operation: "billing.private",
-      slots: { receipt: { job: { ...job, payload }, queue } }
-    })
+    const producer = Producer.make("billing.private").pipe(
+      Producer.withSlot("receipt", { ...job, payload }, { queue })
+    )
     const input = {
       slot: "receipt",
       operationId: "one",
@@ -383,10 +376,9 @@ describe("contract-first producer binding", () => {
               )
           }
         })
-        const producer = Producer.make({
-          operation: "billing.snapshot-input",
-          slots: { receipt: { job: { ...job, payload }, queue } }
-        })
+        const producer = Producer.make("billing.snapshot-input").pipe(
+          Producer.withSlot("receipt", { ...job, payload }, { queue })
+        )
         const destination = { ...Queue.make("billing-priority") }
         const configured = {
           ...Policy.defaultPolicy,

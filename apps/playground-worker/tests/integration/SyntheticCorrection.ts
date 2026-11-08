@@ -38,15 +38,11 @@ export const seed = (
               order: "demo-order-a",
               document: { subject: "demo-customer", tenant: "demo-tenant-a", note }
             }
-            const producer = Producer.make({
-              operation: "playground.correction-qualification",
-              slots: {
-                document: {
-                  job: Definitions.SyntheticDocumentExport,
-                  queue: Definitions.Producer.slots["private-data-export"].queue
-                }
-              }
-            })
+            const producer = Producer.make("playground.correction-qualification").pipe(
+              Producer.withSlot("document", Definitions.SyntheticDocumentExport, {
+                queue: Definitions.Producer.slots["private-data-export"].queue
+              })
+            )
             const result = yield* producer
               .enqueue({
                 operationId: crypto.randomUUID(),

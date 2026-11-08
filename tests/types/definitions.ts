@@ -33,13 +33,12 @@ export const queue = JobQueue.make("billing")
 export const job = Job.make({ kind: "invoice.generate", version: 1, payload: schema })
 export const contractLiteral: { readonly kind: "invoice.generate"; readonly version: 1 } =
   job
-export const producer = JobProducer.make({
-  operation: "billing.issue",
-  slots: {
-    pdf: { job, queue },
-    email: { job: Job.make({ kind: "invoice.email", payload: schema }), queue }
-  }
-})
+export const producer = JobProducer.make("billing.issue").pipe(
+  JobProducer.withSlot("pdf", job, { queue }),
+  JobProducer.withSlot("email", Job.make({ kind: "invoice.email", payload: schema }), {
+    queue
+  })
+)
 export const input = {
   operationId: appId,
   slot: "pdf" as const,

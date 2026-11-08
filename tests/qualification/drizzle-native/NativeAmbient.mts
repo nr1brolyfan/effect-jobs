@@ -69,10 +69,9 @@ const definition = Job.make({
   payload: Schema.Struct({ invoiceId: Schema.String })
 })
 const catalog = { queue: queue.name, kind: definition.kind, version: definition.version }
-const producer = Producer.make({
-  operation: "billing.issue",
-  slots: { receipt: { job: definition, queue } }
-})
+const producer = Producer.make("billing.issue").pipe(
+  Producer.withSlot("receipt", definition, { queue })
+)
 const input = (id: string, value = id) => ({
   operationId: id,
   slot: "receipt" as const,
@@ -400,10 +399,9 @@ try {
           })
         )
       })
-      const lost = Producer.make({
-        operation: producer.operation,
-        slots: { receipt: { job: lostContract, queue } }
-      })
+      const lost = Producer.make(producer.operation).pipe(
+        Producer.withSlot("receipt", lostContract, { queue })
+      )
       const unknown = yield* Effect.flip(lost.enqueueStandalone(input("lost-commit")))
       assert(unknown instanceof JobBackendError)
       assert.equal(unknown.commitKnowledge, "Unknown")
@@ -470,10 +468,9 @@ try {
           }
         })
       })
-      const protectedProducer = Producer.make({
-        operation: producer.operation,
-        slots: { receipt: { job: protectedJob, queue } }
-      })
+      const protectedProducer = Producer.make(producer.operation).pipe(
+        Producer.withSlot("receipt", protectedJob, { queue })
+      )
       const protectedInput = (payload: string) => ({ ...input("encrypted"), payload })
       const first = yield* protectedProducer.enqueueStandalone(protectedInput("same"))
       keyId = "current"

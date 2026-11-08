@@ -62,10 +62,9 @@ const definition = Job.make({
   version: 1,
   payload: Schema.Struct({ invoiceId: Schema.String })
 })
-const producer = Producer.make({
-  operation: "billing.native",
-  slots: { generate: { job: definition, queue: Queue.make("billing") } }
-})
+const producer = Producer.make("billing.native").pipe(
+  Producer.withSlot("generate", definition, { queue: Queue.make("billing") })
+)
 const input = (id: string, value = id) => ({
   operationId: id,
   slot: "generate" as const,

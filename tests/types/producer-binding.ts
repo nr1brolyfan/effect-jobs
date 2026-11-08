@@ -8,31 +8,90 @@ import type { JobEnqueue, JobBackendError } from "../../src/JobEnqueue.js"
 
 class Keys extends Context.Service<Keys, {}>()("types/producer/Keys") {}
 class Database extends Context.Service<Database, {}>()("types/producer/Database") {}
+
+const empty = Producer.make("billing.empty")
+export const emptyEnqueue = empty.enqueue({
+  // @ts-expect-error An empty producer has no legal slot.
+  slot: "anything",
+  operationId: "one",
+  // @ts-expect-error An empty producer has no payload contract.
+  payload: "value"
+})
+export const emptyStandalone = empty.enqueueStandalone({
+  // @ts-expect-error Empty standalone cannot enqueue any slot either.
+  slot: "anything",
+  operationId: "one",
+  // @ts-expect-error An empty producer has no payload contract.
+  payload: "value"
+})
+// @ts-expect-error The record constructor is removed, not retained as an overload.
+Producer.make({ operation: "old", slots: {} })
+// @ts-expect-error Slot replacement is intentionally not part of assembly.
+export const removedReplacement = Producer.replaceSlot
 declare const privatePayload: Schema.Codec<string, string, never, Keys>
 declare const tx: JobsTransaction<"database-error", Database>
 const queue = Queue.make("billing")
-const producer = Producer.make({
-  operation: "billing.issue",
-  slots: {
-    public: {
-      job: {
-        kind: "billing.public",
-        version: 1,
-        payload: Schema.Struct({ id: Schema.String })
-      },
-      queue
+const producer = Producer.make("billing.issue").pipe(
+  Producer.withSlot(
+    "public",
+    {
+      kind: "billing.public",
+      version: 1,
+      payload: Schema.Struct({ id: Schema.String })
     },
-    private: {
-      job: { kind: "billing.private", version: 1, payload: privatePayload },
-      queue
-    }
-  }
-})
+    { queue }
+  ),
+  Producer.withSlot(
+    "private",
+    { kind: "billing.private", version: 1, payload: privatePayload },
+    { queue }
+  )
+)
 export const ordinary: Effect.Effect<
   EnqueueResult,
   JobEnqueueError | JobBackendError,
   JobEnqueue
 > = producer.enqueue({ slot: "public", operationId: "one", payload: { id: "one" } })
+
+export const operationLiteral: "billing.issue" = producer.operation
+export const publicKind: "billing.public" = producer.slots.public.job.kind
+export const queueLiteral: "billing" = producer.slots.public.queue.name
+export const resolvedDefault: Policy.JobPolicy = producer.slots.public.policy
+producer.pipe(
+  // @ts-expect-error Known duplicate slot names are rejected during assembly.
+  Producer.withSlot("public", producer.slots.public.job, { queue })
+)
+// @ts-expect-error withSlot requires a default queue.
+Producer.withSlot("missing", producer.slots.public.job, {})
+Producer.withSlot("bad-policy", producer.slots.public.job, {
+  queue,
+  // @ts-expect-error A slot policy is resolved, not a partial patch.
+  policy: { maxFinalizedAttempts: 4 }
+})
+export const withAnother = producer.pipe(
+  Producer.withSlot(
+    "number",
+    { kind: "billing.number", version: 1, payload: Schema.Finite },
+    { queue }
+  )
+)
+export const numberEnqueue = withAnother.enqueue({
+  slot: "number",
+  operationId: "one",
+  payload: 1
+})
+export const wrongNumber = withAnother.enqueue({
+  slot: "number",
+  operationId: "one",
+  // @ts-expect-error Later slots retain their own payload type.
+  payload: "not a number"
+})
+export const wrongEarlier = withAnother.enqueue({
+  slot: "public",
+  operationId: "one",
+  // @ts-expect-error Earlier payload types are not widened by adding another slot.
+  payload: 1
+})
 export const encrypted = producer.enqueue({
   slot: "private",
   operationId: "one",

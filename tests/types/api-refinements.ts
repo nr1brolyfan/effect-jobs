@@ -46,10 +46,9 @@ void unsound
 // @ts-expect-error Default policy cannot be mutated through public types.
 Policy.defaultPolicy.retrySchedule.delayMillis = 9
 const job = Job.make({ ...base, payload: EncryptedDocument })
-const producer = Producer.make({
-  operation: "billing.issue",
-  slots: { receipt: { job, queue: Queue.make("billing") } }
-})
+const producer = Producer.make("billing.issue").pipe(
+  Producer.withSlot("receipt", job, { queue: Queue.make("billing") })
+)
 const input = {
   operationId: "id",
   slot: "receipt" as const,

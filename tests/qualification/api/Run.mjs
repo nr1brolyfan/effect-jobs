@@ -50,7 +50,9 @@ writeFileSync(join(work, "Types.mts"), types)
 for (const [source, target] of [
   ["schedule", "ScheduleTypes"],
   ["worker", "WorkerTypes"],
-  ["group-worker", "GroupWorkerTypes"]
+  ["group-worker", "GroupWorkerTypes"],
+  ["producer-binding", "ProducerTypes"],
+  ["definitions", "DefinitionTypes"]
 ]) {
   writeFileSync(
     join(work, target + ".mts"),
@@ -135,7 +137,14 @@ for (const removed of [{ retryDelay: Duration.seconds(5) }, { maxAttempts: 3 }])
 }
 const queue = Queue.make("billing")
 const definition = Job.make({ kind: "receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: EncryptedDocument }) })
-const producer = Producer.make({ operation: "billing.issue", slots: { receipt: { job: definition, queue } } })
+const producer = Producer.make("billing.issue").pipe(Producer.withSlot("receipt", definition, { queue }))
+assert.equal(Object.keys(Producer.make("empty.operation").slots).length, 0)
+assert.equal(producer.operation, "billing.issue")
+assert.throws(() => Producer.make({ operation: "removed", slots: {} } as never), { _tag: "JobDeclarationError" })
+const dynamicSlot: string = "receipt"
+assert.throws(() => producer.pipe(Producer.withSlot(dynamicSlot, definition, { queue })), { _tag: "JobDeclarationError" })
+assert.equal("replaceSlot" in Producer, false)
+assert.equal("build" in producer, false)
 const catalog = { queue: queue.name, kind: definition.kind, version: definition.version }
 assert.equal(definition.version, 1)
 const input = { operationId: "id", slot: "receipt" as const,
@@ -233,7 +242,9 @@ writeFileSync(
         "Repairs.mts",
         "WorkerTypes.mts",
         "GroupWorkerTypes.mts",
-        "ScheduleTypes.mts"
+        "ScheduleTypes.mts",
+        "ProducerTypes.mts",
+        "DefinitionTypes.mts"
       ]
     },
     null,

@@ -1,7 +1,13 @@
 # Job API refinements
 
 `Job.make` declares only kind/version/payload and defaults omitted version to
-exactly `1`. Default queue routing and resolved policy belong to `JobProducer` slots;
+exactly `1`. Producers use pure immutable pipeable assembly:
+`JobProducer.make(operation).pipe(JobProducer.withSlot(slot, job, { queue, policy? }), ...)`.
+The empty declaration is valid but has no legal typed enqueue slot. Each addition
+validates and snapshots only its new binding, preserves earlier bindings, and
+rejects duplicate names statically when known and synchronously at runtime.
+There is no record-constructor overload, `build()` or `replaceSlot`.
+Default queue routing and resolved policy belong to `JobProducer` slots;
 each enqueue method accepts independent optional queue and complete-policy overrides.
 Matching duplicates preserve the first stored execution configuration and artifacts;
 complete handlers are installed through `JobGroup.toLayer`. The standard artifact

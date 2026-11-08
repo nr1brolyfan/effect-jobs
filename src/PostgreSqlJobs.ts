@@ -187,9 +187,9 @@ export interface Backend {
    *   definition: JobDefinition<S>, queue: JobQueue,
    *   operationId: string, payload: S["Type"]
    * ) => {
-   *   const producer = Producer.make({ operation: "invoice.issue", slots: {
-   *     generate: { job: definition, queue }
-   *   } })
+   *   const producer = Producer.make("invoice.issue").pipe(
+   *     Producer.withSlot("generate", definition, { queue })
+   *   )
    *   return backend.joinTransaction(handle, (tx) => producer.enqueueInTransaction(tx, {
    *     slot: "generate", operationId, payload
    *   }))

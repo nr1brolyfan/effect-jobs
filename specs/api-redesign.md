@@ -77,7 +77,15 @@ mutating/freezing caller-owned configuration. Invalid routing reports
 `InvalidJobInput.field = "catalog"`; invalid policy reports `"policy"`.
 Dynamic IDs are rejected through the typed
 enqueue error channel, not synchronous exceptions from a runtime-value builder.
-Static malformed declarations may still fail synchronously.
+Static malformed declarations fail synchronously during immutable assembly.
+`JobProducer.make(operation)` starts with no slots; successive
+`Producer.withSlot(name, job, { queue, policy? })` stages in `.pipe(...)` return
+new declarations, retaining operation literals, per-slot payload and encoding
+service inference. Each stage validates/snapshots its new binding and preserves
+earlier bindings. Known duplicate names fail statically and every duplicate fails
+synchronously at runtime, never replacing a slot. Empty declarations have no
+legal typed enqueue slot. There is no `build`, replacement combinator or former
+record-constructor overload. No constructor starts backend work or codec services.
 
 Deduplication remains scoped to one configured storage and keyed by
 `(operation, operationId, slot)`. Duplicate semantic comparison includes kind,
