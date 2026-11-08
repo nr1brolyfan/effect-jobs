@@ -31,7 +31,9 @@ const definition = Job.make({
   payload: Schema.String
 })
 const group = Group.make("cloudflare-probe", { synthetic: definition })
-const producer = Producer.make({ operation: "cloudflare.probe", slots: { synthetic: { job: definition, queue } } })
+const producer = Producer.make("cloudflare.probe").pipe(
+  Producer.withSlot("synthetic", definition, { queue })
+)
 
 const nativeProbe = Effect.scoped(
   Effect.gen(function* () {
