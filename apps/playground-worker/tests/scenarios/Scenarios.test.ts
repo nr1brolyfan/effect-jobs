@@ -49,6 +49,20 @@ const initial = (availableAt = 1000): Lifecycle.JobSnapshot => ({
 })
 
 describe("deterministic application planning", () => {
+  it("shares the named private-data queue with production and routing inventory", () => {
+    expect(Definitions.PrivateDataQueue.name).toBe("playground-private")
+    expect(Definitions.Producer.slots["private-data-export"].queue).toEqual(
+      Definitions.PrivateDataQueue
+    )
+    for (const job of [
+      Definitions.PrivateDataExport,
+      Definitions.SyntheticDocumentExport
+    ]) {
+      expect(Definitions.routes.find((route) => route.job === job)?.queue).toBe(
+        Definitions.PrivateDataQueue
+      )
+    }
+  })
   it.each([
     ["success", "success"],
     ["deduplication", "success"],

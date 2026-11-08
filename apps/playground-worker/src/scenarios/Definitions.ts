@@ -80,7 +80,7 @@ export const SyntheticExportPayload = Schema.Struct({
 const communications = JobQueue.make("playground-communications")
 const media = JobQueue.make("playground-media")
 const commerce = JobQueue.make("playground-commerce")
-const privateData = JobQueue.make("playground-private")
+export const PrivateDataQueue = JobQueue.make("playground-private")
 export const WelcomeEmail = Job.make({
   kind: "playground.welcome-email",
   payload: Payload
@@ -121,7 +121,7 @@ export const makeProducer = (policy: JobPolicy = defaultPolicy) =>
       policy
     }),
     JobProducer.withSlot("private-data-export", SyntheticDocumentExport, {
-      queue: privateData,
+      queue: PrivateDataQueue,
       policy
     }),
     JobProducer.withSlot("catalog-sync", CatalogSync, { queue: commerce, policy }),
@@ -147,10 +147,10 @@ export const routes = [
   { job: WelcomeEmail, queue: communications },
   { job: ImageProcessing, queue: media },
   { job: WebhookDelivery, queue: communications },
-  { job: PrivateDataExport, queue: privateData },
+  { job: PrivateDataExport, queue: PrivateDataQueue },
   { job: CatalogSync, queue: commerce },
   { job: SimulatedPayment, queue: commerce },
-  { job: SyntheticDocumentExport, queue: privateData }
+  { job: SyntheticDocumentExport, queue: PrivateDataQueue }
 ] as const
 
 /** Fixture/read metadata from the application's explicit routing inventory. */

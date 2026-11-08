@@ -40,7 +40,7 @@ export const seed = (
             }
             const producer = Producer.make("playground.correction-qualification").pipe(
               Producer.withSlot("document", Definitions.SyntheticDocumentExport, {
-                queue: Definitions.Producer.slots["private-data-export"].queue
+                queue: Definitions.PrivateDataQueue
               })
             )
             const result = yield* producer

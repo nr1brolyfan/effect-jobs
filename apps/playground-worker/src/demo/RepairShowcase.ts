@@ -18,7 +18,7 @@ import { maxRetainedJobs } from "./Traffic.js"
 
 const producer = Producer.make("playground.synthetic-showcase").pipe(
   Producer.withSlot("encrypted-document", Definitions.SyntheticDocumentExport, {
-    queue: Definitions.Producer.slots["private-data-export"].queue
+    queue: Definitions.PrivateDataQueue
   })
 )
 // Trusted maintenance only. No route accepts this capability or caller-selected flags.
