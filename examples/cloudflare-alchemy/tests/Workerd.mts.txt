@@ -15,6 +15,36 @@ export class Probe extends DurableObject {
   constructor(state, env) {
     super(state, env)
     const self = this
+    // Observe the real native transaction boundary; all operations still delegate to workerd.
+    self.transactions = []
+    self.activeTransaction = null
+    self.overlap = false
+    const sql = new Proxy(state.storage.sql, { get(target, key) {
+      if (key === "exec") return (query, ...bindings) => {
+        if (self.overlap && (query.includes("SELECT * FROM alchemy_alarm_callbacks WHERE") || query.includes("INSERT INTO alchemy_alarm_callbacks"))) {
+          self.transactions.push({ transaction: self.activeTransaction, operation: query.startsWith("SELECT") ? "read" : "write" })
+        }
+        return target.exec(query, ...bindings)
+      }
+      const value = Reflect.get(target, key, target)
+      return typeof value === "function" ? value.bind(target) : value
+    } })
+    let sequence = 0
+    const storage = new Proxy(state.storage, { get(target, key) {
+      if (key === "sql") return sql
+      if (key === "transaction") return (body) => target.transaction(async (txn) => {
+        const id = ++sequence
+        self.activeTransaction = id
+        try { return await body(txn) } finally { self.activeTransaction = null }
+      })
+      const value = Reflect.get(target, key, target)
+      return typeof value === "function" ? value.bind(target) : value
+    } })
+    state = new Proxy(state, { get(target, key) {
+      if (key === "storage") return storage
+      const value = Reflect.get(target, key, target)
+      return typeof value === "function" ? value.bind(target) : value
+    } })
     self.state = state
     self.env = env
     self.mode = "idle"
@@ -25,7 +55,11 @@ export class Probe extends DurableObject {
     self.runtime = {
       Type: "test/real-Alchemy-callbacks", id: "probe", env: {},
       get: () => Effect.undefined, set: () => Effect.die("unused"),
-      makeCallback: makeDurableObjectCallbackFactory(state)
+      makeCallback: (name, handler, options) => makeDurableObjectCallbackFactory(state)(name, handler, options).pipe(Effect.map((callback) => ({
+        ...callback,
+        // Force a sibling to attempt entry between the actual status read and update.
+        getStatus: (id) => callback.getStatus(id).pipe(Effect.tap(() => self.overlap ? Effect.yieldNow : Effect.void))
+      })))
     }
     const seal = initializeAlarmCallbacks(state)
     self.ready = self.run(makeWake(Effect.gen(function* () {
@@ -61,6 +95,26 @@ export class Probe extends DurableObject {
     const wake = await self.ready
     const url = new URL(request.url)
     const action = url.pathname.slice(1)
+    if (action === "traffic") {
+      self.now += 500
+      await self.run(dispatchAlarmCallbacks(self.state, false))
+      await self.run(wake.prearm)
+      await self.run(wake.nudge)
+    }
+    if (action === "race") {
+      self.overlap = true
+      self.transactions = []
+      const kind = url.searchParams.get("kind")
+      const effects = kind === "prearm-nudge" ? [wake.prearm, wake.nudge] : kind === "nudge-prearm" ? [wake.nudge, wake.prearm] : [wake.nudge, wake.nudge]
+      await self.run(Effect.forEach(effects, (effect, index) => Effect.gen(function* () {
+        const real = yield* Clock.Clock
+        const offset = kind === "nudges" ? index * 500 : kind === "nudges-reverse" ? (1 - index) * 500 : 0
+        const now = self.now + offset
+        const clock = { sleep: (duration) => real.sleep(duration), monotonicTimeNanos: real.monotonicTimeNanos, monotonicTimeNanosUnsafe: () => real.monotonicTimeNanosUnsafe(), currentTimeMillisUnsafe: () => now, currentTimeMillis: Effect.succeed(now), currentTimeNanosUnsafe: () => BigInt(now) * 1000000n, currentTimeNanos: Effect.succeed(BigInt(now) * 1000000n) }
+        return yield* effect.pipe(Effect.provideService(Clock.Clock, clock))
+      }), { concurrency: "unbounded" }))
+      self.overlap = false
+    }
     if (action === "prearm") await self.run(wake.prearm)
     if (action === "nudge") await self.run(wake.nudge)
     if (action === "native") { self.native = true; self.now = Date.now(); await self.run(wake.nudge) }
@@ -85,7 +139,7 @@ export class Probe extends DurableObject {
     }
     const rows = self.state.storage.sql.exec("SELECT name FROM sqlite_master WHERE name = 'alchemy_alarm_callbacks'").toArray().length
       ? self.state.storage.sql.exec("SELECT id, version, attempts, parked, scheduled_at, retry_at FROM alchemy_alarm_callbacks").toArray() : []
-    return Response.json({ calls: self.calls, closed: self.closed, rows, alarm: await self.state.storage.getAlarm() })
+    return Response.json({ calls: self.calls, closed: self.closed, rows, transactions: self.transactions, alarm: await self.state.storage.getAlarm() })
   }
 }
 

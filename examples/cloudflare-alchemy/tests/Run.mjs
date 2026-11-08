@@ -99,6 +99,66 @@ try {
   receipts.push(
     "real Alchemy SQLite schedule/replacement/ack/error/interruption/bounded metadata/parking/recovery PASS"
   )
+  // Sustained admitted/replayed completions keep dispatching; no quiet interval.
+  const base = Date.parse("2050-01-01T00:00:00Z")
+  await call("prearm?owner=traffic")
+  await call("nudge?owner=traffic")
+  let traffic
+  for (let index = 1; index <= 240; index++) {
+    traffic = (await call("traffic?owner=traffic")).body
+    assert.equal(traffic.rows.length, 1)
+    assert.equal(traffic.closed, traffic.calls)
+    assert(
+      traffic.alarm <= base + index * 500 + 1000,
+      "traffic cannot postpone an earlier effective wake"
+    )
+    assert.equal(
+      traffic.calls,
+      Math.floor(index / 2),
+      "callback executes DURING uninterrupted traffic"
+    )
+  }
+  receipts.push(
+    `sustained 240 nudges / 120 seconds: ${traffic.calls} callbacks during traffic PASS`
+  )
+  for (const kind of ["prearm-nudge", "nudge-prearm", "nudges", "nudges-reverse"]) {
+    const owner = "race-" + kind
+    const raced = (await call(`race?owner=${owner}&kind=${kind}`)).body
+    assert.equal(raced.alarm, base + 1000, kind)
+    assert.equal(raced.rows.length, 1)
+    const groups = Map.groupBy(raced.transactions, (event) => event.transaction)
+    assert(
+      !groups.has(null),
+      "every real callback SQL read/write belongs to a native transaction"
+    )
+    assert.equal(
+      groups.size,
+      2,
+      "two whole check/update operations, not separate read/write transactions"
+    )
+    for (const events of groups.values()) {
+      assert.equal(events[0].operation, "read")
+      if (events.some((event) => event.operation === "write")) {
+        assert(
+          events.filter((event) => event.operation === "read").length >= 2,
+          "status + schedule read share native transaction"
+        )
+      }
+    }
+    const replay = (await call(`nudge?owner=${owner}`)).body
+    assert.equal(replay.alarm, raced.alarm)
+    assert.equal(
+      replay.rows[0].version,
+      raced.rows[0].version,
+      "replay does not replace an earlier wake"
+    )
+    const repeated = (await call(`race?owner=${owner}&kind=${kind}`)).body
+    assert.equal(repeated.alarm, raced.alarm)
+    assert.equal(repeated.rows[0].version, raced.rows[0].version)
+  }
+  receipts.push(
+    "overlapping prearm/nudge and nudges: real native atomic check/update + earliest deadline + replay PASS"
+  )
   await call("native?owner=native")
   let native
   for (let index = 0; index < 100; index++) {

@@ -2,7 +2,7 @@
 
 This is an application-owned read-only SQL adapter for the frozen playground
 contracts, not a library admin API. `JobStoreService` only exposes worker claim,
-release/finalization/reconciliation/recovery; `PostgreSqlJobs.Backend` adds
+release/finalization/reconciliation/recovery; `PostgreSqlJobs.Service` adds
 producer, readiness and cleanup. None supplies a sandbox list/detail read model.
 There are no lifecycle writes, payload table reads or automatic decryption here.
 

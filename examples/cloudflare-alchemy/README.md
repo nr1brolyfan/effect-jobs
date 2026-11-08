@@ -70,7 +70,15 @@ second coordinator or detached fibers implement the job lifecycle.
 
 Before accepting production, traffic explicitly calls `prearm()` on the named
 DO. If scheduling fails, production is not accepted. Only after PostgreSQL commit
-does a best-effort nudge shorten the latency. PostgreSQL and DO scheduling are
+does a best-effort nudge shorten the latency. External prearm/nudge checks and
+updates share one native DO storage transaction; nested Alchemy status/schedule
+calls join that transaction, including native alarm reconciliation. A per-instance
+semaphore also serializes sibling fibers across the complete operation. Prearm
+only creates absent work. Nudge replaces work only when its requested deadline
+precedes the existing effective deadline (`max(scheduledAt, retryAt)`). Replays
+retain the earlier deadline/version, so sustained traffic needs no quiet interval
+for delivery. The callback's final hint schedule also retains any earlier wake.
+PostgreSQL and DO scheduling are
 not one transaction. A lost nudge leaves the durable repair wake. The first
 traffic path bootstraps a dormant instance; declaring a DO alone activates nothing.
 For pre-existing jobs or replacement namespaces, explicitly invoke the authorized
@@ -99,12 +107,17 @@ The pinned Alchemy source replaces each callback row with a fresh version.
 Acknowledgement deletes only `(callback, id, deliveredVersion)`, preserving a
 same-ID replacement. `Wake.ts` uses one constant ID, so pending metadata remains
 bounded at one row. Tests verify the real implementation, including native
-workerd alarm delivery, failure, interruption and acknowledgement.
+workerd alarm delivery, failure, interruption and acknowledgement. Controlled
+sibling races yield after the real status read, trace SQL reads/writes to their
+native transaction and check both prearm/nudge orders and nudges with different
+request clocks. A 240-request run delivers callbacks during sustained 500ms traffic,
+without stopping nudges to make progress.
 
 Self-scheduling inherits Alchemy's attempt budget; changing ID/deadline is not
 progress. After eight attempts it parks but retains hourly recovery. This example
 deliberately accepts that bounded hourly latency after parking, including idle
-periods. External traffic nudges start a fresh budget. It does not fabricate a
+periods. An external nudge that advances the effective wake starts a fresh budget;
+a replay preserving an earlier wake leaves its budget unchanged. It does not fabricate a
 progress cursor from wake counts to bypass backoff. The callback retry policy is
 one-second initial exponential backoff, eight attempts and one-hour parked
 recovery. Under interruption, native Cloudflare alarm retries are an additional
