@@ -283,7 +283,7 @@ try {
           mode === "ambient"
             ? yield* client.withTransaction(producer.enqueue(command))
             : yield* producer.enqueueStandalone(command)
-        const before = yield* client.unsafe(
+        const before = yield* client.unsafe<{ queue: string; policy: unknown }>(
           `SELECT j.*,p.payload,p.projection FROM ${schema}.jobs j JOIN ${schema}.job_payloads p ON p.job_id=j.id WHERE j.id=$1`,
           [first.jobId]
         )
