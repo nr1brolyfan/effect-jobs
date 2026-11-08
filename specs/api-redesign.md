@@ -1,17 +1,17 @@
 # Contract-first API redesign
 
-## Accepted review correction: typed backend configuration errors
+## Accepted review correction: typed persistence configuration errors
 
 The single integrated review (UPVE-2744) and findings-only triage (UPVE-2745)
 accepted R1/P2: invalid response budgets could reach the synchronous operator
 guard before effectful storage validation, turning the promised configuration
-failure into a defect. Backend assembly now validates through `JobStorage.make`
+failure into a defect. Persistence assembly now validates through `JobStorage.make`
 before constructing operators, preserving `PostgreSqlConfigurationError` in the
 typed channel without broad defect conversion or duplicate validation.
 Regressions cover `make` and `layerNoDeps` for zero, negative, fractional, NaN and
 infinite budgets, actual `catchTags` recovery, zero adapter construction/execution
 on invalid input and a valid-budget control. Source reproduction and 120 focused
-backend/storage/operator/transaction tests passed. Final build/packed and affected
+persistence/storage/operator/transaction tests passed. Final build/packed and affected
 qualification receipts must bind the corrected bytes; no second review is planned.
 
 ## Integrated qualification correction: portable group declarations
@@ -38,7 +38,7 @@ the resulting API. This authorization does not permit database resets, dropping
 owner data, cross-project edits, publication, deployment, push or merge.
 
 This document records the target and implementation acceptance criteria. It does
-not claim that the APIs below already exist or that any backend is qualified.
+not claim that the APIs below already exist or that any persistence is qualified.
 Existing implementation and qualification documents describe the baseline until
 their affected sections are updated with the implementation. No partly migrated
 snapshot is a release candidate.
@@ -56,7 +56,7 @@ snapshot is a release candidate.
 | `JobSchedule` | Read-only, bounded next-wakeup observations.                             |
 
 Names are selected for the target API rather than retained for compatibility.
-Backend-specific entrypoints continue to be separate from portable contracts.
+Persistence-specific entrypoints continue to be separate from portable contracts.
 `JobRegistry`, `JobConsumer`, `JobPlan` and `JobWorkerRuntime` are not required
 public concepts in the target. Internal helpers may remain when they have a real
 responsibility; removal of public ceremony does not require rewriting the engine.
@@ -85,7 +85,7 @@ service inference. Each stage validates/snapshots its new binding and preserves
 earlier bindings. Known duplicate names fail statically and every duplicate fails
 synchronously at runtime, never replacing a slot. Empty declarations have no
 legal typed enqueue slot. There is no `build`, replacement combinator or former
-record-constructor overload. No constructor starts backend work or codec services.
+record-constructor overload. No constructor starts persistence work or codec services.
 
 Deduplication remains scoped to one configured storage and keyed by
 `(operation, operationId, slot)`. Duplicate semantic comparison includes kind,
@@ -177,7 +177,7 @@ Retain physical `attempts_made` and JSON `maxAttempts` through the storage codec
 Preserve counter arithmetic and recovery semantics;
 do not add or change a delivery budget merely as a naming cleanup.
 
-## Transactions and backend guarantees
+## Transactions and persistence guarantees
 
 Joined enqueue requires the exact application's active storage transaction, never
 an implicit second connection or independently committed consequence. A callback
@@ -188,7 +188,7 @@ exit, before payload preparation. Standalone production remains explicit and
 rejects active parent transactions.
 
 Integrity conflicts must prevent committing partial business consequences even
-when the typed conflict is caught. Backend qualification must establish a real
+when the typed conflict is caught. Persistence qualification must establish a real
 rollback-only mechanism or equivalent transaction-owner enforcement. PostgreSQL's
 deliberate SQL error is not a portable SQLite implementation. Unknown commits
 remain unknown; absence of a receipt never authorizes replay.
@@ -204,7 +204,7 @@ SQLite and DO SQLite require separate transaction and runtime qualification.
 DO `transactionSync` cannot run arbitrary asynchronous Schema services; the async
 storage transaction route or a separately prepared synchronous write route must
 be tested. A job in DO SQLite cannot atomically accompany business writes in a
-different PostgreSQL/D1 database. No new backend support claim follows from this
+different PostgreSQL/D1 database. No new persistence support claim follows from this
 redesign alone.
 
 ## Delivery checks
@@ -222,7 +222,13 @@ redesign alone.
 - Actual local verification and installed-artifact checks for the final snapshot.
 - Independent review required by the repository workflow before integration.
 
-## Preparation record
+## Historical preparation and implementation records
+
+The records below preserve their original snapshot names, commands and outcomes.
+Current configured instances use `jobs`, `PostgreSqlJobs.Service` and
+`JobPersistenceError`; no superseded compatibility aliases are retained.
+
+### Preparation record
 
 Implementation worktree: `jobs-api-redesign`, created from the assessment baseline.
 Before implementation, all files under `ai-docs/` were read recursively: README,

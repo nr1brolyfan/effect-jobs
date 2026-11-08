@@ -1,4 +1,4 @@
-/** Statement-port controls; real SQL admission is covered by Backend.test.ts. */
+/** Statement-port controls; real SQL admission is covered by Jobs.test.ts. */
 import { Effect, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { JobId } from "../../../src/JobId.js"

@@ -24,7 +24,7 @@ const prepared: PreparedJob = {
     semanticProjectionBytes: new Uint8Array()
   }
 }
-const jobId = Schema.decodeSync(JobId)("assigned-by-backend")
+const jobId = Schema.decodeSync(JobId)("assigned-by-jobs")
 
 describe("internal callback-scoped capability", () => {
   it("rechecks lifetime after asynchronous preparation without inserting after callback exit", async () => {
@@ -95,7 +95,7 @@ describe("internal callback-scoped capability", () => {
     expect(preparations).toBe(0)
     expect(writes).toBe(0)
   })
-  it("forwards to exactly the supplied backend and remains provisional", async () => {
+  it("forwards to exactly the supplied jobs and remains provisional", async () => {
     const received: Array<PreparedJob> = []
     const result = await Effect.runPromise(
       withJoinedTransaction(
@@ -110,8 +110,8 @@ describe("internal callback-scoped capability", () => {
     expect(received).toEqual([prepared])
     expect(result).toEqual({ _tag: "Inserted", jobId })
   })
-  it("preserves backend and integrity failures rather than committing or replaying", async () => {
-    for (const error of ["backend-failure", new JobIntegrityConflict()]) {
+  it("preserves jobs and integrity failures rather than committing or replaying", async () => {
+    for (const error of ["jobs-failure", new JobIntegrityConflict()]) {
       let calls = 0
       const result = await Effect.runPromise(
         withJoinedTransaction(

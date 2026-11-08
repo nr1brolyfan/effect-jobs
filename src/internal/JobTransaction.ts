@@ -11,22 +11,22 @@ import { JobsTransactionClosed, type JobsTransaction } from "../JobTransaction.j
 export const JobsTransactionTypeId: unique symbol = Symbol("effect-jobs/JobsTransaction")
 
 /** Qualified bridges call this only within the application's active transaction. */
-export const withJoinedTransaction = <A, E, R, BackendError, BackendRequirements>(
+export const withJoinedTransaction = <A, E, R, StorageError, StorageRequirements>(
   insertOrCompare: (
     prepared: PreparedJob
   ) => Effect.Effect<
     EnqueueResult,
-    BackendError | JobIntegrityConflict | JobPolicyIncompatible,
-    BackendRequirements
+    StorageError | JobIntegrityConflict | JobPolicyIncompatible,
+    StorageRequirements
   >,
   body: (
-    transaction: JobsTransaction<BackendError, BackendRequirements>
+    transaction: JobsTransaction<StorageError, StorageRequirements>
   ) => Effect.Effect<A, E, R>
 ): Effect.Effect<A, E, R> =>
   Effect.acquireUseRelease(
     Effect.sync(() => {
       const lifetime = { active: true }
-      const transaction: JobsTransaction<BackendError, BackendRequirements> =
+      const transaction: JobsTransaction<StorageError, StorageRequirements> =
         Object.freeze({
           [JobsTransactionTypeId]: Object.freeze({
             assertActive: Effect.suspend(() =>
@@ -37,11 +37,11 @@ export const withJoinedTransaction = <A, E, R, BackendError, BackendRequirements
             insertOrCompare: (prepared: PreparedJob) =>
               Effect.suspend<
                 EnqueueResult,
-                | BackendError
+                | StorageError
                 | JobIntegrityConflict
                 | JobPolicyIncompatible
                 | JobsTransactionClosed,
-                BackendRequirements
+                StorageRequirements
               >(() =>
                 lifetime.active
                   ? insertOrCompare(prepared)

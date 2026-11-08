@@ -132,12 +132,12 @@ try {
           const client = yield* PgClient.PgClient
           const db = yield* Drizzle.makeWithDefaults()
           const application = Application.make(client)
-          const backend = yield* Jobs.make({
+          const jobs = yield* Jobs.make({
             ...mapping,
             operationResponseBudgetMillis: 100
           }).pipe(Effect.provideService(PostgreSqlApplication, application))
           const writes = (id: string, tx: NativeDb, handle: unknown) =>
-            backend.joinTransaction(handle, (jobsTx) =>
+            jobs.joinTransaction(handle, (jobsTx) =>
               Effect.gen(function* () {
                 yield* tx.insert(domain).values({ id })
                 const result = yield* producer.enqueueInTransaction(jobsTx, input(id))
@@ -176,7 +176,7 @@ try {
           yield* check(
             "native duplicate equality and first stored bytes",
             Effect.gen(function* () {
-              const duplicate = yield* backend.withTransaction((tx) =>
+              const duplicate = yield* jobs.withTransaction((tx) =>
                 producer.enqueueInTransaction(tx, input("commit"))
               )
               assert.equal(duplicate._tag, "AlreadyPresent")
@@ -191,7 +191,7 @@ try {
                 application.sanitizeControls(
                   client.withTransaction(
                     application.register((handle) =>
-                      backend.joinTransaction(handle, (jobsTx) =>
+                      jobs.joinTransaction(handle, (jobsTx) =>
                         Effect.gen(function* () {
                           invocations++
                           yield* db.insert(domain).values({ id: "caught-conflict" })
@@ -227,7 +227,7 @@ try {
               const Caller = Context.Service<{ readonly value: string }>(
                 "drizzle-native/Caller"
               )
-              const result = yield* backend
+              const result = yield* jobs
                 .withTransaction(() =>
                   Effect.gen(function* () {
                     return (yield* Caller).value
@@ -378,7 +378,7 @@ try {
                 let escaped:
                   | Effect.Effect<EnqueueResult, JobEnqueueError | PostgreSqlError>
                   | undefined
-                const body = backend.withTransaction((tx) =>
+                const body = jobs.withTransaction((tx) =>
                   Effect.gen(function* () {
                     escaped = producer.enqueueInTransaction(
                       tx,

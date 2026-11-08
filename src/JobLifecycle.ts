@@ -1,6 +1,6 @@
 import { define as defineFailureCodes } from "./FailureCode.js"
 /**
- * Pure lifecycle transition plans; backends own atomic fencing and database-time writes.
+ * Pure lifecycle transition plans; Persistence implementations own atomic fencing and database-time writes.
  */
 import { Data, Result, Schema } from "effect"
 import { JobId } from "./JobId.js"
@@ -29,7 +29,7 @@ export const LeaseToken = Schema.String.pipe(
   )
 )
 /**
- * Bounded backend recovery/cleanup batch Schema: integer 1–500.
+ * Bounded storage recovery/cleanup batch Schema: integer 1–500.
  *
  * @category schemas
  */
@@ -240,7 +240,7 @@ export const nextFinalizationNumber = (row: JobSnapshot): number =>
 
 /**
  * Plans a due Pending/RetryScheduled claim (availableAt <= dbNow) with a fixed lease.
- * Does not increment attempts; the backend must lock/CAS and commit atomically.
+ * Does not increment attempts; storage must lock/CAS and commit atomically.
  *
  * @category operations
  */
@@ -298,7 +298,7 @@ export const ownershipOf = (
 
 /**
  * Plans release only before execution and while the exact lease remains owned.
- * Clears ownership without incrementing attempts; backend commits the plan atomically.
+ * Clears ownership without incrementing attempts; storage commits the plan atomically.
  *
  * @category operations
  */
@@ -411,7 +411,7 @@ export const finalize = (
 
 /**
  * Plans recovery at leaseExpiresAt <= dbNow. Increments stalls, not attempts;
- * exceeding maxStalledCount makes the job Dead. Backend owns bounded atomic recovery.
+ * exceeding maxStalledCount makes the job Dead. Persistence owns bounded atomic recovery.
  *
  * @category operations
  */
@@ -464,7 +464,7 @@ export const finalizationFromFailure = (
 
 /**
  * Pure terminal-retention eligibility at expiry <= dbNow. Pending, Active,
- * RetryScheduled, Isolated and Cancelled are excluded. Application/backend must coordinate
+ * RetryScheduled, Isolated and Cancelled are excluded. Application/persistence must coordinate
  * domain references and deletion atomically; this result is not deletion authority.
  *
  * @category operations

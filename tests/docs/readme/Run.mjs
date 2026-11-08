@@ -15,7 +15,7 @@ assert(fences.every((m) => ["ts", "sh", "text"].includes(m[1])))
 const snippets = fences.filter((m) => m[1] === "ts").map((m) => m[2])
 assert.equal(snippets.length, names.length, "Update the complete fence inventory")
 assert.equal(fences.filter((m) => m[1] === "sh").length, 1)
-assert.equal(fences.filter((m) => m[1] === "text").length, 1)
+assert.equal(fences.filter((m) => m[1] === "text").length, 0)
 assert.equal(
   fences.find((m) => m[1] === "sh")[2].trim(),
   `npm install ./effect-jobs-${manifest.version}.tgz effect@4.1.0`
@@ -35,59 +35,10 @@ const run = (name, cmd, args, cwd) => {
   results.push({ name, cmd, args, status: r.status })
   assert.equal(r.status, 0, `${name} failed: ${join(evidence, `${name}.log`)}`)
 }
-const alchemy = process.env.EFFECT_JOBS_ALCHEMY_DIRECTORY
-  ? resolve(process.env.EFFECT_JOBS_ALCHEMY_DIRECTORY)
-  : join(evidence, "alchemy")
-if (!process.env.EFFECT_JOBS_ALCHEMY_DIRECTORY) {
-  mkdirSync(alchemy)
-  writeFileSync(
-    join(alchemy, "package.json"),
-    JSON.stringify({
-      private: true,
-      type: "module",
-      dependencies: {
-        alchemy: "2.0.0-beta.83",
-        effect: "4.1.0",
-        "@effect/sql-d1": "4.1.0",
-        "@effect/sql-sqlite-do": "4.1.0"
-      }
-    }) + "\n"
-  )
-}
+// Alchemy's complete maintained source and real callback runtime have a separate
+// pinned gate; obsolete partial Cloudflare fences are no longer README fixtures.
+assert(readme.includes("examples/cloudflare-alchemy/README.md"))
 try {
-  if (!process.env.EFFECT_JOBS_ALCHEMY_DIRECTORY) {
-    run(
-      "alchemy-install",
-      "npm",
-      ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--omit=optional"],
-      alchemy
-    )
-  }
-  const alchemyManifest = JSON.parse(
-    readFileSync(join(alchemy, "node_modules/alchemy/package.json"))
-  )
-  assert.equal(alchemyManifest.version, "2.0.0-beta.83")
-  const declarations = [
-    "lib/Callback.d.ts",
-    "lib/Cloudflare/Workers/DurableObject.d.ts",
-    "lib/Cloudflare/Workers/Worker.d.ts",
-    "lib/Stack.d.ts"
-  ]
-  writeFileSync(
-    join(evidence, "alchemy-inputs.json"),
-    JSON.stringify(
-      {
-        version: alchemyManifest.version,
-        lockSha256: hash(readFileSync(join(alchemy, "package-lock.json"))),
-        declarations: declarations.map((path) => ({
-          path,
-          sha256: hash(readFileSync(join(alchemy, "node_modules/alchemy", path)))
-        }))
-      },
-      null,
-      2
-    )
-  )
   let archive = process.argv[2] ?? process.env.EFFECT_JOBS_ARCHIVE
   if (!archive) {
     run(
@@ -144,12 +95,7 @@ try {
     verbatimModuleSyntax: true,
     skipLibCheck: true,
     types: ["node"],
-    paths: {
-      alchemy: [join(alchemy, "node_modules/alchemy/lib/index.d.ts")],
-      "alchemy/Cloudflare": [
-        join(alchemy, "node_modules/alchemy/lib/Cloudflare/index.d.ts")
-      ]
-    }
+    paths: {}
   }
   const source = join(consumer, "source")
   mkdirSync(source)
@@ -201,14 +147,7 @@ try {
         {
           extends: "./tsconfig.json",
           compilerOptions: { skipLibCheck: false, noEmit: true },
-          exclude: [
-            "drizzle.ts",
-            "indexes.ts",
-            "cloud-*.ts",
-            "node-worker.ts",
-            "native.ts",
-            "Smoke.ts"
-          ]
+          exclude: ["drizzle.ts", "indexes.ts", "node-worker.ts", "native.ts", "Smoke.ts"]
         },
         null,
         2
@@ -291,11 +230,6 @@ try {
             "declarations; actual persistent Node main invocation NotTested by README harness; portable scoped worker qualification separate",
           bounded: "declarations plus actual finite worker drain harness",
           native: "declarations; real native transaction source/installed gate separate",
-          "cloud-consumer":
-            "installed Alchemy declarations only; external PG/callback execution NotTested",
-          "cloud-application":
-            "installed Alchemy declarations only; RPC/wake/external PG NotTested",
-          "cloud-stack": "installed Alchemy declarations only; deployment NotTested",
           overview: "expected application manager rejection (no connection fixture)",
           migration:
             "DDL/setup declarations plus explicit expected readiness failure without app SQL"
@@ -304,7 +238,7 @@ try {
         sourceInputs: inputs(join(root, "src")),
         qualifierInputs: inputs(join(root, "tests/docs/readme")),
         limits:
-          "Cloudflare external PG/deployment NotTested; exact installed Alchemy declarations only, with separate optional-peer tree. Drizzle skipLibCheck:true; strict non-Drizzle check separate. Fixture runtime is composition/crypto/handlers, not real SQL."
+          "README fixtures cover portable library composition. Alchemy source/bridge/callback/PG has a separate pinned example gate; hosted deployment NotTested. Drizzle skipLibCheck:true; strict non-Drizzle check separate. Fixture runtime is composition/crypto/handlers, not real SQL."
       },
       null,
       2

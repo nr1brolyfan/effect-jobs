@@ -29,9 +29,9 @@ export const seed = (
     config,
     Effect.void,
     Effect.gen(function* () {
-      const backend = yield* PostgreSqlJobs
+      const jobs = yield* PostgreSqlJobs
       const sql = yield* SqlClient
-      const id = yield* backend.withTransaction(() =>
+      const id = yield* jobs.withTransaction(() =>
         Effect.gen(function* () {
           const [clock] = yield* sql.unsafe<{ now: string }>(
             "SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now"
@@ -64,7 +64,7 @@ export const seed = (
       )
       if (state !== "Pending") {
         const definition = Definitions.definitions[workload]!
-        const claim = yield* backend.store.claim({
+        const claim = yield* jobs.store.claim({
           queue: Definitions.catalogFor(definition).queue,
           supportedCatalog: [Definitions.catalogFor(definition)],
           leaseToken: crypto.randomUUID()
@@ -83,7 +83,7 @@ export const seed = (
                   _tag: state === "Dead" ? ("Dead" as const) : ("Isolate" as const),
                   code: Schema.decodeSync(FailureCode)("fixture_terminal")
                 }
-          const result = yield* backend.store.finalize({
+          const result = yield* jobs.store.finalize({
             ownership: claim.claim.ownership,
             before: claim.claim.snapshot,
             finalization

@@ -111,7 +111,7 @@ export const refuseProblem = (
 
 const makeService = (transactions: typeof RepairTransactions.Service) =>
   Effect.gen(function* () {
-    const backend = yield* PostgreSqlJobs
+    const jobs = yield* PostgreSqlJobs
     const keys = yield* DocumentKeys
     const run = (
       access: Parameters<typeof transactions.owned>[0],
@@ -238,12 +238,12 @@ const makeService = (transactions: typeof RepairTransactions.Service) =>
                     changes = prepared.changes
                     yield* tx.assertCurrent
                     if (prepared._tag === "Synthetic") {
-                      return yield* backend.operators.correctedRedrive(
+                      return yield* jobs.operators.correctedRedrive(
                         Definitions.SyntheticDocumentExport,
                         { expected, producer, payload: prepared.payload }
                       )
                     }
-                    return yield* backend.operators.correctedRedrive(
+                    return yield* jobs.operators.correctedRedrive(
                       {
                         kind: prepared.definition.kind,
                         version: prepared.definition.version,
@@ -257,7 +257,7 @@ const makeService = (transactions: typeof RepairTransactions.Service) =>
                     command.sandbox
                   ).pipe(Effect.provideService(DocumentKeys, keys))
                   yield* tx.assertCurrent
-                  return yield* backend.operators
+                  return yield* jobs.operators
                     .redrive<
                       typeof Definitions.Payload | typeof Definitions.ExportPayload
                     >(definition, { expected, producer })

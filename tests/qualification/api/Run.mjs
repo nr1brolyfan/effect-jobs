@@ -52,7 +52,8 @@ for (const [source, target] of [
   ["worker", "WorkerTypes"],
   ["group-worker", "GroupWorkerTypes"],
   ["producer-binding", "ProducerTypes"],
-  ["definitions", "DefinitionTypes"]
+  ["definitions", "DefinitionTypes"],
+  ["persistence-names", "PersistenceNames"]
 ]) {
   writeFileSync(
     join(work, target + ".mts"),
@@ -88,7 +89,9 @@ import * as Policy from "effect-jobs/JobPolicy"
 import * as Retry from "effect-jobs/JobRetryPolicy"
 import * as Codes from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
-import { JobEnqueue } from "effect-jobs/JobEnqueue"
+import { JobEnqueue, JobPersistenceError } from "effect-jobs/JobEnqueue"
+import * as EnqueueModule from "effect-jobs/JobEnqueue"
+import * as JobsModule from "effect-jobs/PostgreSqlJobs"
 import { EnqueueResult, type PreparedJob } from "effect-jobs/JobContract"
 import { JobOperators, JobOperatorExpected } from "effect-jobs/JobOperators"
 import { JobId } from "effect-jobs/JobId"
@@ -106,6 +109,9 @@ for (const name of ["JobRegistry", "JobConsumer", "JobPlan"]) {
     code: process.versions.bun ? "ERR_MODULE_NOT_FOUND" : "ERR_PACKAGE_PATH_NOT_EXPORTED"
   })
 }
+assert.equal("JobBackendError" in EnqueueModule, false)
+assert.equal("Backend" in JobsModule, false)
+assert.equal(new JobPersistenceError({ reason: "unqualified-storage", commitKnowledge: "NotCommitted" })._tag, "JobPersistenceError")
 assert.equal(typeof JobOperators.of, "function")
 assert(Schema.is(JobOperatorExpected)({ jobId: "fixture", state: "Pending", lifecycleVersion: 0 }))
 const code = Codes.define({ boundary: "a".repeat(128) }).boundary
@@ -150,10 +156,10 @@ assert.equal(definition.version, 1)
 const input = { operationId: "id", slot: "receipt" as const,
   payload: { invoiceId: "public", document: { recipient: "PRIVATE fixture", total: 12n } } }
 const prepared: PreparedJob[] = []
-const backend = JobEnqueue.of({ enqueue: (prepare) => prepare.pipe(Effect.map((value) => {
+const enqueueService = JobEnqueue.of({ enqueue: (prepare) => prepare.pipe(Effect.map((value) => {
   prepared.push(value); return EnqueueResult.Inserted({ jobId: Schema.decodeSync(JobId)("fixture-job") })
-})), enqueueStandalone: () => Effect.die("fake backend does not qualify transactions") })
-for (const active of ["one", "one", "two"]) await Effect.runPromise(producer.enqueue(input).pipe(Effect.provideService(JobEnqueue, backend), Effect.provide(keysLayer(keys(active)))))
+})), enqueueStandalone: () => Effect.die("fake enqueueService does not qualify transactions") })
+for (const active of ["one", "one", "two"]) await Effect.runPromise(producer.enqueue(input).pipe(Effect.provideService(JobEnqueue, enqueueService), Effect.provide(keysLayer(keys(active)))))
 assert.notDeepEqual(prepared[0]!.encoded.payloadBytes, prepared[1]!.encoded.payloadBytes)
 assert.deepEqual(prepared[0]!.encoded.semanticProjectionBytes, prepared[1]!.encoded.semanticProjectionBytes)
 assert.deepEqual(prepared[0]!.encoded.semanticProjectionBytes, prepared[2]!.encoded.semanticProjectionBytes)
@@ -161,13 +167,13 @@ assert(!new TextDecoder().decode(prepared[0]!.encoded.payloadBytes).includes("PR
 assert.deepEqual(await Effect.runPromise(decodeJobPayload(definition.payload, prepared[0]!.encoded).pipe(Effect.provide(keysLayer(keys("two"))))), input.payload)
 const priority = Queue.make("billing-priority")
 const overridePolicy = { ...Policy.defaultPolicy, maxFinalizedAttempts: 7 }
-await Effect.runPromise(producer.enqueue({ ...input, queue: priority, policy: overridePolicy }).pipe(Effect.provideService(JobEnqueue, backend), Effect.provide(keysLayer(keys()))))
+await Effect.runPromise(producer.enqueue({ ...input, queue: priority, policy: overridePolicy }).pipe(Effect.provideService(JobEnqueue, enqueueService), Effect.provide(keysLayer(keys()))))
 assert.equal(prepared[3]!.catalog.queue, priority.name)
 assert.equal(prepared[3]!.policy.maxFinalizedAttempts, 7)
 assert.equal(prepared[3]!.producer.slot, input.slot)
 assert.equal(producer.slots.receipt.queue.name, queue.name)
 for (const invalid of [{ queue: { name: "INVALID/queue" } }, { policy: { ...overridePolicy, maxFinalizedAttempts: 0 } }]) {
-  const result = await Effect.runPromiseExit(producer.enqueue({ ...input, ...invalid } as Producer.Input<typeof producer.slots, "receipt">).pipe(Effect.provideService(JobEnqueue, backend), Effect.provide(keysLayer(keys()))))
+  const result = await Effect.runPromiseExit(producer.enqueue({ ...input, ...invalid } as Producer.Input<typeof producer.slots, "receipt">).pipe(Effect.provideService(JobEnqueue, enqueueService), Effect.provide(keysLayer(keys()))))
   assert(Exit.isFailure(result))
   assert.equal(result.cause.reasons[0]!._tag, "Fail")
 }

@@ -19,7 +19,7 @@ import type {
 const epoch = 1_725_000_000_000
 const snapshotEquals = Schema.toEquivalence(Lifecycle.JobSnapshot)
 
-/** Test-only, synchronous atomic state machine. NOT a durable backend. */
+/** Test-only, synchronous atomic state machine. NOT a durable jobs. */
 export const harness = (prepared: ReadonlyArray<PreparedJob> = []) => {
   const rows = prepared.map((job, index) => ({
     prepared: job as unknown,

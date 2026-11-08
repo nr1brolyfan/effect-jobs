@@ -24,7 +24,7 @@ export const seed = (
       Effect.gen(function* () {
         const ref = yield* Schema.decodeUnknownEffect(SandboxRef)(input)
         const sql = yield* SqlClient
-        const backend = yield* PostgreSqlJobs
+        const jobs = yield* PostgreSqlJobs
         return yield* sql.withTransaction(
           Effect.gen(function* () {
             const payload: Definitions.SyntheticExportPayload = {
@@ -49,7 +49,7 @@ export const seed = (
                 slot: "document",
                 payload
               })
-              .pipe(Effect.provideService(JobEnqueue, backend.producer))
+              .pipe(Effect.provideService(JobEnqueue, jobs.producer))
             yield* sql.unsafe(
               `INSERT INTO "${config.schema}".associations(sandbox_id,generation,job_id,relations) VALUES($1,$2,$3,$4::jsonb)`,
               [

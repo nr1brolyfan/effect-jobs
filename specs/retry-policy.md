@@ -78,7 +78,7 @@ rows as proportional jitter. Jitter is scheduling randomness, not a secret.
 The worker draws one Effect Random sample after an explicit Retry outcome and
 only if another attempt is permitted. Its frozen finalization command retains
 that sample. All repeats and read-only reconciliation use the same command.
-The backend computes `availableAt` from its one database-time snapshot and writes
+The persistence computes `availableAt` from its one database-time snapshot and writes
 the timestamp, state and counters atomically under the existing ownership fence.
 The sample is not a new column or durable secret: the concrete timestamp is stored.
 After a restart, readers use that timestamp rather than regenerating randomness.
@@ -115,6 +115,6 @@ Existing `FixedDelayV1` rows remain readable with their original values.
 
 Qualification must cover constructor/type boundaries, cap/jitter order and edges,
 attempt exhaustion, retryBefore, fencing/recovery, response loss, identical-command
-reconciliation, real PostgreSQL persistence/backend recreation on Node and Bun,
+reconciliation, real PostgreSQL persistence/persistence recreation on Node and Bun,
 and an installed package consumer. Focused passing checks do not waive the existing
 foreign-declaration/full-verification blockers or independent review requirement.

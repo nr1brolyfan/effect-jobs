@@ -126,7 +126,7 @@ export type JobPayloadDecoder = <S extends Schema.Top>(
   encoded: EncodedJobPayload
 ) => Effect.Effect<S["Type"], JobPayloadCodecError, S["DecodingServices"]>
 /**
- * Producer-to-backend artifact and first configuration; the backend assigns the ID.
+ * Prepared production artifact and first configuration; persistence assigns the ID.
  *
  * @category models
  */

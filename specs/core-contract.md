@@ -28,7 +28,7 @@ effect-jobs/JobTransaction
 
 The root remains empty, not an all-modules barrel. No subpath imports auth,
 PostgreSQL, Drizzle, environment configuration, pools, workers or registry Layers.
-No import starts work. The backend must not enter core through a default Layer.
+No import starts work. The persistence must not enter core through a default Layer.
 
 ```text
 Effect <- JobId / JobIdentity / JobPolicy
@@ -39,12 +39,12 @@ JobContract + JobTransaction <- internal/JobTransaction (lifetime mechanics)
 JobContract + JobIdentity + JobPolicy + internal/JobTransaction <- later Job/JobProducer
 JobContract <- later JobPayload/JobPayloadCodec
 JobContract + JobFailure + JobPolicy <- later JobStore/internal/JobLifecycle
-shared contracts + qualified active application handle <- later backend bridges
+shared contracts + qualified active application handle <- later persistence bridges
 ```
 
 `JobTransaction` has only a **type-only** reference to the internal symbol; the
 internal leaf imports its public errors at runtime. There is no runtime cycle.
-Only the later definition implementation and qualified backend bridges consume
+Only the later definition implementation and qualified persistence bridges consume
 the internal leaf. `internal/*` is not a package export or custom-adapter API.
 The transaction declaration references the internal symbol declaration; that file
 must remain in the build artifact even though package export resolution denies
@@ -54,7 +54,7 @@ runtime deep imports. Do not duplicate symbols, brands or errors in later units.
 
 `JobId.JobId` is a nonempty string Schema branded `effect-jobs/JobId`; the Schema
 and its inferred type share the name. IDs are library-assigned; their generation
-and uniqueness are backend obligations. No UUID algorithm or caller ID override
+and uniqueness are persistence obligations. No UUID algorithm or caller ID override
 is selected here. Schema decoding brands persisted IDs; it is not production.
 
 `JobIdentity` exports Schemas `QueueName`, `JobKind`, `JobVersion`, `OperationName`,
@@ -149,7 +149,7 @@ attempt limit. There is no `retryDelay` or top-level attempt-limit configuration
 option and no deprecated compatibility path. Unknown option names are rejected.
 
 `attemptTimeoutMillis < leaseDurationMillis` is mandatory. Response budget is
-backend configuration, not a policy field; later backend qualification must
+persistence configuration, not a policy field; later persistence qualification must
 ensure the stored lease can support timeout plus its budget.
 
 The resolved policy and every nested configuration object are frozen:
@@ -189,7 +189,7 @@ continues to map to the public `finalizedAttempts` counter without a migration.
 `EpochMillis` preserves the source positive integer bound 1–253,402,300,799,999
 for availableAt/retryBefore; accepting epoch zero would be a policy change, not
 silently inferred from the superseded proposal. Ordinary past positive timestamps
-are valid. The backend must validate computed timestamp additions against the
+are valid. The persistence must validate computed timestamp additions against the
 same bound rather than overflowing/clamping. No database-time arithmetic is
 implemented in this unit.
 
@@ -252,7 +252,7 @@ isolated or mutated; workers back off rather than classify it as corrupt payload
 `InvalidJobInput { field }` and `JobPayloadCodecError { reason }` are bounded
 operation-owned errors. `JobTransaction.JobEnqueueError` unites those with
 JobIntegrityConflict and JobsTransactionClosed. Provider errors stay in the
-backend's explicit E channel, not raw public diagnostic strings.
+persistence's explicit E channel, not raw public diagnostic strings.
 
 ## Codec and prepared-payload seam
 
@@ -303,13 +303,13 @@ no public constructor, arbitrary insert callback, query client, transaction
 runner, savepoint, commit, rollback or replay. Its symbol is internal only.
 
 The internal `withJoinedTransaction(insertOrCompare, body)` is a lifetime helper
-for **qualified backend callbacks**, not a generic public extension point:
+for **qualified persistence callbacks**, not a generic public extension point:
 
 ```ts
-withJoinedTransaction<A, E, R, BackendError, BackendRequirements>(
+withJoinedTransaction<A, E, R, StorageError, StorageRequirements>(
   insertOrCompare: (prepared: PreparedJob) =>
-    Effect.Effect<EnqueueResult, BackendError | JobIntegrityConflict, BackendRequirements>,
-  body: (tx: JobsTransaction<BackendError, BackendRequirements>) => Effect.Effect<A, E, R>
+    Effect.Effect<EnqueueResult, StorageError | JobIntegrityConflict, StorageRequirements>,
+  body: (tx: JobsTransaction<StorageError, StorageRequirements>) => Effect.Effect<A, E, R>
 ): Effect.Effect<A, E, R>
 
 insertPrepared<E, R>(tx: JobsTransaction<E, R>, prepared: PreparedJob):
@@ -319,16 +319,16 @@ insertPrepared<E, R>(tx: JobsTransaction<E, R>, prepared: PreparedJob):
 It allocates a fresh frozen capability per Effect execution, scopes the callback
 and invalidates it at callback exit on success, typed failure, defect, synchronous
 throw or interruption. Deferred/escaped enqueue Effects check liveness when run,
-before invoking the backend. Closed failure carries reason `callback-exited` and
+before invoking storage. Closed failure carries reason `callback-exited` and
 an actionable message directing enqueue into the joinTransaction callback.
 Callback-scoped fibers are scoped normally; unscoped escaping fibers and concurrent
 transaction operations are not supported. Branding/lifetime checks are atomicity
 correctness, not a sandbox against trusted application code or casts.
 
-The backend must bind the supplied exact active connection/source. The helper
+The persistence must bind the supplied exact active connection/source. The helper
 cannot prove connection provenance, insert correctness, rollback or durable
 atomicity, and these tests do not claim that it can. Custom adapters need a later
-explicit qualified backend extension contract, not a public re-export of this
+explicit qualified persistence extension contract, not a public re-export of this
 helper. No Effect SQL/Drizzle/pg compatibility claim exists yet.
 
 `JobTransactionsService<ManagerError, ManagerRequirements = never>` is the explicit
@@ -341,7 +341,7 @@ withTransaction<A, E, R>(
 ```
 
 A qualified integration delegates join-or-establish to the application's manager;
-it must not instantiate a second engine/pool. Explicit backend join must never
+it must not instantiate a second engine/pool. Explicit persistence join must never
 open a new connection/transaction/savepoint, or independently commit/replay.
 Application owner retains whole-operation commit knowledge and replay authority.
 
@@ -363,7 +363,7 @@ transaction leaf, tests/core and tests/types/contracts, this specification and
 required package/root export integration. Later units must not edit shared
 contracts, package/lock/config or exports concurrently; request serial changes.
 No dependency/toolchain upgrade, worker, store, producer/registry, full codec,
-generic crypto, migration or backend is included.
+generic crypto, migration or persistence is included.
 
 The current repository has no tracked `.github` workflow or extra gate scripts.
 The actual local CI-equivalent gate is package `verify`: check, lint, whole-tree
@@ -373,7 +373,7 @@ tracked/owned files without modifying runtime files. Exact command results,
 tool versions, read manifest and immutable base/head/tree are delivered in the
 issue report; this document does not invent successful future receipts.
 
-That serial-unit authorization did not include PG or packed worker/backend
+That serial-unit authorization did not include PG or packed worker/persistence
 qualification, database operations, push, PR, publication, runtime modification or
 merge. Subsequent local redesign authorization and current qualification are
 recorded in `api-redesign.md`, not inferred from this historical unit. Temporal runtime edges

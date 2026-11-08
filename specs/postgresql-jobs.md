@@ -1,4 +1,4 @@
-# PostgreSQL backend — qualification and integration
+# PostgreSQL persistence — qualification and integration
 
 PR #6 was integrated at `0525adda1384788124b273ea5ee8eac17c40413a` after its
 completed original review set. The phase-B integration-blocked statements and
@@ -16,7 +16,7 @@ and does not restart their review or qualify arbitrary transaction adapters.
   `withTransaction(callback)`. The Layer also provides the configured portable
   `JobStorage` and `JobSchedule`, plus producer/operator services.
 - `PostgreSqlTransaction`: the trusted application-adapter extension contract,
-  exact-connection `TransactionQuery`, and sanitized backend errors. This is **not**
+  exact-connection `TransactionQuery`, and sanitized persistence errors. This is **not**
   a structural query-only transaction constructor or a supplied transaction engine.
 - `PostgreSqlSchema`: validated storage mapping and explicit application migration
   DDL. Runtime never invokes that DDL or creates a schema.
@@ -28,7 +28,7 @@ and does not restart their review or qualify arbitrary transaction adapters.
 
 `JobSchedule.observe(group, queue, { limit })` uses the configured observation
 service without requiring handlers or a worker. PostgreSQL exposes its native-error
-port as `backend.schedule`; `JobSchedule.layer(backend.schedule)` captures it for
+port as `jobs.schedule`; `JobSchedule.layer(jobs.schedule)` captures it for
 portable callers. `PostgreSqlJobs.layerNoDeps` already provides that service.
 
 One SELECT observes a materialized PostgreSQL-time sample, the queue's bounded
@@ -102,7 +102,7 @@ namespace, generate/run migrations, own privileges, and own pool lifetime.
 `jobs` persists generated ID, producer tuple, queue/kind/version, complete first
 policy, optional initial availability, mutable lifecycle and lease/fencing fields.
 `job_payloads` persists immutable format version, payload and canonical semantic
-projection with a primary-key foreign key and ON DELETE CASCADE. Backend lifecycle
+projection with a primary-key foreign key and ON DELETE CASCADE. Persistence lifecycle
 writes never rewrite payload, catalog, producer or first policy/initial envelope.
 PK, global producer tuple UNIQUE and unique live lease tokens are structural
 requirements. Due, expiry and terminal-cleanup partial indexes are provided.

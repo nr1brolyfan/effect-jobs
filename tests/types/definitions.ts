@@ -17,8 +17,8 @@ export class DecodeService extends Context.Service<DecodeService, {}>()(
 export class HandlerService extends Context.Service<HandlerService, {}>()(
   "tests/definitions/Handler"
 ) {}
-export class BackendService extends Context.Service<BackendService, {}>()(
-  "tests/definitions/Backend"
+export class TransactionContext extends Context.Service<TransactionContext, {}>()(
+  "tests/definitions/TransactionContext"
 ) {}
 declare const schema: Schema.Codec<
   { readonly amount: number },
@@ -26,7 +26,7 @@ declare const schema: Schema.Codec<
   DecodeService,
   EncodeService
 >
-declare const tx: JobsTransaction<"backend-error", BackendService>
+declare const tx: JobsTransaction<"jobs-error", TransactionContext>
 declare const appId: string & { readonly AppId: unique symbol }
 
 export const queue = JobQueue.make("billing")
@@ -47,8 +47,8 @@ export const input = {
 export const enqueue = producer.enqueueInTransaction(tx, input)
 export const explicitChannels: Effect.Effect<
   EnqueueResult,
-  "backend-error" | JobEnqueueError,
-  BackendService | EncodeService
+  "jobs-error" | JobEnqueueError,
+  TransactionContext | EncodeService
 > = enqueue
 // @ts-expect-error Explicit tx is required.
 export const missingTransaction = producer.enqueueInTransaction<never, never, "pdf">(
@@ -112,7 +112,7 @@ export type DomainErrorsRejected = ExpectFalse<
     : false
 >
 export type MissingEncoder = ExpectFalse<
-  typeof enqueue extends Effect.Effect<EnqueueResult, unknown, BackendService>
+  typeof enqueue extends Effect.Effect<EnqueueResult, unknown, TransactionContext>
     ? true
     : false
 >
@@ -120,7 +120,7 @@ export type EnqueueNotClosed = ExpectFalse<
   typeof enqueue extends Effect.Effect<unknown, unknown> ? true : false
 >
 export type ErrorNotErased = ExpectFalse<
-  typeof enqueue extends Effect.Effect<unknown, never, BackendService | EncodeService>
+  typeof enqueue extends Effect.Effect<unknown, never, TransactionContext | EncodeService>
     ? true
     : false
 >

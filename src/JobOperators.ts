@@ -1,7 +1,7 @@
 /** Ambient transaction-only manual operators. Applications own authority and receipts. */
 import { Context, Data, Schema } from "effect"
 import type { Effect } from "effect"
-import type { JobBackendError } from "./JobEnqueue.js"
+import type { JobPersistenceError } from "./JobEnqueue.js"
 import type { JobDefinition } from "./Job.js"
 import type { JobIntegrityConflict, JobPayloadCodecError } from "./JobContract.js"
 import { JobId } from "./JobId.js"
@@ -113,5 +113,5 @@ export interface JobOperatorsService<E = never, R = never> {
 /** Trusted application composition, not caller authentication. @category services */
 export class JobOperators extends Context.Service<
   JobOperators,
-  JobOperatorsService<JobBackendError>
+  JobOperatorsService<JobPersistenceError>
 >()("effect-jobs/JobOperators") {}

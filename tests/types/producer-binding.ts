@@ -4,7 +4,7 @@ import * as Queue from "../../src/JobQueue.js"
 import * as Policy from "../../src/JobPolicy.js"
 import type { EnqueueResult } from "../../src/JobContract.js"
 import type { JobEnqueueError, JobsTransaction } from "../../src/JobTransaction.js"
-import type { JobEnqueue, JobBackendError } from "../../src/JobEnqueue.js"
+import type { JobEnqueue, JobPersistenceError } from "../../src/JobEnqueue.js"
 
 class Keys extends Context.Service<Keys, {}>()("types/producer/Keys") {}
 class Database extends Context.Service<Database, {}>()("types/producer/Database") {}
@@ -49,7 +49,7 @@ const producer = Producer.make("billing.issue").pipe(
 )
 export const ordinary: Effect.Effect<
   EnqueueResult,
-  JobEnqueueError | JobBackendError,
+  JobEnqueueError | JobPersistenceError,
   JobEnqueue
 > = producer.enqueue({ slot: "public", operationId: "one", payload: { id: "one" } })
 
@@ -133,7 +133,7 @@ export const changedQueue = producer.enqueue({
 })
 export const routedPrivate: Effect.Effect<
   EnqueueResult,
-  JobEnqueueError | JobBackendError,
+  JobEnqueueError | JobPersistenceError,
   JobEnqueue | Keys
 > = producer.enqueueStandalone({
   slot: "private",

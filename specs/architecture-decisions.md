@@ -25,7 +25,7 @@ production qualification.
 
 Ship one npm package, `effect-jobs`, with focused public subpaths. Keep the core
 independent of PostgreSQL and Drizzle imports; isolate PostgreSQL persistence
-behind a backend subpath with optional backend peers. Do not split core, worker,
+behind a persistence subpath with optional persistence peers. Do not split core, worker,
 and PostgreSQL into separate npm packages for the initial release.
 
 The catalog supports application-defined jobs from the outset. This does not
@@ -43,7 +43,7 @@ require effect-auth to expose its own catalog to arbitrary application jobs.
 - Bounded worker drain and explicit scoped Node/Bun polling.
 
 Imports must not start workers. Applications explicitly compose persistence,
-handler, and runtime Layers. Core imports must work without backend peers.
+handler, and runtime Layers. Core imports must work without persistence peers.
 
 ### Ownership boundary
 
@@ -55,7 +55,7 @@ or a dual-write migration.
 
 ### Deferred features
 
-Additional backends, recurring schedules,
+Additional storage implementations, recurring schedules,
 dashboards, flows, pause/resume/cancel/redrive APIs, and a ready-made Cloudflare
 coordinator are outside the first release. Bounded drain alone is not a
 Cloudflare support claim.
@@ -76,7 +76,7 @@ import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
 
 A focused extraction limits simultaneous protocol changes and preserves the
 existing transaction-bound producer guarantees. A single package avoids
-premature release/version coordination while subpaths isolate backend loading.
+premature release/version coordination while subpaths isolate persistence loading.
 
 D1 approves scope and ownership, not the illustrative method signatures from
 the discussion. Envelope and handler inputs, IDs/deduplication, failure policy,
@@ -232,7 +232,7 @@ execution configuration only, not for payload content. Changed deployment
 defaults must not mutate existing jobs or turn otherwise matching retries into
 integrity conflicts.
 
-`availableAt` is optional. If omitted on first insertion, the backend assigns it
+`availableAt` is optional. If omitted on first insertion, the persistence assigns it
 using database time. A matching duplicate never resets it to a new current time.
 A supplied past timestamp is valid and makes the job immediately eligible;
 a future timestamp postpones eligibility, not guarantees execution at that time.
@@ -355,7 +355,7 @@ internal tagged retry/retention objects or use choice callbacks.
   retention is infinite. Retention is measured from terminal completion, not an
   absolute timestamp. `availableAt` remains a separate enqueue input.
 - The helper resolves a complete validated policy, including cross-field checks,
-  and the backend persists those resolved values in its versioned internal
+  and the persistence persists those resolved values in its versioned internal
   representation. Updated defaults do not alter already stored jobs.
 - Purging Completed jobs can remove deduplication evidence after the retention
   period. Infinite retention avoids automatic expiry but can grow storage.
@@ -601,7 +601,7 @@ schema/query building in that same Effect/Context. `db.transaction` retains an
 upstream error-type limitation and is excluded from the positive route.
 
 `PostgreSqlJobs.layerNoDeps` provides storage plus this producer service.
-`backend.withTransaction(() => producer.enqueue(input))` delegates explicit
+`jobs.withTransaction(() => producer.enqueue(input))` delegates explicit
 join-or-establish behavior to the application's manager and supplies the service.
 `producer.enqueueStandalone(input)` owns a bounded transaction for preparation,
 job/payload insertion and deduplication, and resolves after acknowledged commit.
@@ -665,7 +665,7 @@ that atomically compose domain, audit, job, and receipt writes.
 Provide optional Drizzle schema declarations with configurable namespace and
 table names. The library defines required columns, constraints, and indexes;
 arbitrary per-column remapping is not required. Core does not depend on Drizzle.
-Backend and migration configuration must agree on the same storage mapping.
+Persistence and migration configuration must agree on the same storage mapping.
 
 Owner decision (2026-10-05): the optional Drizzle integration uses the same
 Effect-native `drizzle-orm` version as effect-auth, currently
@@ -693,7 +693,7 @@ const JobsLayer = PostgreSqlJobs.layer({
 
 Applications generate and run migrations. Runtime must not create, migrate, or
 rebuild tables automatically. Concrete DDL, schema readiness checks, mapping
-types, and backend constructors still need specification and qualification.
+types, and persistence constructors still need specification and qualification.
 Optional Drizzle integration must not impose Drizzle on applications using a
 different migration tool.
 
@@ -731,7 +731,7 @@ retention checks. An application with domain references must supply a coordinate
 adapter rather than assume generic cleanup knows those references.
 
 Do not introduce generic retention holds or their additional persistence and
-lifecycle machinery in V1. The adapter is a qualified backend integration, not
+lifecycle machinery in V1. The adapter is a qualified persistence integration, not
 an arbitrary SQL callback claimed to be safe merely because it implements a port.
 
 ### Terminal-state rules

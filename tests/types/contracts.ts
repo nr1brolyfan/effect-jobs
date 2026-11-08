@@ -97,13 +97,15 @@ export const removedCounter = snapshot.attemptsMade
 export const noTransaction = handlerInput.context.transaction
 // @ts-expect-error Callback capability cannot be fabricated structurally.
 export const fabricated: JobsTransaction = {}
-export class Backend extends Context.Service<Backend, {}>()("tests/contracts/Backend") {}
-declare const tx: JobsTransaction<"backend-error", Backend>
+export class TransactionContext extends Context.Service<TransactionContext, {}>()(
+  "tests/contracts/TransactionContext"
+) {}
+declare const tx: JobsTransaction<"jobs-error", TransactionContext>
 declare const prepared: PreparedJob
 export const enqueue: Effect.Effect<
   unknown,
-  "backend-error" | import("../../src/JobTransaction.js").JobEnqueueError,
-  Backend
+  "jobs-error" | import("../../src/JobTransaction.js").JobEnqueueError,
+  TransactionContext
 > = insertPrepared(tx, prepared)
 type ExpectFalse<A extends false> = A
 // Type-level negative assertions avoid intentionally emitting Effect diagnostics.
@@ -111,10 +113,10 @@ export type MissingRequirement = ExpectFalse<
   typeof enqueue extends Effect.Effect<unknown, unknown> ? true : false
 >
 export type MissingError = ExpectFalse<
-  typeof enqueue extends Effect.Effect<unknown, never, Backend> ? true : false
+  typeof enqueue extends Effect.Effect<unknown, never, TransactionContext> ? true : false
 >
-declare const manager: JobTransactionsService<"manager-error", Backend>
-export const managed: Effect.Effect<string, "manager-error", Backend> =
+declare const manager: JobTransactionsService<"manager-error", TransactionContext>
+export const managed: Effect.Effect<string, "manager-error", TransactionContext> =
   manager.withTransaction(() => Effect.succeed("ok"))
 export type Unmanaged = ExpectFalse<
   typeof managed extends Effect.Effect<string, "manager-error"> ? true : false
@@ -125,7 +127,7 @@ export const wrongFormat: EncodedJobPayload = { ...encoded, formatVersion: 2 }
 // @ts-expect-error Prepared artifacts have no generated candidate ID.
 export const candidateId: PreparedJob = { ...prepared, jobId: id }
 export const joined = withJoinedTransaction(
-  () => Effect.fail("backend-error" as const),
+  () => Effect.fail("jobs-error" as const),
   (joinedTx) => insertPrepared(joinedTx, prepared)
 )
 export class EncodeService extends Context.Service<EncodeService, {}>()(

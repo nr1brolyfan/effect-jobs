@@ -149,7 +149,7 @@ export const validateClaimRequest = (
   )
 
 /**
- * Explicit configured port, not a backend constructor or atomicity proof.
+ * Explicit configured port, not a persistence constructor or atomicity proof.
  * E/R preserve provider failure and connection requirements. Unknown dispatched writes
  * MUST be returned as Unknown (including response loss); typed failures cannot imply rollback.
  * Never replay mutations automatically. Lock/CAS the exact state/token/version using one

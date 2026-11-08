@@ -75,7 +75,7 @@ const setup = (override: Partial<RepairTransaction> = {}) =>
       owned: (_access, _command, _digest, body) => body(tx),
       lookup: () => Effect.succeed(null)
     })
-    const unexpected = () => Effect.die("Unexpected backend operation")
+    const unexpected = () => Effect.die("Unexpected jobs operation")
     const store = {
       claim: unexpected,
       reconcileClaim: unexpected,

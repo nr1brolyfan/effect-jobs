@@ -3,7 +3,7 @@
 `JobOperators` is a focused generic port. `JobOperatorsService<E, R>` preserves
 provider errors and required services; `redrive` additionally requires the payload
 Schema decoding services; `correctedRedrive` requires encoding and decoding services. The Context service uses the existing generic
-`JobBackendError` vocabulary; backend methods retain typed PostgreSQL errors.
+`JobPersistenceError` vocabulary; persistence methods retain typed PostgreSQL errors.
 The public package export and PostgreSqlJobs composition are registered by the
 central integration owner.
 
@@ -90,7 +90,7 @@ must be frozen before switching to the updated fresh generator.
 
 Internal integration: `makeOperators(adapter, jobs, payloads,
 operationResponseBudgetMillis)` uses the same adapter, quoted relations and
-response reserve as the backend. `insertOrCompareAt` reuses the final operator
+response reserve as the jobs. `insertOrCompareAt` reuses the final operator
 clock sample; ordinary enqueue continues sampling its own DB time.
 
 `PostgreSqlSchema.lineageMigration(mapping)` is an additive, application-owned,

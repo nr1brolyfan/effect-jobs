@@ -9,7 +9,7 @@ import { Effect, Layer, Redacted, Schema } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import * as Native from "effect-jobs/PostgreSqlNative"
-import * as Backend from "effect-jobs/PostgreSqlJobs"
+import * as Jobs from "effect-jobs/PostgreSqlJobs"
 import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import * as Job from "effect-jobs/Job"
@@ -47,7 +47,7 @@ const nativeProbe = Effect.scoped(
       idleTimeout: "1 second"
     })
     const adapter = Native.make({ client, operationTimeoutMillis: 1_000 })
-    const backend = yield* Backend.make({ operationResponseBudgetMillis: 100 }).pipe(
+    const jobs = yield* Jobs.make({ operationResponseBudgetMillis: 100 }).pipe(
       Effect.provideService(PostgreSqlApplication, adapter)
     )
     const result = yield* producer
@@ -55,8 +55,8 @@ const nativeProbe = Effect.scoped(
         operationId: "synthetic-1", slot: "synthetic",
         payload: "synthetic",
       })
-      .pipe(Effect.provideService(JobEnqueue, backend.producer), Effect.result)
-    return result._tag === "Failure" && result.failure._tag === "JobBackendError"
+      .pipe(Effect.provideService(JobEnqueue, jobs.producer), Effect.result)
+    return result._tag === "Failure" && result.failure._tag === "JobPersistenceError"
       ? {
           noActive: result.failure.reason,
           commitKnowledge: result.failure.commitKnowledge

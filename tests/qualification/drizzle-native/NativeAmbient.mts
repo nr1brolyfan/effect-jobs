@@ -29,7 +29,7 @@ import {
   PostgreSqlFailure,
   PostgreSqlApplication
 } from "effect-jobs/PostgreSqlTransaction"
-import { JobEnqueue, JobBackendError } from "effect-jobs/JobEnqueue"
+import { JobEnqueue, JobPersistenceError } from "effect-jobs/JobEnqueue"
 import * as Tables from "effect-jobs/PostgreSqlSchema"
 import * as Job from "effect-jobs/Job"
 import * as Producer from "effect-jobs/JobProducer"
@@ -119,11 +119,11 @@ try {
     const db = yield* Drizzle.makeWithDefaults()
     assert.strictEqual(db.$client, client)
     const adapter = Native.make({ client, operationTimeoutMillis: 2000 })
-    const backend = yield* Jobs.make({
+    const jobs = yield* Jobs.make({
       ...mapping,
       operationResponseBudgetMillis: 100
     }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
-    yield* backend.ready
+    yield* jobs.ready
     return yield* Effect.gen(function* () {
       const produce = (
         id: string,
@@ -138,7 +138,7 @@ try {
             const before = yield* client.unsafe(
               "SELECT pg_backend_pid() AS pid,txid_current()::text AS xid"
             )
-            const result = yield* backend.withTransaction(() =>
+            const result = yield* jobs.withTransaction(() =>
               Effect.gen(function* () {
                 const joined = yield* Effect.serviceOption(client.transactionService)
                 assert(Option.isSome(joined))
@@ -210,7 +210,7 @@ try {
           })
         )
       const joined = (id: string, value = id) =>
-        backend.withTransaction(() => producer.enqueue(input(id, value)))
+        jobs.withTransaction(() => producer.enqueue(input(id, value)))
       yield* produce("commit")
       assert.deepEqual(yield* count("commit"), all)
       const rolled = yield* Effect.exit(produce("rollback", true))
@@ -310,17 +310,17 @@ try {
         "per-production native ambient/standalone overrides retain first routing, stored policy and artifact on replay"
       )
       const absent = yield* Effect.flip(producer.enqueue(input("outside")))
-      assert(absent instanceof JobBackendError)
+      assert(absent instanceof JobPersistenceError)
       assert.equal(absent.reason, "transaction-required")
       assert.deepEqual(yield* count("outside"), none)
-      // A distinct client's transaction cannot satisfy this configured backend.
+      // A distinct client's transaction cannot satisfy this configured jobs.
       const foreign = yield* Pg.make({ ...client.config, maxConnections: 1 }).pipe(
         Effect.provide(Reactivity.layer)
       )
       const wrong = yield* Effect.flip(
         foreign.withTransaction(producer.enqueue(input("foreign")))
       )
-      assert(wrong instanceof JobBackendError)
+      assert(wrong instanceof JobPersistenceError)
       assert.equal(wrong.reason, "transaction-required")
       checks.push("no active / foreign client rejection with no implicit transaction")
       const entered = yield* Deferred.make<void>()
@@ -352,7 +352,7 @@ try {
       const active = yield* client.withTransaction(
         Effect.flip(producer.enqueueStandalone(input("active")))
       )
-      assert(active instanceof JobBackendError)
+      assert(active instanceof JobPersistenceError)
       assert.equal(active.reason, "active-transaction")
       assert.deepEqual(yield* count("active"), none)
       const failed = yield* Effect.exit(producer.enqueueStandalone(input("fail-job")))
@@ -403,7 +403,7 @@ try {
         Producer.withSlot("receipt", lostContract, { queue })
       )
       const unknown = yield* Effect.flip(lost.enqueueStandalone(input("lost-commit")))
-      assert(unknown instanceof JobBackendError)
+      assert(unknown instanceof JobPersistenceError)
       assert.equal(unknown.commitKnowledge, "Unknown")
       assert.deepEqual(yield* count("lost-commit"), {
         domain: 0,
@@ -497,7 +497,7 @@ try {
       checks.push(
         "real PostgreSQL AES-GCM nonce/key rotation preserves semantic HMAC dedup and old-key decoding; changed content conflicts"
       )
-      const health = yield* backend.health.sample({
+      const health = yield* jobs.health.sample({
         queue: "billing",
         supportedCatalog: [catalog],
         limit: 1
@@ -509,7 +509,7 @@ try {
       assert(health.sampledAt > 0)
       const ambientHealth = yield* Effect.exit(
         client.withTransaction(
-          backend.health.sample({
+          jobs.health.sample({
             queue: "billing",
             supportedCatalog: [catalog],
             limit: 1
@@ -521,7 +521,7 @@ try {
         "bounded opt-in health distinguishes supported work and rejects ambient ownership"
       )
       const scheduleRequest = { queue: "billing", supportedCatalog: [catalog], limit: 1 }
-      const schedule = yield* backend.schedule.read(scheduleRequest)
+      const schedule = yield* jobs.schedule.read(scheduleRequest)
       assert(schedule.observedAt > 0)
       assert.deepEqual(Object.keys(schedule).sort(), [
         "nextAvailableAt",
@@ -530,12 +530,12 @@ try {
         "saturated"
       ])
       const ambientSchedule = yield* Effect.exit(
-        client.withTransaction(backend.schedule.read(scheduleRequest))
+        client.withTransaction(jobs.schedule.read(scheduleRequest))
       )
       assert(Exit.isFailure(ambientSchedule))
       checks.push("read-only bounded DB-time schedule hints reject ambient ownership")
       return checks
-    }).pipe(Effect.provideService(JobEnqueue, backend.producer))
+    }).pipe(Effect.provideService(JobEnqueue, jobs.producer))
   })
   const result = await Effect.runPromise(
     Effect.scoped(program).pipe(

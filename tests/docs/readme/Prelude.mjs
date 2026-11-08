@@ -15,10 +15,6 @@ export const names = [
   "policy",
   "encrypted",
   "private-handler",
-  "cloud-contracts",
-  "cloud-consumer",
-  "cloud-application",
-  "cloud-stack",
   "migration",
   "drizzle",
   "indexes"
@@ -52,7 +48,7 @@ const common = [
   "GeneratePdf"
 ]
 const fixtures = [
-  "jobsStorage",
+  "jobs",
   "ApplicationPostgresLayer",
   "invoices",
   "operationId",
@@ -80,19 +76,8 @@ export const wrap = (name, code) => {
     throw new Error(`Unknown fence ${name}`)
   }
   const defined = [...code.matchAll(/(?:const|class) (\w+)/g)].map((m) => m[1])
-  const shared = common.filter(
-    (binding) =>
-      !defined.includes(binding) &&
-      !(name === "cloud-application" && binding === "GeneratePdf")
-  )
-  const app = fixtures.filter(
-    (binding) =>
-      !defined.includes(binding) &&
-      !(
-        ["cloud-contracts", "cloud-consumer"].includes(name) &&
-        ["ReceiptHandler", "BillingWorkerLayer"].includes(binding)
-      )
-  )
+  const shared = common.filter((binding) => !defined.includes(binding))
+  const app = fixtures.filter((binding) => !defined.includes(binding))
   let prefix = imports
   if (shared.length && name !== "contracts") {
     prefix += `import { ${shared.join(", ")} } from "./contracts.js"\n`
@@ -104,12 +89,6 @@ export const wrap = (name, code) => {
     prefix +=
       'import { makeJobTables } from "effect-jobs/PostgreSqlDrizzleSchema"\nimport { index } from "drizzle-orm/pg-core"\n'
   }
-  if (name === "cloud-contracts") {
-    prefix += 'import { ReceiptHandler } from "./handler.js"\n'
-  }
-  if (name === "cloud-consumer") {
-    prefix += 'import { BillingWorkerLayer } from "./cloud-contracts.js"\n'
-  }
   if (name === "native") {
     prefix +=
       'import * as PgClient from "@effect/sql-pg/PgClient"\nimport * as nativeDrizzle from "drizzle-orm/effect-postgres"\nimport { pgTable, text } from "drizzle-orm/pg-core"\nconst invoiceTable = pgTable("invoices", { id: text("id").primaryKey() })\n'
@@ -117,20 +96,6 @@ export const wrap = (name, code) => {
   if (name === "node-worker") {
     prefix +=
       'import * as PgClient from "@effect/sql-pg/PgClient"\nimport * as NodeRuntime from "@effect/platform-node/NodeRuntime"\n'
-  }
-  if (["cloud-consumer", "cloud-application", "cloud-stack"].includes(name)) {
-    prefix +=
-      'import * as Alchemy from "alchemy"\nimport * as Cloudflare from "alchemy/Cloudflare"\n'
-    if (name === "cloud-application") {
-      prefix +=
-        'import { CloudInvoiceProducer, GeneratePdf } from "./cloud-contracts.js"\n'
-    }
-    if (name === "cloud-application") {
-      prefix += 'import { BillingConsumer } from "./cloud-consumer.js"\n'
-    }
-    if (name === "cloud-stack") {
-      prefix += 'import InvoiceApplication from "./cloud-application.js"\n'
-    }
   }
   const generators = [
     "overview",
@@ -145,7 +110,7 @@ export const wrap = (name, code) => {
   ]
   if (generators.includes(name)) {
     const exports = {
-      overview: "{ SendReceipt, IssueInvoice, ReceiptHandler, jobsStorage }",
+      overview: "{ SendReceipt, IssueInvoice, ReceiptHandler, jobs }",
       slots: "IssueInvoiceWithPdf",
       "node-worker": "WorkerLayer",
       policy: "receiptPolicy",
@@ -166,8 +131,6 @@ export const wrap = (name, code) => {
     codes: "Codes",
     failures: "ReceiptHandler",
     "private-handler": "PrivateReceiptHandler, PrivateJobs",
-    "cloud-contracts":
-      "GeneratePdf, CloudInvoiceProducer, BillingHandlers, BillingWorkerLayer",
     drizzle: "jobTables",
     indexes: "jobTables"
   }

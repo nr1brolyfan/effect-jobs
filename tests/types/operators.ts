@@ -1,6 +1,6 @@
 import { Context, Effect, Schema } from "effect"
 import type { JobDefinition } from "../../src/Job.js"
-import type { JobBackendError } from "../../src/JobEnqueue.js"
+import type { JobPersistenceError } from "../../src/JobEnqueue.js"
 import type { JobIntegrityConflict, JobPayloadCodecError } from "../../src/JobContract.js"
 import {
   JobOperators,
@@ -41,7 +41,7 @@ export const generic = Effect.flatMap(JobOperators, (operators) =>
 )
 export const genericCheck: Effect.Effect<
   JobOperatorTransition,
-  JobBackendError | JobOperatorRejected,
+  JobPersistenceError | JobOperatorRejected,
   JobOperators
 > = generic
 type False<T extends false> = T

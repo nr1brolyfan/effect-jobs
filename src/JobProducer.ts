@@ -17,7 +17,7 @@ import type { InvalidOperationId } from "./JobIdentity.js"
 import { InvalidJobInput } from "./JobContract.js"
 import type { EnqueueResult, PreparedJob } from "./JobContract.js"
 import { JobEnqueue } from "./JobEnqueue.js"
-import type { JobBackendError } from "./JobEnqueue.js"
+import type { JobPersistenceError } from "./JobEnqueue.js"
 import type { JobEnqueueError, JobsTransaction } from "./JobTransaction.js"
 import { encodeJobPayload } from "./JobPayloadCodec.js"
 import { observe } from "./JobTelemetry.js"
@@ -54,14 +54,14 @@ export interface JobProducer<Operation extends string, D extends Bindings>
     input: Input<D, K>
   ) => Effect.Effect<
     EnqueueResult,
-    JobEnqueueError | JobBackendError,
+    JobEnqueueError | JobPersistenceError,
     JobEnqueue | D[K]["job"]["payload"]["EncodingServices"]
   >
   readonly enqueueStandalone: <const K extends keyof D & string>(
     input: Input<D, K>
   ) => Effect.Effect<
     EnqueueResult,
-    JobEnqueueError | JobBackendError,
+    JobEnqueueError | JobPersistenceError,
     JobEnqueue | D[K]["job"]["payload"]["EncodingServices"]
   >
   readonly enqueueInTransaction: <E, R, const K extends keyof D & string>(
@@ -250,16 +250,16 @@ const assemble = <Operation extends string, D extends Bindings>(
     enqueue: Effect.fnUntraced(function* <const K extends keyof D & string>(
       input: Input<D, K>
     ) {
-      const backend = yield* JobEnqueue
-      return yield* backend
+      const enqueueService = yield* JobEnqueue
+      return yield* enqueueService
         .enqueue(prepare(input))
         .pipe(observe("enqueue", "provisional"))
     }),
     enqueueStandalone: Effect.fnUntraced(function* <const K extends keyof D & string>(
       input: Input<D, K>
     ) {
-      const backend = yield* JobEnqueue
-      return yield* backend
+      const enqueueService = yield* JobEnqueue
+      return yield* enqueueService
         .enqueueStandalone(prepare(input))
         .pipe(observe("enqueue-standalone", "committed"))
     }),

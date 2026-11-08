@@ -29,7 +29,7 @@ export interface JobStorageService {
   readonly operationResponseBudgetMillis: number
 }
 
-/** Application-selected storage, independent of backend peers and handler groups. */
+/** Application-selected storage, independent of SQL peers and handler groups. */
 export class JobStorage extends Context.Service<JobStorage, JobStorageService>()(
   "effect-jobs/JobStorage"
 ) {}

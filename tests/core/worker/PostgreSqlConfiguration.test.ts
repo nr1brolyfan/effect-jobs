@@ -65,13 +65,13 @@ describe.each(paths)("PostgreSQL %s configuration", (path) => {
 
   it("accepts a valid budget without executing the readiness adapter", async () => {
     const test = fixture()
-    const backend = await Effect.runPromise(
+    const jobs = await Effect.runPromise(
       construct(path, 100).pipe(
         Effect.provideService(PostgreSqlApplication, test.adapter)
       )
     )
-    expect(backend.operationResponseBudgetMillis).toBe(100)
-    expect(backend.storage.operationResponseBudgetMillis).toBe(100)
+    expect(jobs.operationResponseBudgetMillis).toBe(100)
+    expect(jobs.storage.operationResponseBudgetMillis).toBe(100)
     expect(test.calls).toEqual({ constructed: 1, executed: 0 })
   })
 })

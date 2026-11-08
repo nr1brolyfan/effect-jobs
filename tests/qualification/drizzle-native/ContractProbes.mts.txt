@@ -42,7 +42,7 @@ export const transactionProgram = Effect.gen(function* () {
 export const joinedProgram = Effect.gen(function* () {
   const client = yield* Pg.PgClient
   const db = yield* Drizzle.makeWithDefaults()
-  const backend = yield* Storage.make({
+  const jobs = yield* Storage.make({
     schema: "proof",
     operationResponseBudgetMillis: 100
   }).pipe(
@@ -52,7 +52,7 @@ export const joinedProgram = Effect.gen(function* () {
     )
   )
   return yield* client.withTransaction(
-    backend.withTransaction(() =>
+    jobs.withTransaction(() =>
       Effect.gen(function* () {
         const caller = yield* Caller
         if (caller.name === "reject") { return yield* new CallerError() }

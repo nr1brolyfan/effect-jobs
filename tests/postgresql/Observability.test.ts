@@ -58,7 +58,7 @@ it.skipIf(!directory)(
       const adapter = Adapter.make(App.source(pool))
       await Effect.runPromise(
         Effect.gen(function* () {
-          const backend = yield* Jobs.make({
+          const jobs = yield* Jobs.make({
             ...mapping,
             operationResponseBudgetMillis: 100
           }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
@@ -69,14 +69,14 @@ it.skipIf(!directory)(
             availableAt: 1000
           })
           for (const id of ["one", "two", "three"]) {
-            yield* backend.withTransaction((tx) =>
+            yield* jobs.withTransaction((tx) =>
               producer.enqueueInTransaction(tx, input(id))
             )
           }
-          yield* backend.withTransaction((tx) =>
+          yield* jobs.withTransaction((tx) =>
             unsupportedProducer.enqueueInTransaction(tx, input("unsupported"))
           )
-          const health = yield* backend.health.sample({
+          const health = yield* jobs.health.sample({
             queue: queue.name,
             supportedCatalog: [catalog],
             limit: 1
@@ -92,7 +92,7 @@ it.skipIf(!directory)(
             oldestAt: 1000
           })
           assert.deepEqual(health.expired, { count: 0, saturated: false, oldestAt: null })
-          const claim = yield* backend.store.claim({
+          const claim = yield* jobs.store.claim({
             queue: queue.name,
             supportedCatalog: [catalog],
             leaseToken: globalThis.crypto.randomUUID()
@@ -101,13 +101,13 @@ it.skipIf(!directory)(
           if (claim._tag !== "Claimed") {
             throw new Error("claim oracle")
           }
-          const result = yield* backend.store.finalize({
+          const result = yield* jobs.store.finalize({
             before: claim.claim.snapshot,
             ownership: claim.claim.ownership,
             finalization: JobFinalizations.Complete()
           })
           assert.equal(result._tag, "Applied")
-          const exact = yield* backend.health.sample({
+          const exact = yield* jobs.health.sample({
             queue: queue.name,
             supportedCatalog: [catalog],
             limit: 500
@@ -125,7 +125,7 @@ it.skipIf(!directory)(
             1
           )
           // Invalid runtime input fails before SQL and does not replace the last healthy sample.
-          const invalid = yield* backend.health
+          const invalid = yield* jobs.health
             .sample({ queue: queue.name, supportedCatalog: [catalog], limit: 501 })
             .pipe(Effect.result)
           assert.ok(Result.isFailure(invalid))

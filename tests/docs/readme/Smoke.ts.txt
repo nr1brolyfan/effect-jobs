@@ -17,7 +17,6 @@ import { ReceiptHandler as FailureHandler } from "./failures.js"
 import { PrivateReceiptHandler, PrivateJobs } from "./private-handler.js"
 import { jobTables } from "./drizzle.js"
 import { jobTables as customTables } from "./indexes.js"
-import { GeneratePdf as CloudPdf, CloudInvoiceProducer, BillingWorkerLayer } from "./cloud-contracts.js"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Lifecycle from "effect-jobs/JobLifecycle"
 import * as Store from "effect-jobs/JobStore"
@@ -33,9 +32,6 @@ import { getTableConfig } from "drizzle-orm/pg-core"
 assert.equal(process.versions.bun ?? process.version, process.versions.bun ? "1.4.2" : "v24.15.0")
 assert.equal(SendReceipt.version, 1)
 assert.equal(BillingQueue.name, "billing")
-assert.equal(GeneratePdf.kind, CloudPdf.kind)
-assert.equal(Layer.isLayer(BillingWorkerLayer), true)
-assert.equal(CloudInvoiceProducer.slots["generate-pdf"].job.kind, "invoice.generate-pdf")
 assert.equal(IssueInvoice.operation, "billing.issue-invoice")
 assert(Object.isFrozen(Policy.defaultPolicy))
 assert(jobTables.jobs && jobTables.payloads)
@@ -48,8 +44,8 @@ const record: JobEnqueueService["enqueue"] = (effect) => Effect.flatMap(effect, 
   return { _tag: "Inserted" as const, jobId: Schema.decodeSync(JobId)(`readme-job-${prepared.length}`) }
 }))
 const producer: JobEnqueueService = { enqueue: record, enqueueStandalone: record }
-const backend = Fixture.jobsStorage
-Fixture.useBackend({ ...backend, producer, withTransaction: (body) => Effect.suspend(() => body({} as never)).pipe(Effect.provide(Layer.mergeAll(Layer.succeed(JobEnqueue, producer), Layer.mock(JobOperators, {})))) })
+const jobs = Fixture.jobs
+Fixture.useJobs({ ...jobs, producer, withTransaction: (body) => Effect.suspend(() => body({} as never)).pipe(Effect.provide(Layer.mergeAll(Layer.succeed(JobEnqueue, producer), Layer.mock(JobOperators, {})))) })
 await Effect.runPromise(issueInvoice("op", "invoice"))
 await Effect.runPromise(slots.pipe(Effect.provideService(JobEnqueue, producer)))
 assert.deepEqual(prepared.slice(1, 3).map((p) => p.producer.slot), ["send-receipt", "generate-pdf"])

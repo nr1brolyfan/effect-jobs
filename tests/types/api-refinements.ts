@@ -5,7 +5,7 @@ import * as Job from "../../src/Job.js"
 import * as Policy from "../../src/JobPolicy.js"
 import * as Queue from "../../src/JobQueue.js"
 import * as Producer from "../../src/JobProducer.js"
-import { JobEnqueue, type JobBackendError } from "../../src/JobEnqueue.js"
+import { JobEnqueue, type JobPersistenceError } from "../../src/JobEnqueue.js"
 import type { JobEnqueueError } from "../../src/JobTransaction.js"
 import type { EnqueueResult } from "../../src/JobContract.js"
 import {
@@ -56,7 +56,7 @@ const input = {
 }
 export const joined: Effect.Effect<
   EnqueueResult,
-  JobEnqueueError | JobBackendError,
+  JobEnqueueError | JobPersistenceError,
   JobEnqueue | DocumentKeys
 > = producer.enqueue(input)
 export const standalone: typeof joined = producer.enqueueStandalone(input)

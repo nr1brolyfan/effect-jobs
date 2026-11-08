@@ -54,7 +54,7 @@ owners too; new shared script hooks are requested from the foundation owner.
 
 - /docs/start/why-background-jobs: request latency, durable asynchronous work,
   what a queue solves and what it does not solve.
-- /docs/start/installation: exact supported versions, required backend peers.
+- /docs/start/installation: exact supported versions, required persistence peers.
 - /docs/start/first-job: complete executable vertical slice with explicit Layers.
 - /docs/start/tutorial: build a report-generation workflow incrementally.
 - /docs/concepts/model: definition, payload, queue, producer, consumer, handler.
@@ -72,7 +72,7 @@ owners too; new shared script hooks are requested from the foundation owner.
 
 Foundation supplies /docs as a compact entry point linking the guided path and
 reference. No multiple-release versioning in this first delivery. Alpha status,
-supported runtime/backend scope and qualification limits are discoverable without
+supported runtime/persistence scope and qualification limits are discoverable without
 repeating disclaimers on every page. Internal workflow reports are not user docs.
 
 ## Editorial and executable examples

@@ -15,8 +15,8 @@ const unavailable = () => Effect.fail(new PostgreSqlFailure({ commitKnowledge: "
 export const ApplicationPostgresLayer = Layer.succeed(PostgreSqlApplication, {
   ambient: unavailable(), validate: unavailable, withTransaction: unavailable, ownedTransaction: unavailable
 })
-export let jobsStorage = Effect.runSync(Jobs.make({ operationResponseBudgetMillis: 100 }).pipe(Effect.provide(ApplicationPostgresLayer)))
-export const useBackend = (backend: Jobs.Backend) => { jobsStorage = backend }
+export let jobs = Effect.runSync(Jobs.make({ operationResponseBudgetMillis: 100 }).pipe(Effect.provide(ApplicationPostgresLayer)))
+export const useJobs = (value: Jobs.Service) => { jobs = value }
 export const invoices = { create: (_: { id: string }) => Effect.void, createOnce: (_: { operationId: string; invoiceId: string }) => Effect.void }
 export const operationId = "readme-operation"
 export const invoiceId = "readme-invoice"
@@ -65,6 +65,6 @@ export const receiptPolicy = Policy.defaultPolicy
 export const tables = Tables.tables()
 export const ReceiptHandler = BillingJobs.toLayer({ receipt: () => Effect.void })
 export const SendPrivateReceipt = Job.make({ kind: "invoice.private-receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: Payload.encrypted({ schema: Document, codec: ReceiptEncryption }) }) })
-export const WorkerLayer = Worker.layer(BillingJobs, { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(Layer.succeed(JobStorage.JobStorage, jobsStorage.storage)), Layer.provide(ReceiptHandler))
+export const WorkerLayer = Worker.layer(BillingJobs, { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(Layer.succeed(JobStorage.JobStorage, jobs.storage)), Layer.provide(ReceiptHandler))
 export const BillingWorkerLayer = WorkerLayer
-export const issueInvoice = (operationId: string, invoiceId: string) => jobsStorage.withTransaction(() => IssueInvoice.enqueue({ operationId, slot: "receipt", payload: { invoiceId } }))
+export const issueInvoice = (operationId: string, invoiceId: string) => jobs.withTransaction(() => IssueInvoice.enqueue({ operationId, slot: "receipt", payload: { invoiceId } }))

@@ -73,7 +73,7 @@ const resultOf = (value: unknown): string => {
 }
 
 const UnknownCommit = Schema.Struct({
-  _tag: Schema.Literals(["PostgreSqlFailure", "JobBackendError"]),
+  _tag: Schema.Literals(["PostgreSqlFailure", "JobPersistenceError"]),
   commitKnowledge: Schema.Literal("Unknown")
 })
 

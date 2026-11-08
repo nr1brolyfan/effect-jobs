@@ -175,7 +175,7 @@ describe("explicit transaction enqueue", () => {
       policy: { retrySchedule: { delayMillis: 5000 } }
     })
   })
-  it("forwards complete prepared input and returns the backend's provisional result", async () => {
+  it("forwards complete prepared input and returns the producer's provisional result", async () => {
     let prepared: PreparedJob | undefined
     const result = await Effect.runPromise(
       withJoinedTransaction(
@@ -265,7 +265,7 @@ describe("explicit transaction enqueue", () => {
     expect(calls).toBe(0)
   })
 
-  it("preserves codec and backend failures without insertion/reclassification", async () => {
+  it("preserves codec and jobs failures without insertion/reclassification", async () => {
     let inserts = 0
     const definition = Job.make({
       queue,
@@ -292,15 +292,15 @@ describe("explicit transaction enqueue", () => {
       await Effect.runPromise(
         failure(
           withJoinedTransaction(
-            () => Effect.fail("backend-failure"),
+            () => Effect.fail("jobs-failure"),
             (tx) => job.enqueueInTransaction(tx, input)
           )
         )
       )
-    ).toBe("backend-failure")
+    ).toBe("jobs-failure")
   })
 
-  it("escaped and deferred enqueues cannot call a closed backend", async () => {
+  it("escaped and deferred enqueues cannot call a closed jobs", async () => {
     let escaped: JobsTransaction | undefined
     let deferred:
       | Effect.Effect<

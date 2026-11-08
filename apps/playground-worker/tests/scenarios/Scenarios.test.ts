@@ -9,7 +9,7 @@ import {
   JobIntegrityConflict,
   type PreparedJob
 } from "effect-jobs/JobContract"
-import { JobEnqueue, JobBackendError } from "effect-jobs/JobEnqueue"
+import { JobEnqueue, JobPersistenceError } from "effect-jobs/JobEnqueue"
 import { sandbox } from "@effect-jobs/playground-contracts/Fixtures"
 import { FakeProvider, RetryRejected } from "../../src/providers/FakeProvider.js"
 import * as Provider from "../../src/providers/FakeProviderLayer.js"
@@ -494,8 +494,8 @@ describe("encrypted consumer payload and installed handlers", () => {
           ),
         enqueueStandalone: () =>
           Effect.fail(
-            new JobBackendError({
-              reason: "unqualified-backend",
+            new JobPersistenceError({
+              reason: "unqualified-storage",
               commitKnowledge: "NotCommitted"
             })
           )

@@ -20,12 +20,12 @@ const IssueInvoice = JobProducer.make("billing.issue-invoice").pipe(
 )
 
 // App setup: its Layer supplies a qualified PostgreSqlApplication adapter.
-const jobsStorage = yield* PostgreSqlJobs.make({
+const jobs = yield* PostgreSqlJobs.make({
   operationResponseBudgetMillis: 100
 }).pipe(Effect.provide(ApplicationPostgresLayer))
 
 // Application: invoice and job commit together, or neither does.
-yield* jobsStorage.withTransaction(() =>
+yield* jobs.withTransaction(() =>
   Effect.gen(function* () {
     yield* invoices.create({ id: invoiceId }) // Uses this same application transaction.
     yield* IssueInvoice.enqueue({
@@ -98,7 +98,7 @@ export const IssueInvoice = JobProducer.make("billing.issue-invoice").pipe(
 ```ts
 // apps/api — owns invoice writes; does not import the email provider
 const issueInvoice = (operationId: string, invoiceId: string) =>
-  jobsStorage.withTransaction(() =>
+  jobs.withTransaction(() =>
     Effect.gen(function* () {
       yield* invoices.createOnce({ operationId, invoiceId })
 
@@ -194,20 +194,20 @@ const ApplicationPostgresLayer = PostgreSqlNative.layer({
   client,
   operationTimeoutMillis: 2000
 })
-const jobsStorage = yield* PostgreSqlJobs.make({
+const jobs = yield* PostgreSqlJobs.make({
   operationResponseBudgetMillis: 100
 }).pipe(Effect.provide(ApplicationPostgresLayer))
 
 const WorkerLayer = Worker.layer(BillingJobs, {
   queues: [{ queue: BillingQueue, concurrency: 2 }]
 }).pipe(
-  Layer.provide(Layer.succeed(JobStorage.JobStorage, jobsStorage.storage)),
+  Layer.provide(Layer.succeed(JobStorage.JobStorage, jobs.storage)),
   Layer.provide(ReceiptHandler),
   Layer.provide(ReceiptMailerLayer)
 )
 
 const runWorker = Effect.gen(function* () {
-  yield* jobsStorage.ready // Checks readiness; does not run migrations.
+  yield* jobs.ready // Checks readiness; does not run migrations.
 
   const PollingLayer = Polling.layer([BillingQueue], {
     maxJobs: 20, // Max jobs claimed during one bounded drain.
@@ -236,8 +236,8 @@ immediate, not graceful polling shutdown.
 
 Worker construction requires `JobStorage` and the complete group's handlers.
 `PostgreSqlJobs.layerNoDeps(options)` provides `JobStorage` together with the
-backend's producer/operator services; reuse that Layer when composing workers.
-When using `PostgreSqlJobs.make`, provide its captured `backend.storage` as above.
+configured producer/operator services; reuse that Layer when composing workers.
+When using `PostgreSqlJobs.make`, provide its captured `jobs.storage` as above.
 Custom qualified ports use `JobStorage.layer({ store, operationResponseBudgetMillis })`;
 their provider requirements remain explicit on the Layer. The source owns its
 lifetime, migrations and admission checks; this composition does not prove atomicity.
@@ -249,7 +249,7 @@ yield* Worker.drain(BillingQueue, { maxJobs: 20, recoveryLimit: 20 }).pipe(Effec
 // One bounded run, not “wait until every future retry has finished”.
 
 const hint = yield* JobSchedule.observe(BillingJobs, BillingQueue, { limit: 100 }).pipe(
-  Effect.provide(JobSchedule.layer(jobsStorage.schedule))
+  Effect.provide(JobSchedule.layer(jobs.schedule))
 )
 // Compute delays from hint.observedAt, not the host clock.
 // Keep a finite repair wakeup even if both timestamps are null.
@@ -261,15 +261,15 @@ filtered by the group's contracts within a bounded queue head (1–500 rows);
 `saturated` means that head is incomplete. In particular, null availability with
 saturation does **not** mean no supported job exists. Recovery includes all active
 leases in that queue, matching queue-scoped drain recovery. Timestamps may already
-be due and can become stale immediately. The backend bounds query latency; the row
+be due and can become stale immediately. The storage adapter bounds query latency; the row
 limit is not a bound on total database work. Authorization, activation expiry,
 exclusive alarm ownership and repair notifications remain application-owned.
 `PostgreSqlJobs.layerNoDeps` also provides the configured `JobSchedule` service.
 
-The backend exposes its producer service as `jobsStorage.producer`.
+The configured jobs instance exposes its producer service as `jobs.producer`.
 Provide it as `JobEnqueue` to effects that call `enqueue` or `enqueueStandalone`.
 `PostgreSqlNative.layer({ client, operationTimeoutMillis })` bridges the exact
-application-owned `PgClient@4.0.5`, including its active `transactionService`.
+application-owned `PgClient@4.1.0`, including its active `transactionService`.
 Use public `PgClient.withTransaction` on that same client with Drizzle queries
 inside its Effect body. Missing or foreign-client transactions fail before preparation.
 Pools, keys, timeouts and transaction ownership remain application-owned.
@@ -291,10 +291,10 @@ yield* client
       })
     })
   )
-  .pipe(Effect.provideService(JobEnqueue, jobsStorage.producer))
+  .pipe(Effect.provideService(JobEnqueue, jobs.producer))
 ```
 
-Alternatively, `jobsStorage.withTransaction` delegates to the same client manager
+Alternatively, `jobs.withTransaction` delegates to the same client manager
 and supplies `JobEnqueue`, as used by `issueInvoice`. Provide the scoped native
 PgClient Layer around the whole application; defining a Layer alone starts no work.
 
@@ -319,7 +319,7 @@ write, `enqueueStandalone` opens its own transaction and rejects active ones:
 yield* IssueInvoice.enqueueStandalone({
   operationId, slot: "receipt",
   payload: { invoiceId }
-}).pipe(Effect.provideService(JobEnqueue, jobsStorage.producer))
+}).pipe(Effect.provideService(JobEnqueue, jobs.producer))
 ```
 
 For operation signals, privacy boundaries, health sampling and query recipes, see the
@@ -480,7 +480,7 @@ const receipt = yield* Schema.decodeUnknownEffect(ReceiptDocument)({
   total: { amount: "49.00", currency: "EUR" }
 })
 
-yield* jobsStorage.withTransaction(() =>
+yield* jobs.withTransaction(() =>
   PrivateReceiptProducer.enqueue({
     operationId, slot: "receipt",
     payload: { invoiceId, document: receipt }
@@ -513,154 +513,30 @@ provided. Never log plaintext or keys. Register the private job and handler too.
 
 ## Cloudflare + Alchemy
 
-**Declaration-checked wiring with Alchemy `2.0.0-beta.81`; external PostgreSQL
-on Cloudflare is NotTested.** A Workers-compatible PostgreSQL application adapter
-and its service composition are still required.
+The maintained [tenant billing example](examples/cloudflare-alchemy/README.md) uses
+Effect-native Alchemy `2.0.0-beta.85` Workers and Durable Objects with Effect `4.1.0`.
+It includes the actual stack, invocation-scoped PostgreSQL construction, tenant
+admission and lookup, atomic jobs/receipts, an idempotent development HTTP provider,
+and one bounded callback wake coordinator for the shared billing queue.
 
-```text
-Application Worker ── commit invoice + two jobs ──▶ PostgreSQL
-        │                                        ▲
-        └── wake ──▶ Durable Object ── drain ──────┘
-                     alarm / execution           jobs / payloads / retries
-```
+PostgreSQL owns jobs, payloads, retries, leases and recovery. Alchemy owns its native
+alarm and callback metadata. A callback prearms repair before execution, drains a
+finite batch, and uses read-only database-relative schedule hints for the next wake.
+The example tests actual Alchemy callback replacement/acknowledgement, retry and
+parking behavior with local workerd. PostgreSQL COMMIT and callback scheduling are
+separate operations; bootstrap traffic and the retained repair wake are required.
+Hourly parking bounds unsuccessful self-scheduling; it is not a latency SLA.
 
-Start with **one named DO per logical queue**, not one per job. That is an application topology, not a library requirement. Jobs live in PostgreSQL; the DO hosts bounded execution and wakeups.
-
-This consumer handles two job kinds in the same billing queue: receipt email and
-invoice PDF. Each consequence has its own producer slot.
-
-```ts
-// Shared definitions: reuse SendReceipt and BillingQueue from above.
-const GeneratePdf = Job.make({
-  kind: "invoice.generate-pdf",
-  payload: Schema.Struct({ invoiceId: Schema.String })
-})
-
-const CloudInvoiceProducer = JobProducer.make("billing.cloudflare.issue-invoice").pipe(
-  JobProducer.withSlot("send-receipt", SendReceipt, { queue: BillingQueue }),
-  JobProducer.withSlot("generate-pdf", GeneratePdf, { queue: BillingQueue })
-)
-
-// Consumer composition: application mailer/PDF services own external effects.
-const CloudJobs = JobGroup.make("cloud-billing", { receipt: SendReceipt, pdf: GeneratePdf })
-const BillingHandlers = CloudJobs.toLayer({
-  receipt: (input) => Effect.gen(function* () {
-    const mailer = yield* ReceiptMailer
-    yield* mailer.send({ invoiceId: input.payload.invoiceId, idempotencyKey: input.context.jobId })
-  }),
-  pdf: (input) =>
-    Effect.gen(function* () {
-      const renderer = yield* InvoicePdfRenderer
-
-      yield* renderer.generate({
-        invoiceId: input.payload.invoiceId,
-        idempotencyKey: input.context.jobId
-      })
-    })
-})
-
-const BillingWorkerLayer = Worker.layer(CloudJobs, {
-  queues: [{ queue: BillingQueue, concurrency: 2 }]
-}).pipe(
-  Layer.provide(Layer.succeed(JobStorage.JobStorage, jobsStorage.storage)),
-  Layer.provide(BillingHandlers),
-  Layer.provide(Layer.mergeAll(ReceiptMailerLayer, InvoicePdfRendererLayer))
-)
-```
-
-```ts
-// src/billing-consumer.ts — one Effect-native DO handles both job kinds.
-export class BillingConsumer extends Cloudflare.DurableObject<BillingConsumer>()(
-  "BillingConsumer",
-  Effect.gen(function* () {
-    return Effect.gen(function* () {
-      const drain = yield* Alchemy.makeCallback(
-        "drain-billing",
-        Effect.fn(function* (_payload: null) {
-          yield* jobsStorage.ready
-
-          yield* Worker.drain(BillingQueue, { maxJobs: 20, recoveryLimit: 20 }).pipe(Effect.provide(BillingWorkerLayer))
-        })
-      )
-
-      return {
-        wake: () => drain.schedule("billing", { after: "1 second", payload: null })
-      }
-    })
-  })
-) {}
-```
-
-```ts
-// src/invoice-application.ts — internal RPC; authenticate any public HTTP API.
-export default Cloudflare.Worker(
-  "InvoiceApplication",
-  { main: import.meta.url },
-  Effect.gen(function* () {
-    const consumers = yield* BillingConsumer
-
-    return {
-      issueInvoice: Effect.fn(function* (operationId: string, invoiceId: string) {
-        const jobs = yield* jobsStorage
-          .withTransaction(() =>
-            Effect.gen(function* () {
-              yield* invoices.createOnce({ operationId, invoiceId })
-
-              const receipt = yield* CloudInvoiceProducer.enqueue({
-                operationId, slot: "send-receipt",
-                payload: { invoiceId }
-              })
-
-              const pdf = yield* CloudInvoiceProducer.enqueue({
-                operationId, slot: "generate-pdf",
-                payload: { invoiceId }
-              })
-
-              return { receipt: receipt.jobId, pdf: pdf.jobId }
-            })
-          )
-          .pipe(Effect.provideService(JobEnqueue, jobsStorage.producer))
-
-        yield* consumers.getByName("billing").wake() // After both jobs commit.
-
-        return jobs
-      })
-    }
-  })
-)
-```
-
-```ts
-// alchemy.run.ts
-export default Alchemy.Stack(
-  "Billing",
-  { providers: Cloudflare.providers(), state: Cloudflare.state() },
-  Effect.gen(function* () {
-    const application = yield* InvoiceApplication
-
-    return { application: application.workerName }
-  })
-)
-```
-
-One callback drains one bounded batch. **You still need subsequent wakeups for backlog, delayed jobs and retries, plus repair of missed wakeups.** PostgreSQL commit and DO scheduling are not atomic; a failed wake does not mean the invoice rolled back. Alchemy owns its alarms—do not set competing alarms manually.
-
-Besides calling `wake()` after commit, plan application-owned periodic wakeups
-to check delayed jobs, retries and expired leases. Start them explicitly and
-use an external Cron Trigger to repair missed wakeups. Alchemy owns native alarms;
-periodic scheduling is conceptual here, without a qualified recursive callback.
-
-Both jobs commit with the invoice or neither does. Reusing the operation ID
-deduplicates each slot independently. Email and PDF execution are independent:
-the receipt handler must not assume the PDF has already been generated.
-
-Start with one DO and concurrency `2`; add named consumers only after measuring throughput and provider limits. More DOs increase aggregate concurrency, not storage capacity. These fragments omit Workers-specific connections and service composition; Node's PostgreSQL setup cannot simply be reused unchanged.
+Run the example's separate pinned qualification gate as documented there. Its
+local tests do not establish hosted deployment, network-crash tolerance, physical
+tenant/region isolation or exactly-once external effects. Alchemy remains outside
+the portable library's dependency graph.
 
 ## Alpha boundaries
 
 PostgreSQL only. Application-owned adapters, pools, migrations and cleanup. No recurring scheduler or admin API. Every TypeScript fence is extracted and declaration-checked against source and
-the historical packed alpha.1 artifact. The current local Effect 4.0.5 candidate
-requires its own receipts; see `specs/release-qualification.md`. Node/Bun composition, handler, codec and encryption
+the current locally packed artifact. The Effect 4.1.0 candidate
+requires exact-byte receipts; see `specs/release-qualification.md`. Node/Bun composition, handler, codec and encryption
 checks use explicit application fixtures. Real native PostgreSQL transaction
 gates are separate. Cloudflare external PostgreSQL, deployment, server crashes
 and arbitrary network faults are NotTested; upstream full strict Drizzle
@@ -680,12 +556,12 @@ const ddl = PostgreSqlSchema.migration(tables)
 // Execute `ddl` using your migration runner.
 
 // Runtime: configure the same schema/table mapping, without DDL permissions.
-const jobsStorage = yield* PostgreSqlJobs.make({
+const jobs = yield* PostgreSqlJobs.make({
   ...tables,
   operationResponseBudgetMillis: 100
 }).pipe(Effect.provide(ApplicationPostgresLayer))
 
-yield* jobsStorage.ready
+yield* jobs.ready
 ```
 
 ```ts

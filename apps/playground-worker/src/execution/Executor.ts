@@ -51,14 +51,14 @@ export const queues = Object.freeze(
 export const workerLayerNoDeps = (schema: string) =>
   Layer.unwrap(
     Effect.gen(function* () {
-      const backend = yield* PostgreSqlJobs
+      const jobs = yield* PostgreSqlJobs
       return Worker.layer(Definitions.group, {
         queues: queues.map((queue) => ({
           queue,
           concurrency: limits.concurrency
         }))
       }).pipe(
-        Layer.provide(Layer.succeed(Storage.JobStorage, backend.storage)),
+        Layer.provide(Layer.succeed(Storage.JobStorage, jobs.storage)),
         Layer.provide(Handlers.layerNoDeps),
         Layer.provide(Provider.layerNoDeps(schema))
       )
@@ -114,9 +114,9 @@ export const generate = (schema: string) =>
     const local = yield* Mode.LocalPrivate
     const retainedMaximum = Mode.retainedMaximum(local)
     const admissionMaximum = Mode.admissionMaximum(local)
-    const backend = yield* PostgreSqlJobs
+    const jobs = yield* PostgreSqlJobs
     const traffic = yield* Traffic.make(schema).pipe(
-      Effect.provideService(JobEnqueue, backend.producer)
+      Effect.provideService(JobEnqueue, jobs.producer)
     )
     const t = Tables.relations(schema)
     return yield* sql.withTransaction(

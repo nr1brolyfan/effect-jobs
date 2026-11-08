@@ -14,7 +14,7 @@ import {
 import * as Reactivity from "effect/reactivity/Reactivity"
 import * as Pg from "@effect/sql-pg/PgClient"
 import * as Native from "effect-jobs/PostgreSqlNative"
-import * as Backend from "effect-jobs/PostgreSqlJobs"
+import * as Jobs from "effect-jobs/PostgreSqlJobs"
 import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import * as Job from "effect-jobs/Job"
@@ -45,12 +45,12 @@ export const probe = (url, schema, alarm, checks = []) =>
         idleTimeout: "1 second"
       })
       const adapter = Native.make({ client, operationTimeoutMillis: 2000 })
-      const backend = yield* Backend.make({
+      const jobs = yield* Jobs.make({
         schema,
         operationResponseBudgetMillis: 500
       }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
-      yield* backend.ready
-      checks.push("real connection and packed backend readiness")
+      yield* jobs.ready
+      checks.push("real connection and packed jobs readiness")
       const queue = Queue.make("cf-real")
       const definition = Job.make({
         kind: "synthetic",
@@ -125,7 +125,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         )
         const duplicates = yield* Effect.all(
           [0, 1].map(() =>
-            backend.withTransaction(() => producer.enqueue(input("duplicate")))
+            jobs.withTransaction(() => producer.enqueue(input("duplicate")))
           ),
           { concurrency: 2 }
         )
@@ -137,7 +137,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         const conflicts = yield* Effect.all(
           ["a", "b"].map((value) =>
             Effect.exit(
-              backend.withTransaction(() => producer.enqueue(input("conflict", value)))
+              jobs.withTransaction(() => producer.enqueue(input("conflict", value)))
             )
           ),
           { concurrency: 2 }
@@ -149,13 +149,13 @@ export const probe = (url, schema, alarm, checks = []) =>
         yield* sql(`DELETE FROM ${schema}.receipts`)
         yield* sql(`DELETE FROM ${schema}.jobs`)
         const claim = () =>
-          backend.store.claim({
+          jobs.store.claim({
             queue: queue.name,
             supportedCatalog: [catalog],
             leaseToken: crypto.randomUUID()
           })
         const finish = (c, finalization) =>
-          backend.store.finalize({
+          jobs.store.finalize({
             ownership: c.ownership,
             before: c.snapshot,
             finalization
@@ -189,7 +189,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         assert(
           Exit.isFailure(yield* Effect.exit(finish(old.claim, { _tag: "Complete" })))
         )
-        assert.equal(yield* backend.store.recoverExpired(queue.name, 1), 1)
+        assert.equal(yield* jobs.store.recoverExpired(queue.name, 1), 1)
         const fresh = yield* claim()
         assert.equal(fresh._tag, "Claimed")
         assert.notEqual(fresh.claim.ownership.leaseToken, old.claim.ownership.leaseToken)
@@ -227,7 +227,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         const worker = Worker.layer(group, {
           queues: [{ queue, concurrency: 2 }]
         }).pipe(
-          Layer.provide(Layer.succeed(Storage.JobStorage, backend.storage)),
+          Layer.provide(Layer.succeed(Storage.JobStorage, jobs.storage)),
           Layer.provide(
             group.toLayer({
               synthetic: () =>
@@ -270,6 +270,6 @@ export const probe = (url, schema, alarm, checks = []) =>
           hosted: "NotTested",
           cpuCrashNetwork: "NotTested"
         }
-      }).pipe(Effect.provideService(JobEnqueue, backend.producer))
+      }).pipe(Effect.provideService(JobEnqueue, jobs.producer))
     })
   ).pipe(Effect.provide(Reactivity.layer), Effect.timeout("40 seconds"))

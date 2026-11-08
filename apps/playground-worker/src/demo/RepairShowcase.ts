@@ -26,7 +26,7 @@ const producer = Producer.make("playground.synthetic-showcase").pipe(
 export const run = (schema: string, sandbox: SandboxView) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
-    const backend = yield* PostgreSqlJobs
+    const jobs = yield* PostgreSqlJobs
     const repairs = yield* SyntheticRepairs
     const read = yield* JobsRead
     const t = Tables.relations(schema)
@@ -75,7 +75,7 @@ export const run = (schema: string, sandbox: SandboxView) =>
             slot: "encrypted-document",
             payload
           })
-          .pipe(Effect.provideService(JobEnqueue, backend.producer))
+          .pipe(Effect.provideService(JobEnqueue, jobs.producer))
         yield* sql.unsafe(
           `INSERT INTO ${t.associations}(sandbox_id,generation,job_id,relations) VALUES($1,$2,$3,$4::jsonb)`,
           [

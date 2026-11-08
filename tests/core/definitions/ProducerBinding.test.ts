@@ -9,7 +9,7 @@ import * as Policy from "../../../src/JobPolicy.js"
 import * as Payload from "../../../src/JobPayload.js"
 import { EnqueueResult } from "../../../src/JobContract.js"
 import type { PreparedJob } from "../../../src/JobContract.js"
-import { JobEnqueue, JobBackendError } from "../../../src/JobEnqueue.js"
+import { JobEnqueue, JobPersistenceError } from "../../../src/JobEnqueue.js"
 import type { JobEnqueueService } from "../../../src/JobEnqueue.js"
 import { JobId } from "../../../src/JobId.js"
 import { withJoinedTransaction } from "../../../src/internal/JobTransaction.js"
@@ -318,7 +318,7 @@ describe("contract-first producer binding", () => {
     const missing: JobEnqueueService = {
       enqueue: () =>
         Effect.fail(
-          new JobBackendError({
+          new JobPersistenceError({
             reason: "transaction-required",
             commitKnowledge: "NotCommitted"
           })

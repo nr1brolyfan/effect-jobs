@@ -46,7 +46,7 @@ const store = {
   reconcileFinalization: unexpected,
   recoverExpired: unexpected
 }
-const backend = Layer.mock(PostgreSqlJobs, {
+const jobs = Layer.mock(PostgreSqlJobs, {
   operationResponseBudgetMillis: 100,
   storage: Effect.runSync(Storage.make({ store, operationResponseBudgetMillis: 100 })),
   health: { sample: unexpected },
@@ -84,7 +84,7 @@ const make = (stored: StoredOperatorReceipt | null = null) =>
       lookup: () => Effect.succeed(stored)
     })
     const service = yield* Legacy.make.pipe(
-      Effect.provide(Layer.merge(backend, transactions))
+      Effect.provide(Layer.merge(jobs, transactions))
     )
     return { service, saved }
   })

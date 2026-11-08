@@ -167,7 +167,7 @@ const page = await Effect.runPromise(Effect.flatMap(JobsRead, (service) => servi
 assert.deepEqual(page, Fixtures.page)
 const changes = await Effect.runPromise(Effect.flatMap(Changes, (service) => service.read(access, { sandbox: access.sandbox.ref })).pipe(Effect.provide(MockLayer.layer), Effect.provide(TestClock.layer())))
 assert.equal(changes.mode, "poll-only")
-console.log("packed contracts: strict types, real library codec, absent backend peers, mock reads PASS")
+console.log("packed contracts: strict types, real library codec, absent jobs peers, mock reads PASS")
 `
 )
 for (const runtime of ["node", "bun"]) {
@@ -216,7 +216,7 @@ const receipt = {
     "pack inventory and byte equality",
     "independent strict packed contracts compile",
     "Node and Bun codec/mock smoke",
-    "browser bundle without backend peers"
+    "browser bundle without jobs peers"
   ],
   notTested: [
     "PostgreSQL",

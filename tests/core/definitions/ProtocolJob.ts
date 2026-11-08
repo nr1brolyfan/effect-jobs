@@ -18,7 +18,7 @@ import { EpochMillis, PersistedJobPolicy } from "../../../src/JobPolicy.js"
 import { JobRegistry, type DuplicateJobHandler } from "./ProtocolRegistry.js"
 import type { JobEnqueueError, JobsTransaction } from "../../../src/JobTransaction.js"
 import { encodeJobPayload } from "../../../src/JobPayloadCodec.js"
-import { JobEnqueue, type JobBackendError } from "../../../src/JobEnqueue.js"
+import { JobEnqueue, type JobPersistenceError } from "../../../src/JobEnqueue.js"
 import { insertPreparing } from "../../../src/internal/JobTransaction.js"
 
 /**
@@ -46,16 +46,16 @@ export interface JobDefinition<
   readonly queue: JobQueue<Queue>
   readonly payload: Payload
   readonly catalog: CatalogIdentity<Queue, Kind, Version>
-  /** Enqueues in the active configured backend transaction; runs no commit or replay.
+  /** Enqueues in the active configured enqueueService transaction; runs no commit or replay.
    * Same producer tuple compares kind/version and semantic payload, returning the first ID
    * for a match or JobIntegrityConflict for changed content. Results are provisional
    * until outer commit; the first queue/policy/availability are retained. Encoding
-   * services and backend E/R remain explicit. */
+   * services and enqueueService E/R remain explicit. */
   readonly enqueue: (
     input: EnqueueInput<Payload["Type"]>
   ) => Effect.Effect<
     EnqueueResult,
-    JobEnqueueError | JobBackendError,
+    JobEnqueueError | JobPersistenceError,
     JobEnqueue | Payload["EncodingServices"]
   >
   /** Owns an atomic transaction; rejects an active configured-client transaction.
@@ -64,7 +64,7 @@ export interface JobDefinition<
     input: EnqueueInput<Payload["Type"]>
   ) => Effect.Effect<
     EnqueueResult,
-    JobEnqueueError | JobBackendError,
+    JobEnqueueError | JobPersistenceError,
     JobEnqueue | Payload["EncodingServices"]
   >
   /** Explicit invocation-scoped primitive for qualified custom adapters. */
@@ -184,17 +184,17 @@ export function make<
     payload,
     catalog,
     enqueue: Effect.fnUntraced(function* (input: EnqueueInput<Payload["Type"]>) {
-      const backend = yield* JobEnqueue
+      const enqueueService = yield* JobEnqueue
       // Check transaction presence before potentially asynchronous encryption.
-      return yield* backend
+      return yield* enqueueService
         .enqueue(prepare(input))
         .pipe(observe("enqueue", "provisional"))
     }),
     enqueueStandalone: Effect.fnUntraced(function* (
       input: EnqueueInput<Payload["Type"]>
     ) {
-      const backend = yield* JobEnqueue
-      return yield* backend
+      const enqueueService = yield* JobEnqueue
+      return yield* enqueueService
         .enqueueStandalone(prepare(input))
         .pipe(observe("enqueue-standalone", "committed"))
     }),

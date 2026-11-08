@@ -99,7 +99,7 @@ status remains Success(void) for privacy; query jobs fields to detect degradatio
 
 ## Explicit health reporter
 
-Call `backend.health.sample({ queue, supportedCatalog, limit })` from ONE explicit
+Call `jobs.health.sample({ queue, supportedCatalog, limit })` from ONE explicit
 application-owned reporter for that storage/queue. Limit is 1–500 and catalog
 selection is 1–500 entries from that queue. The implementation does four bounded
 reads (at most limit+1 returned rows each), one DB-time sample, no writes/migrations,
@@ -178,7 +178,7 @@ Cause; ordinary asynchronous delivery failure remains isolated from business wor
 
 These PromQL examples assume the host's OTLP-to-Prometheus mapping replaces dots
 with underscores and exports explicit histogram `_bucket` series. Verify that
-mapping and resource labels in the actual backend before installing alerts.
+mapping and resource labels in the actual telemetry system before installing alerts.
 
 - Confirmed throughput: `sum by (jobs_state) (rate(effect_jobs_transition_total[5m]))`.
   This is acknowledgements/s, a lower bound on durable transitions.

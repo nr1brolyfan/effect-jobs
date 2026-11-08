@@ -139,13 +139,15 @@ describe("immutable pipeable producer assembly", () => {
         prepared.push(value)
         return EnqueueResult.Inserted({ jobId })
       })
-    const backend = JobEnqueue.of({
+    const enqueueService = JobEnqueue.of({
       enqueue: (prepare) => Effect.flatMap(prepare, insert),
       enqueueStandalone: (prepare) => Effect.flatMap(prepare, insert)
     })
     const effects = [
-      empty.enqueue(input).pipe(Effect.provideService(JobEnqueue, backend)),
-      empty.enqueueStandalone(input).pipe(Effect.provideService(JobEnqueue, backend)),
+      empty.enqueue(input).pipe(Effect.provideService(JobEnqueue, enqueueService)),
+      empty
+        .enqueueStandalone(input)
+        .pipe(Effect.provideService(JobEnqueue, enqueueService)),
       withJoinedTransaction(insert, (tx) => empty.enqueueInTransaction(tx, input))
     ]
     for (const effect of effects) {

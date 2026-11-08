@@ -93,7 +93,7 @@ in that same client/Context. `db.transaction` retains its upstream type limitati
 and is excluded from positive qualification, without a local type correction. `producer.enqueue(input)` requires it; it has no transaction
 argument or implicit fallback. Jobs/domain/receipts must share the same source.
 
-`backend.withTransaction(() => producer.enqueue(input))` delegates explicit manager
+`jobs.withTransaction(() => producer.enqueue(input))` delegates explicit manager
 join-or-establish and supplies the producer service. `enqueueStandalone(input)`
 owns bounded preparation plus atomic job/payload/dedup insertion, rejects an active
 configured-client transaction and resolves after acknowledged commit. Unknown
@@ -105,7 +105,7 @@ Nested transactions/options/isolation are not automatically Drizzle-equivalent.
 A+B strict/exactOptional source checks use approved dependency skipLibCheck:true;
 C remains separately recorded known upstream FAIL and is nonblocking.
 
-Generic producer errors are bounded `JobBackendError` values with transaction
+Generic producer errors are bounded `JobPersistenceError` values with transaction
 misuse reason and `NotCommitted | Unknown` knowledge. Schema services remain in
 E/R composition. The native adapter's structural input type does not qualify other
 SQL drivers. Explicit-handle adapters retain `enqueueInTransaction` and their
@@ -131,7 +131,7 @@ Drizzle declaration failure remains separately reported, not declared fixed.
 
 ## Finite local qualification
 
-The existing `verify`, backend, installed and release guards remain required.
+The existing `verify`, persistence, installed and release guards remain required.
 `qualify:drizzle:native` adds packed native ambient/standalone real-PG checks on
 Node and Bun; `qualify:drizzle:indexes` records migration/snapshot evidence;
 `qualify:api:installed` checks new public types and local encrypted service behavior.

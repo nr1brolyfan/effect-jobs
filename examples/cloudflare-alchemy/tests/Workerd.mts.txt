@@ -1,0 +1,126 @@
+// Test-only foreign runtime harness. Production methods live in src/Coordinator.ts.
+import { DurableObject, env } from "cloudflare:workers"
+import { Cause, Clock, Context, Effect, Exit, Layer, Redacted } from "effect"
+import { RuntimeContext } from "alchemy/RuntimeContext"
+import { Self } from "alchemy/Self"
+import { makeDurableObjectBridge } from "alchemy-test/DurableObjectBridge"
+import { makeWorkerRuntimeContext } from "alchemy-test/WorkerRuntimeContext"
+import { initializeAlarmCallbacks, makeDurableObjectCallbackFactory, dispatchAlarmCallbacks } from "alchemy-test/AlarmCallback"
+import { DurableObjectState, fromDurableObjectState } from "alchemy-test/DurableObjectState"
+import { makeWake } from "../src/Wake.js"
+import { openInvocation } from "../src/Invocation.js"
+import { admitDevelopment, decodeRequest } from "../src/Domain.js"
+
+export class Probe extends DurableObject {
+  constructor(state, env) {
+    super(state, env)
+    const self = this
+    self.state = state
+    self.env = env
+    self.mode = "idle"
+    self.now = Date.parse("2050-01-01T00:00:00Z")
+    self.native = false
+    self.calls = 0
+    self.closed = 0
+    self.runtime = {
+      Type: "test/real-Alchemy-callbacks", id: "probe", env: {},
+      get: () => Effect.undefined, set: () => Effect.die("unused"),
+      makeCallback: makeDurableObjectCallbackFactory(state)
+    }
+    const seal = initializeAlarmCallbacks(state)
+    self.ready = self.run(makeWake(Effect.gen(function* () {
+      yield* Effect.acquireRelease(Effect.sync(() => { self.calls++ }), () => Effect.sync(() => { self.closed++ }))
+      if (self.mode === "error") return yield* Effect.fail(new Error("synthetic drain failure"))
+      if (self.mode === "interrupt") return yield* Effect.interrupt
+      if (self.mode === "pg") {
+        const invocation = yield* openInvocation({ databaseUrl: Redacted.make(self.env.PG.connectionString), providerUrl: "https://provider.invalid/deliver" })
+        return { result: yield* invocation.drain, hint: yield* invocation.observe }
+      }
+      return { result: { _tag: "Idle", claimed: 0, recovered: 0 }, hint: { observedAt: 1000, nextAvailableAt: null, nextRecoveryAt: null, saturated: false } }
+    }).pipe(Effect.scoped))).finally(seal)
+  }
+  run(effect) {
+    const self = this
+    return Effect.runPromise(Effect.gen(function* () {
+      const real = yield* Clock.Clock
+      const clock = { sleep: (duration) => real.sleep(duration), monotonicTimeNanos: real.monotonicTimeNanos, monotonicTimeNanosUnsafe: () => real.monotonicTimeNanosUnsafe(), currentTimeMillisUnsafe: () => self.now, currentTimeMillis: Effect.sync(() => self.now), currentTimeNanosUnsafe: () => BigInt(self.now) * 1000000n, currentTimeNanos: Effect.sync(() => BigInt(self.now) * 1000000n) }
+      return yield* Effect.scoped(effect.pipe(
+      Effect.provideService(RuntimeContext, self.runtime),
+      Effect.provideService(DurableObjectState, fromDurableObjectState(self.state)),
+      ...(self.native ? [] : [Effect.provideService(Clock.Clock, clock)])
+    ))
+    }))
+  }
+  async alarm() {
+    const self = this
+    await self.ready
+    await self.run(dispatchAlarmCallbacks(self.state, false))
+  }
+  async fetch(request) {
+    const self = this
+    const wake = await self.ready
+    const url = new URL(request.url)
+    const action = url.pathname.slice(1)
+    if (action === "prearm") await self.run(wake.prearm)
+    if (action === "nudge") await self.run(wake.nudge)
+    if (action === "native") { self.native = true; self.now = Date.now(); await self.run(wake.nudge) }
+    if (action === "fire") {
+      self.mode = url.searchParams.get("mode") ?? "idle"
+      self.now += Number(url.searchParams.get("advance") ?? "60000")
+      await self.run(dispatchAlarmCallbacks(self.state, false).pipe(Effect.exit))
+    }
+    if (action === "issue") {
+      const input = await request.json()
+      const result = await self.run(Effect.gen(function* () {
+        const tenant = yield* admitDevelopment(request.headers.get("authorization") ?? "")
+        const decoded = yield* decodeRequest(input)
+        yield* wake.prearm
+        const response = yield* Effect.scoped(Effect.gen(function* () {
+          const invocation = yield* openInvocation({ databaseUrl: Redacted.make(self.env.PG.connectionString), providerUrl: "https://provider.invalid/deliver" })
+          return yield* invocation.issue(tenant, decoded)
+        }))
+        return response
+      }).pipe(Effect.exit))
+      return Response.json(Exit.isSuccess(result) ? result.value : { rejected: true, reasons: result.cause.reasons.map((reason) => ({ tag: reason._tag, error: reason.error?._tag ?? reason.defect?.constructor?.name ?? "unknown" })) }, { status: Exit.isSuccess(result) ? 200 : 403 })
+    }
+    const rows = self.state.storage.sql.exec("SELECT name FROM sqlite_master WHERE name = 'alchemy_alarm_callbacks'").toArray().length
+      ? self.state.storage.sql.exec("SELECT id, version, attempts, parked, scheduled_at, retry_at FROM alchemy_alarm_callbacks").toArray() : []
+    return Response.json({ calls: self.calls, closed: self.closed, rows, alarm: await self.state.storage.getAlarm() })
+  }
+}
+
+const bridgeRuntime = makeWorkerRuntimeContext("BridgeProbe")
+Effect.runSync(bridgeRuntime.export("BridgeProbe", {
+  kind: "durableObject", services: Context.empty(),
+  constructor: Effect.succeed(Effect.gen(function* () {
+    let acquired = 0, released = 0
+    const scopes = new WeakSet()
+    const wake = yield* makeWake(Effect.gen(function* () {
+      yield* Effect.acquireRelease(Effect.sync(() => { acquired++ }), () => Effect.sync(() => { released++ }))
+      return { result: { _tag: "Idle", claimed: 0, recovered: 0 }, hint: { observedAt: 1000, nextAvailableAt: null, nextRecoveryAt: null, saturated: false } }
+    }))
+    return {
+      start: () => wake.nudge,
+      inspect: () => Effect.succeed({ acquired, released }),
+      scope: () => Effect.gen(function* () {
+        const scope = yield* Effect.scope
+        if (scopes.has(scope)) return yield* Effect.die("reused invocation scope")
+        scopes.add(scope)
+        yield* Effect.acquireRelease(Effect.sync(() => { acquired++ }), () => Effect.sync(() => { released++ }))
+        return { acquired, released }
+      })
+    }
+  }))
+}))
+const entrypoint = Layer.succeed(Self, { RuntimeContext: bridgeRuntime })
+export const BridgeProbe = makeDurableObjectBridge(DurableObject, { entrypoint, stack: { name: "local-only", stage: "test" } })("BridgeProbe")
+export default {
+  fetch: (request, bindings) => {
+    const url = new URL(request.url)
+    if (url.pathname.startsWith("/bridge-")) {
+      const stub = bindings.BRIDGE.get(bindings.BRIDGE.idFromName("shared"))
+      return stub[url.pathname.slice(8)]().then((result) => Response.json(result ?? null))
+    }
+    return bindings.PROBE.get(bindings.PROBE.idFromName(url.searchParams.get("owner") ?? "billing")).fetch(request)
+  }
+}

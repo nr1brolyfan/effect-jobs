@@ -46,7 +46,7 @@ import * as App from "../qualification/d6-pg/ApplicationTransactions.js"
 import * as Adapter from "./Adapter.js"
 import { createRequire } from "node:module"
 import { JobEnqueue } from "../../src/JobEnqueue.js"
-import type { JobBackendError } from "../../src/JobEnqueue.js"
+import type { JobPersistenceError } from "../../src/JobEnqueue.js"
 import * as Group from "../../src/JobGroup.js"
 
 const directory = process.env.D6_RESOURCE_DIRECTORY
@@ -57,7 +57,7 @@ const definition = Job.make({
   payload: Schema.Struct({ invoiceId: Schema.String })
 })
 const catalog = { queue: queue.name, kind: definition.kind, version: definition.version }
-const workerGroup = Group.make("backend-fixture", { generate: definition })
+const workerGroup = Group.make("jobs-fixture", { generate: definition })
 const policy = Effect.runSync(
   Policy.make({
     completedRetention: Duration.millis(1),
@@ -76,7 +76,7 @@ const input = (id: string, value = id, availableAt?: number) => ({
   ...(availableAt === undefined ? {} : { availableAt })
 })
 const mapping = Tables.tables({
-  schema: "backend_fixture",
+  schema: "jobs_fixture",
   jobsTable: "tasks",
   payloadsTable: "task_artifacts"
 })
@@ -86,13 +86,13 @@ const request = (token = randomUUID()) => ({
   leaseToken: token
 })
 
-describe.skipIf(directory === undefined)("production PostgreSQL backend", () => {
+describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
   let admin: Pool
   let pool: Pool
   let observer: Pool
   let source: App.Source
   let adapter: Adapter.FixtureAdapter
-  let backend: Jobs.Backend
+  let jobs: Jobs.Service
   let schemaCreated = false
   let roleCreated = false
   let tempRemoved = false
@@ -103,7 +103,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     dbNow: number
     delta: number
   }> = []
-  const role = "backend_fixture_runtime"
+  const role = "jobs_fixture_runtime"
   const make = (integration: ApplicationAdapter) =>
     Effect.runPromise(
       Jobs.make({ ...mapping, operationResponseBudgetMillis: 100 }).pipe(
@@ -151,20 +151,20 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       await admin.query("REVOKE TEMPORARY ON DATABASE effect_jobs_d6 FROM PUBLIC")
       tempRemoved = true
     }
-    await admin.query("CREATE SCHEMA backend_fixture")
+    await admin.query("CREATE SCHEMA jobs_fixture")
     schemaCreated = true
     await admin.query(Tables.migration(mapping))
-    await admin.query(`CREATE TABLE backend_fixture.invoices (id text PRIMARY KEY CHECK (id <> 'fail-invoice'));
-      ALTER TABLE backend_fixture.tasks ADD CHECK (operation_id <> 'fail-job');
-      ALTER TABLE backend_fixture.task_artifacts ADD CHECK (position(convert_to('fail-payload','UTF8') in payload)=0);
-      CREATE TABLE backend_fixture.receipts (id text PRIMARY KEY REFERENCES backend_fixture.invoices(id),job_id text NOT NULL REFERENCES backend_fixture.tasks(id),CHECK (id <> 'fail-receipt'));
-      GRANT CONNECT ON DATABASE effect_jobs_d6 TO ${role}; GRANT USAGE ON SCHEMA backend_fixture TO ${role};
-      GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA backend_fixture TO ${role}`)
+    await admin.query(`CREATE TABLE jobs_fixture.invoices (id text PRIMARY KEY CHECK (id <> 'fail-invoice'));
+      ALTER TABLE jobs_fixture.tasks ADD CHECK (operation_id <> 'fail-job');
+      ALTER TABLE jobs_fixture.task_artifacts ADD CHECK (position(convert_to('fail-payload','UTF8') in payload)=0);
+      CREATE TABLE jobs_fixture.receipts (id text PRIMARY KEY REFERENCES jobs_fixture.invoices(id),job_id text NOT NULL REFERENCES jobs_fixture.tasks(id),CHECK (id <> 'fail-receipt'));
+      GRANT CONNECT ON DATABASE effect_jobs_d6 TO ${role}; GRANT USAGE ON SCHEMA jobs_fixture TO ${role};
+      GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA jobs_fixture TO ${role}`)
     pool = new Pool({ ...config, user: role, password: secret })
     observer = new Pool({ ...config, user: role, password: secret })
     source = App.source(pool)
     adapter = Adapter.make(source)
-    backend = await make(adapter)
+    jobs = await make(adapter)
   }, 30000)
   afterAll(async () => {
     await pool?.end()
@@ -172,7 +172,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     if (admin !== undefined) {
       try {
         if (schemaCreated) {
-          await admin.query("DROP SCHEMA backend_fixture CASCADE")
+          await admin.query("DROP SCHEMA jobs_fixture CASCADE")
         }
         if (roleCreated) {
           await admin.query(`DROP OWNED BY ${role}`)
@@ -183,7 +183,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         }
         const cleanup = (
           await admin.query(
-            "SELECT (SELECT count(*)::int FROM pg_namespace WHERE nspname='backend_fixture') AS schemas,(SELECT count(*)::int FROM pg_roles WHERE rolname='backend_fixture_runtime') AS roles"
+            "SELECT (SELECT count(*)::int FROM pg_namespace WHERE nspname='jobs_fixture') AS schemas,(SELECT count(*)::int FROM pg_roles WHERE rolname='jobs_fixture_runtime') AS roles"
           )
         ).rows[0]
         expect(cleanup).toEqual({ schemas: 0, roles: 0 })
@@ -224,18 +224,15 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
   }, 30000)
   const enqueue = (id: string, value = id, configured = policy, at?: number) =>
     Effect.runPromise(
-      backend.withTransaction((tx) =>
+      jobs.withTransaction((tx) =>
         makeProducer(configured).enqueueInTransaction(tx, input(id, value, at))
       )
     )
   const row = async (id: string) =>
-    (
-      await observer.query("SELECT * FROM backend_fixture.tasks WHERE operation_id=$1", [
-        id
-      ])
-    ).rows[0]
+    (await observer.query("SELECT * FROM jobs_fixture.tasks WHERE operation_id=$1", [id]))
+      .rows[0]
   const claim = async (): Promise<ClaimedJob> => {
-    const result = await Effect.runPromise(backend.store.claim(request()))
+    const result = await Effect.runPromise(jobs.store.claim(request()))
     expect(result._tag).toBe("Claimed")
     if (result._tag !== "Claimed") {
       throw new Error("expected claim")
@@ -255,7 +252,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     }
   ) =>
     Effect.runPromise(
-      backend.store.finalize({
+      jobs.store.finalize({
         ownership: claimed.ownership,
         before: claimed.snapshot,
         finalization
@@ -272,7 +269,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
           const worker = yield* Worker.make(workerGroup, {
             queues: [{ queue }]
           }).pipe(
-            Effect.provideService(Storage.JobStorage, backend.storage),
+            Effect.provideService(Storage.JobStorage, jobs.storage),
             Effect.provide(workerGroup.toLayer({ generate: execute }))
           )
           return yield* worker.drain(queue, { maxJobs: 1, recoveryLimit: 1 })
@@ -280,9 +277,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       )
     )
   const clear = async () => {
-    await observer.query("DELETE FROM backend_fixture.receipts")
-    await observer.query("DELETE FROM backend_fixture.invoices")
-    await observer.query("DELETE FROM backend_fixture.tasks")
+    await observer.query("DELETE FROM jobs_fixture.receipts")
+    await observer.query("DELETE FROM jobs_fixture.invoices")
+    await observer.query("DELETE FROM jobs_fixture.tasks")
   }
   const serverNow = async () =>
     Number(
@@ -323,7 +320,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       )
     )
     await Effect.runPromise(
-      backend.withTransaction(() =>
+      jobs.withTransaction(() =>
         unsupported.enqueue({
           slot: "generate",
           operationId: "schedule-unsupported",
@@ -337,7 +334,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       Producer.withSlot("generate", definition, { queue: otherQueue, policy })
     )
     await Effect.runPromise(
-      backend.withTransaction(() =>
+      jobs.withTransaction(() =>
         other.enqueue({
           slot: "generate",
           operationId: "schedule-other",
@@ -347,7 +344,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       )
     )
     const otherClaim = await Effect.runPromise(
-      backend.store.claim({
+      jobs.store.claim({
         queue: otherQueue.name,
         supportedCatalog: [{ ...catalog, queue: otherQueue.name }],
         leaseToken: randomUUID()
@@ -355,15 +352,15 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     )
     expect(otherClaim._tag).toBe("Claimed")
     await observer.query(
-      "UPDATE backend_fixture.tasks SET lease_expires_at=1 WHERE operation_id='schedule-other'"
+      "UPDATE jobs_fixture.tasks SET lease_expires_at=1 WHERE operation_id='schedule-other'"
     )
     const beforeRows = (
-      await observer.query("SELECT * FROM backend_fixture.tasks ORDER BY id")
+      await observer.query("SELECT * FROM jobs_fixture.tasks ORDER BY id")
     ).rows
     const beforeRead = source.counters.sql.length
     const clockBefore = await serverNow()
     const small = await Effect.runPromise(
-      backend.schedule.read({ queue: queue.name, supportedCatalog: [catalog], limit: 1 })
+      jobs.schedule.read({ queue: queue.name, supportedCatalog: [catalog], limit: 1 })
     )
     expect(small).toMatchObject({
       nextAvailableAt: null,
@@ -372,7 +369,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     })
     const full = await Effect.runPromise(
       Schedule.observe(workerGroup, queue, { limit: 500 }).pipe(
-        Effect.provide(Schedule.layer(backend.schedule))
+        Effect.provide(Schedule.layer(jobs.schedule))
       )
     )
     const clockAfter = await serverNow()
@@ -389,7 +386,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     ])
     expect(JSON.stringify(full)).not.toContain("PRIVATE_SCHEDULE_PAYLOAD")
     expect(
-      (await observer.query("SELECT * FROM backend_fixture.tasks ORDER BY id")).rows
+      (await observer.query("SELECT * FROM jobs_fixture.tasks ORDER BY id")).rows
     ).toEqual(beforeRows)
     expect(
       source.counters.sql
@@ -407,7 +404,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       { ...request, supportedCatalog: [{ ...catalog, queue: "other" }] }
     ]) {
       expect(
-        await Effect.runPromise(backend.schedule.read(invalid).pipe(Effect.result))
+        await Effect.runPromise(jobs.schedule.read(invalid).pipe(Effect.result))
       ).toMatchObject({
         _tag: "Failure",
         failure: { _tag: "JobScheduleProtocolError", reason: "invalid-input" }
@@ -417,7 +414,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     expect(source.counters.sql).toHaveLength(sql)
     expect(
       await Effect.runPromise(
-        backend.withTransaction(() => backend.schedule.read(request)).pipe(Effect.result)
+        jobs.withTransaction(() => jobs.schedule.read(request)).pipe(Effect.result)
       )
     ).toMatchObject({
       _tag: "Failure",
@@ -437,7 +434,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
             const worker = Worker.layer(workerGroup, { queues: [{ queue }] }).pipe(
               Layer.provide(
                 Layer.mergeAll(
-                  Layer.succeed(Storage.JobStorage, backend.storage),
+                  Layer.succeed(Storage.JobStorage, jobs.storage),
                   workerGroup.toLayer({
                     generate: () =>
                       Deferred.succeed(reached, undefined).pipe(
@@ -475,16 +472,16 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     }
   })
 
-  test("backend Layer provides the same configured JobStorage to a group worker", async () => {
+  test("jobs Layer provides the same configured JobStorage to a group worker", async () => {
     await clear()
     await enqueue("storage-service")
     const borrows = source.counters.borrows
-    const backendLayer = Jobs.layerNoDeps({
+    const jobsLayer = Jobs.layerNoDeps({
       ...mapping,
       operationResponseBudgetMillis: 100
     }).pipe(Layer.provide(Layer.succeed(PostgreSqlApplication, adapter)))
     const workerLayer = Worker.layer(workerGroup, { queues: [{ queue }] }).pipe(
-      Layer.provideMerge(backendLayer),
+      Layer.provideMerge(jobsLayer),
       Layer.provide(workerGroup.toLayer({ generate: () => Effect.void }))
     )
     expect(source.counters.borrows).toBe(borrows)
@@ -528,9 +525,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     ).toBe(false)
     expect((await pool.query("SELECT 1 AS n")).rows[0].n).toBe(1)
     for (const sql of [
-      "CREATE TABLE backend_fixture.denied (id int)",
+      "CREATE TABLE jobs_fixture.denied (id int)",
       "CREATE TEMP TABLE denied (id int)",
-      "TRUNCATE backend_fixture.tasks"
+      "TRUNCATE jobs_fixture.tasks"
     ]) {
       await expect(pool.query(sql)).rejects.toMatchObject({ code: "42501" })
     }
@@ -539,14 +536,14 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     await clear()
     const result = await Effect.runPromise(
       adapter.applicationTransaction((handle) =>
-        backend.joinTransaction(handle, (tx) =>
+        jobs.joinTransaction(handle, (tx) =>
           Effect.gen(function* () {
-            yield* handle.query("INSERT INTO backend_fixture.invoices(id) VALUES ($1)", [
+            yield* handle.query("INSERT INTO jobs_fixture.invoices(id) VALUES ($1)", [
               "atomic"
             ])
             const produced = yield* producer.enqueueInTransaction(tx, input("atomic"))
             yield* handle.query(
-              "INSERT INTO backend_fixture.receipts(id,job_id) VALUES ($1,$2)",
+              "INSERT INTO jobs_fixture.receipts(id,job_id) VALUES ($1,$2)",
               ["atomic", produced.jobId]
             )
             return produced
@@ -556,14 +553,13 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     )
     expect((await row("atomic")).id).toBe(result.jobId)
     const stored = (
-      await observer.query(
-        "SELECT * FROM backend_fixture.task_artifacts WHERE job_id=$1",
-        [result.jobId]
-      )
+      await observer.query("SELECT * FROM jobs_fixture.task_artifacts WHERE job_id=$1", [
+        result.jobId
+      ])
     ).rows[0]
     expect(new TextDecoder().decode(stored.payload)).toBe('{"invoiceId":"atomic"}')
     expect(
-      (await observer.query("SELECT count(*)::int AS n FROM backend_fixture.receipts"))
+      (await observer.query("SELECT count(*)::int AS n FROM jobs_fixture.receipts"))
         .rows[0].n
     ).toBe(1)
   })
@@ -574,16 +570,16 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       Producer.withSlot("generate", definition, { queue: otherQueue, policy })
     )
     const first = await Effect.runPromise(
-      backend.withTransaction(() => producer.enqueue(input("recover-billing")))
+      jobs.withTransaction(() => producer.enqueue(input("recover-billing")))
     )
     const second = await Effect.runPromise(
-      backend.withTransaction(() => other.enqueue(input("recover-other")))
+      jobs.withTransaction(() => other.enqueue(input("recover-other")))
     )
-    expect((await Effect.runPromise(backend.store.claim(request())))._tag).toBe("Claimed")
+    expect((await Effect.runPromise(jobs.store.claim(request())))._tag).toBe("Claimed")
     expect(
       (
         await Effect.runPromise(
-          backend.store.claim({
+          jobs.store.claim({
             queue: otherQueue.name,
             supportedCatalog: [{ ...catalog, queue: otherQueue.name }],
             leaseToken: randomUUID()
@@ -592,16 +588,14 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       )._tag
     ).toBe("Claimed")
     await observer.query(
-      "UPDATE backend_fixture.tasks SET lease_expires_at=1 WHERE id=ANY($1::text[])",
+      "UPDATE jobs_fixture.tasks SET lease_expires_at=1 WHERE id=ANY($1::text[])",
       [[first.jobId, second.jobId]]
     )
     const before = await row("recover-other")
-    expect(await Effect.runPromise(backend.store.recoverExpired(queue.name, 1))).toBe(1)
+    expect(await Effect.runPromise(jobs.store.recoverExpired(queue.name, 1))).toBe(1)
     expect((await row("recover-billing")).state).toBe("Pending")
     expect(await row("recover-other")).toEqual(before)
-    expect(
-      await Effect.runPromise(backend.store.recoverExpired(otherQueue.name, 1))
-    ).toBe(1)
+    expect(await Effect.runPromise(jobs.store.recoverExpired(otherQueue.name, 1))).toBe(1)
     expect((await row("recover-other")).state).toBe("Pending")
   })
 
@@ -610,14 +604,12 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     const id = "pipeline"
     const produced = await Effect.runPromise(
       adapter.applicationTransaction((handle) =>
-        backend.joinTransaction(handle, (tx) =>
+        jobs.joinTransaction(handle, (tx) =>
           Effect.gen(function* () {
-            yield* handle.query("INSERT INTO backend_fixture.invoices(id) VALUES ($1)", [
-              id
-            ])
+            yield* handle.query("INSERT INTO jobs_fixture.invoices(id) VALUES ($1)", [id])
             const result = yield* producer.enqueueInTransaction(tx, input(id))
             yield* handle.query(
-              "INSERT INTO backend_fixture.receipts(id,job_id) VALUES ($1,$2)",
+              "INSERT INTO jobs_fixture.receipts(id,job_id) VALUES ($1,$2)",
               [id, result.jobId]
             )
             return result
@@ -649,18 +641,17 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     const retry = await row(id)
     expect(retry.state).toBe("RetryScheduled")
     expect(Number(retry.available_at) - Number(retry.updated_at)).toBe(5000)
-    await observer.query("UPDATE backend_fixture.tasks SET available_at=1 WHERE id=$1", [
+    await observer.query("UPDATE jobs_fixture.tasks SET available_at=1 WHERE id=$1", [
       produced.jobId
     ])
     await runWorker(execute)
     expect(await row(id)).toMatchObject({ state: "Active" })
     expect(Number((await row(id)).attempts_made)).toBe(1)
-    await observer.query(
-      "UPDATE backend_fixture.tasks SET lease_expires_at=1 WHERE id=$1",
-      [produced.jobId]
-    )
-    expect(await Effect.runPromise(backend.store.recoverExpired(queue.name, 1))).toBe(1)
-    await observer.query("UPDATE backend_fixture.tasks SET available_at=1 WHERE id=$1", [
+    await observer.query("UPDATE jobs_fixture.tasks SET lease_expires_at=1 WHERE id=$1", [
+      produced.jobId
+    ])
+    expect(await Effect.runPromise(jobs.store.recoverExpired(queue.name, 1))).toBe(1)
+    await observer.query("UPDATE jobs_fixture.tasks SET available_at=1 WHERE id=$1", [
       produced.jobId
     ])
     await runWorker(execute)
@@ -669,19 +660,19 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     expect(Number((await row(id)).attempts_made)).toBe(2)
     expect(Number((await row(id)).stalled_count)).toBe(1)
     // Application owns removal of its receipt before selecting generic cleanup.
-    await observer.query("DELETE FROM backend_fixture.receipts WHERE id=$1", [id])
-    expect(await Effect.runPromise(backend.cleanup.cleanup(1))).toBe(1)
+    await observer.query("DELETE FROM jobs_fixture.receipts WHERE id=$1", [id])
+    expect(await Effect.runPromise(jobs.cleanup.cleanup(1))).toBe(1)
     expect(
       (
         await observer.query(
-          "SELECT count(*)::int AS n FROM backend_fixture.task_artifacts WHERE job_id=$1",
+          "SELECT count(*)::int AS n FROM jobs_fixture.task_artifacts WHERE job_id=$1",
           [produced.jobId]
         )
       ).rows[0].n
     ).toBe(0)
   })
   test("explicit readiness validates relations/constraints/indexes; missing mapping fails finitely without DDL", async () => {
-    await Effect.runPromise(backend.ready)
+    await Effect.runPromise(jobs.ready)
     const missing = await Effect.runPromise(
       Jobs.make({
         ...mapping,
@@ -694,17 +685,17 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       commitKnowledge: "NotCommitted"
     })
     const name = Tables.indexPrefix(mapping) + "_due"
-    await admin.query(`DROP INDEX backend_fixture."${name}"`)
+    await admin.query(`DROP INDEX jobs_fixture."${name}"`)
     try {
-      await expect(Effect.runPromise(backend.ready)).rejects.toMatchObject({
+      await expect(Effect.runPromise(jobs.ready)).rejects.toMatchObject({
         _tag: "PostgreSqlFailure"
       })
     } finally {
       await admin.query(
-        `CREATE INDEX "${name}" ON backend_fixture.tasks(queue,kind,version,available_at,id) WHERE state IN ('Pending','RetryScheduled')`
+        `CREATE INDEX "${name}" ON jobs_fixture.tasks(queue,kind,version,available_at,id) WHERE state IN ('Pending','RetryScheduled')`
       )
     }
-    await Effect.runPromise(backend.ready)
+    await Effect.runPromise(jobs.ready)
   })
   test("real CHECK failures at each production INSERT boundary roll back invoice/job/payload/receipt", async () => {
     for (const id of ["fail-invoice", "fail-job", "fail-payload", "fail-receipt"]) {
@@ -712,14 +703,12 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       let calls = 0
       const exit = await Effect.runPromiseExit(
         adapter.applicationTransaction((handle) =>
-          backend.joinTransaction(handle, (tx) =>
+          jobs.joinTransaction(handle, (tx) =>
             Effect.gen(function* () {
               calls++
-              yield* handle.query("INSERT INTO backend_fixture.invoices VALUES ($1)", [
-                id
-              ])
+              yield* handle.query("INSERT INTO jobs_fixture.invoices VALUES ($1)", [id])
               const created = yield* producer.enqueueInTransaction(tx, input(id))
-              yield* handle.query("INSERT INTO backend_fixture.receipts VALUES ($1,$2)", [
+              yield* handle.query("INSERT INTO jobs_fixture.receipts VALUES ($1,$2)", [
                 id,
                 created.jobId
               ])
@@ -730,22 +719,22 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       expect(Exit.isFailure(exit)).toBe(true)
       expect(calls).toBe(1)
       expect(
-        (await observer.query("SELECT count(*)::int AS n FROM backend_fixture.invoices"))
+        (await observer.query("SELECT count(*)::int AS n FROM jobs_fixture.invoices"))
           .rows[0].n
       ).toBe(0)
       expect(
-        (await observer.query("SELECT count(*)::int AS n FROM backend_fixture.tasks"))
+        (await observer.query("SELECT count(*)::int AS n FROM jobs_fixture.tasks"))
           .rows[0].n
       ).toBe(0)
       expect(
         (
           await observer.query(
-            "SELECT count(*)::int AS n FROM backend_fixture.task_artifacts"
+            "SELECT count(*)::int AS n FROM jobs_fixture.task_artifacts"
           )
         ).rows[0].n
       ).toBe(0)
       expect(
-        (await observer.query("SELECT count(*)::int AS n FROM backend_fixture.receipts"))
+        (await observer.query("SELECT count(*)::int AS n FROM jobs_fixture.receipts"))
           .rows[0].n
       ).toBe(0)
     }
@@ -766,7 +755,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     )
     const produce = (envelope: string, fingerprint: string) =>
       Effect.runPromise(
-        backend.withTransaction((tx) =>
+        jobs.withTransaction((tx) =>
           protectedProducer.enqueueInTransaction(tx, {
             operationId: "protected",
             slot: "generate",
@@ -783,7 +772,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     ).rejects.toMatchObject({ _tag: "JobIntegrityConflict" })
     const stored = (
       await observer.query(
-        "SELECT payload FROM backend_fixture.task_artifacts WHERE job_id=$1",
+        "SELECT payload FROM jobs_fixture.task_artifacts WHERE job_id=$1",
         [first.jobId]
       )
     ).rows[0]
@@ -796,17 +785,17 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     const exit = await Effect.runPromise(
       Effect.exit(
         adapter.applicationTransaction((handle) =>
-          backend.joinTransaction(handle, (tx) =>
+          jobs.joinTransaction(handle, (tx) =>
             Effect.gen(function* () {
               yield* handle.query(
-                "INSERT INTO backend_fixture.invoices VALUES ('rolled-back')"
+                "INSERT INTO jobs_fixture.invoices VALUES ('rolled-back')"
               )
               const created = yield* producer.enqueueInTransaction(
                 tx,
                 input("rolled-back")
               )
               yield* handle.query(
-                "INSERT INTO backend_fixture.receipts VALUES ('rolled-back',$1)",
+                "INSERT INTO jobs_fixture.receipts VALUES ('rolled-back',$1)",
                 [created.jobId]
               )
               return yield* Effect.fail(failure)
@@ -819,7 +808,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     expect(source.counters.borrows - before).toBe(1)
     expect(await row("rolled-back")).toBeUndefined()
     expect(
-      (await observer.query("SELECT count(*)::int AS n FROM backend_fixture.invoices"))
+      (await observer.query("SELECT count(*)::int AS n FROM jobs_fixture.invoices"))
         .rows[0].n
     ).toBe(0)
   })
@@ -860,7 +849,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         expect(executions).toBe(0)
         const restored = yield* Worker.make(group, {
           queues: [{ queue }]
-        }).pipe(Effect.provideService(Storage.JobStorage, backend.storage))
+        }).pipe(Effect.provideService(Storage.JobStorage, jobs.storage))
         expect(yield* restored.drain(queue)).toMatchObject({
           _tag: "Idle",
           claimed: 1
@@ -884,7 +873,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     "%s uses a queue-independent contract and the retained source route",
     async (mode) => {
       await clear()
-      const operatorBackend = await make({
+      const operatorJobs = await make({
         ...adapter,
         ambient: Effect.flatMap(App.activeHandle, (handle) =>
           Option.isNone(handle)
@@ -894,7 +883,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       })
       const original = await enqueue("contract-source", "original")
       await observer.query(
-        "UPDATE backend_fixture.tasks SET queue='retained-route',state='Dead',completed_at=updated_at WHERE id=$1",
+        "UPDATE jobs_fixture.tasks SET queue='retained-route',state='Dead',completed_at=updated_at WHERE id=$1",
         [original.jobId]
       )
       const before = await row("contract-source")
@@ -916,10 +905,10 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         }
       }
       const result = await Effect.runPromise(
-        operatorBackend.withTransaction(() =>
+        operatorJobs.withTransaction(() =>
           mode === "Redrive"
-            ? operatorBackend.operators.redrive(contract, request)
-            : operatorBackend.operators.correctedRedrive(contract, {
+            ? operatorJobs.operators.redrive(contract, request)
+            : operatorJobs.operators.correctedRedrive(contract, {
                 ...request,
                 payload: { invoiceId: "corrected" }
               })
@@ -939,7 +928,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       })
       const artifact = (
         await observer.query(
-          "SELECT payload FROM backend_fixture.task_artifacts WHERE job_id=$1",
+          "SELECT payload FROM jobs_fixture.task_artifacts WHERE job_id=$1",
           [result.jobId]
         )
       ).rows[0]
@@ -959,7 +948,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     )
     expect(
       await Effect.runPromise(
-        backend
+        jobs
           .withTransaction(() =>
             overflow.enqueue({
               slot: "generate",
@@ -991,15 +980,15 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         } as const
         const produce: Effect.Effect<
           EnqueueResult,
-          JobEnqueueError | JobBackendError | PostgreSqlError
+          JobEnqueueError | JobPersistenceError | PostgreSqlError
         > =
           mode === "standalone"
             ? route
                 .enqueueStandalone(input)
-                .pipe(Effect.provideService(JobEnqueue, backend.producer))
+                .pipe(Effect.provideService(JobEnqueue, jobs.producer))
             : mode === "explicit"
-              ? backend.withTransaction((tx) => route.enqueueInTransaction(tx, input))
-              : backend.withTransaction(() => route.enqueue(input))
+              ? jobs.withTransaction((tx) => route.enqueueInTransaction(tx, input))
+              : jobs.withTransaction(() => route.enqueue(input))
         const result = await Effect.runPromise(produce.pipe(Effect.result))
         if (reserve < 100) {
           expect(result).toMatchObject({
@@ -1016,13 +1005,13 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       }
     }
     expect(
-      (await observer.query("SELECT count(*)::int AS count FROM backend_fixture.tasks"))
+      (await observer.query("SELECT count(*)::int AS count FROM jobs_fixture.tasks"))
         .rows[0].count
     ).toBe(6)
     expect(
       (
         await observer.query(
-          "SELECT count(*)::int AS count FROM backend_fixture.task_artifacts"
+          "SELECT count(*)::int AS count FROM jobs_fixture.task_artifacts"
         )
       ).rows[0].count
     ).toBe(6)
@@ -1038,15 +1027,15 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         command: Producer.Input<typeof producer.slots, "generate">
       ): Effect.Effect<
         EnqueueResult,
-        JobEnqueueError | JobBackendError | PostgreSqlError
+        JobEnqueueError | JobPersistenceError | PostgreSqlError
       > =>
         method === "enqueueStandalone"
           ? producer
               .enqueueStandalone(command)
-              .pipe(Effect.provideService(JobEnqueue, backend.producer))
+              .pipe(Effect.provideService(JobEnqueue, jobs.producer))
           : method === "enqueue"
-            ? backend.withTransaction(() => producer.enqueue(command))
-            : backend.withTransaction((tx) => producer.enqueueInTransaction(tx, command))
+            ? jobs.withTransaction(() => producer.enqueue(command))
+            : jobs.withTransaction((tx) => producer.enqueueInTransaction(tx, command))
       const first = await Effect.runPromise(
         produce({
           ...input("overrides", "same", 1),
@@ -1060,7 +1049,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         Schema.encodeSync(Policy.PersistedJobPolicy)(configured)
       )
       const artifacts = await observer.query(
-        "SELECT * FROM backend_fixture.task_artifacts WHERE job_id=$1",
+        "SELECT * FROM jobs_fixture.task_artifacts WHERE job_id=$1",
         [first.jobId]
       )
       // Both omitted overrides and a valid but admission-incompatible replacement
@@ -1084,18 +1073,18 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         expect(
           (
             await observer.query(
-              "SELECT * FROM backend_fixture.task_artifacts WHERE job_id=$1",
+              "SELECT * FROM jobs_fixture.task_artifacts WHERE job_id=$1",
               [first.jobId]
             )
           ).rows
         ).toEqual(artifacts.rows)
       }
-      expect(await Effect.runPromise(backend.store.claim(request()))).toMatchObject({
+      expect(await Effect.runPromise(jobs.store.claim(request()))).toMatchObject({
         _tag: "Empty"
       })
       expect(
         await Effect.runPromise(
-          backend.store.claim({
+          jobs.store.claim({
             queue: priority.name,
             supportedCatalog: [{ ...catalog, queue: priority.name }],
             leaseToken: randomUUID()
@@ -1125,7 +1114,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     )
     expect(
       await Effect.runPromise(
-        backend.withTransaction(() =>
+        jobs.withTransaction(() =>
           incompatible.enqueue({
             slot: "generate",
             operationId: "duplicate",
@@ -1136,7 +1125,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     ).toMatchObject({ _tag: "AlreadyPresent", jobId: first.jobId })
     expect(await row("duplicate")).toEqual(before)
     const movedRetry = await Effect.runPromise(
-      backend.withTransaction(() =>
+      jobs.withTransaction(() =>
         producer.enqueue({
           slot: "generate",
           operationId: "duplicate",
@@ -1152,11 +1141,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     await expect(
       Effect.runPromise(
         adapter.applicationTransaction((handle) =>
-          backend.joinTransaction(handle, (tx) =>
+          jobs.joinTransaction(handle, (tx) =>
             Effect.gen(function* () {
-              yield* handle.query(
-                "INSERT INTO backend_fixture.invoices VALUES ('conflict')"
-              )
+              yield* handle.query("INSERT INTO jobs_fixture.invoices VALUES ('conflict')")
               yield* producer
                 .enqueueInTransaction(tx, input("duplicate", "different"))
                 .pipe(Effect.catchTags({ JobIntegrityConflict: () => Effect.void }))
@@ -1169,7 +1156,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       commitKnowledge: "NotCommitted"
     })
     expect(
-      (await observer.query("SELECT * FROM backend_fixture.invoices WHERE id='conflict'"))
+      (await observer.query("SELECT * FROM jobs_fixture.invoices WHERE id='conflict'"))
         .rows
     ).toHaveLength(0)
     expect(await row("duplicate")).toEqual(before)
@@ -1183,7 +1170,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       ["a", "b"].map((v) =>
         Effect.runPromise(
           Effect.exit(
-            backend.withTransaction((tx) =>
+            jobs.withTransaction((tx) =>
               producer.enqueueInTransaction(tx, input("conflicting-race", v))
             )
           )
@@ -1199,7 +1186,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     const results = await Promise.all(
       routes.map((route) =>
         Effect.runPromise(
-          backend.withTransaction(() =>
+          jobs.withTransaction(() =>
             producer.enqueue({
               slot: "generate",
               operationId: "routing-race",
@@ -1220,7 +1207,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     for (const route of routes) {
       expect(
         await Effect.runPromise(
-          backend.withTransaction(() =>
+          jobs.withTransaction(() =>
             producer.enqueue({
               slot: "generate",
               operationId: "routing-race",
@@ -1254,9 +1241,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     expect(Number((await row("db-time")).available_at)).toBeLessThanOrEqual(after)
     await enqueue("future", "future", policy, after + 100000)
     await observer.query(
-      "UPDATE backend_fixture.tasks SET version=2 WHERE operation_id='db-time'"
+      "UPDATE jobs_fixture.tasks SET version=2 WHERE operation_id='db-time'"
     )
-    expect(await Effect.runPromise(backend.store.claim(request()))).toEqual({
+    expect(await Effect.runPromise(jobs.store.claim(request()))).toEqual({
       _tag: "Empty"
     })
     expect((await row("db-time")).state).toBe("Pending")
@@ -1280,7 +1267,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     const client = await observer.connect()
     try {
       await client.query("BEGIN")
-      await client.query("SELECT id FROM backend_fixture.tasks WHERE id=$1 FOR UPDATE", [
+      await client.query("SELECT id FROM jobs_fixture.tasks WHERE id=$1 FOR UPDATE", [
         head.jobId
       ])
       expect((await claim()).ownership.jobId).toBe(other.jobId)
@@ -1313,7 +1300,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
                       // Fixture DML only, after the production time read and before selection.
                       // Neither the production SQL nor the clock result is replaced or mocked.
                       return query.query(
-                        "UPDATE backend_fixture.tasks SET available_at=$2 WHERE id=$1",
+                        "UPDATE jobs_fixture.tasks SET available_at=$2 WHERE id=$1",
                         [inserted.jobId, sampled + delta]
                       )
                     }
@@ -1323,12 +1310,12 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
             })
           )
       }
-      const timeBackend = await Effect.runPromise(
+      const timeJobs = await Effect.runPromise(
         Jobs.make({ ...mapping, operationResponseBudgetMillis: 100 }).pipe(
           Effect.provideService(PostgreSqlApplication, controlled)
         )
       )
-      const result = await Effect.runPromise(timeBackend.store.claim(request()))
+      const result = await Effect.runPromise(timeJobs.store.claim(request()))
       expect(result._tag).toBe(delta <= 0 ? "Claimed" : "Empty")
       expect(sampled).toBeGreaterThan(0)
       boundaries.push({
@@ -1350,7 +1337,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       const target = [-1, 0, 1][i % 3]!
       const expiry = setup + lag + target
       await observer.query(
-        "UPDATE backend_fixture.tasks SET lease_expires_at=$2 WHERE id=$1",
+        "UPDATE jobs_fixture.tasks SET lease_expires_at=$2 WHERE id=$1",
         [claimed.ownership.jobId, expiry]
       )
       const before = { ...claimed.snapshot, leaseExpiresAt: expiry }
@@ -1374,13 +1361,13 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
             })
           )
       }
-      const measuredBackend = await Effect.runPromise(
+      const measuredJobs = await Effect.runPromise(
         Jobs.make({ ...mapping, operationResponseBudgetMillis: 100 }).pipe(
           Effect.provideService(PostgreSqlApplication, measured)
         )
       )
       const exit = await Effect.runPromiseExit(
-        measuredBackend.store.finalize({
+        measuredJobs.store.finalize({
           ownership,
           before,
           finalization: { _tag: "Complete" }
@@ -1416,7 +1403,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
                     if (sql.includes(" AS now") && sampled === 0) {
                       sampled = Number(rows[0]?.now)
                       return query.query(
-                        "UPDATE backend_fixture.tasks SET lease_expires_at=$2 WHERE id=$1",
+                        "UPDATE jobs_fixture.tasks SET lease_expires_at=$2 WHERE id=$1",
                         [claimed.ownership.jobId, sampled + delta]
                       )
                     }
@@ -1426,9 +1413,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
             })
           )
       }
-      const controlledBackend = await make(controlled)
+      const controlledJobs = await make(controlled)
       expect(
-        await Effect.runPromise(controlledBackend.store.recoverExpired(queue.name, 1))
+        await Effect.runPromise(controlledJobs.store.recoverExpired(queue.name, 1))
       ).toBe(delta <= 0 ? 1 : 0)
       expect((await row(`recovery-boundary-${delta}`)).state).toBe(
         delta <= 0 ? "Pending" : "Active"
@@ -1453,7 +1440,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       const reserve = claimed.snapshot.policy.attemptTimeoutMillis + 100
       const expiry = setup + reserve + lag + target
       await observer.query(
-        "UPDATE backend_fixture.tasks SET lease_expires_at=$2 WHERE id=$1",
+        "UPDATE jobs_fixture.tasks SET lease_expires_at=$2 WHERE id=$1",
         [claimed.ownership.jobId, expiry]
       )
       let now = 0
@@ -1475,9 +1462,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
             })
           )
       }
-      const measuredBackend = await make(measured)
+      const measuredJobs = await make(measured)
       const result = await Effect.runPromise(
-        measuredBackend.store.reconcileClaim(claimed.ownership.leaseToken)
+        measuredJobs.store.reconcileClaim(claimed.ownership.leaseToken)
       )
       const delta = expiry - now - reserve
       expect(now).toBeGreaterThan(0)
@@ -1520,9 +1507,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
             })
           )
       }
-      const measuredBackend = await make(measured)
+      const measuredJobs = await make(measured)
       await Effect.runPromise(
-        measuredBackend.store.finalize({
+        measuredJobs.store.finalize({
           ownership: claimed.ownership,
           before: claimed.snapshot,
           finalization: {
@@ -1555,22 +1542,20 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     await clear()
     await enqueue("expired")
     const first = await claim()
-    await observer.query(
-      "UPDATE backend_fixture.tasks SET lease_expires_at=1 WHERE id=$1",
-      [first.ownership.jobId]
-    )
+    await observer.query("UPDATE jobs_fixture.tasks SET lease_expires_at=1 WHERE id=$1", [
+      first.ownership.jobId
+    ])
     await expect(finish(first)).rejects.toMatchObject({ _tag: "JobOwnershipLost" })
-    expect(await Effect.runPromise(backend.store.recoverExpired(queue.name, 1))).toBe(1)
+    expect(await Effect.runPromise(jobs.store.recoverExpired(queue.name, 1))).toBe(1)
     const recovered = await row("expired")
     expect(recovered.state).toBe("Pending")
     expect(Number(recovered.stalled_count)).toBe(1)
     const second = await claim()
     await expect(finish(first)).rejects.toMatchObject({ _tag: "JobOwnershipLost" })
-    await observer.query(
-      "UPDATE backend_fixture.tasks SET lease_expires_at=1 WHERE id=$1",
-      [second.ownership.jobId]
-    )
-    expect(await Effect.runPromise(backend.store.recoverExpired(queue.name, 1))).toBe(1)
+    await observer.query("UPDATE jobs_fixture.tasks SET lease_expires_at=1 WHERE id=$1", [
+      second.ownership.jobId
+    ])
+    expect(await Effect.runPromise(jobs.store.recoverExpired(queue.name, 1))).toBe(1)
     expect(await row("expired")).toMatchObject({
       state: "Dead",
       last_failure_code: "stall_limit_exceeded"
@@ -1596,11 +1581,11 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     expect(stored.state).toBe("RetryScheduled")
     expect(Number(stored.available_at) - Number(stored.updated_at)).toBe(10000)
     expect(Number(stored.attempts_made)).toBe(1)
-    expect(await Effect.runPromise(backend.store.claim(request()))).toEqual({
+    expect(await Effect.runPromise(jobs.store.claim(request()))).toEqual({
       _tag: "Empty"
     })
     await observer.query(
-      "UPDATE backend_fixture.tasks SET available_at=1 WHERE operation_id='retry'"
+      "UPDATE jobs_fixture.tasks SET available_at=1 WHERE operation_id='retry'"
     )
     await finish(await claim(), {
       _tag: "Retry",
@@ -1609,7 +1594,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     expect(await row("retry")).toMatchObject({ state: "Dead" })
     expect(Number((await row("retry")).attempts_made)).toBe(2)
   })
-  test("exponential jitter persists the selected time across backend recreation and uncertain COMMIT", async () => {
+  test("exponential jitter persists the selected time across jobs recreation and uncertain COMMIT", async () => {
     await clear()
     const configured = await Effect.runPromise(
       Policy.make({
@@ -1667,7 +1652,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       )
       // Advance only this owned fixture's due time; don't wait minutes in real time.
       await observer.query(
-        "UPDATE backend_fixture.tasks SET available_at=1 WHERE operation_id='backoff'"
+        "UPDATE jobs_fixture.tasks SET available_at=1 WHERE operation_id='backoff'"
       )
       claimed = await claim()
     }
@@ -1677,7 +1662,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
   test("PostgreSQL rejects duplicate schema-wide custom index names; library owns no automatic migration", async () => {
     const name = `${Tables.indexPrefix(mapping)}_due`
     await expect(
-      admin.query(`CREATE INDEX "${name}" ON backend_fixture.tasks (state)`)
+      admin.query(`CREATE INDEX "${name}" ON jobs_fixture.tasks (state)`)
     ).rejects.toMatchObject({ code: "42P07" })
   })
   test("persisted 128-character historic failure codes decode without current catalog membership", async () => {
@@ -1685,7 +1670,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     await enqueue("historic-code")
     const code = "x".repeat(128)
     await observer.query(
-      "UPDATE backend_fixture.tasks SET last_failure_code=$1 WHERE operation_id='historic-code'",
+      "UPDATE jobs_fixture.tasks SET last_failure_code=$1 WHERE operation_id='historic-code'",
       [code]
     )
     const historical = await claim()
@@ -1693,10 +1678,10 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     await clear()
     await enqueue("oversized-code")
     await observer.query(
-      "UPDATE backend_fixture.tasks SET last_failure_code=$1 WHERE operation_id='oversized-code'",
+      "UPDATE jobs_fixture.tasks SET last_failure_code=$1 WHERE operation_id='oversized-code'",
       ["x".repeat(129)]
     )
-    await Effect.runPromise(backend.store.claim(request()))
+    await Effect.runPromise(jobs.store.claim(request()))
     expect(await row("oversized-code")).toMatchObject({
       state: "Isolated",
       last_failure_code: "invalid_artifact"
@@ -1706,11 +1691,11 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     await clear()
     const inserted = await enqueue("malformed")
     await enqueue("healthy")
-    await observer.query("UPDATE backend_fixture.tasks SET available_at=1 WHERE id=$1", [
+    await observer.query("UPDATE jobs_fixture.tasks SET available_at=1 WHERE id=$1", [
       inserted.jobId
     ])
     await observer.query(
-      "UPDATE backend_fixture.task_artifacts SET payload=convert_to('{','UTF8') WHERE job_id=$1",
+      "UPDATE jobs_fixture.task_artifacts SET payload=convert_to('{','UTF8') WHERE job_id=$1",
       [inserted.jobId]
     )
     let dispatched = 0
@@ -1735,7 +1720,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       expect(await Effect.runPromise(faulted.store.claim(request(token)))).toEqual({
         _tag: "Unknown"
       })
-      const reconciled = await Effect.runPromise(backend.store.reconcileClaim(token))
+      const reconciled = await Effect.runPromise(jobs.store.reconcileClaim(token))
       expect(reconciled._tag).toBe(fault === "after-durable" ? "Owned" : "NotOwned")
       const claimed = reconciled._tag === "Owned" ? reconciled.claim : await claim()
       remaining = 1
@@ -1749,7 +1734,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         )
       ).toEqual({ _tag: "Unknown" })
       const read = await Effect.runPromise(
-        backend.store.reconcileFinalization({
+        jobs.store.reconcileFinalization({
           ownership: claimed.ownership,
           before: claimed.snapshot,
           finalization: { _tag: "Complete" }
@@ -1776,7 +1761,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       await enqueue(`recovery-${fault}`)
       const claimed = await claim()
       await observer.query(
-        "UPDATE backend_fixture.tasks SET lease_expires_at=1 WHERE id=$1",
+        "UPDATE jobs_fixture.tasks SET lease_expires_at=1 WHERE id=$1",
         [claimed.ownership.jobId]
       )
       let remaining = 1
@@ -1819,7 +1804,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     await enqueue("isolated")
     const c = await claim()
     await Effect.runPromise(
-      backend.store.finalize({
+      jobs.store.finalize({
         ownership: c.ownership,
         before: c.snapshot,
         finalization: {
@@ -1831,21 +1816,18 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     await enqueue("active")
     await claim()
     await enqueue("pending")
-    expect(await Effect.runPromise(backend.cleanup.cleanup(1))).toBe(1)
-    expect(await Effect.runPromise(backend.cleanup.cleanup(500))).toBe(1)
+    expect(await Effect.runPromise(jobs.cleanup.cleanup(1))).toBe(1)
+    expect(await Effect.runPromise(jobs.cleanup.cleanup(500))).toBe(1)
     expect(
       (
         await observer.query(
-          "SELECT operation_id FROM backend_fixture.tasks ORDER BY operation_id"
+          "SELECT operation_id FROM jobs_fixture.tasks ORDER BY operation_id"
         )
       ).rows.map((r) => r.operation_id)
     ).toEqual(["active", "forever", "isolated", "pending"])
     expect(
-      (
-        await observer.query(
-          "SELECT count(*)::int AS n FROM backend_fixture.task_artifacts"
-        )
-      ).rows[0].n
+      (await observer.query("SELECT count(*)::int AS n FROM jobs_fixture.task_artifacts"))
+        .rows[0].n
     ).toBe(4)
   })
   test("explicit scoped handles expire; foreign source rejected without borrowing; store rejects joined owner", async () => {
@@ -1855,7 +1837,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
       | undefined
     await Effect.runPromise(
       adapter.applicationTransaction((handle) =>
-        backend.joinTransaction(handle, (tx) =>
+        jobs.joinTransaction(handle, (tx) =>
           Effect.sync(() => {
             saved = tx
           })
@@ -1879,15 +1861,13 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
     ).rejects.toMatchObject({ _tag: "PostgreSqlInvalidHandle", reason: "foreign-source" })
     expect(source.counters.borrows - before).toBe(1)
     await expect(
-      Effect.runPromise(
-        adapter.applicationTransaction(() => backend.store.claim(request()))
-      )
+      Effect.runPromise(adapter.applicationTransaction(() => jobs.store.claim(request())))
     ).rejects.toMatchObject({
       _tag: "PostgreSqlInvalidHandle",
       reason: "active-transaction"
     })
     await expect(
-      Effect.runPromise(App.transaction(source, () => backend.store.claim(request())))
+      Effect.runPromise(App.transaction(source, () => jobs.store.claim(request())))
     ).rejects.toMatchObject({
       _tag: "PostgreSqlInvalidHandle",
       reason: "active-transaction"
@@ -1896,10 +1876,10 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
   test("invalid requests dispatch no mutation and held pools fail finitely", async () => {
     const before = source.counters.borrows
     await expect(
-      Effect.runPromise(backend.store.claim({ ...request(), supportedCatalog: [] }))
+      Effect.runPromise(jobs.store.claim({ ...request(), supportedCatalog: [] }))
     ).rejects.toMatchObject({ _tag: "JobStoreProtocolError" })
     await expect(
-      Effect.runPromise(backend.store.recoverExpired(queue.name, 501))
+      Effect.runPromise(jobs.store.recoverExpired(queue.name, 501))
     ).rejects.toMatchObject({ _tag: "JobStoreProtocolError" })
     expect(source.counters.borrows).toBe(before)
     const clients = await Promise.all(Array.from({ length: 4 }, () => pool.connect()))
@@ -1917,10 +1897,10 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
         const ready = yield* Deferred.make<void>()
         const fiber = yield* adapter
           .applicationTransaction((handle) =>
-            backend.joinTransaction(handle, (tx) =>
+            jobs.joinTransaction(handle, (tx) =>
               Effect.gen(function* () {
                 yield* handle.query(
-                  "INSERT INTO backend_fixture.invoices VALUES ('interrupted')"
+                  "INSERT INTO jobs_fixture.invoices VALUES ('interrupted')"
                 )
                 yield* producer.enqueueInTransaction(tx, input("interrupted"))
                 yield* Deferred.succeed(ready, undefined)

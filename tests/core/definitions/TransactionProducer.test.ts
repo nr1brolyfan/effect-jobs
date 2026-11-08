@@ -89,8 +89,8 @@ describe("invocation-bound ambient production", () => {
       const test = fixture(native)
       await Effect.runPromise(
         Effect.gen(function* () {
-          const backend = yield* Jobs.make({ operationResponseBudgetMillis: 100 })
-          const result = yield* backend.withTransaction(() =>
+          const jobs = yield* Jobs.make({ operationResponseBudgetMillis: 100 })
+          const result = yield* jobs.withTransaction(() =>
             producer.enqueue({ slot: "receipt", operationId: "one", payload: "one" })
           )
           expect(result._tag).toBe("Inserted")
@@ -104,9 +104,9 @@ describe("invocation-bound ambient production", () => {
     const test = fixture(false)
     await Effect.runPromise(
       Effect.gen(function* () {
-        const backend = yield* Jobs.make({ operationResponseBudgetMillis: 100 })
+        const jobs = yield* Jobs.make({ operationResponseBudgetMillis: 100 })
         const result = yield* test.adapter.withTransaction((handle) =>
-          backend.joinTransaction(handle, () =>
+          jobs.joinTransaction(handle, () =>
             producer.enqueue({ slot: "receipt", operationId: "one", payload: "one" })
           )
         )
@@ -124,8 +124,8 @@ describe("invocation-bound ambient production", () => {
       let preparations = 0
       await Effect.runPromise(
         Effect.gen(function* () {
-          const backend = yield* Jobs.make({ operationResponseBudgetMillis: 100 })
-          yield* backend.withTransaction(() =>
+          const jobs = yield* Jobs.make({ operationResponseBudgetMillis: 100 })
+          yield* jobs.withTransaction(() =>
             Effect.gen(function* () {
               escaped = yield* JobEnqueue
               const standalone = yield* producer
