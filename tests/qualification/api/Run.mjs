@@ -49,6 +49,7 @@ const types = publicImports(
 writeFileSync(join(work, "Types.mts"), types)
 for (const [source, target] of [
   ["catalog", "CatalogTypes"],
+  ["catalog-group-selection", "GroupSelectionTypes"],
   ["groups", "BuilderTypes"],
   ["schedule", "ScheduleTypes"],
   ["worker", "WorkerTypes"],
@@ -252,6 +253,7 @@ writeFileSync(
         "Operators.mts",
         "Repairs.mts",
         "CatalogTypes.mts",
+        "GroupSelectionTypes.mts",
         "BuilderTypes.mts",
         "WorkerTypes.mts",
         "GroupWorkerTypes.mts",
@@ -308,6 +310,48 @@ assert(
 for (const proof of ["toLayer", "JobApi", "Complete", "missing"]) {
   assert((negative.stdout ?? "").includes(proof), `Missing negative diagnostic ${proof}`)
 }
+// Preserve the original catalog negatives above. These additional controls prove
+// that inferred/explicit unions, unresolved generics and broad strings cannot
+// turn one installation into simultaneous output of every possible service.
+writeFileSync(
+  join(work, "GroupSelectionNegative.mts"),
+  readFileSync(join(work, "GroupSelectionTypes.mts"), "utf8").replace(
+    /^.*@ts-expect-error.*\n/gm,
+    ""
+  )
+)
+writeFileSync(
+  join(work, "tsconfig.group-selection-negative.json"),
+  JSON.stringify({
+    compilerOptions: { ...compilerOptions, noEmit: true, incremental: false },
+    include: ["GroupSelectionNegative.mts"]
+  })
+)
+const groupSelectionNegative = spawnSync(
+  "node",
+  [
+    "node_modules/typescript/bin/tsc",
+    "-p",
+    "tsconfig.group-selection-negative.json",
+    "--noEmit",
+    "--incremental",
+    "false"
+  ],
+  { cwd: work, timeout: 60000, encoding: "utf8" }
+)
+writeFileSync(
+  join(work, "group-selection-negative.log"),
+  (groupSelectionNegative.stdout ?? "") + (groupSelectionNegative.stderr ?? "")
+)
+assert.equal(groupSelectionNegative.status, 1)
+const selectionDiagnostics = [
+  ...(groupSelectionNegative.stdout ?? "").matchAll(
+    /^GroupSelectionNegative\.mts\(\d+,\d+\): error TS(\d+):/gm
+  )
+]
+assert.equal(selectionDiagnostics.length, 5)
+assert(selectionDiagnostics.every((entry) => entry[1] === "2345"))
+assert((groupSelectionNegative.stdout ?? "").includes("never"))
 for (const runtime of ["node", "bun"]) {
   run(`${runtime}-runtime`, runtime, ["compiled/Runtime.mjs"])
 }
@@ -318,6 +362,8 @@ writeFileSync(
       archiveSha256: createHash("sha256").update(readFileSync(archive)).digest("hex"),
       publicTypes: "PASS",
       catalogNegativeControls: "PASS rejected stripped expect-error fixture",
+      groupSelectionControls:
+        "PASS five stripped union/generic/broad-name rejections; literal composition preserves missing services",
       strictCoreDeclarations: "PASS skipLibCheck:false",
       drizzleDeclarations:
         "skipLibCheck:true; upstream limitation separately recorded by native runner",

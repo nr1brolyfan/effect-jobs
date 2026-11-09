@@ -78,7 +78,7 @@ export const group = <
   R = never
 >(
   api: JobApi<Name, G>,
-  name: K,
+  name: K & (string extends K ? never : IsUnion<K> extends false ? unknown : never),
   build: (
     handlers: Handlers<G[K]["definitions"], keyof G[K]["definitions"]>
   ) => B | Effect.Effect<B, E, R>
