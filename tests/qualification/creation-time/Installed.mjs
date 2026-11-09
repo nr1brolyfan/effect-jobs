@@ -55,7 +55,7 @@ import { defaultPolicy } from "effect-jobs/JobPolicy"
 declare const snapshot: Snapshot
 export const creation = (s: Snapshot): number | null | undefined => s.createdAt
 const base = { jobId: "installed", policy: defaultPolicy, state: "Pending", availableAt: 9000, updatedAt: 500,
-  attemptsMade: 0, stalledCount: 0, lifecycleVersion: 0, leaseToken: null, leaseExpiresAt: null, completedAt: null, lastFailureCode: null }
+  finalizedAttempts: 0, stalledCount: 0, lifecycleVersion: 0, leaseToken: null, leaseExpiresAt: null, completedAt: null, lastFailureCode: null }
 for (const createdAt of [null, 500]) {
   const row = Schema.decodeUnknownSync(JobSnapshot)({ ...base, createdAt })
   assert.equal(creation(row), createdAt)

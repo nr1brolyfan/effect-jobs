@@ -2,6 +2,9 @@ import { confirmedTransition, observe } from "../../JobTelemetry.js"
 import { Effect, Result, Schema } from "effect"
 import * as Lifecycle from "../../JobLifecycle.js"
 import * as Store from "../../JobStore.js"
+import { QueueName } from "../../JobIdentity.js"
+import { JobPolicyIncompatible } from "../../JobContract.js"
+import { maximumMillis } from "../../JobPolicy.js"
 import * as Reconciliation from "../lifecycle/Reconciliation.js"
 import { PostgreSqlFailure } from "../../PostgreSqlTransaction.js"
 import type {
@@ -96,25 +99,35 @@ export const makeStore = (
               params
             ))[0]
             if (row === undefined) {
-              return Store.ClaimResults.Empty()
+              return Store.ClaimResult.Empty()
             }
             const before = snapshot(row)
             if (Result.isFailure(before)) {
               yield* isolate(query, jobs, row.id, now)
-              return Store.ClaimResults.Empty()
+              return Store.ClaimResult.Empty()
+            }
+            if (
+              before.success.policy.leaseDurationMillis -
+                before.success.policy.attemptTimeoutMillis <
+                budget ||
+              before.success.policy.leaseDurationMillis > maximumMillis - now
+            ) {
+              // A valid retained policy incompatible with this deployment is not
+              // corrupt data. Leave its state, ownership and artifact untouched.
+              return yield* new JobPolicyIncompatible()
             }
             const plan = Lifecycle.claim(before.success, request.leaseToken, now, budget)
             if (Result.isFailure(plan)) {
-              // Incompatible lease budget cannot be dispatched; no spinning on a poison head row.
+              // Other invalid transition plans are quarantined, never dispatched.
               yield* isolate(query, jobs, row.id, now)
-              return Store.ClaimResults.Empty()
+              return Store.ClaimResult.Empty()
             }
             yield* writeSnapshot(query, jobs, plan.success)
             const claimed = yield* fromResult(claimArtifact(row, plan.success))
-            return Store.ClaimResults.Claimed({ claim: claimed })
+            return Store.ClaimResult.Claimed({ claim: claimed })
           })
         ),
-        Store.ClaimResults.Unknown
+        Store.ClaimResult.Unknown
       )
       if (result._tag !== "Claimed") {
         return result
@@ -127,10 +140,10 @@ export const makeStore = (
           Effect.map((now) =>
             Lifecycle.usableLease(result.claim.snapshot, now, budget)
               ? result
-              : Store.ClaimResults.Unknown()
+              : Store.ClaimResult.Unknown()
           ),
           Effect.catchTags({
-            PostgreSqlFailure: () => Effect.succeed(Store.ClaimResults.Unknown())
+            PostgreSqlFailure: () => Effect.succeed(Store.ClaimResult.Unknown())
           })
         )
     })
@@ -149,7 +162,7 @@ export const makeStore = (
               [token]
             ))[0]
             if (row === undefined) {
-              return Store.ClaimReconciliations.NotOwned()
+              return Store.ClaimReconciliation.NotOwned()
             }
             const stored = yield* fromResult(snapshot(row))
             const observed = yield* fromResult(claimArtifact(row, stored))
@@ -158,7 +171,7 @@ export const makeStore = (
             )
           })
         ),
-        Store.ClaimReconciliations.Unknown
+        Store.ClaimReconciliation.Unknown
       )
     })
   const release: Store.JobStoreService<PostgreSqlError>["release"] = (input, phase) =>
@@ -183,10 +196,10 @@ export const makeStore = (
               Lifecycle.release(before, ownership, now, phase)
             )
             yield* writeSnapshot(query, jobs, after)
-            return Store.FinalizationResults.Applied()
+            return Store.FinalizationResult.Applied()
           })
         ),
-        Store.FinalizationResults.Unknown
+        Store.FinalizationResult.Unknown
       )
     })
   const finalize: Store.JobStoreService<PostgreSqlError>["finalize"] = (input) =>
@@ -226,10 +239,10 @@ export const makeStore = (
             ) {
               confirmed = after.state
             }
-            return Store.FinalizationResults.Applied()
+            return Store.FinalizationResult.Applied()
           })
         ),
-        Store.FinalizationResults.Unknown
+        Store.FinalizationResult.Unknown
       ).pipe(
         Effect.tap((result) =>
           result._tag === "Applied" && confirmed !== undefined
@@ -263,13 +276,15 @@ export const makeStore = (
               )
             })
           ),
-          Store.FinalizationReconciliations.Unknown
+          Store.FinalizationReconciliation.Unknown
         )
       })
   const recoverExpired: Store.JobStoreService<PostgreSqlError>["recoverExpired"] = (
+    queue,
     limit
   ) =>
     Effect.gen(function* () {
+      yield* decode(QueueName, queue)
       yield* decode(Lifecycle.BatchLimit, limit)
       // Number-only core port: uncertain recovery is an explicit Unknown error, NEVER a
       // fabricated zero or success and NEVER replayed by this adapter.
@@ -277,9 +292,9 @@ export const makeStore = (
         Effect.gen(function* () {
           const now = yield* dbTime(query)
           const rows = yield* query.query(
-            `SELECT * FROM ${jobs} WHERE state='Active' AND lease_expires_at <= $1
-        ORDER BY lease_expires_at,id LIMIT $2 FOR UPDATE SKIP LOCKED`,
-            [now, limit]
+            `SELECT * FROM ${jobs} WHERE state='Active' AND lease_expires_at <= $1 AND queue=$2
+        ORDER BY lease_expires_at,id LIMIT $3 FOR UPDATE SKIP LOCKED`,
+            [now, queue, limit]
           )
           for (const row of rows) {
             const plan = Result.flatMap(snapshot(row), (stored) =>

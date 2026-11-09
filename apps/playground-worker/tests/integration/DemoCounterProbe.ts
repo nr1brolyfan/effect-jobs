@@ -5,7 +5,7 @@ import { SqlClient } from "effect/sql/SqlClient"
 import * as Event from "../../src/execution/Event.js"
 import * as Demo from "../../src/demo/Manager.js"
 import * as Executor from "../../src/execution/Executor.js"
-import * as Runtime from "effect-jobs/JobWorkerRuntime"
+import * as Runtime from "effect-jobs/JobWorker"
 export { migrations } from "../../src/persistence/MigrationRegistry.js"
 export const prepare = (config: Event.Config) =>
   Event.run(
@@ -13,8 +13,11 @@ export const prepare = (config: Event.Config) =>
     Effect.void,
     Effect.gen(function* () {
       yield* Demo.tick(config.schema)
-      for (const consumer of yield* Executor.consumers) {
-        yield* Runtime.drain(consumer)
+      for (const queue of Executor.queues) {
+        yield* Runtime.drain(queue, {
+          maxJobs: Executor.limits.claimLimit,
+          recoveryLimit: Executor.limits.recoveryLimit
+        })
       }
       return yield* Demo.tick(config.schema)
     })

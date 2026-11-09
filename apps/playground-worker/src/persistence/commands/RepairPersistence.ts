@@ -1,6 +1,7 @@
 import { Cause, Context, Effect, Layer, Schema } from "effect"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
 import { PostgreSqlFailure } from "effect-jobs/PostgreSqlTransaction"
+import type { JobId } from "effect-jobs/JobId"
 import {
   Repairs,
   JobRepairCommand,
@@ -14,6 +15,7 @@ import type {
   JobRepairReason
 } from "@effect-jobs/playground-contracts/Repairs"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
+import type { PublicErrorCode } from "@effect-jobs/playground-contracts/Services"
 import {
   RepairTransactions,
   SyntheticRepairTransactions,
@@ -26,7 +28,7 @@ import * as OperatorSource from "./OperatorSource.js"
 import * as Definitions from "../../scenarios/Definitions.js"
 import { DocumentKeys } from "../../scenarios/PrivateDocument.js"
 
-const fail = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
+const fail = (code: PublicErrorCode) => new PlaygroundError({ code })
 const decode = <S extends Schema.Top & { readonly DecodingServices: never }>(
   schema: S,
   input: unknown
@@ -76,7 +78,7 @@ export const recover =
     )
   }
 export const implicitProblem = (
-  rootJobId: JobProblem["rootJobId"],
+  rootJobId: JobId,
   updatedAt: number,
   outcomeKnowledge: JobProblem["outcomeKnowledge"] = "Unknown"
 ): JobProblem => ({
@@ -109,7 +111,7 @@ export const refuseProblem = (
 
 const makeService = (transactions: typeof RepairTransactions.Service) =>
   Effect.gen(function* () {
-    const backend = yield* PostgreSqlJobs
+    const jobs = yield* PostgreSqlJobs
     const keys = yield* DocumentKeys
     const run = (
       access: Parameters<typeof transactions.owned>[0],
@@ -236,14 +238,15 @@ const makeService = (transactions: typeof RepairTransactions.Service) =>
                     changes = prepared.changes
                     yield* tx.assertCurrent
                     if (prepared._tag === "Synthetic") {
-                      return yield* backend.operators.correctedRedrive(
+                      return yield* jobs.operators.correctedRedrive(
                         Definitions.SyntheticDocumentExport,
                         { expected, producer, payload: prepared.payload }
                       )
                     }
-                    return yield* backend.operators.correctedRedrive(
+                    return yield* jobs.operators.correctedRedrive(
                       {
-                        catalog: prepared.definition.catalog,
+                        kind: prepared.definition.kind,
+                        version: prepared.definition.version,
                         payload: Definitions.Payload
                       },
                       { expected, producer, payload: prepared.payload }
@@ -254,7 +257,7 @@ const makeService = (transactions: typeof RepairTransactions.Service) =>
                     command.sandbox
                   ).pipe(Effect.provideService(DocumentKeys, keys))
                   yield* tx.assertCurrent
-                  return yield* backend.operators
+                  return yield* jobs.operators
                     .redrive<
                       typeof Definitions.Payload | typeof Definitions.ExportPayload
                     >(definition, { expected, producer })

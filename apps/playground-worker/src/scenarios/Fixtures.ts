@@ -34,7 +34,9 @@ export const dashboard = profiles.map((profile, index) => ({
       sandbox: sandbox.ref,
       job: {
         jobId: `synthetic-${profile.label}`,
-        catalog: Definitions.definitions[index % Definitions.definitions.length]!.catalog,
+        catalog: Definitions.catalogFor(
+          Definitions.definitions[index % Definitions.definitions.length]!
+        ),
         state: profile.state,
         availableAt: profile.label === "delayed" ? now + 60_000 : now,
         updatedAt: now,
@@ -44,7 +46,7 @@ export const dashboard = profiles.map((profile, index) => ({
           profile.state === "Cancelled"
             ? now
             : null,
-        attemptsMade: profile.attempts,
+        finalizedAttempts: profile.attempts,
         stalledCount: profile.stalls,
         lifecycleVersion:
           profile.label === "pending" || profile.label === "delayed" ? 0 : 2,
@@ -62,10 +64,11 @@ export const dashboard = profiles.map((profile, index) => ({
         redrive: { enabled: false, reason: "public-read-only" },
         correctedRedrive: { enabled: false, reason: "public-read-only" }
       },
-      producer: Definitions.Producer.identity({
+      producer: {
+        operation: Definitions.Producer.operation,
         operationId: `synthetic-fixture-${index}`,
         slot: "welcome-email"
-      }),
+      },
       policy: Policy.defaultPolicy,
       relations: { syntheticActor: "demo-customer", syntheticOrderId: "demo-order-a" },
       ...(profile.label === "unknown"

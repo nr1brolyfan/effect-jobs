@@ -1,4 +1,6 @@
-import { Cause, Effect, Layer, Match } from "effect"
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
+import { Cause, Effect, Match } from "effect"
 import * as FailureCode from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
 import type { HandlerInput } from "effect-jobs/JobContract"
@@ -123,26 +125,18 @@ export const executeSyntheticExport = Effect.fn("Playground.executeSyntheticExpo
   }
 )
 
-// Proposal for HandlerRegistry.ts; importing this module installs nothing.
+// Complete group implementation; importing this module installs nothing.
 // Provide the same FakeProvider Layer and DocumentKeys Layer for all handlers.
-export const layerNoDeps = Layer.mergeAll(
-  Definitions.WelcomeEmail.handlerLayer(execute("welcome-email"), Codec.decodeJobPayload),
-  Definitions.ImageProcessing.handlerLayer(
-    execute("image-processing"),
-    Codec.decodeJobPayload
-  ),
-  Definitions.WebhookDelivery.handlerLayer(
-    execute("webhook-delivery"),
-    Codec.decodeJobPayload
-  ),
-  Definitions.SyntheticDocumentExport.handlerLayer(
-    executeSyntheticExport,
-    Codec.decodeJobPayload
-  ),
-  Definitions.PrivateDataExport.handlerLayer(executeExport, Codec.decodeJobPayload),
-  Definitions.CatalogSync.handlerLayer(execute("catalog-sync"), Codec.decodeJobPayload),
-  Definitions.SimulatedPayment.handlerLayer(
-    execute("simulated-payment"),
-    Codec.decodeJobPayload
-  )
+export const layerNoDeps = JobApiBuilder.group(
+  JobApi.make(Definitions.group.name).pipe(JobApi.addGroup(Definitions.group)),
+  Definitions.group.name,
+  (_handlers) =>
+    _handlers
+      .handle("welcomeEmail", execute("welcome-email"))
+      .handle("imageProcessing", execute("image-processing"))
+      .handle("webhookDelivery", execute("webhook-delivery"))
+      .handle("syntheticDocumentExport", executeSyntheticExport)
+      .handle("privateDataExport", executeExport)
+      .handle("catalogSync", execute("catalog-sync"))
+      .handle("simulatedPayment", execute("simulated-payment"))
 )

@@ -12,7 +12,7 @@ import * as Retry from "effect-jobs/JobRetryPolicy"
 const retry = Retry.exponential(Duration.seconds(1)).pipe(
   Retry.capped(Duration.minutes(1)),
   Retry.jittered(),
-  Retry.maxAttempts(5)
+  Retry.maxFinalizedAttempts(5)
 )
 
 const policy = yield * Policy.make({ retry })
@@ -28,7 +28,7 @@ const policy = yield * Policy.make({ retry })
 - `capped(duration)` sets the maximum base delay. It may be below the initial
   delay. `jittered()` selects bounded proportional jitter; cap always applies before jitter,
   irrespective of combinator order. Repeated setters use the last value.
-- `maxAttempts(n)` accepts integer 1–100 and includes the first finalized attempt.
+- `maxFinalizedAttempts(n)` accepts integer 1–100 and includes the first finalized attempt.
   Defaults remain three attempts and, when `retry` is absent, a fixed five-second
   delay. One attempt disables subsequent scheduling, not the first execution.
 - Duration inputs are Effect `Duration` values representing exact integer
@@ -37,17 +37,23 @@ const policy = yield * Policy.make({ retry })
 - `yield* Policy.make({ retry })` remains the only assembly spelling. It returns
   `Effect<JobPolicy, JobPolicyConfigurationError>` and reports expected validation
   failures as Fail, not throw/Die. Retry diagnostics identify `retry.delay`,
-  `retry.factor`, `retry.maxDelay` or `retry.maxAttempts`. There is no implicit
+  `retry.factor`, `retry.maxDelay` or `retry.maxFinalizedAttempts`. There is no implicit
   conversion to a full job policy, `Retry.toPolicy`, or shortcut on a job definition.
 - Retry configuration has one input path: `retry`. The former `retryDelay` and
   top-level `maxAttempts` options are removed, without deprecated aliases or
-  compatibility branches. Use `fixed`/`exponential` and `Retry.maxAttempts`.
+  compatibility branches. Use `fixed`/`exponential` and `Retry.maxFinalizedAttempts`.
   Unsupported option names fail validation instead of silently selecting defaults.
 
 ## Persistence and evaluation
 
 The existing policy JSON retains a top-level `maxAttempts`. Construction resolves
-the public builder into ordinary data; functions/prototypes are not persisted.
+the public `maxFinalizedAttempts` field. `PersistedJobPolicy` decodes the retained
+key to that field and encodes it back; use `JobPolicy` for in-memory validation
+and `Schema.encodeEffect(PersistedJobPolicy)` before writing stored JSON. The
+physical `attempts_made` column likewise maps to public `finalizedAttempts`;
+`nextFinalizationNumber` is that count plus one, not an invocation count.
+
+Construction resolves the public builder into ordinary data; functions/prototypes are not persisted.
 Unmodified fixed schedules retain their exact `FixedDelayV1` representation.
 The new `BackoffV1` schedule contains `delayMillis`, `factor`, `maxDelayMillis`
 and `jitter` (`None`, legacy `Full`, or `ProportionalV1`). A capped/jittered fixed schedule uses factor 1.
@@ -72,7 +78,7 @@ rows as proportional jitter. Jitter is scheduling randomness, not a secret.
 The worker draws one Effect Random sample after an explicit Retry outcome and
 only if another attempt is permitted. Its frozen finalization command retains
 that sample. All repeats and read-only reconciliation use the same command.
-The backend computes `availableAt` from its one database-time snapshot and writes
+The persistence computes `availableAt` from its one database-time snapshot and writes
 the timestamp, state and counters atomically under the existing ownership fence.
 The sample is not a new column or durable secret: the concrete timestamp is stored.
 After a restart, readers use that timestamp rather than regenerating randomness.
@@ -81,7 +87,7 @@ missing or invalid entropy fails closed. Pure lifecycle planning remains pure.
 
 Exhausted attempts become Dead without calculating an unused future delay;
 `availableAt` remains unchanged in this case, including for fixed schedules.
-Otherwise, computed availability `>= notAfter` becomes Dead, preserving the
+Otherwise, computed availability `>= retryBefore` becomes Dead, preserving the
 existing equality boundary. Timestamp overflow fails explicitly, never wraps or
 clamps database time. These scheduling controls do not guarantee exact start time.
 
@@ -108,7 +114,7 @@ and new workers against new-policy jobs or roll readers back without resolving t
 Existing `FixedDelayV1` rows remain readable with their original values.
 
 Qualification must cover constructor/type boundaries, cap/jitter order and edges,
-attempt exhaustion, notAfter, fencing/recovery, response loss, identical-command
-reconciliation, real PostgreSQL persistence/backend recreation on Node and Bun,
+attempt exhaustion, retryBefore, fencing/recovery, response loss, identical-command
+reconciliation, real PostgreSQL persistence/persistence recreation on Node and Bun,
 and an installed package consumer. Focused passing checks do not waive the existing
 foreign-declaration/full-verification blockers or independent review requirement.

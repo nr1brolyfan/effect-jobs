@@ -1,6 +1,6 @@
 import { Cause, Effect, Layer, Schema } from "effect"
 import { EpochMillis } from "effect-jobs/JobPolicy"
-import { JobBackendError, JobEnqueue } from "effect-jobs/JobEnqueue"
+import { JobPersistenceError, JobEnqueue } from "effect-jobs/JobEnqueue"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import type { SandboxAccess } from "@effect-jobs/playground-contracts/Sandbox"
 import {
@@ -56,7 +56,7 @@ const recoverMutation = <A>(
     reason !== undefined &&
     Cause.isFailReason(reason) &&
     (reason.error instanceof CommandTransactionFailure ||
-      (producer && reason.error instanceof JobBackendError)) &&
+      (producer && reason.error instanceof JobPersistenceError)) &&
     reason.error.commitKnowledge === "Unknown"
   ) {
     return Effect.succeed(unknown)

@@ -19,12 +19,12 @@ export const payload = (
 ): Effect.Effect<JobPayloadView> =>
   Effect.gen(function* () {
     const catalog = detail.job.catalog
-    const definition = Definitions.definitions.find(
+    const definition = Definitions.routes.find(
       (entry) =>
-        entry.catalog.kind === catalog.kind &&
-        entry.catalog.queue === catalog.queue &&
-        entry.catalog.version === catalog.version
-    )
+        entry.job.kind === catalog.kind &&
+        entry.queue.name === catalog.queue &&
+        entry.job.version === catalog.version
+    )?.job
     if (!definition) {
       return unavailable("unsupported-catalog")
     }
@@ -55,7 +55,7 @@ export const payload = (
         return unavailable("invalid-artifact")
       }
       encryption =
-        String(definition.catalog.kind) === "playground.synthetic-document-export"
+        String(definition.kind) === "playground.synthetic-document-export"
           ? "SyntheticDocumentV1"
           : "PrivateDocumentV1"
     }
@@ -81,12 +81,12 @@ export const eligibility = (
   problem: JobProblem | null,
   payloadView: JobPayloadView
 ) => {
-  const selected = Definitions.definitions.find(
+  const selected = Definitions.routes.find(
     (entry) =>
-      entry.catalog.kind === detail.job.catalog.kind &&
-      entry.catalog.queue === detail.job.catalog.queue &&
-      entry.catalog.version === detail.job.catalog.version
-  )
+      entry.job.kind === detail.job.catalog.kind &&
+      entry.queue.name === detail.job.catalog.queue &&
+      entry.job.version === detail.job.catalog.version
+  )?.job
   const entry = (reason: JobRepairReason | null) => ({ enabled: reason === null, reason })
   const state = detail.job.state
   const common: JobRepairReason | null =

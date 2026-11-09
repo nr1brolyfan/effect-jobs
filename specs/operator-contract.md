@@ -3,7 +3,7 @@
 `JobOperators` is a focused generic port. `JobOperatorsService<E, R>` preserves
 provider errors and required services; `redrive` additionally requires the payload
 Schema decoding services; `correctedRedrive` requires encoding and decoding services. The Context service uses the existing generic
-`JobBackendError` vocabulary; backend methods retain typed PostgreSQL errors.
+`JobPersistenceError` vocabulary; persistence methods retain typed PostgreSQL errors.
 The public package export and PostgreSqlJobs composition are registered by the
 central integration owner.
 
@@ -34,7 +34,7 @@ rolling back the entire operator/receipt transaction when authority expires.
 
 Retry strictly accelerates a future stored retry, preserving policy, attempts,
 stalls, failure and artifacts. A previously scheduled availability below
-`Retry.notAfter` remains below that scheduling cutoff under strict acceleration.
+`Retry.retryBefore` remains below that scheduling cutoff under strict acceleration.
 Already-due retries are refused, preventing postponement.
 
 Cancellation preserves availability, counters, failure and artifacts, increments
@@ -43,18 +43,21 @@ cleanup_at is null; claims, recovery and cleanup exclude it. Active cancellation
 is unavailable because no handler interruption contract exists. Cancelling future
 execution cannot undo an earlier external effect.
 
-Redrive validates the supported catalog, complete stored policy/metadata,
+Both redrive forms accept a queue-independent `{ kind, version, payload }` contract.
+Its kind/version must match the locked source. Queue routing is inherited from
+that source, never selected by a current deployment's producer or handler contract.
+Redrive validates the supported contract, complete stored policy/metadata,
 configured lease response reserve, canonical payload/projection and corresponding
 payload Schema without invoking a handler. Buffers are copied before asynchronous
 decoding. It copies exact valid artifacts and first policy into a library-assigned
 new ID, with fresh zero counters/version and DB-now initial availability. The
 original is unchanged. The original producer tuple is refused. A new producer
-tuple uses the existing global deduplication/integrity mechanism: matching catalog
+tuple uses the existing global deduplication/integrity mechanism: matching kind/version
 and semantic projection return AlreadyPresent, conflicting semantics poison the
 transaction. Both forms compare durable source identity and redrive kind before accepting a
 matching tuple. Absent, inconsistent or different lineage causes the typed
 `lineage-conflict` rejection and poisons the transaction even if caught. Changed
-payload/catalog still produces `JobIntegrityConflict`. Ordinary enqueue does not
+payload or kind/version still produces `JobIntegrityConflict`. Ordinary enqueue does not
 acquire an operator edge or claim an existing operator successor.
 
 `correctedRedrive(definition, { expected, producer, payload })` accepts a full decoded
@@ -87,7 +90,7 @@ must be frozen before switching to the updated fresh generator.
 
 Internal integration: `makeOperators(adapter, jobs, payloads,
 operationResponseBudgetMillis)` uses the same adapter, quoted relations and
-response reserve as the backend. `insertOrCompareAt` reuses the final operator
+response reserve as the jobs. `insertOrCompareAt` reuses the final operator
 clock sample; ordinary enqueue continues sampling its own DB time.
 
 `PostgreSqlSchema.lineageMigration(mapping)` is an additive, application-owned,

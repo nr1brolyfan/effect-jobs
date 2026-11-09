@@ -1,4 +1,4 @@
-# PostgreSQL backend — qualification and integration
+# PostgreSQL persistence — qualification and integration
 
 PR #6 was integrated at `0525adda1384788124b273ea5ee8eac17c40413a` after its
 completed original review set. The phase-B integration-blocked statements and
@@ -12,15 +12,41 @@ and does not restart their review or qualify arbitrary transaction adapters.
 - `PostgreSqlJobs`: `make(options)` / `layerNoDeps(options)` produce
   `PostgreSqlJobs` and require `PostgreSqlApplication`. The value exposes an
   explicit `ready` Effect, the generic `store`, optional separately selected
-  `cleanup`, `joinTransaction(handle, callback)` and `withTransaction(callback)`.
+  `cleanup`, read-only `schedule`, `joinTransaction(handle, callback)` and
+  `withTransaction(callback)`. The Layer also provides the configured portable
+  `JobStorage` and `JobSchedule`, plus producer/operator services.
 - `PostgreSqlTransaction`: the trusted application-adapter extension contract,
-  exact-connection `TransactionQuery`, and sanitized backend errors. This is **not**
+  exact-connection `TransactionQuery`, and sanitized persistence errors. This is **not**
   a structural query-only transaction constructor or a supplied transaction engine.
 - `PostgreSqlSchema`: validated storage mapping and explicit application migration
   DDL. Runtime never invokes that DDL or creates a schema.
 - `PostgreSqlDrizzleSchema`: optional, migration-only Drizzle declarations.
   Neither core nor the PostgreSQL runtime imports Drizzle. These declarations do
   **not** qualify a Drizzle transaction adapter.
+
+### Read-only wake observations
+
+`JobSchedule.observe(group, queue, { limit })` uses the configured observation
+service without requiring handlers or a worker. PostgreSQL exposes its native-error
+port as `jobs.schedule`; `JobSchedule.layer(jobs.schedule)` captures it for
+portable callers. `PostgreSqlJobs.layerNoDeps` already provides that service.
+
+One SELECT observes a materialized PostgreSQL-time sample, the queue's bounded
+Pending/RetryScheduled head ordered by availability/ID, and its earliest Active
+lease. No payload bytes, producer IDs or lease tokens are selected, and there is no
+row locking or lifecycle write. Requests allow 1–500 sampled pending rows and at
+most 500 supported queue/kind/version entries; one lookahead row detects saturation.
+Contract filtering applies within that head, so `nextAvailableAt: null` with
+`saturated: true` is inconclusive, not proof no supported work exists. Recovery
+includes all Active contracts in the selected queue, matching drain recovery.
+
+`observedAt`, `nextAvailableAt` and `nextRecoveryAt` are bounded epoch milliseconds.
+Past timestamps are already due. Derive relative delays from the observed database
+time, not the host clock. Hints can immediately become stale; applications retain
+finite repair wakeups, authorization/activation checks and one explicit alarm owner.
+The row limit bounds returned metadata, not total PostgreSQL query work; qualified
+adapter acquisition/statement/operation/release deadlines bound latency. Ambient
+transactions are rejected through the same owned-operation guard as worker reads.
 
 Construction performs no SQL, readiness, DDL, pool allocation/closing, worker
 startup or maintenance. Applications invoke readiness/maintenance and explicitly
@@ -76,16 +102,16 @@ namespace, generate/run migrations, own privileges, and own pool lifetime.
 `jobs` persists generated ID, producer tuple, queue/kind/version, complete first
 policy, optional initial availability, mutable lifecycle and lease/fencing fields.
 `job_payloads` persists immutable format version, payload and canonical semantic
-projection with a primary-key foreign key and ON DELETE CASCADE. Backend lifecycle
+projection with a primary-key foreign key and ON DELETE CASCADE. Persistence lifecycle
 writes never rewrite payload, catalog, producer or first policy/initial envelope.
 PK, global producer tuple UNIQUE and unique live lease tokens are structural
 requirements. Due, expiry and terminal-cleanup partial indexes are provided.
 Index names retain a bounded hash of the full configured table name to avoid
 PostgreSQL truncating away its distinguishing suffix.
 
-IDs are generated only by the library. A semantic duplicate compares catalog,
+IDs are generated only by the library. A semantic duplicate compares kind/version,
 payload format and canonical projection bytes, including protected fingerprints;
-it returns the first ID without changing policy, availability or randomized
+it returns the first ID without changing queue routing, policy, availability or randomized
 ciphertext. Changed content is `JobIntegrityConflict`. A genuine same-connection
 PostgreSQL error additionally aborts the producer transaction, so catching that
 typed error cannot commit preceding domain writes. An application manager must
@@ -160,7 +186,7 @@ On `2026-10-05T15:56Z`, the current production source and final COMMIT-tag manag
 passed **27/27 on Node 24.15.0 and 27/27 on Bun 1.4.2**, against PostgreSQL 16.15,
 pg 8.23.0 and Effect 4.0.0. Each run includes 25 production-backend real-PG tests
 and 2 optional Drizzle declaration tests; no PG tests skipped. Existing tests
-already covered retry-notAfter and lease-reserve equality and +/-1 ms neighbors;
+already covered retryBefore and lease-reserve equality and +/-1 ms neighbors;
 they were not reimplemented. The only test-code continuation change pins the
 new coordinator-authorized exact container ID. Phase A was not rerun.
 
@@ -199,7 +225,7 @@ The coordinator recovered the exact same label/image-verified resource at
 expanded phase-B suite then passed **27/27 on Node and 27/27 on Bun** at about
 `11:30Z`: 25 production-backend real-PG tests plus 2 Drizzle declaration tests.
 Receipts include exact actual DB-time equality and +/-1 ms neighbors for due,
-owned expiry, recovery expiry, lease reserve and retry-notAfter. Both runs
+owned expiry, recovery expiry, lease reserve and retryBefore. Both runs
 confirmed zero remaining fixture schemas/roles, restored TEMP, zero runtime DDL
 and zero savepoints. This did not repeat phase A.
 

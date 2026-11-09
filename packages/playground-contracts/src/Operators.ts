@@ -32,6 +32,7 @@ export const JobOperatorReason = Schema.Literals([
   "not-eligible",
   "already-due",
   "invalid-artifact",
+  "policy-incompatible",
   "unsupported-catalog",
   "arithmetic-bound",
   "public-read-only",

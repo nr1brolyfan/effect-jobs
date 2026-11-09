@@ -34,7 +34,7 @@ const job = {
   availableAt: Date.now() - 2000,
   updatedAt: Date.now() - 1000,
   completedAt: Date.now() - 1000,
-  attemptsMade: 1,
+  finalizedAttempts: 1,
   stalledCount: 0,
   lifecycleVersion: 2,
   lastFailureCode: "fake_provider_terminal_rejected"
@@ -59,7 +59,7 @@ const detail = {
   policy: {
     leaseDurationMillis: 90000,
     attemptTimeoutMillis: 30000,
-    maxAttempts: 3,
+    maxFinalizedAttempts: 3,
     maxStalledCount: 1,
     retrySchedule: { _tag: "FixedDelayV1", delayMillis: 5000 },
     completedRetention: { _tag: "Duration", millis: 7776000000 },

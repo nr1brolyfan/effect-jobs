@@ -16,6 +16,7 @@ for (const c of [
 ]) {
   const alarms = []
   const runtime = {
+    concurrency: () => 2,
     ready: () => Effect.void,
     permits: () => Effect.succeed(Semaphore.makeUnsafe(2)),
     recover: () => (c.more ? Effect.succeed(0) : Effect.fail(new JobWorkerUnavailable())),

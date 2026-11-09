@@ -8,6 +8,7 @@
         "@effect/ai-openrouter": "4.1.0",
         "@effect/platform-node": "4.1.0",
         "@effect/platform-node-shared": "4.1.0",
+        "@effect/sql-pg": "4.1.0",
         "@effect/tsgo": "0.48.0",
         "@types/node": "26.4.1",
         "@types/pg": "8.20.0",

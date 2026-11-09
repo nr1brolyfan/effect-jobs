@@ -1,8 +1,9 @@
 /** Qualification prototype only. No pool construction, DDL, transaction control or replay. */
 import { randomUUID } from "node:crypto"
-import { Context, Effect, Layer } from "effect"
+import { Context, Effect, Layer, Schema } from "effect"
+import { PersistedJobPolicy } from "../../../src/JobPolicy.js"
 import {
-  EnqueueResults,
+  EnqueueResult,
   JobIntegrityConflict,
   type PreparedJob
 } from "../../../src/JobContract.js"
@@ -41,7 +42,7 @@ const insert = (handle: App.Handle, prepared: PreparedJob) =>
         producer.operationId,
         producer.slot,
         JSON.stringify(catalog),
-        JSON.stringify(prepared.policy)
+        JSON.stringify(Schema.encodeSync(PersistedJobPolicy)(prepared.policy))
       ]
     )
     if (rows.length === 0) {
@@ -62,7 +63,7 @@ const insert = (handle: App.Handle, prepared: PreparedJob) =>
       ) {
         return yield* new JobIntegrityConflict()
       }
-      return EnqueueResults.AlreadyPresent({ jobId: prior.id })
+      return EnqueueResult.AlreadyPresent({ jobId: prior.id })
     }
     yield* handle.query(
       "INSERT INTO d6_fixture.job_payloads (job_id,payload,projection) VALUES ($1,$2,$3)",
@@ -72,7 +73,7 @@ const insert = (handle: App.Handle, prepared: PreparedJob) =>
         Buffer.from(encoded.semanticProjectionBytes)
       ]
     )
-    return EnqueueResults.Inserted({ jobId: id })
+    return EnqueueResult.Inserted({ jobId: id })
   })
 
 export const make = Effect.gen(function* () {

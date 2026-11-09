@@ -214,7 +214,7 @@ All 16 recursive ai-docs files were read before implementation:
 Also read canonical UPVE-1020, assigned issue and required empty thread scan,
 the owner's parent decision thread, `specs/multica-workflow.md`, accepted
 `specs/architecture-decisions.md`, `specs/core-contract.md`,
-`specs/postgresql-backend.md`, `specs/d6-qualification.md`, current manifests,
+`specs/postgresql-jobs.md`, `specs/d6-qualification.md`, current manifests,
 TypeScript configuration, production schema/producer/transaction seams, retained
 application-manager fixture, installed gate and actual installed Drizzle/native
 driver/codecs/Effect SQL transaction implementations. The author worktree has no

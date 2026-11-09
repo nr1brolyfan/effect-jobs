@@ -1,6 +1,6 @@
 import { Duration, Effect, Result, Schema } from "effect"
 import { it, expect } from "vitest"
-import * as Job from "../../../src/Job.js"
+import * as Job from "./ProtocolJob.js"
 import * as Queue from "../../../src/JobQueue.js"
 import * as Policy from "../../../src/JobPolicy.js"
 import * as Retry from "../../../src/JobRetryPolicy.js"
@@ -8,7 +8,7 @@ import * as Codes from "../../../src/FailureCode.js"
 import { JobFailures } from "../../../src/JobFailure.js"
 import { encodeJobPayload } from "../../../src/JobPayloadCodec.js"
 import { withJoinedTransaction } from "../../../src/internal/JobTransaction.js"
-import { EnqueueResults, type EncodedJobPayload } from "../../../src/JobContract.js"
+import { EnqueueResult, type EncodedJobPayload } from "../../../src/JobContract.js"
 import { JobId } from "../../../src/JobId.js"
 
 it("deeply immutable defaults do not freeze or alter caller options", () => {
@@ -25,12 +25,12 @@ it("deeply immutable defaults do not freeze or alter caller options", () => {
     Object.assign(Policy.defaultPolicy.retrySchedule, { delayMillis: 1 })
   ).toThrow(TypeError)
   const duration = Duration.seconds(8)
-  const options = { retry: Retry.fixed(duration).pipe(Retry.maxAttempts(5)) }
-  expect(Effect.runSync(Policy.make(options)).maxAttempts).toBe(5)
+  const options = { retry: Retry.fixed(duration).pipe(Retry.maxFinalizedAttempts(5)) }
+  expect(Effect.runSync(Policy.make(options)).maxFinalizedAttempts).toBe(5)
   expect(Object.isFrozen(options)).toBe(false)
   expect(Object.isFrozen(duration)).toBe(false)
-  options.retry = options.retry.pipe(Retry.maxAttempts(6))
-  expect(Policy.defaultPolicy.maxAttempts).toBe(3)
+  options.retry = options.retry.pipe(Retry.maxFinalizedAttempts(6))
+  expect(Policy.defaultPolicy.maxFinalizedAttempts).toBe(3)
 })
 it("validated catalogs and nonthrowing parser share 128-character storage boundaries", () => {
   const codes = Codes.define({ boundary: "a".repeat(128), historic: "old_catalog_code" })
@@ -77,7 +77,7 @@ it("omitted version and standard encoder match explicit values; custom override 
       (prepared) =>
         Effect.sync(() => {
           artifacts.push(prepared.encoded)
-          return EnqueueResults.Inserted({ jobId: Schema.decodeSync(JobId)("job") })
+          return EnqueueResult.Inserted({ jobId: Schema.decodeSync(JobId)("job") })
         }),
       (tx) => job.enqueueInTransaction(tx, input)
     )

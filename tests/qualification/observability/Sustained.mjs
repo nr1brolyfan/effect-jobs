@@ -36,41 +36,38 @@ const library = (name) =>
           )
     ).href
   )
-const [Job, JobQueue, Codec, Policy, Registry, Worker, Runtime, Consumer] =
+const [Job, JobQueue, Codec, Policy, Group, Worker, Storage, JobApi, JobApiBuilder] =
   await Promise.all(
     [
       "Job",
       "JobQueue",
       "JobPayloadCodec",
       "JobPolicy",
-      "JobRegistry",
+      "JobGroup",
       "JobWorker",
-      "JobWorkerRuntime",
-      "JobConsumer"
+      "JobStorage",
+      "JobApi",
+      "JobApiBuilder"
     ].map(library)
   )
 const queue = JobQueue.make("load-proof")
-const definition = Job.make({ queue, kind: "load-proof", payload: Schema.String })
-const consumer = Effect.runSync(
-  Consumer.make(queue, {
-    localConcurrency: 1,
-    claimLimitPerRun: 1,
-    recoveryLimitPerRun: 1
-  })
-)
+const definition = Job.make({ kind: "load-proof", payload: Schema.String })
+const catalog = { queue: queue.name, kind: definition.kind, version: definition.version }
+const group = Group.make("load-proof", { synthetic: definition })
 const runJob = () =>
   Effect.gen(function* () {
     const encoded = yield* Codec.encodeJobPayload(definition.payload, "synthetic")
     let invoked = 0
     let finalized = false
-    yield* Layer.build(
-      definition.handlerLayer(
-        () =>
+    const handlers = JobApiBuilder.group(
+      JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+      group.name,
+      (_handlers) =>
+        _handlers.handle("synthetic", () =>
           Effect.sync(() => {
             invoked++
-          }),
-        Codec.decodeJobPayload
-      )
+          })
+        )
     )
     const store = {
       recoverExpired: () => Effect.succeed(0),
@@ -85,7 +82,7 @@ const runJob = () =>
               lifecycleVersion: 1
             },
             prepared: {
-              catalog: definition.catalog,
+              catalog,
               policy: Policy.defaultPolicy,
               encoded,
               producer: {
@@ -103,7 +100,7 @@ const runJob = () =>
               policy: Policy.defaultPolicy,
               availableAt: 1725000000000,
               updatedAt: 1725000000010,
-              attemptsMade: 0,
+              finalizedAttempts: 0,
               stalledCount: 0,
               completedAt: null,
               lastFailureCode: null
@@ -119,15 +116,24 @@ const runJob = () =>
       reconcileClaim: () => Effect.succeed({ _tag: "Unknown" }),
       reconcileFinalization: () => Effect.succeed({ _tag: "Unknown" })
     }
-    const worker = yield* Worker.make(store, {
-      catalog: [definition],
-      operationResponseBudgetMillis: 100
-    })
-    yield* Runtime.drain(consumer).pipe(Effect.provideService(Worker.JobWorker, worker))
+    const worker = yield* Worker.make(
+      JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+      { queues: [{ queue }] }
+    ).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          Storage.layer({ store, operationResponseBudgetMillis: 100 }),
+          handlers
+        )
+      )
+    )
+    yield* Worker.drain(queue, { maxJobs: 1, recoveryLimit: 1 }).pipe(
+      Effect.provideService(Worker.JobWorker, worker)
+    )
     assert.equal(invoked, 1)
     assert.equal(finalized, true)
     return { invoked, finalized }
-  }).pipe(Effect.provide(Registry.layer))
+  })
 const limits = BoundedSink.limits
 const report = { runtime: process.version, bun: process.versions.bun, limits, cases: [] }
 for (const fault of ["slow", "offline"]) {

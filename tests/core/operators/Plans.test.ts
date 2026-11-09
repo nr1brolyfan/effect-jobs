@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest"
 import * as Lifecycle from "../../../src/JobLifecycle.js"
 import * as Policy from "../../../src/JobPolicy.js"
 import { FailureCode } from "../../../src/JobFailure.js"
+import { JobId } from "../../../src/JobId.js"
 import { JobOperatorExpected } from "../../../src/JobOperators.js"
 import { pending, active, now, ownership } from "../lifecycle/fixtures.js"
 
@@ -45,7 +46,7 @@ describe("operator plans", () => {
     const row = pending({
       state: "RetryScheduled",
       availableAt: now + delta,
-      attemptsMade: 1,
+      finalizedAttempts: 1,
       stalledCount: 1
     })
     const result = Lifecycle.retryNow(row, guard(row), now)
@@ -69,7 +70,7 @@ describe("operator plans", () => {
           ownership(row),
           Lifecycle.JobFinalizations.Retry({
             code: Schema.decodeSync(FailureCode)("retry"),
-            notAfter: now + row.policy.retrySchedule.delayMillis + delta
+            retryBefore: now + row.policy.retrySchedule.delayMillis + delta
           }),
           now
         )
@@ -87,9 +88,7 @@ describe("operator plans", () => {
     for (const invalid of [
       {
         ...guard(row),
-        jobId: pending({
-          jobId: Schema.decodeSync(JobOperatorExpected.fields.jobId)("foreign")
-        }).jobId
+        jobId: pending({ jobId: Schema.decodeSync(JobId)("foreign") }).jobId
       },
       {
         ...guard(row),
@@ -106,7 +105,7 @@ describe("operator plans", () => {
   test("Cancelled has a terminal timestamp, unchanged history and Forever cleanup", () => {
     const row = pending({
       state: "RetryScheduled",
-      attemptsMade: 1,
+      finalizedAttempts: 1,
       stalledCount: 1,
       policy: Effect.runSync(
         Policy.make({
@@ -154,10 +153,10 @@ describe("operator plans", () => {
       expect(failure(Lifecycle[action](row, guard(row), now))).toBe("arithmetic-bound")
       expect(failure(Lifecycle[action](row, guard(row), 0))).toBe("invalid-command")
       for (const invalid of [
-        { ...row, attemptsMade: row.policy.maxAttempts },
+        { ...row, finalizedAttempts: row.policy.maxFinalizedAttempts },
         { ...row, stalledCount: row.policy.maxStalledCount + 1 },
         { ...row, leaseToken: "abcd" },
-        { ...row, attemptsMade: -1 },
+        { ...row, finalizedAttempts: -1 },
         {
           ...row,
           policy: { ...row.policy, attemptTimeoutMillis: row.policy.leaseDurationMillis }

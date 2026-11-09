@@ -39,6 +39,7 @@ for (const field of ["due", "recovery", "generate"]) {
         Effect.provideService(Executor.ExecutionHints, { reconcile: Effect.void }),
         Effect.provideService(JobWorker, {
           [WorkerCapability]: {
+            concurrency: () => 2,
             ready: () => Effect.void,
             permits: () => Effect.succeed(Semaphore.makeUnsafe(2)),
             recover: () =>

@@ -1,10 +1,9 @@
+import * as JobApi from "effect-jobs/JobApi"
 // @effect-diagnostics unstableApiUsage:off
 import { Clock, Context, Effect, Layer, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
-import * as Consumer from "effect-jobs/JobConsumer"
-import * as Runtime from "effect-jobs/JobWorkerRuntime"
 import * as Worker from "effect-jobs/JobWorker"
-import * as Registry from "effect-jobs/JobRegistry"
+import * as Storage from "effect-jobs/JobStorage"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
@@ -45,31 +44,33 @@ export class ExecutionDeadline extends Schema.TaggedError<ExecutionDeadline>()(
   {}
 ) {}
 
-export const consumers = Effect.forEach(queueNames, (name) =>
-  Consumer.make(
-    Definitions.definitions.find((definition) => definition.queue.name === name)!.queue,
-    {
-      localConcurrency: limits.concurrency,
-      claimLimitPerRun: limits.claimLimit,
-      recoveryLimitPerRun: limits.recoveryLimit
-    }
+export const queues = Object.freeze(
+  queueNames.map(
+    (name) => Definitions.routes.find((route) => route.queue.name === name)!.queue
   )
 )
 export const workerLayerNoDeps = (schema: string) =>
   Layer.unwrap(
     Effect.gen(function* () {
-      const backend = yield* PostgreSqlJobs
-      return Worker.layer(backend.store, {
-        catalog: Definitions.definitions,
-        operationResponseBudgetMillis: 500
-      }).pipe(
+      const jobs = yield* PostgreSqlJobs
+      return Worker.layer(
+        JobApi.make(Definitions.group.name).pipe(JobApi.addGroup(Definitions.group)),
+        {
+          queues: queues.map((queue) => ({
+            queue,
+            concurrency: limits.concurrency
+          }))
+        }
+      ).pipe(
+        Layer.provide(Layer.succeed(Storage.JobStorage, jobs.storage)),
         Layer.provide(Handlers.layerNoDeps),
-        Layer.provide(Registry.layer),
         Layer.provide(Provider.layerNoDeps(schema))
       )
     })
   )
 
+// JobSchedule provides storage-wide hints; this app-specific observation must also
+// retain live sandbox/generation authority and its separate traffic-generation wakeup.
 export const snapshot = (schema: string, queue: QueueName) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
@@ -117,9 +118,9 @@ export const generate = (schema: string) =>
     const local = yield* Mode.LocalPrivate
     const retainedMaximum = Mode.retainedMaximum(local)
     const admissionMaximum = Mode.admissionMaximum(local)
-    const backend = yield* PostgreSqlJobs
+    const jobs = yield* PostgreSqlJobs
     const traffic = yield* Traffic.make(schema).pipe(
-      Effect.provideService(JobEnqueue, backend.producer)
+      Effect.provideService(JobEnqueue, jobs.producer)
     )
     const t = Tables.relations(schema)
     return yield* sql.withTransaction(
@@ -185,9 +186,13 @@ export const run = (schema: string, queue: QueueName) =>
         })
       )
     }
-    const plans = yield* consumers
-    const consumer = plans.find((plan) => plan.queue.name === queue)!
-    const result = yield* Runtime.drain(consumer)
+    const result = yield* Worker.drain(
+      queues.find((entry) => entry.name === queue)!,
+      {
+        maxJobs: limits.claimLimit,
+        recoveryLimit: limits.recoveryLimit
+      }
+    )
     yield* RepairReconciliation.run(schema, { limit: 50 })
     yield* hints.reconcile
     const after = yield* snapshot(schema, queue)

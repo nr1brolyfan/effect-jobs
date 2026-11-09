@@ -1,24 +1,26 @@
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 // Application fixtures used by exact extracted fences. No production connection.
 import { Context, Effect, Layer, Schema } from "effect"
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto"
 import * as Jobs from "effect-jobs/PostgreSqlJobs"
 import { PostgreSqlApplication, PostgreSqlFailure } from "effect-jobs/PostgreSqlTransaction"
 import * as Payload from "effect-jobs/JobPayload"
-import * as Consumer from "effect-jobs/JobConsumer"
 import * as Worker from "effect-jobs/JobWorker"
-import * as Registry from "effect-jobs/JobRegistry"
+import * as JobStorage from "effect-jobs/JobStorage"
 import * as Policy from "effect-jobs/JobPolicy"
 import * as Tables from "effect-jobs/PostgreSqlSchema"
-import * as Codec from "effect-jobs/JobPayloadCodec"
+import * as Producer from "effect-jobs/JobProducer"
+import * as Queue from "effect-jobs/JobQueue"
 import * as Job from "effect-jobs/Job"
 import type { JobFailure } from "effect-jobs/JobFailure"
-import { BillingQueue, SendReceipt } from "./contracts.js"
+import { BillingQueue, SendReceipt, BillingJobs, IssueInvoice } from "./contracts.js"
 const unavailable = () => Effect.fail(new PostgreSqlFailure({ commitKnowledge: "NotCommitted" }))
 export const ApplicationPostgresLayer = Layer.succeed(PostgreSqlApplication, {
   ambient: unavailable(), validate: unavailable, withTransaction: unavailable, ownedTransaction: unavailable
 })
-export let jobsStorage = Effect.runSync(Jobs.make({ operationResponseBudgetMillis: 100 }).pipe(Effect.provide(ApplicationPostgresLayer)))
-export const useBackend = (backend: Jobs.Backend) => { jobsStorage = backend }
+export let jobs = Effect.runSync(Jobs.make({ operationResponseBudgetMillis: 100 }).pipe(Effect.provide(ApplicationPostgresLayer)))
+export const useJobs = (value: Jobs.Service) => { jobs = value }
 export const invoices = { create: (_: { id: string }) => Effect.void, createOnce: (_: { operationId: string; invoiceId: string }) => Effect.void }
 export const operationId = "readme-operation"
 export const invoiceId = "readme-invoice"
@@ -65,9 +67,16 @@ export class InvoicePdfRenderer extends Context.Service<InvoicePdfRenderer, { re
 export const InvoicePdfRendererLayer = Layer.succeed(InvoicePdfRenderer, { generate: () => Effect.void })
 export const receiptPolicy = Policy.defaultPolicy
 export const tables = Tables.tables()
-export const ReceiptHandler = SendReceipt.handlerLayer(() => Effect.void, Codec.decodeJobPayload)
-export const SendPrivateReceipt = Job.make({ queue: BillingQueue, kind: "invoice.private-receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: Payload.encrypted({ schema: Document, codec: ReceiptEncryption }) }) })
-export const WorkerLayer = Worker.layer(jobsStorage.store, { catalog: [SendReceipt], operationResponseBudgetMillis: 100 }).pipe(Layer.provideMerge(ReceiptHandler), Layer.provide(Registry.layer))
+export const ReceiptHandler = JobApiBuilder.group(JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs)), BillingJobs.name, (_handlers) => _handlers.handle("receipt", () => Effect.void))
+export const SendPrivateReceipt = Job.make({ kind: "invoice.private-receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: Payload.encrypted({ schema: Document, codec: ReceiptEncryption }) }) })
+export const WorkerLayer = Worker.layer(JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs)), { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(Layer.succeed(JobStorage.JobStorage, jobs.storage)), Layer.provide(ReceiptHandler))
 export const BillingWorkerLayer = WorkerLayer
-export const billing = Effect.runSync(Consumer.make(BillingQueue, { localConcurrency: 2, claimLimitPerRun: 20, recoveryLimitPerRun: 20 }))
-export const issueInvoice = (operationId: string, invoiceId: string) => jobsStorage.withTransaction(() => SendReceipt.enqueue({ producer: { operation: "billing.issue-invoice", operationId, slot: "receipt" }, payload: { invoiceId }, policy: receiptPolicy }))
+export const issueInvoice = (operationId: string, invoiceId: string) => jobs.withTransaction(() => IssueInvoice.enqueue({ operationId, slot: "receipt", payload: { invoiceId } }))
+
+// Installed/readme declarations must reject the removed queue-object override.
+// @ts-expect-error Fixed routing never accepts an enqueue queue field.
+export const forbiddenQueueObject = IssueInvoice.enqueue({ slot: "receipt", operationId: "one", payload: { invoiceId: "one" }, queue: BillingQueue })
+const selectable = Producer.make("readme.selection").pipe(Producer.withSlot("receipt", SendReceipt, { queues: [BillingQueue, Queue.make("priority")] }))
+export const selected = selectable.enqueue({ slot: "receipt", operationId: "one", payload: { invoiceId: "one" }, queue: "priority" })
+// @ts-expect-error Explicit selection is required, including readonly inline lists.
+export const missingChoice = selectable.enqueue({ slot: "receipt", operationId: "one", payload: { invoiceId: "one" } })

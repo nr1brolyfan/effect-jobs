@@ -2,6 +2,7 @@ import { Data, Effect, Result, Schema } from "effect"
 import * as Lifecycle from "../../JobLifecycle.js"
 import * as Store from "../../JobStore.js"
 import { EpochMillis } from "../../JobPolicy.js"
+import type { JobPolicyIncompatible } from "../../JobContract.js"
 
 /** Read reconciliation is evidence of the exact original command, never permission to replay a handler. */
 export const inspectFinalization = (
@@ -23,7 +24,7 @@ export const inspectFinalization = (
       )
     }
     if (observed === null) {
-      return Store.FinalizationReconciliations.OwnershipLost()
+      return Store.FinalizationReconciliation.OwnershipLost()
     }
     const row = yield* Lifecycle.validateSnapshot(observed)
     const expected = Lifecycle.finalize(
@@ -36,12 +37,12 @@ export const inspectFinalization = (
       Result.isSuccess(expected) &&
       Schema.toEquivalence(Lifecycle.JobSnapshot)(row, expected.success)
     ) {
-      return Store.FinalizationReconciliations.Applied()
+      return Store.FinalizationReconciliation.Applied()
     }
     return Lifecycle.isOwned(row, request.ownership, dbNow) &&
       Schema.toEquivalence(Lifecycle.JobSnapshot)(row, before)
-      ? Store.FinalizationReconciliations.StillOwned()
-      : Store.FinalizationReconciliations.OwnershipLost()
+      ? Store.FinalizationReconciliation.StillOwned()
+      : Store.FinalizationReconciliation.OwnershipLost()
   })
 
 /** One original-token storage read; absence is evidence only for that claim. */
@@ -62,7 +63,7 @@ export const inspectClaim = (
       )
     }
     if (observed === null) {
-      return Store.ClaimReconciliations.NotOwned()
+      return Store.ClaimReconciliation.NotOwned()
     }
     const row = yield* Lifecycle.validateSnapshot(observed.snapshot)
     const ownership = yield* Lifecycle.ownershipOf(row)
@@ -75,11 +76,11 @@ export const inspectClaim = (
       )
     }
     if (ownership.leaseToken !== leaseToken) {
-      return Store.ClaimReconciliations.NotOwned()
+      return Store.ClaimReconciliation.NotOwned()
     }
     return Lifecycle.usableLease(row, dbNow, operationResponseBudgetMillis)
-      ? Store.ClaimReconciliations.Owned({ claim: observed })
-      : Store.ClaimReconciliations.InsufficientLease({ ownership })
+      ? Store.ClaimReconciliation.Owned({ claim: observed })
+      : Store.ClaimReconciliation.InsufficientLease({ ownership })
   })
 
 export type ClaimResolution = Data.TaggedEnum<{
@@ -87,7 +88,7 @@ export type ClaimResolution = Data.TaggedEnum<{
   Skipped: {}
   Deferred: {}
 }>
-export const ClaimResolutions = Data.taggedEnum<ClaimResolution>()
+export const ClaimResolution = Data.taggedEnum<ClaimResolution>()
 
 /** One original-token read at most. Insufficient leases may be released ONLY before execution. */
 export const resolveClaim = <E, R>(
@@ -95,30 +96,30 @@ export const resolveClaim = <E, R>(
   request: Store.ClaimRequest
 ): Effect.Effect<
   ClaimResolution,
-  E | Store.JobStoreProtocolError | Store.JobOwnershipLost,
+  E | Store.JobStoreProtocolError | Store.JobOwnershipLost | JobPolicyIncompatible,
   R
 > =>
   Effect.gen(function* () {
     const result = yield* store.claim(request)
     if (result._tag === "Claimed") {
-      return ClaimResolutions.Ready({ claim: result.claim })
+      return ClaimResolution.Ready({ claim: result.claim })
     }
     if (result._tag === "Empty") {
-      return ClaimResolutions.Skipped()
+      return ClaimResolution.Skipped()
     }
     const reconciled = yield* store.reconcileClaim(request.leaseToken)
     switch (reconciled._tag) {
       case "Owned":
-        return ClaimResolutions.Ready({ claim: reconciled.claim })
+        return ClaimResolution.Ready({ claim: reconciled.claim })
       case "NotOwned":
-        return ClaimResolutions.Skipped()
+        return ClaimResolution.Skipped()
       case "Unknown":
-        return ClaimResolutions.Deferred()
+        return ClaimResolution.Deferred()
       case "InsufficientLease": {
         const released = yield* store.release(reconciled.ownership, "BeforeExecution")
         return released._tag === "Applied"
-          ? ClaimResolutions.Skipped()
-          : ClaimResolutions.Deferred()
+          ? ClaimResolution.Skipped()
+          : ClaimResolution.Deferred()
       }
     }
   })

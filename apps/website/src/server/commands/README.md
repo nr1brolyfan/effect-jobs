@@ -26,7 +26,7 @@ uses existing global/per-sandbox admission rates, and sanitizes wire failures.
 Public/demo routes deny mutation; native persistence independently denies
 persisted demo ownership even with caller-supplied capability hints.
 
-`OperatorPersistence` calls the root `PostgreSqlJobs.Backend.operators` through
+`OperatorPersistence` calls the root `PostgreSqlJobs.Service.operators` through
 the same native client as `PostgreSqlOperatorTransactions`. The owner locks the
 sandbox, then the scoped source, before the library call. Library lifecycle,
 receipt, audit, quota and redrive lineage changes commit atomically. DB-time expiry

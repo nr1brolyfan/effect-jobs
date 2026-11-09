@@ -1,5 +1,8 @@
 import { Effect, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
+import * as JobGroup from "effect-jobs/JobGroup"
+import type { JobPolicy } from "effect-jobs/JobPolicy"
+import { defaultPolicy } from "effect-jobs/JobPolicy"
 import * as JobProducer from "effect-jobs/JobProducer"
 import * as JobQueue from "effect-jobs/JobQueue"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
@@ -77,53 +80,57 @@ export const SyntheticExportPayload = Schema.Struct({
 const communications = JobQueue.make("playground-communications")
 const media = JobQueue.make("playground-media")
 const commerce = JobQueue.make("playground-commerce")
-const privateData = JobQueue.make("playground-private")
+export const PrivateDataQueue = JobQueue.make("playground-private")
 export const WelcomeEmail = Job.make({
-  queue: communications,
   kind: "playground.welcome-email",
   payload: Payload
 })
 export const ImageProcessing = Job.make({
-  queue: media,
   kind: "playground.image-processing",
   payload: Payload
 })
 export const WebhookDelivery = Job.make({
-  queue: communications,
   kind: "playground.webhook-delivery",
   payload: Payload
 })
 export const PrivateDataExport = Job.make({
-  queue: privateData,
   kind: "playground.private-data-export",
   payload: ExportPayload
 })
 export const CatalogSync = Job.make({
-  queue: commerce,
   kind: "playground.catalog-sync",
   payload: Payload
 })
 export const SimulatedPayment = Job.make({
-  queue: commerce,
   kind: "playground.simulated-payment",
   payload: Payload
 })
 export const SyntheticDocumentExport = Job.make({
-  queue: privateData,
   kind: "playground.synthetic-document-export",
   payload: SyntheticExportPayload
 })
-export const Producer = JobProducer.make({
-  operation: "playground.synthetic",
-  slots: [
-    "welcome-email",
-    "image-processing",
-    "webhook-delivery",
-    "private-data-export",
-    "catalog-sync",
-    "simulated-payment"
-  ]
-})
+export const makeProducer = (policy: JobPolicy = defaultPolicy) =>
+  JobProducer.make("playground.synthetic").pipe(
+    JobProducer.withSlot("welcome-email", WelcomeEmail, {
+      queue: communications,
+      policy
+    }),
+    JobProducer.withSlot("image-processing", ImageProcessing, { queue: media, policy }),
+    JobProducer.withSlot("webhook-delivery", WebhookDelivery, {
+      queue: communications,
+      policy
+    }),
+    JobProducer.withSlot("private-data-export", SyntheticDocumentExport, {
+      queue: PrivateDataQueue,
+      policy
+    }),
+    JobProducer.withSlot("catalog-sync", CatalogSync, { queue: commerce, policy }),
+    JobProducer.withSlot("simulated-payment", SimulatedPayment, {
+      queue: commerce,
+      policy
+    })
+  )
+export const Producer = makeProducer()
 
 export const definitions = [
   WelcomeEmail,
@@ -134,3 +141,31 @@ export const definitions = [
   SimulatedPayment,
   SyntheticDocumentExport
 ] as const
+
+/** Application routing inventory; job contracts themselves have no queue. */
+export const routes = [
+  { job: WelcomeEmail, queue: communications },
+  { job: ImageProcessing, queue: media },
+  { job: WebhookDelivery, queue: communications },
+  { job: PrivateDataExport, queue: PrivateDataQueue },
+  { job: CatalogSync, queue: commerce },
+  { job: SimulatedPayment, queue: commerce },
+  { job: SyntheticDocumentExport, queue: PrivateDataQueue }
+] as const
+
+/** Fixture/read metadata from the application's explicit routing inventory. */
+export const catalogFor = (job: (typeof definitions)[number]) => ({
+  queue: routes.find((route) => route.job === job)!.queue.name,
+  kind: job.kind,
+  version: job.version
+})
+
+export const group = JobGroup.make("playground-scenarios", {
+  welcomeEmail: WelcomeEmail,
+  imageProcessing: ImageProcessing,
+  webhookDelivery: WebhookDelivery,
+  privateDataExport: PrivateDataExport,
+  catalogSync: CatalogSync,
+  simulatedPayment: SimulatedPayment,
+  syntheticDocumentExport: SyntheticDocumentExport
+})

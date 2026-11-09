@@ -12,12 +12,10 @@ export const ScenarioPayload = Schema.Struct({
   sequence: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 1, maximum: 10 })))
 })
 export const ScenarioJob = Job.make({
-  queue,
   kind: "playground.scenario",
   version: 1,
   payload: ScenarioPayload
 })
-export const ScenarioProducer = JobProducer.make({
-  operation: "playground.scenario",
-  slots: ["execute"]
-})
+export const ScenarioProducer = JobProducer.make("playground.scenario").pipe(
+  JobProducer.withSlot("execute", ScenarioJob, { queue })
+)

@@ -1,3 +1,5 @@
+import * as JobApi from "../../../src/JobApi.js"
+import * as JobApiBuilder from "../../../src/JobApiBuilder.js"
 /**
  * Jobs operations already own safe terminal observations. The application owns
  * logger/tracer/exporter Layers, resources, finite transport/shutdown and sampling.
@@ -5,24 +7,26 @@
  */
 import { Effect, Schema } from "effect"
 import * as Job from "../../../src/Job.js"
-import * as Queue from "../../../src/JobQueue.js"
-import * as Codec from "../../../src/JobPayloadCodec.js"
+import * as Group from "../../../src/JobGroup.js"
 import { JobFailures } from "../../../src/JobFailure.js"
 import { define } from "../../../src/FailureCode.js"
 
 const codes = define({ temporarilyUnavailable: "temporarily_unavailable" })
 export const InvoiceJob = Job.make({
-  queue: Queue.make("billing"),
   kind: "invoice.generate",
-  payload: Schema.Struct({ invoiceId: Schema.String }),
-  encodePayload: Codec.encodeJobPayload
+  payload: Schema.Struct({ invoiceId: Schema.String })
 })
 
 // Expected failure classifies Retry. Do not attach payload, code, identity or Cause
 // to a span. Single expected Fail and mixed Cause have different meanings.
-export const InvoiceHandlerLayer = InvoiceJob.handlerLayer(
-  () => Effect.fail(JobFailures.Retry({ code: codes.temporarilyUnavailable })),
-  Codec.decodeJobPayload
+const group = Group.make("observability-invoices", { invoice: InvoiceJob })
+export const InvoiceHandlerLayer = JobApiBuilder.group(
+  JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+  group.name,
+  (_handlers) =>
+    _handlers.handle("invoice", () =>
+      Effect.fail(JobFailures.Retry({ code: codes.temporarilyUnavailable }))
+    )
 )
 
 // Own jobs spans deliberately finish with Success(void), then restore the original

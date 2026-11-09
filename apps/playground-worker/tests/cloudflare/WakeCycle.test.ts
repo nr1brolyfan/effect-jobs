@@ -1,11 +1,12 @@
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 import { describe, expect, it } from "vitest"
 import { Cause, Effect, Exit, Fiber, Layer } from "effect"
-import * as Consumer from "effect-jobs/JobConsumer"
 import * as Job from "effect-jobs/Job"
-import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Queue from "effect-jobs/JobQueue"
-import * as Registry from "effect-jobs/JobRegistry"
+import * as Group from "effect-jobs/JobGroup"
 import * as Worker from "effect-jobs/JobWorker"
+import * as Storage from "effect-jobs/JobStorage"
 import type { JobStoreService } from "effect-jobs/JobStore"
 import { Schema } from "effect"
 import { TestClock } from "effect/testing"
@@ -13,11 +14,15 @@ import * as WakeCycle from "../../src/cloudflare/WakeCycle.js"
 
 const queue = Queue.make("cloudflare-probe")
 const definition = Job.make({
-  queue,
   kind: "synthetic",
-  payload: Schema.String,
-  encodePayload: Codec.encodeJobPayload
+  payload: Schema.String
 })
+const group = Group.make("cloudflare-probe", { synthetic: definition })
+const handlers = JobApiBuilder.group(
+  JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+  group.name,
+  (_handlers) => _handlers.handle("synthetic", () => Effect.void)
+)
 
 const exercise = (
   snapshots: ReadonlyArray<WakeCycle.WakeSnapshot>,
@@ -46,19 +51,13 @@ const exercise = (
     finalize: unexpected,
     reconcileFinalization: unexpected
   }
-  const worker = Worker.layer(store, {
-    catalog: [definition],
-    operationResponseBudgetMillis: 100
+  const worker = Worker.layer(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
+    queues: [{ queue, concurrency: 2 }]
   }).pipe(
-    Layer.provide(definition.handlerLayer(() => Effect.void, Codec.decodeJobPayload)),
-    Layer.provide(Registry.layer)
+    Layer.provide(Storage.layer({ store, operationResponseBudgetMillis: 100 })),
+    Layer.provide(handlers)
   )
-  const program = Consumer.make(queue, {
-    localConcurrency: 2,
-    claimLimitPerRun: 10,
-    recoveryLimitPerRun: 10
-  }).pipe(
-    Effect.flatMap(WakeCycle.run),
+  const program = WakeCycle.run(queue).pipe(
     Effect.provide(worker),
     Effect.provideService(WakeCycle.WakeSchedule, {
       read: Effect.suspend(() =>
@@ -138,28 +137,27 @@ describe("finite wake cycle (mock storage, not PostgreSQL evidence)", () => {
     expect(await probe.run()).toEqual({ _tag: "Expired" })
     expect(probe.alarms[1]).toBe("clear")
   })
-  it("rejects an oversized consumer before touching alarm or storage", async () => {
-    const program = Consumer.make(queue, {
-      localConcurrency: 3,
-      claimLimitPerRun: 10,
-      recoveryLimitPerRun: 10
-    }).pipe(
-      Effect.flatMap(WakeCycle.run),
+  it("rejects invalid worker concurrency before touching alarm or storage", async () => {
+    const program = WakeCycle.run(queue).pipe(
       Effect.provide(
-        Worker.layer(
-          {
-            claim: () => Effect.die("must not claim"),
-            recoverExpired: () => Effect.die("must not recover"),
-            reconcileClaim: () => Effect.die("must not reconcile"),
-            release: () => Effect.die("must not release"),
-            finalize: () => Effect.die("must not finalize"),
-            reconcileFinalization: () => Effect.die("must not reconcile")
-          } satisfies JobStoreService,
-          {
-            catalog: [definition],
-            operationResponseBudgetMillis: 100
-          }
-        ).pipe(Layer.provide(Registry.layer))
+        Worker.layer(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
+          queues: [{ queue, concurrency: 65 }]
+        }).pipe(
+          Layer.provide(
+            Storage.layer({
+              operationResponseBudgetMillis: 100,
+              store: {
+                claim: () => Effect.die("must not claim"),
+                recoverExpired: () => Effect.die("must not recover"),
+                reconcileClaim: () => Effect.die("must not reconcile"),
+                release: () => Effect.die("must not release"),
+                finalize: () => Effect.die("must not finalize"),
+                reconcileFinalization: () => Effect.die("must not reconcile")
+              } satisfies JobStoreService
+            })
+          ),
+          Layer.provide(handlers)
+        )
       ),
       Effect.provideService(WakeCycle.WakeSchedule, {
         read: Effect.die("must not read")
@@ -171,6 +169,11 @@ describe("finite wake cycle (mock storage, not PostgreSQL evidence)", () => {
     )
     const exit = await Effect.runPromiseExit(program)
     expect(Exit.isFailure(exit) && Cause.hasFails(exit.cause)).toBe(true)
+    if (Exit.isFailure(exit)) {
+      expect(Cause.findErrorOption(exit.cause)).toMatchObject({
+        value: { _tag: "JobWorkerConfigurationError", field: "queues" }
+      })
+    }
   })
   it("bounds a hanging schedule read and closes the caller's scope", async () => {
     const probe = exercise(

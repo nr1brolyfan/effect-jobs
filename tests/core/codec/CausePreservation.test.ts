@@ -4,13 +4,13 @@ import { TestClock } from "effect/testing"
 import { it } from "vitest"
 import * as Payload from "../../../src/JobPayload.js"
 import * as Codec from "../../../src/JobPayloadCodec.js"
-import * as Job from "../../../src/Job.js"
+import * as Job from "../definitions/ProtocolJob.js"
 import * as Queue from "../../../src/JobQueue.js"
 import * as Policy from "../../../src/JobPolicy.js"
-import * as Registry from "../../../src/JobRegistry.js"
-import * as Worker from "../../../src/JobWorker.js"
-import * as Consumer from "../../../src/JobConsumer.js"
-import * as Runtime from "../../../src/JobWorkerRuntime.js"
+import * as Registry from "../definitions/ProtocolRegistry.js"
+import * as Worker from "../worker/ProtocolWorker.js"
+import * as Consumer from "../definitions/ProtocolConsumer.js"
+import * as Runtime from "../worker/ProtocolWorker.js"
 import { JobPayloadCodecError } from "../../../src/JobContract.js"
 import type { EncodedJobPayload } from "../../../src/JobContract.js"
 import { harness } from "../worker/Harness.js"
@@ -83,7 +83,7 @@ const assertUnfinalized = async (
   assert.equal(store.calls.finalizations.length, 0)
   assert.equal(store.calls.finalizationReconciliations.length, 0)
   assert.equal(store.rows[0]!.snapshot.state, "Active")
-  assert.equal(store.rows[0]!.snapshot.attemptsMade, 0)
+  assert.equal(store.rows[0]!.snapshot.finalizedAttempts, 0)
 }
 
 const assertMixed = (exit: Exit.Exit<unknown, unknown>, kind: ReleaseKind) => {

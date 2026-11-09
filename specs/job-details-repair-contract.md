@@ -23,23 +23,23 @@ come from the parent issue, D1–D8 in `architecture-decisions.md`, and
 
 ## What exists at the base
 
-| Boundary            | Existing capability and evidence                                                                                                                                   | Required extension                                                      |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| Library operators   | `JobOperatorsService.retryNow`, `cancel`, `redrive`; `src/internal/postgresql/Operators.ts` locks and checks exact state/version, DB time, policy and artifacts    | Corrected payload production and durable generic lineage                |
-| Production          | `JobDefinition.enqueue`, `enqueueStandalone`, `enqueueInTransaction`; `Producer.insertOrCompareAt` uses the globally unique producer tuple and semantic projection | Reuse insertion/comparison; compare operator lineage as well            |
-| Transaction         | `PostgreSqlNative.make` resolves the configured client's exact `transactionService`; no connection-string identity inference                                       | Retain same-client ambient operation and provisional library result     |
-| Storage             | Configurable schema/jobs/payload table names; SQL and optional pinned Drizzle declarations; readiness; payload FK cascades only that job's payload                 | Additive lineage columns/FK/checks; no successor cascade                |
-| Application command | `OperatorPersistence`, `PostgreSqlOperatorTransactions`, immutable separately committed admission, atomic receipt/association/audit, sandbox then source lock      | Corrected request identity, problem resolution, explicit investigation  |
-| Application lineage | `operator_redrives` stores source/successor/scoped receipt and source state/version; restrictive association FKs                                                   | Durable original identities plus nullable live references; redrive kind |
-| Read                | `JobsRead.list/detail`, association-scoped SQL, strict DTO decoding, signed cursor, DB-time authority; no payload reads today                                      | Explicit detail projections, repair chain and resolution filters        |
-| Execution evidence  | Current job snapshot; durable `provider_ledger` accepted/invocations; `command_audit` and exact operator receipts                                                  | Project retained facts; no new execution event subsystem                |
-| Browser             | React, Effect Atom registry, StyleX, Base UI; selected job side panel, detail revisions, cursor history and stale-generation revocation                            | Accessible drawer/full page and return context; new isolated components |
-| Encryption          | `PrivateDocument` AES-256-GCM/HMAC-SHA-256 envelope, application keys, codec format 1                                                                              | Browser compatibility adapter and separate known synthetic fixture      |
-| Demo                | GET-only demo endpoints and persisted demo ownership checks; real producer/worker seed                                                                             | Internal trusted repair example, never public operator admission        |
+| Boundary            | Existing capability and evidence                                                                                                                                 | Required extension                                                      |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Library operators   | `JobOperatorsService.retryNow`, `cancel`, `redrive`; `src/internal/postgresql/Operators.ts` locks and checks exact state/version, DB time, policy and artifacts  | Corrected payload production and durable generic lineage                |
+| Production          | `JobProducer.enqueue`, `enqueueStandalone`, `enqueueInTransaction`; `Producer.insertOrCompareAt` uses the globally unique producer tuple and semantic projection | Reuse insertion/comparison; compare operator lineage as well            |
+| Transaction         | `PostgreSqlNative.make` resolves the configured client's exact `transactionService`; no connection-string identity inference                                     | Retain same-client ambient operation and provisional library result     |
+| Storage             | Configurable schema/jobs/payload table names; SQL and optional pinned Drizzle declarations; readiness; payload FK cascades only that job's payload               | Additive lineage columns/FK/checks; no successor cascade                |
+| Application command | `OperatorPersistence`, `PostgreSqlOperatorTransactions`, immutable separately committed admission, atomic receipt/association/audit, sandbox then source lock    | Corrected request identity, problem resolution, explicit investigation  |
+| Application lineage | `operator_redrives` stores source/successor/scoped receipt and source state/version; restrictive association FKs                                                 | Durable original identities plus nullable live references; redrive kind |
+| Read                | `JobsRead.list/detail`, association-scoped SQL, strict DTO decoding, signed cursor, DB-time authority; no payload reads today                                    | Explicit detail projections, repair chain and resolution filters        |
+| Execution evidence  | Current job snapshot; durable `provider_ledger` accepted/invocations; `command_audit` and exact operator receipts                                                | Project retained facts; no new execution event subsystem                |
+| Browser             | React, Effect Atom registry, StyleX, Base UI; selected job side panel, detail revisions, cursor history and stale-generation revocation                          | Accessible drawer/full page and return context; new isolated components |
+| Encryption          | `PrivateDocument` AES-256-GCM/HMAC-SHA-256 envelope, application keys, codec format 1                                                                            | Browser compatibility adapter and separate known synthetic fixture      |
+| Demo                | GET-only demo endpoints and persisted demo ownership checks; real producer/worker seed                                                                           | Internal trusted repair example, never public operator admission        |
 
 Important limits: handler signature is `Effect<void, JobFailure, R>`. There is no
 stored handler return value, created timestamp, per-attempt start/end record,
-progress trace or complete failure history. `attemptsMade` counts confirmed fenced
+progress trace or complete failure history. `finalizedAttempts` counts confirmed fenced
 finalizations; unknown outcomes can repeat an attempt number. `stalledCount` is
 separate. The durable ledger counts provider invocations, not library attempts,
 and has no event timestamps. `FakeProvider.inspect` deliberately returns no mock
@@ -67,7 +67,7 @@ interface JobCorrectedRedriveRequest<Payload> {
 // Add required lineage: JobLineage to JobRedriveResult.
 // correctedRedrive returns that same JobRedriveResult.
 correctedRedrive<S extends Schema.Top>(
-  definition: Pick<JobDefinition<S>, "catalog" | "payload">,
+  definition: Pick<JobDefinition<S>, "kind" | "version" | "payload">,
   request: JobCorrectedRedriveRequest<S["Type"]>
 ): Effect.Effect<
   JobRedriveResult,
@@ -458,7 +458,7 @@ Unavailable with no data echo. Return cache-control no-store for all detail APIs
   retained retry/cancel/redrive/corrected repair receipt.
 - `Resolution {rootJobId,state,kind,reason:Reason|null,observedAt}`: recorded app audit.
 
-No expansion of attemptsMade into fake attempt rows. No invented timestamps for
+No expansion of finalizedAttempts into fake attempt rows. No invented timestamps for
 provider invocations or source deletion. Only actual scoped receipts/audit may be
 shown. Missing older facts display incomplete retained history. First detail page
 contains at most 50 facts; additional `JobsRead.history` and `related` take

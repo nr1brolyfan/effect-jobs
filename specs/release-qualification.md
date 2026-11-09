@@ -1,5 +1,18 @@
 # Local Effect 4.1.0 / Drizzle rc.5 candidate
 
+## Current contract-first redesign checkpoint
+
+The current local package version is `0.1.0-alpha.1-effect.4.1.0.local.5`.
+The direct breaking redesign starts at `a467fc9e14c01d3d22a3dce7d516e3e5bd8b6a6a`;
+its implemented contract and local phase receipts are recorded in the source-only
+`specs/api-redesign.md`. Earlier candidate versions, task scopes and
+counts below are historical evidence, not current export or API documentation.
+Final qualification must bind the complete integrated source snapshot and one
+immutable archive to its own commands/logs. A source or packed local pass does not
+authorize push, integration, publication or deployment. The separate full foreign
+declaration audit remains diagnostic FAIL; passing own-code A+B/runtime checks
+does not repair it or turn it into full strict PASS.
+
 ## Isolated retry API candidate
 
 `0.1.0-alpha.1-effect.4.1.0.local.4` removes superseded configuration inputs and

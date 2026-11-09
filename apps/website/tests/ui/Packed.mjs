@@ -184,7 +184,7 @@ assert.equal(controller.snapshot().page!.items[0]!.jobId, "installed-job-21")
 await Effect.runPromise(controller.command("scenario", "disabled", "success", 1).pipe(Effect.provide(layer)))
 assert.equal(controller.snapshot().pending, undefined)
 controller.dispose()
-console.log("installed UI state and disabled mock command PASS; no backend peers")
+console.log("installed UI state and disabled mock command PASS; no jobs peers")
 `
 )
 // Type-check the generated caller too, keeping strict/exact-optional own-code checks.

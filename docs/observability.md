@@ -75,7 +75,7 @@ or finalization as those boundaries are entered; this is local phase context, no
 a new deadline or an assertion about an interrupted provider outcome. Unconfirmed/abandoned execution remains Active for existing recovery.
 An attempt's Complete/Retry/Dead/Isolate result describes acknowledged _requested_
 finalization, not its policy-resolved state. The adapter can turn Retry into Dead.
-`attemptNumber=attemptsMade+1` can repeat after Unknown and is neither invocation
+`nextFinalizationNumber=finalizedAttempts+1` can repeat after Unknown and is neither invocation
 count nor an external idempotency key. Health/telemetry performs no lifecycle replay.
 
 | Additional name                          | OTLP unit / labels                                     | Interpretation                                                                                                  |
@@ -99,7 +99,7 @@ status remains Success(void) for privacy; query jobs fields to detect degradatio
 
 ## Explicit health reporter
 
-Call `backend.health.sample({ queue, supportedCatalog, limit })` from ONE explicit
+Call `jobs.health.sample({ queue, supportedCatalog, limit })` from ONE explicit
 application-owned reporter for that storage/queue. Limit is 1–500 and catalog
 selection is 1–500 entries from that queue. The implementation does four bounded
 reads (at most limit+1 returned rows each), one DB-time sample, no writes/migrations,
@@ -178,7 +178,7 @@ Cause; ordinary asynchronous delivery failure remains isolated from business wor
 
 These PromQL examples assume the host's OTLP-to-Prometheus mapping replaces dots
 with underscores and exports explicit histogram `_bucket` series. Verify that
-mapping and resource labels in the actual backend before installing alerts.
+mapping and resource labels in the actual telemetry system before installing alerts.
 
 - Confirmed throughput: `sum by (jobs_state) (rate(effect_jobs_transition_total[5m]))`.
   This is acknowledgements/s, a lower bound on durable transitions.

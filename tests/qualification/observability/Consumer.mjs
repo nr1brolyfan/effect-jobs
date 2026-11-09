@@ -38,40 +38,47 @@ const { OtlpExporter, OtlpLogger, OtlpMetrics, OtlpSerialization, OtlpTracer } =
   await pkg("effect/observability")
 const { makeWithTransaction } = await pkg("effect/sql/SqlClient")
 const { ConnectionError, SqlError } = await pkg("effect/sql/SqlError")
-const [Job, Queue, Codec, Enqueue, Policy, Registry, Worker, Runtime, Consumer, Native] =
-  await Promise.all(
-    [
-      "Job",
-      "JobQueue",
-      "JobPayloadCodec",
-      "JobEnqueue",
-      "JobPolicy",
-      "JobRegistry",
-      "JobWorker",
-      "JobWorkerRuntime",
-      "JobConsumer",
-      "PostgreSqlNative"
-    ].map(library)
-  )
+const [
+  Job,
+  Queue,
+  Producer,
+  Enqueue,
+  Policy,
+  Group,
+  Worker,
+  Native,
+  Storage,
+  JobApi,
+  JobApiBuilder
+] = await Promise.all(
+  [
+    "Job",
+    "JobQueue",
+    "JobProducer",
+    "JobEnqueue",
+    "JobPolicy",
+    "JobGroup",
+    "JobWorker",
+    "PostgreSqlNative",
+    "JobStorage",
+    "JobApi",
+    "JobApiBuilder"
+  ].map(library)
+)
 const base = process.env.OBS_COLLECTOR_URL
 const metricBase = process.env.OBS_METRIC_URL
 assert.match(base, /^http:\/\/127\.0\.0\.1:\d+$/)
 assert.match(metricBase, /^http:\/\/127\.0\.0\.1:\d+$/)
 const queue = Queue.make("synthetic")
 const job = Job.make({
-  queue,
   kind: "synthetic",
-  payload: Schema.Struct({ value: Schema.String }),
-  encodePayload: Codec.encodeJobPayload
+  payload: Schema.Struct({ value: Schema.String })
 })
 const policy = Policy.defaultPolicy
-const consumer = Effect.runSync(
-  Consumer.make(queue, {
-    localConcurrency: 1,
-    claimLimitPerRun: 1,
-    recoveryLimitPerRun: 1
-  })
+const production = Producer.make("synthetic").pipe(
+  Producer.withSlot("run", job, { queue, policy })
 )
+const group = Group.make("synthetic", { synthetic: job })
 const controlCanary = "SYNTHETIC_NATIVE_CONTROL_CANARY"
 const transactionService = Context.Service("synthetic/transaction")
 const withTransaction = makeWithTransaction({
@@ -159,7 +166,7 @@ const program = Effect.gen(function* () {
                 policy,
                 availableAt: 1725000000000,
                 updatedAt: 1725000000010,
-                attemptsMade: 0,
+                finalizedAttempts: 0,
                 stalledCount: 0,
                 completedAt: null,
                 lastFailureCode: null
@@ -187,31 +194,37 @@ const program = Effect.gen(function* () {
         ).pipe(Effect.as({ _tag: "Inserted", jobId: "synthetic-job" }))
     }
     const work = Effect.gen(function* () {
-      yield* job
+      yield* production
         .enqueue({
           payload: { value: "SYNTHETIC_PAYLOAD_CANARY" },
-          producer: {
-            operation: "synthetic",
-            operationId: "SYNTHETIC_PRODUCER_CANARY",
-            slot: "run"
-          },
-          policy
+          operationId: "SYNTHETIC_PRODUCER_CANARY",
+          slot: "run"
         })
         .pipe(Effect.provideService(Enqueue.JobEnqueue, producer))
-      yield* Layer.build(
-        job.handlerLayer(
-          () =>
+      const handlers = JobApiBuilder.group(
+        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+        group.name,
+        (_handlers) =>
+          _handlers.handle("synthetic", () =>
             Effect.sync(() => {
               invoked++
-            }),
-          Codec.decodeJobPayload
+            })
+          )
+      )
+      const worker = yield* Worker.make(
+        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+        { queues: [{ queue }] }
+      ).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Storage.layer({ store, operationResponseBudgetMillis: 100 }),
+            handlers
+          )
         )
       )
-      const worker = yield* Worker.make(store, {
-        catalog: [job],
-        operationResponseBudgetMillis: 100
-      })
-      yield* Runtime.drain(consumer).pipe(Effect.provideService(Worker.JobWorker, worker))
+      yield* Worker.drain(queue, { maxJobs: 1, recoveryLimit: 1 }).pipe(
+        Effect.provideService(Worker.JobWorker, worker)
+      )
       const exit = yield* native.ownedTransaction(() => Effect.void).pipe(Effect.exit)
       assert.ok(Exit.isFailure(exit) && !Cause.pretty(exit.cause).includes(controlCanary))
       yield* (yield* OtlpExporter.Flusher).flush
@@ -235,10 +248,7 @@ const program = Effect.gen(function* () {
         Effect.exit
       )
       // #endregion motel debug
-    }).pipe(
-      Effect.withTracer(tracer),
-      Effect.provide(Layer.mergeAll(Logger.layer([logger]), Registry.layer))
-    )
+    }).pipe(Effect.withTracer(tracer), Effect.provide(Logger.layer([logger])))
     yield* work
     assert.equal(invoked, 1)
     yield* (yield* OtlpExporter.Flusher).flush

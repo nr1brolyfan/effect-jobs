@@ -1,0 +1,8 @@
+// Test-only equivalent of Alchemy's generated native runtime entrypoint.
+import { DurableObject, WorkerEntrypoint } from "cloudflare:workers"
+import { makeWorkerBridge } from "alchemy-test/WorkerBridge"
+import { makeDurableObjectBridge } from "alchemy-test/DurableObjectBridge"
+import ApplicationLayer from "../src/Application.js"
+const meta = { entrypoint: ApplicationLayer, stack: { name: "JobsExample", stage: "test" } }
+export default makeWorkerBridge(WorkerEntrypoint, meta)
+export const BillingCoordinator = makeDurableObjectBridge(DurableObject, meta)("BillingCoordinator")

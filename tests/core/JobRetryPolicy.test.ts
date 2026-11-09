@@ -14,8 +14,12 @@ const value = Result.getOrThrow
 // Pure lifecycle fixtures use explicit synchronous evaluation of known-valid setup.
 // Expected validation errors below are inspected through Exit, never runSync/toThrow.
 const resolved = (retry: Retry.JobRetryPolicy) => Effect.runSync(Policy.make({ retry }))
-const afterPolicy = (policy: Policy.JobPolicy, attemptsMade = 0, sample?: number) => {
-  const row = active({ policy, attemptsMade })
+const afterPolicy = (
+  policy: Policy.JobPolicy,
+  finalizedAttempts = 0,
+  sample?: number
+) => {
+  const row = active({ policy, finalizedAttempts })
   return value(
     Lifecycle.finalize(
       row,
@@ -28,8 +32,8 @@ const afterPolicy = (policy: Policy.JobPolicy, attemptsMade = 0, sample?: number
     )
   )
 }
-const after = (retry: Retry.JobRetryPolicy, attemptsMade = 0, sample?: number) =>
-  afterPolicy(resolved(retry), attemptsMade, sample)
+const after = (retry: Retry.JobRetryPolicy, finalizedAttempts = 0, sample?: number) =>
+  afterPolicy(resolved(retry), finalizedAttempts, sample)
 const configurationFailure = async (options: Policy.JobPolicyOptions) => {
   const effect = Policy.make(options)
   const exit = await Effect.runPromiseExit(effect)
@@ -48,10 +52,10 @@ describe("pure retry descriptions and typed policy assembly", () => {
     const retry = Retry.exponential(Duration.seconds(1)).pipe(
       Retry.capped(Duration.minutes(1)),
       Retry.jittered(),
-      Retry.maxAttempts(5)
+      Retry.maxFinalizedAttempts(5)
     )
     const policy = await Effect.runPromise(Policy.make({ retry }))
-    expect(policy.maxAttempts).toBe(5)
+    expect(policy.maxFinalizedAttempts).toBe(5)
     expect(policy.retrySchedule).toEqual({
       _tag: "BackoffV1",
       delayMillis: 1000,
@@ -69,12 +73,12 @@ describe("pure retry descriptions and typed policy assembly", () => {
     ]) {
       expect(Object.isFrozen(item)).toBe(true)
     }
-    expect(fixed.maxAttempts).toBe(3)
-    expect(retry.pipe(Retry.maxAttempts(10)).maxAttempts).toBe(10)
-    expect(retry.maxAttempts).toBe(5)
+    expect(fixed.maxFinalizedAttempts).toBe(3)
+    expect(retry.pipe(Retry.maxFinalizedAttempts(10)).maxFinalizedAttempts).toBe(10)
+    expect(retry.maxFinalizedAttempts).toBe(5)
     expect(
       Schema.decodeUnknownSync(Policy.PersistedJobPolicy)(
-        JSON.parse(JSON.stringify(policy))
+        JSON.parse(JSON.stringify(Schema.encodeSync(Policy.PersistedJobPolicy)(policy)))
       )
     ).toEqual(policy)
     expect(Schema.is(Policy.PersistedJobPolicy)(retry)).toBe(false)
@@ -84,19 +88,19 @@ describe("pure retry descriptions and typed policy assembly", () => {
     let retry!: Retry.JobRetryPolicy
     expect(() => {
       retry = Retry.fixed(Duration.seconds(1)).pipe(
-        Retry.maxAttempts(0),
-        Retry.maxAttempts(5),
+        Retry.maxFinalizedAttempts(0),
+        Retry.maxFinalizedAttempts(5),
         Retry.capped(Duration.millis(-1)),
         Retry.capped(Duration.seconds(2))
       )
     }).not.toThrow()
-    expect((await Effect.runPromise(Policy.make({ retry }))).maxAttempts).toBe(5)
+    expect((await Effect.runPromise(Policy.make({ retry }))).maxFinalizedAttempts).toBe(5)
   })
 
   it("progresses from the first retry and caps before sampling regardless of combinator order", () => {
     const retry = Retry.exponential(Duration.millis(3)).pipe(
       Retry.capped(Duration.millis(10)),
-      Retry.maxAttempts(10)
+      Retry.maxFinalizedAttempts(10)
     )
     expect([0, 1, 2, 3, 4].map((n) => after(retry, n).availableAt - now)).toEqual([
       3, 6, 10, 10, 10
@@ -108,7 +112,9 @@ describe("pure retry descriptions and typed policy assembly", () => {
     expect(after(left, 3, 0.5).availableAt).toBe(now + 5)
     expect(after(left, 3, 1 - Number.EPSILON).availableAt).toBe(now + 5)
     const reloaded = Schema.decodeUnknownSync(Policy.PersistedJobPolicy)(
-      JSON.parse(JSON.stringify(resolved(left)))
+      JSON.parse(
+        JSON.stringify(Schema.encodeSync(Policy.PersistedJobPolicy)(resolved(left)))
+      )
     )
     expect(afterPolicy(reloaded, 3, 0.5).availableAt).toBe(now + 5)
   })
@@ -162,7 +168,7 @@ describe("pure retry descriptions and typed policy assembly", () => {
 
   it("retains stored Full jitter, including zero, instead of reinterpreting it as proportional", () => {
     const policy = Schema.decodeUnknownSync(Policy.PersistedJobPolicy)({
-      ...Policy.defaultPolicy,
+      ...Schema.encodeSync(Policy.PersistedJobPolicy)(Policy.defaultPolicy),
       retrySchedule: {
         _tag: "BackoffV1",
         delayMillis: 10,
@@ -185,13 +191,13 @@ describe("pure retry descriptions and typed policy assembly", () => {
 
   it("supports fractional factors, caps below the base and saturates huge factors", () => {
     const retry = Retry.exponential(Duration.millis(3), { factor: 1.5 }).pipe(
-      Retry.maxAttempts(10)
+      Retry.maxFinalizedAttempts(10)
     )
     expect([0, 1, 2].map((n) => after(retry, n).availableAt - now)).toEqual([3, 4, 6])
     expect(after(retry.pipe(Retry.capped(Duration.millis(1)))).availableAt).toBe(now + 1)
     const huge = Retry.exponential(Duration.millis(1), { factor: Number.MAX_VALUE }).pipe(
       Retry.capped(Duration.millis(100)),
-      Retry.maxAttempts(100)
+      Retry.maxFinalizedAttempts(100)
     )
     expect(after(huge, 98).availableAt).toBe(now + 100)
   })
@@ -200,12 +206,12 @@ describe("pure retry descriptions and typed policy assembly", () => {
     const row = after(
       Retry.exponential(Duration.millis(Policy.maximumMillis)).pipe(
         Retry.jittered(),
-        Retry.maxAttempts(1)
+        Retry.maxFinalizedAttempts(1)
       )
     )
     expect(row.state).toBe("Dead")
     expect(row.availableAt).toBe(now)
-    expect(row.attemptsMade).toBe(1)
+    expect(row.finalizedAttempts).toBe(1)
   })
 
   it.each([1, 2, 5, 100])(
@@ -213,7 +219,7 @@ describe("pure retry descriptions and typed policy assembly", () => {
     (count) => {
       const retry = Retry.exponential(Duration.millis(1)).pipe(
         Retry.capped(Duration.millis(10)),
-        Retry.maxAttempts(count)
+        Retry.maxFinalizedAttempts(count)
       )
       let row = pending({ policy: resolved(retry) })
       for (let n = 1; n <= count; n++) {
@@ -226,14 +232,14 @@ describe("pure retry descriptions and typed policy assembly", () => {
             row.updatedAt
           )
         )
-        expect(row.attemptsMade).toBe(n)
+        expect(row.finalizedAttempts).toBe(n)
         expect(row.state).toBe(n === count ? "Dead" : "RetryScheduled")
       }
       expect(Result.isFailure(Lifecycle.claim(row, token, row.availableAt, 1))).toBe(true)
     }
   )
 
-  it.each([-1, 0, 1])("compares notAfter to the sampled time, offset %i", (offset) => {
+  it.each([-1, 0, 1])("compares retryBefore to the sampled time, offset %i", (offset) => {
     const row = active({
       policy: resolved(Retry.exponential(Duration.millis(10)).pipe(Retry.jittered()))
     })
@@ -244,7 +250,7 @@ describe("pure retry descriptions and typed policy assembly", () => {
         Lifecycle.JobFinalizations.Retry({
           code,
           jitterSample: 0.5,
-          notAfter: now + 10 + offset
+          retryBefore: now + 10 + offset
         }),
         now
       )
@@ -280,7 +286,7 @@ describe("pure retry descriptions and typed policy assembly", () => {
       value(Reconciliation.inspectFinalization(different, reloaded, now + 1))._tag
     ).toBe("OwnershipLost")
     const recovered = value(Lifecycle.recoverExpired(before, before.leaseExpiresAt!))
-    expect(recovered.attemptsMade).toBe(0)
+    expect(recovered.finalizedAttempts).toBe(0)
     expect(recovered.stalledCount).toBe(1)
   })
 
@@ -337,7 +343,7 @@ describe("pure retry descriptions and typed policy assembly", () => {
     for (const input of [
       null,
       {},
-      { schedule: null, maxAttempts: 3 },
+      { schedule: null, maxFinalizedAttempts: 3 },
       Policy.defaultPolicy
     ]) {
       expect(
@@ -351,11 +357,11 @@ describe("pure retry descriptions and typed policy assembly", () => {
       (
         await configurationFailure({
           retry: Retry.fixed(Duration.seconds(1)).pipe(
-            Retry.maxAttempts(null as unknown as number)
+            Retry.maxFinalizedAttempts(null as unknown as number)
           )
         })
       ).field
-    ).toBe("retry.maxAttempts")
+    ).toBe("retry.maxFinalizedAttempts")
   })
 
   it.each([0, 1, -1, Infinity, NaN])(
@@ -368,8 +374,12 @@ describe("pure retry descriptions and typed policy assembly", () => {
   it.each([0, -1, 1.5, 101, Infinity, NaN])(
     "defers invalid attempt limit %s to typed assembly",
     async (count) => {
-      const retry = Retry.fixed(Duration.seconds(1)).pipe(Retry.maxAttempts(count))
-      expect((await configurationFailure({ retry })).field).toBe("retry.maxAttempts")
+      const retry = Retry.fixed(Duration.seconds(1)).pipe(
+        Retry.maxFinalizedAttempts(count)
+      )
+      expect((await configurationFailure({ retry })).field).toBe(
+        "retry.maxFinalizedAttempts"
+      )
     }
   )
   it("rejects incomplete/future stored formats without defaults", () => {

@@ -7,7 +7,7 @@ import * as Reactivity from "effect/reactivity/Reactivity"
 import * as Pg from "@effect/sql-pg/PgClient"
 import { SqlClient } from "effect/sql/SqlClient"
 import * as Native from "effect-jobs/PostgreSqlNative"
-import * as Backend from "effect-jobs/PostgreSqlJobs"
+import * as Jobs from "effect-jobs/PostgreSqlJobs"
 import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import * as Policy from "effect-jobs/JobPolicy"
@@ -46,19 +46,19 @@ export const probe = (url, schema, alarm, checks = []) =>
         idleTimeout: "1 second"
       })
       const adapter = Native.make({ client, operationTimeoutMillis: 2000 })
-      const backend = yield* Backend.make({
+      const jobs = yield* Jobs.make({
         schema,
         operationResponseBudgetMillis: 500
       }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
-      yield* backend.ready
+      yield* jobs.ready
       const sql = (text, params = []) => client.unsafe(text, params)
       const services = yield* Authority.make(schema).pipe(
-        Effect.provideService(JobEnqueue, backend.producer),
+        Effect.provideService(JobEnqueue, jobs.producer),
         Effect.provideService(SqlClient, client)
       )
       const command = yield* Persistence.make.pipe(
         Effect.provideService(CommandTransactions, services.transactions),
-        Effect.provideService(JobEnqueue, backend.producer)
+        Effect.provideService(JobEnqueue, jobs.producer)
       )
       const provider = yield* Provider.make(schema).pipe(
         Effect.provideService(SqlClient, client)
@@ -80,10 +80,10 @@ export const probe = (url, schema, alarm, checks = []) =>
       const shortPolicy = yield* Policy.make({
         leaseDuration: Duration.millis(1800),
         attemptTimeout: Duration.millis(200),
-        retry: Retry.fixed(Duration.millis(500)).pipe(Retry.maxAttempts(3))
+        retry: Retry.fixed(Duration.millis(500)).pipe(Retry.maxFinalizedAttempts(3))
       })
       const produce = (id, behavior = "success", availableAt) =>
-        backend.withTransaction(() =>
+        jobs.withTransaction(() =>
           Effect.gen(function* () {
             const [job] = yield* Plan.plan(
               { sandbox: current(), requestId: id, scenario: "success", count: 1 },
@@ -122,13 +122,13 @@ export const probe = (url, schema, alarm, checks = []) =>
         )
       let hints = 0
       const workerLayer = Application.layerNoDeps(schema).pipe(
-        Layer.provide(Layer.succeed(Backend.PostgreSqlJobs, backend))
+        Layer.provide(Layer.succeed(Jobs.PostgreSqlJobs, jobs))
       )
       const wake = (queue = "playground-communications") =>
         Executor.run(schema, queue).pipe(
           Effect.provide(workerLayer),
           Effect.provideService(CommandPersistence, command),
-          Effect.provideService(Backend.PostgreSqlJobs, backend),
+          Effect.provideService(Jobs.PostgreSqlJobs, jobs),
           Effect.provideService(SqlClient, client),
           Effect.provideService(WakeAlarm, alarm),
           Effect.provideService(Executor.ExecutionHints, {
@@ -206,9 +206,8 @@ export const probe = (url, schema, alarm, checks = []) =>
         (yield* sql(`SELECT count(*)::int AS n FROM ${schema}.jobs`))[0].n,
         beforeInitial + 6
       )
-      const queues = yield* Executor.consumers
       assert.deepEqual(
-        queues.map((q) => q.queue.name),
+        Executor.queues.map((queue) => queue.name),
         Executor.queueNames
       )
       for (const queue of Executor.queueNames) {
@@ -290,9 +289,9 @@ export const probe = (url, schema, alarm, checks = []) =>
         "real OutcomeUnknown retains ownership until recovery; durable dead/isolated handlers"
       )
       const recovering = yield* produce("recover")
-      const old = yield* backend.store.claim({
-        queue: Definitions.WelcomeEmail.queue.name,
-        supportedCatalog: [Definitions.WelcomeEmail.catalog],
+      const old = yield* jobs.store.claim({
+        queue: Definitions.catalogFor(Definitions.WelcomeEmail).queue,
+        supportedCatalog: [Definitions.catalogFor(Definitions.WelcomeEmail)],
         leaseToken: crypto.randomUUID()
       })
       assert.equal(old._tag, "Claimed")
@@ -300,7 +299,7 @@ export const probe = (url, schema, alarm, checks = []) =>
       yield* wake()
       assert.equal((yield* queryJob(recovering.jobId)).state, "Completed")
       const stale = yield* Effect.exit(
-        backend.store.finalize({
+        jobs.store.finalize({
           ownership: old.claim.ownership,
           before: old.claim.snapshot,
           finalization: { _tag: "Complete" }

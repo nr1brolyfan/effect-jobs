@@ -18,7 +18,6 @@ import * as Job from "../../../src/Job.js"
 import * as Queue from "../../../src/JobQueue.js"
 import * as Producer from "../../../src/JobProducer.js"
 import * as Policy from "../../../src/JobPolicy.js"
-import { encodeJobPayload } from "../../../src/JobPayloadCodec.js"
 import type { JobsTransaction } from "../../../src/JobTransaction.js"
 import * as App from "./ApplicationTransactions.js"
 import * as Bridge from "./PgBridge.js"
@@ -30,18 +29,18 @@ const enabled = resourceDirectory !== undefined
 const definition = Job.make({
   kind: "invoice.generate",
   version: 1,
-  queue: Queue.make("billing"),
-  payload: Schema.Struct({ invoiceId: Schema.String }),
-  encodePayload: encodeJobPayload
+  payload: Schema.Struct({ invoiceId: Schema.String })
 })
-const producer = Producer.make({ operation: "billing.issue", slots: ["generate"] })
+const producer = Producer.make("billing.issue").pipe(
+  Producer.withSlot("generate", definition, { queue: Queue.make("billing") })
+)
 class CallerValue extends Context.Service<CallerValue, { readonly value: number }>()(
   "d6/CallerValue"
 ) {}
 const input = (id: string, payload = id) => ({
-  producer: producer.identity({ operationId: id, slot: "generate" }),
-  payload: { invoiceId: payload },
-  policy: Policy.defaultPolicy
+  operationId: id,
+  slot: "generate" as const,
+  payload: { invoiceId: payload }
 })
 
 describe.skipIf(!enabled)("D6 real pg qualification", () => {
@@ -192,7 +191,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
   const flow = (id: string, tx: JobsTransaction<Bridge.Failure>, handle: App.Handle) =>
     Effect.gen(function* () {
       yield* handle.query("INSERT INTO d6_fixture.invoices (id) VALUES ($1)", [id])
-      const result = yield* definition.enqueueInTransaction(tx, input(id))
+      const result = yield* producer.enqueueInTransaction(tx, input(id))
       yield* handle.query(
         "INSERT INTO d6_fixture.operation_receipts (id,job_id) VALUES ($1,$2)",
         [id, result.jobId]
@@ -330,16 +329,19 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
         [prior.id]
       )
     ).rows[0].payload
+    const changed = Producer.make(producer.operation).pipe(
+      Producer.withSlot("generate", definition, {
+        queue: Queue.make("billing"),
+        policy: Effect.runSync(
+          Policy.make({
+            retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxFinalizedAttempts(7))
+          })
+        )
+      })
+    )
     const result = await Effect.runPromise(
       integration.withTransaction((tx) =>
-        definition.enqueueInTransaction(tx, {
-          ...input("commit"),
-          policy: Effect.runSync(
-            Policy.make({
-              retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(7))
-            })
-          )
-        })
+        changed.enqueueInTransaction(tx, input("commit"))
       )
     )
     expect(result).toEqual({ _tag: "AlreadyPresent", jobId: prior.id })
@@ -361,7 +363,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
           yield* h.query(
             "INSERT INTO d6_fixture.invoices (id) VALUES ('conflict-parent')"
           )
-          return yield* definition.enqueueInTransaction(tx, input("commit", "changed"))
+          return yield* producer.enqueueInTransaction(tx, input("commit", "changed"))
         })
       )
     )
@@ -454,7 +456,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
       expect(
         failureTags(
           await Effect.runPromiseExit(
-            definition.enqueueInTransaction(retained, input("expired"))
+            producer.enqueueInTransaction(retained, input("expired"))
           )
         )
       ).toContain("JobsTransactionClosed")
@@ -515,7 +517,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
             expect(
               failureTags(
                 yield* Effect.exit(
-                  definition.enqueueInTransaction(inner, input("inner-expired"))
+                  producer.enqueueInTransaction(inner, input("inner-expired"))
                 )
               )
             ).toContain("JobsTransactionClosed")
@@ -531,7 +533,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
     expect(
       failureTags(
         await Effect.runPromiseExit(
-          definition.enqueueInTransaction(outer, input("outer-expired"))
+          producer.enqueueInTransaction(outer, input("outer-expired"))
         )
       )
     ).toContain("JobsTransactionClosed")
@@ -557,7 +559,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
           yield* Effect.promise(() =>
             Effect.runPromise(
               bridge.withTransaction((tx) =>
-                definition.enqueueInTransaction(tx, input("negative"))
+                producer.enqueueInTransaction(tx, input("negative"))
               )
             )
           )

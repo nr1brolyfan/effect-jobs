@@ -1,7 +1,7 @@
 /**
  * Resolves immutable execution and retention policy for durable storage.
  */
-import { Data, Duration, Effect, Result, Schema } from "effect"
+import { Data, Duration, Effect, Result, Schema, SchemaGetter } from "effect"
 import type { JobRetryPolicy } from "./JobRetryPolicy.js"
 import * as Retry from "./internal/policy/Retry.js"
 
@@ -50,7 +50,7 @@ export const FixedDelayV1 = Retry.FixedDelayV1
 const PolicyStruct = Schema.Struct({
   leaseDurationMillis: PositiveMillis,
   attemptTimeoutMillis: PositiveMillis,
-  maxAttempts: Retry.AttemptLimit,
+  maxFinalizedAttempts: Retry.AttemptLimit,
   maxStalledCount: Schema.Int.pipe(
     Schema.check(Schema.isBetween({ minimum: 0, maximum: 100 }))
   ),
@@ -62,19 +62,44 @@ const OptionsObject = Schema.ObjectKeyword.pipe(
   Schema.check(Schema.makeFilter((value) => !Array.isArray(value)))
 )
 /**
- * Complete immutable policy resolved by make and validated by PersistedJobPolicy.
+ * Complete immutable policy resolved by make; the attempt limit counts finalizations.
  *
  * @category models
  */
-export type JobPolicy = typeof PersistedJobPolicy.Type
+export type JobPolicy = typeof JobPolicy.Type
+/** Validates resolved in-memory policy without decoding its storage representation.
+ * Requires attemptTimeoutMillis < leaseDurationMillis.
+ * @category schemas
+ */
+export const JobPolicy = PolicyStruct.pipe(
+  Schema.check(Schema.makeFilter((p) => p.attemptTimeoutMillis < p.leaseDurationMillis))
+)
 /**
- * Complete persisted policy Schema, requiring attemptTimeoutMillis < leaseDurationMillis.
- * Decoding stored policy never applies current deployment defaults.
+ * Storage codec: retained JSON maxAttempts maps to public maxFinalizedAttempts.
+ * Encode with this codec before persistence, never JSON.stringify a resolved policy.
+ * Decoding stored policy never applies current deployment defaults or changes limits.
  *
  * @category schemas
  */
-export const PersistedJobPolicy = PolicyStruct.pipe(
-  Schema.check(Schema.makeFilter((p) => p.attemptTimeoutMillis < p.leaseDurationMillis))
+export const PersistedJobPolicy = Schema.Struct({
+  leaseDurationMillis: PositiveMillis,
+  attemptTimeoutMillis: PositiveMillis,
+  maxAttempts: Retry.AttemptLimit,
+  maxStalledCount: PolicyStruct.fields.maxStalledCount,
+  retrySchedule: Retry.RetrySchedule,
+  completedRetention: JobRetention,
+  deadRetention: JobRetention
+}).pipe(
+  Schema.decodeTo(JobPolicy, {
+    decode: SchemaGetter.transform((stored) => {
+      const { maxAttempts, ...policy } = stored
+      return { ...policy, maxFinalizedAttempts: maxAttempts }
+    }),
+    encode: SchemaGetter.transform((resolved) => {
+      const { maxFinalizedAttempts, ...policy } = resolved
+      return { ...policy, maxAttempts: maxFinalizedAttempts }
+    })
+  })
 )
 
 /**
@@ -127,7 +152,7 @@ export type JobPolicyConfigurationField =
   | "retry.delay"
   | "retry.factor"
   | "retry.maxDelay"
-  | "retry.maxAttempts"
+  | "retry.maxFinalizedAttempts"
 
 const positive = Effect.fnUntraced(function* (
   n: number,
@@ -194,8 +219,8 @@ const retrySchedule = Effect.fnUntraced(function* (
  * Lazily validates and freezes complete policy; expected errors stay in the Effect channel.
  * Defaults: 90s fixed lease, 30s attempt timeout, 5s retry delay, 3 finalized attempts,
  * 1 stalled recovery, 90d Completed retention and Forever Dead retention.
- * Timeout must be strictly shorter than the lease. Unknown outcomes can repeat an
- * attempt number; maxAttempts does not bound every handler invocation.
+ * Timeout must be strictly shorter than the lease. Unknown outcomes can repeat a
+ * finalization ordinal; maxFinalizedAttempts does not bound every handler invocation.
  *
  * @example
  * ```ts
@@ -207,7 +232,7 @@ const retrySchedule = Effect.fnUntraced(function* (
  *   retry: Retry.exponential(Duration.seconds(1)).pipe(
  *     Retry.capped(Duration.minutes(1)),
  *     Retry.jittered(),
- *     Retry.maxAttempts(5)
+ *     Retry.maxFinalizedAttempts(5)
  *   ),
  *   completedRetention: Duration.days(90),
  *   deadRetention: Duration.infinity
@@ -252,11 +277,12 @@ export const make = Effect.fnUntraced(function* (
       expected: "strictly less than leaseDuration"
     })
   }
-  const maxAttempts = retry === undefined ? defaultPolicy.maxAttempts : retry.maxAttempts
+  const maxFinalizedAttempts =
+    retry === undefined ? defaultPolicy.maxFinalizedAttempts : retry.maxFinalizedAttempts
   const maxStalledCount = options.maxStalledCount ?? 1
-  if (!Schema.is(Retry.AttemptLimit)(maxAttempts)) {
+  if (!Schema.is(Retry.AttemptLimit)(maxFinalizedAttempts)) {
     return yield* new JobPolicyConfigurationError({
-      field: "retry.maxAttempts",
+      field: "retry.maxFinalizedAttempts",
       expected: "integer in 1–100"
     })
   }
@@ -269,7 +295,7 @@ export const make = Effect.fnUntraced(function* (
   return Object.freeze({
     leaseDurationMillis,
     attemptTimeoutMillis,
-    maxAttempts,
+    maxFinalizedAttempts,
     maxStalledCount,
     retrySchedule:
       retry === undefined ? defaultPolicy.retrySchedule : yield* retrySchedule(retry),
@@ -291,7 +317,7 @@ export const make = Effect.fnUntraced(function* (
 export const defaultPolicy: JobPolicy = Object.freeze({
   leaseDurationMillis: 90_000,
   attemptTimeoutMillis: 30_000,
-  maxAttempts: 3,
+  maxFinalizedAttempts: 3,
   maxStalledCount: 1,
   retrySchedule: Object.freeze(Retry.FixedDelayV1.make({ delayMillis: 5_000 })),
   completedRetention: Object.freeze({ _tag: "Duration", millis: 90 * 86_400_000 }),

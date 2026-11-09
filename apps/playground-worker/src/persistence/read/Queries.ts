@@ -23,7 +23,7 @@ const identifier = (name: string) => {
 export const summary = `jsonb_build_object(
   'jobId',j.id,'catalog',jsonb_build_object('queue',j.queue,'kind',j.kind,'version',j.version),
   'state',j.state,'availableAt',j.available_at,'updatedAt',j.updated_at,
-  'completedAt',j.completed_at,'attemptsMade',j.attempts_made,
+  'completedAt',j.completed_at,'finalizedAttempts',j.attempts_made,
   'stalledCount',j.stalled_count,'lifecycleVersion',j.lifecycle_version,
   'lastFailureCode',j.last_failure_code)`
 

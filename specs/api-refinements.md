@@ -1,11 +1,30 @@
 # Job API refinements
 
-`Job.make` defaults omitted version to exactly `1` and uses the standard encoder
-unless `encodePayload` is supplied. Returned identity always contains a validated
-concrete version. Literal inference preserves omission and explicit versions;
+`Job.make` declares only kind/version/payload and defaults omitted version to
+exactly `1`. Producers use pure immutable pipeable assembly:
+`JobProducer.make(operation).pipe(JobProducer.withSlot(slot, job, { queue, policy? }), ...)`.
+The empty declaration is valid but has no legal typed enqueue slot. Each addition
+validates and snapshots only its new binding, preserves earlier bindings, and
+rejects duplicate names statically when known and synchronously at runtime.
+There is no record-constructor overload, `build()` or `replaceSlot`.
+Routing and resolved policy belong to `JobProducer` slots. `{ queue }` fixes the
+route and forbids any enqueue `queue` field. `{ queues: [first, ...rest] }` declares
+a nonempty closed choice and requires a member queue-name string on every enqueue,
+even for singleton lists. Missing/both declarations, duplicate names and
+`defaultQueue` are invalid. All three methods preserve per-slot payload/routing/
+Schema-service correlation and accept an independent complete-policy replacement.
+Matching duplicates preserve the first stored execution configuration and artifacts;
+complete group handlers are installed through `JobApiBuilder.group(catalog, name, build)`
+with immutable `.handle(alias, handler)` chains. `JobApi.make(name).pipe(JobApi.addGroup(group), ...)`
+is an inert catalog; `Worker.make/layer(catalog, options)` requires every group
+installation plus storage. Known duplicate group names fail statically; duplicate
+names and kind/version pairs fail safely at assembly. There is no record installer. The standard artifact
+codec is fixed; domain transformations and encryption belong in Schema, with no
+per-definition encoder override or per-handler decoder parameter. Static
+unsupported Schema structures fail during declaration/group setup before traffic.
+Returned identity always contains a validated concrete version. Literal inference preserves omission and explicit versions;
 optional version variables conservatively include `1`. Incompatible payload
-changes need an explicit new version and its decoder. The handler decoder remains
-explicit. `JobPolicy.defaultPolicy` is deeply frozen and readonly; `make()` has the
+changes need an explicit new version and its Schema. `JobPolicy.defaultPolicy` is deeply frozen and readonly; `make()` has the
 same defaults and never freezes/mutates caller options.
 
 ## Diagnostic codes
@@ -76,13 +95,13 @@ useful for already-protected envelopes and custom codecs.
 
 `PostgreSqlNative.layer({ client, operationTimeoutMillis })` supplies the adapter
 for the application's SAME native `PgClient@4.1.0`. `PostgreSqlJobs.layerNoDeps`
-provides `PostgreSqlJobs` and generic `JobEnqueue`. Public
+provides `PostgreSqlJobs`, `JobEnqueue`, `JobOperators`, `JobStorage` and `JobSchedule`. Public
 `client.withTransaction(body)` owns the transaction; Drizzle schema/queries run
 in that same client/Context. `db.transaction` retains its upstream type limitation
-and is excluded from positive qualification, without a local type correction. `job.enqueue(input)` requires it; it has no transaction
+and is excluded from positive qualification, without a local type correction. `producer.enqueue(input)` requires it; it has no transaction
 argument or implicit fallback. Jobs/domain/receipts must share the same source.
 
-`backend.withTransaction(() => job.enqueue(input))` delegates explicit manager
+`jobs.withTransaction(() => producer.enqueue(input))` delegates explicit manager
 join-or-establish and supplies the producer service. `enqueueStandalone(input)`
 owns bounded preparation plus atomic job/payload/dedup insertion, rejects an active
 configured-client transaction and resolves after acknowledged commit. Unknown
@@ -94,7 +113,7 @@ Nested transactions/options/isolation are not automatically Drizzle-equivalent.
 A+B strict/exactOptional source checks use approved dependency skipLibCheck:true;
 C remains separately recorded known upstream FAIL and is nonblocking.
 
-Generic producer errors are bounded `JobBackendError` values with transaction
+Generic producer errors are bounded `JobPersistenceError` values with transaction
 misuse reason and `NotCommitted | Unknown` knowledge. Schema services remain in
 E/R composition. The native adapter's structural input type does not qualify other
 SQL drivers. Explicit-handle adapters retain `enqueueInTransaction` and their
@@ -120,7 +139,7 @@ Drizzle declaration failure remains separately reported, not declared fixed.
 
 ## Finite local qualification
 
-The existing `verify`, backend, installed and release guards remain required.
+The existing `verify`, persistence, installed and release guards remain required.
 `qualify:drizzle:native` adds packed native ambient/standalone real-PG checks on
 Node and Bun; `qualify:drizzle:indexes` records migration/snapshot evidence;
 `qualify:api:installed` checks new public types and local encrypted service behavior.

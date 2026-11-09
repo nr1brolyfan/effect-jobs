@@ -1,6 +1,5 @@
 import { Effect, Schema } from "effect"
 import * as Codec from "effect-jobs/JobPayloadCodec"
-import * as JobProducer from "effect-jobs/JobProducer"
 import {
   JobRepairReason,
   type JobRepairCommand,
@@ -14,10 +13,7 @@ export class RepairSourceRejected extends Schema.TaggedError<RepairSourceRejecte
   { reason: JobRepairReason }
 ) {}
 const rejected = (reason: JobRepairReason) => new RepairSourceRejected({ reason })
-const producer = JobProducer.make({
-  operation: "playground.repair",
-  slots: ["replacement"]
-})
+const operation = "playground.repair"
 
 // Bounded canonical JSON for admission identity. This is NOT a payload codec:
 // selected definition encoding and canonical artifact validation still use core.
@@ -156,18 +152,16 @@ export const producerIdentity = (command: JobRepairCommand) =>
       command.jobId,
       command.action
     ])
-  ).pipe(
-    Effect.map((operationId) => producer.identity({ operationId, slot: "replacement" }))
-  )
+  ).pipe(Effect.map((operationId) => ({ operationId, slot: "replacement", operation })))
 
 export const definition = (row: Readonly<Record<string, unknown>>) => {
-  const found = Definitions.definitions.find(
+  const found = Definitions.routes.find(
     (candidate) =>
-      candidate.catalog.queue === row.queue &&
-      candidate.catalog.kind === row.kind &&
-      candidate.catalog.version === Number(row.version)
+      candidate.queue.name === row.queue &&
+      candidate.job.kind === row.kind &&
+      candidate.job.version === Number(row.version)
   )
-  return found ? Effect.succeed(found) : Effect.fail(rejected("unsupported-catalog"))
+  return found ? Effect.succeed(found.job) : Effect.fail(rejected("unsupported-catalog"))
 }
 export const artifact = (row: Readonly<Record<string, unknown>>) =>
   Effect.try({

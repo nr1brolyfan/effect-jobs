@@ -57,7 +57,10 @@ describe("truthful allowlisted detail projection", () => {
     )
     const detail = {
       ...Fixture.detail,
-      job: { ...Fixture.detail.job, catalog: Definitions.PrivateDataExport.catalog }
+      job: {
+        ...Fixture.detail.job,
+        catalog: Definitions.catalogFor(Definitions.PrivateDataExport)
+      }
     }
     // If wire validation accidentally invokes decryption, the missing key service
     // fails this test. The wire is the ACTUAL encrypted codec output above.
@@ -83,7 +86,10 @@ describe("truthful allowlisted detail projection", () => {
   })
   it("keeps encrypted correction unavailable when the original envelope is absent", () => {
     const detail = {
-      job: { ...Fixture.detail.job, catalog: Definitions.PrivateDataExport.catalog }
+      job: {
+        ...Fixture.detail.job,
+        catalog: Definitions.catalogFor(Definitions.PrivateDataExport)
+      }
     }
     expect(
       Projection.eligibility(detail, Fixture.detail.problem, {

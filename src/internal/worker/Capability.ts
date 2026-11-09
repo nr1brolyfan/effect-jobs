@@ -1,6 +1,6 @@
 import { Data } from "effect"
 import type { Effect, Semaphore } from "effect"
-import type { JobConsumer } from "../../JobConsumer.js"
+import type { QueueRun } from "./QueueRun.js"
 
 /** Explicit per-worker wiring; not exported as a package subpath. */
 export const WorkerCapability: unique symbol = Symbol("effect-jobs/worker/capability")
@@ -15,6 +15,9 @@ export class JobWorkerConfigurationError extends Data.TaggedError(
     | "operationResponseBudgetMillis"
     | "consumer"
     | "idlePollMillis"
+    | "queues"
+    | "drain"
+    | "polling"
 }> {}
 
 export type DispatchResult = Data.TaggedEnum<{
@@ -25,13 +28,17 @@ export type DispatchResult = Data.TaggedEnum<{
     readonly release: Effect.Effect<void>
   }
 }>
-export const DispatchResults = Data.taggedEnum<DispatchResult>()
+export const DispatchResult = Data.taggedEnum<DispatchResult>()
 
 export interface RuntimeCapability {
+  readonly concurrency: (queue: string) => number | undefined
   readonly ready: (queue: string) => Effect.Effect<void, JobWorkerNotReady>
   readonly permits: (
-    consumer: JobConsumer
+    consumer: Pick<QueueRun, "queue" | "localConcurrency">
   ) => Effect.Effect<Semaphore.Semaphore, JobWorkerConfigurationError>
   readonly claim: (queue: string) => Effect.Effect<DispatchResult, JobWorkerUnavailable>
-  readonly recover: (limit: number) => Effect.Effect<number, JobWorkerUnavailable>
+  readonly recover: (
+    queue: string,
+    limit: number
+  ) => Effect.Effect<number, JobWorkerUnavailable>
 }

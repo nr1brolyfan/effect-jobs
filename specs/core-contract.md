@@ -4,15 +4,18 @@ transaction-capability arguments for the qualified native integration.
 
 # Shared core contracts
 
-Implemented serial prerequisite for UPVE-1031, against accepted D1–D8 at
-`0e10e8a5a0b21101c00ea064e87ac641b73743c3`. The earlier
-`core-contract-proposal.md` is historical, not a merge input. This document freezes
-the contracts consumed by definitions/producer, lifecycle/store and codec units.
-It does not implement or qualify their runtimes or activate those tasks.
+The original serial prerequisite for UPVE-1031 was implemented against accepted
+D1–D8 at `0e10e8a5a0b21101c00ea064e87ac641b73743c3`. Its unit-specific ownership and
+qualification record below is historical. The public contracts here incorporate
+the breaking contract-first redesign (source-only `specs/api-redesign.md`); use
+the [current README](../README.md) for complete worker/group/storage composition. The earlier
+`core-contract-proposal.md` is historical, not a merge input.
 
 ## Modules and import directions
 
-The package exports these exact public subpaths (ESM and declarations):
+This shared-contract subset has the following public subpaths (ESM and declarations).
+The complete current export inventory is in `package.json` and qualified by
+`tests/docs/api/Qualify.mjs`; this is not a six-subpath package inventory:
 
 ```text
 effect-jobs/JobId
@@ -25,7 +28,7 @@ effect-jobs/JobTransaction
 
 The root remains empty, not an all-modules barrel. No subpath imports auth,
 PostgreSQL, Drizzle, environment configuration, pools, workers or registry Layers.
-No import starts work. The backend must not enter core through a default Layer.
+No import starts work. The persistence must not enter core through a default Layer.
 
 ```text
 Effect <- JobId / JobIdentity / JobPolicy
@@ -36,12 +39,12 @@ JobContract + JobTransaction <- internal/JobTransaction (lifetime mechanics)
 JobContract + JobIdentity + JobPolicy + internal/JobTransaction <- later Job/JobProducer
 JobContract <- later JobPayload/JobPayloadCodec
 JobContract + JobFailure + JobPolicy <- later JobStore/internal/JobLifecycle
-shared contracts + qualified active application handle <- later backend bridges
+shared contracts + qualified active application handle <- later persistence bridges
 ```
 
 `JobTransaction` has only a **type-only** reference to the internal symbol; the
 internal leaf imports its public errors at runtime. There is no runtime cycle.
-Only the later definition implementation and qualified backend bridges consume
+Only the later definition implementation and qualified persistence bridges consume
 the internal leaf. `internal/*` is not a package export or custom-adapter API.
 The transaction declaration references the internal symbol declaration; that file
 must remain in the build artifact even though package export resolution denies
@@ -51,7 +54,7 @@ runtime deep imports. Do not duplicate symbols, brands or errors in later units.
 
 `JobId.JobId` is a nonempty string Schema branded `effect-jobs/JobId`; the Schema
 and its inferred type share the name. IDs are library-assigned; their generation
-and uniqueness are backend obligations. No UUID algorithm or caller ID override
+and uniqueness are persistence obligations. No UUID algorithm or caller ID override
 is selected here. Schema decoding brands persisted IDs; it is not production.
 
 `JobIdentity` exports Schemas `QueueName`, `JobKind`, `JobVersion`, `OperationName`,
@@ -88,13 +91,40 @@ Schema validation at the consumer boundary; do not export raw Schema diagnostics
 containing sensitive inputs as enqueue errors.
 
 `validateProducerDeclaration({ operation: string, slots: ReadonlyArray<string> }):
-void` validates names, nonempty slots and uniqueness synchronously. It throws
+void` validates names and uniqueness synchronously; an empty slot list is valid
+during assembly. It throws
 `JobDeclarationError` containing `field` (`operation`, `slots`, or `slots[index]`),
 the invalid declaration `value` where applicable, and actionable `expected` text.
-The producer unit **must call this before returning its immutable declaration**;
-there is no producer implementation here. It must preserve inferred operation and
-slot literals, reject undeclared slots, and copy/freeze its slot array. No global
-registry or mutable builder is needed.
+`JobProducer.make(operation)` validates the operation and returns an empty,
+immutable pipeable declaration. Add each consequence with
+`producer.pipe(JobProducer.withSlot(slot, job, { queue, policy? }))`. Each addition
+returns a new producer without mutating the original. Slot names and bindings are
+validated synchronously on application, including the pure supported-Schema check.
+Known duplicate slot names are rejected statically; every duplicate is rejected
+at runtime with `JobDeclarationError`, never silently overwritten. No `build`,
+`replaceSlot`, mutable builder or old record-constructor overload is exposed.
+An empty producer has no statically legal enqueue slot, and runtime invalid slots
+still fail through `InvalidJobInput` after transaction authority is checked.
+Each addition copies and freezes its binding without freezing caller-owned
+configuration; previously installed bindings are reused unchanged. Omitted policy
+resolves to the library default. Operation and slot literals and
+each Schema's payload/encoding services remain inferred. Production accepts
+`{ slot, operationId, payload, availableAt?, policy? }` on ambient, standalone and
+explicit-handle paths. Fixed `{ queue }` bindings prohibit any enqueue `queue`
+property (even `undefined`); selectable `{ queues: [first, ...rest] }` bindings
+require a member queue-name string, including singleton lists. The nonempty list
+is closed, has unique names and no default. Missing/both routing declarations and
+`defaultQueue` are invalid. Per-slot discriminated inputs preserve payload/routing
+correlation without widening a slot to accept another slot's data.
+Policy is an independently optional complete resolved replacement. Invalid routing
+fails through `InvalidJobInput` (`catalog`), invalid policy through `policy`, before
+encoding/insertion after transaction authority checks. Lists and members are copied
+and frozen on application without freezing caller configuration. Selected names and
+nested policy are captured before asynchronous encoding.
+Matching duplicates retain the original ID, queue, policy, availability and artifact.
+Runtime ID validation uses the Effect error channel with bounded
+`InvalidOperationId` diagnostics. No global registry, identity builder or mutable
+builder is needed.
 
 ## Complete immutable policy
 
@@ -115,17 +145,17 @@ No raw millisecond input or hand-written `_tag` is required publicly. `make`
 validates when its Effect is evaluated and fails through `JobPolicyConfigurationError`
 with the exact `field` and `expected` constraint; expected configuration failures
 are not synchronous throws or defects. Counters retain source limits:
-maxAttempts 1–100, maxStalledCount 0–100. Finite durations must resolve to integer
+maxFinalizedAttempts 1–100, maxStalledCount 0–100. Finite durations must resolve to integer
 milliseconds 1–253,402,300,799,999; no rounding, truncation or clamping. Zero,
 negative, fractional-millisecond and negative-infinity retention are rejected.
 Only positive infinity is Forever, and only for retention.
 
-`Retry.fixed`/`Retry.exponential` describe delays and `Retry.maxAttempts` sets the
-attempt limit. There is no `retryDelay` or top-level `maxAttempts` configuration
+`Retry.fixed`/`Retry.exponential` describe delays and `Retry.maxFinalizedAttempts` sets the
+attempt limit. There is no `retryDelay` or top-level attempt-limit configuration
 option and no deprecated compatibility path. Unknown option names are rejected.
 
 `attemptTimeoutMillis < leaseDurationMillis` is mandatory. Response budget is
-backend configuration, not a policy field; later backend qualification must
+persistence configuration, not a policy field; later persistence qualification must
 ensure the stored lease can support timeout plus its budget.
 
 The resolved policy and every nested configuration object are frozen:
@@ -134,7 +164,7 @@ The resolved policy and every nested configuration object are frozen:
 interface JobPolicy {
   readonly leaseDurationMillis: number
   readonly attemptTimeoutMillis: number
-  readonly maxAttempts: number
+  readonly maxFinalizedAttempts: number
   readonly maxStalledCount: number
   readonly retrySchedule:
     | { readonly _tag: "FixedDelayV1"; readonly delayMillis: number }
@@ -152,17 +182,20 @@ type JobRetention =
   { readonly _tag: "Forever" } | { readonly _tag: "Duration"; readonly millis: number }
 ```
 
-`PersistedJobPolicy`, `FixedDelayV1`, `JobRetention`, `PositiveMillis` and
-`EpochMillis` are runtime Schemas. Persisted decode requires the **complete**
-resolved configuration and the cross-field constraint; it never fills current
-defaults into old rows. The layout is the V1 policy representation; concrete
-backend storage/version discriminator belongs to its schema task. Updated
-deployment defaults cannot rewrite retained rows.
+`JobPolicy` validates the resolved in-memory model. `PersistedJobPolicy` is the
+bidirectional storage codec: retained JSON uses `maxAttempts`, while decoded
+policy exposes `maxFinalizedAttempts`. Encode through that codec before storing
+JSON; serializing resolved policy directly is not the storage format. Persisted
+decode requires the **complete** stored configuration and the cross-field
+constraint; it never fills current defaults into old rows. `FixedDelayV1`,
+`JobRetention`, `PositiveMillis` and `EpochMillis` remain runtime Schemas. Updated
+deployment defaults cannot rewrite retained rows, and physical `attempts_made`
+continues to map to the public `finalizedAttempts` counter without a migration.
 
 `EpochMillis` preserves the source positive integer bound 1–253,402,300,799,999
-for availableAt/notAfter; accepting epoch zero would be a policy change, not
+for availableAt/retryBefore; accepting epoch zero would be a policy change, not
 silently inferred from the superseded proposal. Ordinary past positive timestamps
-are valid. The backend must validate computed timestamp additions against the
+are valid. The persistence must validate computed timestamp additions against the
 same bound rather than overflowing/clamping. No database-time arithmetic is
 implemented in this unit.
 
@@ -170,10 +203,10 @@ implemented in this unit.
 
 `JobContract.HandlerInput<Payload>` is `{ readonly payload: Payload; readonly
 context: HandlerContext }`. Context contains exactly jobId, catalog, producer and
-attemptNumber, all readonly. No client, lease token, transaction, finalizer or
+nextFinalizationNumber, all readonly. No client, lease token, transaction, finalizer or
 ambient handler dependency service is exposed.
 
-attemptNumber is `attemptsMade + 1`. Claim/release do not increment attempts;
+nextFinalizationNumber is `finalizedAttempts + 1`. Claim/release do not increment finalized attempts;
 confirmed fenced Complete/Retry/Dead/Isolate increments exactly once. Unknown
 leaves attempts unchanged; stalled recovery has its own counter. Consequently
 attempt numbers may repeat and are not external idempotency keys or invocation
@@ -182,7 +215,7 @@ counts. Enforcing those transitions belongs to the lifecycle unit.
 `JobFailure` is a Schema/type union. `JobFailures` supplies checked frozen factories:
 
 ```ts
-JobFailures.Retry({ code: FailureCode, notAfter?: number })
+JobFailures.Retry({ code: FailureCode, retryBefore?: number })
 JobFailures.Dead({ code: FailureCode })
 JobFailures.Isolate({ code: FailureCode })
 JobFailures.OutcomeUnknown({ code: FailureCode })
@@ -191,28 +224,41 @@ JobFailures.OutcomeUnknown({ code: FailureCode })
 Codes are 1–128 characters matching `^[a-z0-9][a-z0-9_-]*$`; cutoffs use
 EpochMillis. Catalog definition validates once and throws an entry-specific `InvalidFailureCode`.
 Dynamic strings use `FailureCode.parse` returning Result; invalid retry cutoffs throw
-`InvalidJobFailure { field: "notAfter" }`, without recording input text. Domain errors are mapped by ordinary
+`InvalidJobFailure { field: "retryBefore" }`, without recording input text. Domain errors are mapped by ordinary
 Effect composition. Unknown is not a seventh lifecycle state; mixed causes,
 defects, interruption or timeout never imply known-safe Retry. Runtime boundaries
 must validate even structurally constructed failure values with `JobFailure`.
 
 `EnqueueInput<Payload>` has required producer, decoded payload, resolved policy
-and optional availableAt. No job ID is supplied. `EnqueueResults` is a
+and optional availableAt. No job ID is supplied. `EnqueueResult` is a
 `Data.taggedEnum` factory for `Inserted { jobId } | AlreadyPresent { jobId }`.
 Results remain provisional until application commit.
 
-For matching producer tuples, duplicate equality compares catalog and validated
-canonical semantic payload/fingerprints only. It excludes generated IDs, policy,
+The public producer API selects this metadata from its declared slot. Its
+`enqueue` and `enqueueStandalone` resolve `JobEnqueue`; `enqueueInTransaction`
+accepts a qualified callback capability. The standard artifact codec is fixed.
+All forms preserve the selected Schema's encoding service requirements.
+
+For matching producer tuples, duplicate equality compares job kind/version and validated
+canonical semantic payload/fingerprints only. It excludes queue routing, generated IDs, policy,
 initial/current availability, ciphertext randomness and lifecycle state. Matching
-duplicates return the original ID and retain first policy/availability. Omitted
+duplicates return the original ID and retain first queue/policy/availability. Omitted
 availability uses DB time only on first insertion. Conflicts are typed
 `JobIntegrityConflict` with no raw payload/identifiers; they cannot be swallowed
 to commit partial application writes.
 
+The configured storage admits only new policies that reserve attempt timeout plus
+its single operation-response budget and keep lease expiry within the bounded
+storage clock. `JobPolicyIncompatible` rejects a new record without inserting the
+parent or payload. Matching duplicates still retain their original policy even
+if current producer defaults are incompatible. A valid retained job incompatible
+with the current claim budget fails with this configuration error without being
+isolated or mutated; workers back off rather than classify it as corrupt payload.
+
 `InvalidJobInput { field }` and `JobPayloadCodecError { reason }` are bounded
 operation-owned errors. `JobTransaction.JobEnqueueError` unites those with
 JobIntegrityConflict and JobsTransactionClosed. Provider errors stay in the
-backend's explicit E channel, not raw public diagnostic strings.
+persistence's explicit E channel, not raw public diagnostic strings.
 
 ## Codec and prepared-payload seam
 
@@ -263,13 +309,13 @@ no public constructor, arbitrary insert callback, query client, transaction
 runner, savepoint, commit, rollback or replay. Its symbol is internal only.
 
 The internal `withJoinedTransaction(insertOrCompare, body)` is a lifetime helper
-for **qualified backend callbacks**, not a generic public extension point:
+for **qualified persistence callbacks**, not a generic public extension point:
 
 ```ts
-withJoinedTransaction<A, E, R, BackendError, BackendRequirements>(
+withJoinedTransaction<A, E, R, StorageError, StorageRequirements>(
   insertOrCompare: (prepared: PreparedJob) =>
-    Effect.Effect<EnqueueResult, BackendError | JobIntegrityConflict, BackendRequirements>,
-  body: (tx: JobsTransaction<BackendError, BackendRequirements>) => Effect.Effect<A, E, R>
+    Effect.Effect<EnqueueResult, StorageError | JobIntegrityConflict, StorageRequirements>,
+  body: (tx: JobsTransaction<StorageError, StorageRequirements>) => Effect.Effect<A, E, R>
 ): Effect.Effect<A, E, R>
 
 insertPrepared<E, R>(tx: JobsTransaction<E, R>, prepared: PreparedJob):
@@ -279,16 +325,16 @@ insertPrepared<E, R>(tx: JobsTransaction<E, R>, prepared: PreparedJob):
 It allocates a fresh frozen capability per Effect execution, scopes the callback
 and invalidates it at callback exit on success, typed failure, defect, synchronous
 throw or interruption. Deferred/escaped enqueue Effects check liveness when run,
-before invoking the backend. Closed failure carries reason `callback-exited` and
+before invoking storage. Closed failure carries reason `callback-exited` and
 an actionable message directing enqueue into the joinTransaction callback.
 Callback-scoped fibers are scoped normally; unscoped escaping fibers and concurrent
 transaction operations are not supported. Branding/lifetime checks are atomicity
 correctness, not a sandbox against trusted application code or casts.
 
-The backend must bind the supplied exact active connection/source. The helper
+The persistence must bind the supplied exact active connection/source. The helper
 cannot prove connection provenance, insert correctness, rollback or durable
 atomicity, and these tests do not claim that it can. Custom adapters need a later
-explicit qualified backend extension contract, not a public re-export of this
+explicit qualified persistence extension contract, not a public re-export of this
 helper. No Effect SQL/Drizzle/pg compatibility claim exists yet.
 
 `JobTransactionsService<ManagerError, ManagerRequirements = never>` is the explicit
@@ -301,11 +347,11 @@ withTransaction<A, E, R>(
 ```
 
 A qualified integration delegates join-or-establish to the application's manager;
-it must not instantiate a second engine/pool. Explicit backend join must never
+it must not instantiate a second engine/pool. Explicit persistence join must never
 open a new connection/transaction/savepoint, or independently commit/replay.
 Application owner retains whole-operation commit knowledge and replay authority.
 
-## Qualification and ownership
+## Historical serial-unit qualification and ownership
 
 Tests under `tests/core` exercise identity diagnostics, defaults and policy bounds,
 strict timeout edge, failure bounds, forwarding and capability lifetimes.
@@ -323,7 +369,7 @@ transaction leaf, tests/core and tests/types/contracts, this specification and
 required package/root export integration. Later units must not edit shared
 contracts, package/lock/config or exports concurrently; request serial changes.
 No dependency/toolchain upgrade, worker, store, producer/registry, full codec,
-generic crypto, migration or backend is included.
+generic crypto, migration or persistence is included.
 
 The current repository has no tracked `.github` workflow or extra gate scripts.
 The actual local CI-equivalent gate is package `verify`: check, lint, whole-tree
@@ -333,8 +379,10 @@ tracked/owned files without modifying runtime files. Exact command results,
 tool versions, read manifest and immutable base/head/tree are delivered in the
 issue report; this document does not invent successful future receipts.
 
-No PG or packed worker/backend qualification, database operation, push, PR,
-publication, runtime modification or merge is authorized. Temporal runtime edges
+That serial-unit authorization did not include PG or packed worker/persistence
+qualification, database operations, push, PR, publication, runtime modification or
+merge. Subsequent local redesign authorization and current qualification are
+recorded in `api-redesign.md`, not inferred from this historical unit. Temporal runtime edges
 (due `<=`, owned `>`, expiry `<=`, usable lease `>= timeout + budget`, retry cutoff
-`>= notAfter`, one DB-time snapshot) remain accepted obligations of later units;
+`>= retryBefore`, one DB-time snapshot) remain accepted obligations of later units;
 contract tests qualify only the policy inequality, not those unimplemented writes.

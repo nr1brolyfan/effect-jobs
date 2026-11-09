@@ -15,9 +15,9 @@ export const delayed = (config: Event.Config, credential: string, requestId: str
     Effect.gen(function* () {
       const app = yield* Application
       const access = yield* app.authenticate(Redacted.make(credential))
-      const backend = yield* PostgreSqlJobs
+      const jobs = yield* PostgreSqlJobs
       const sql = yield* SqlClient
-      return yield* backend.withTransaction(() =>
+      return yield* jobs.withTransaction(() =>
         Effect.gen(function* () {
           const rows = yield* sql.unsafe<{ now: string }>(
             `SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now FROM "${config.schema}".sandboxes WHERE sandbox_id=$1 AND generation=$2 AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint FOR UPDATE`,
@@ -35,7 +35,7 @@ export const delayed = (config: Event.Config, credential: string, requestId: str
           const policy = yield* Policy.make({
             leaseDuration: Duration.millis(1800),
             attemptTimeout: Duration.millis(200),
-            retry: Retry.fixed(Duration.millis(500)).pipe(Retry.maxAttempts(3))
+            retry: Retry.fixed(Duration.millis(500)).pipe(Retry.maxFinalizedAttempts(3))
           })
           const result = yield* Plan.enqueue({ ...job!, policy })
           const reserved = yield* sql.unsafe(

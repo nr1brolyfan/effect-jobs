@@ -75,7 +75,7 @@ are illustrative, not historical evidence.
 
 - In `apps/playground-worker/src/HandlerRegistry.ts`, import
   `scenarios/Handlers.ts` and expose/compose `layerNoDeps` together with the
-  executor's shared JobRegistry, FakeProvider and DocumentKeys Layers. The six
+  executor's complete JobGroup handlers, FakeProvider and DocumentKeys Layers. The six
   definitions' catalogs must be included in each matching queue's worker config.
 - In the mutation slice, use `Plan.plan` with an authenticated reference and a
   fixed server-owned seed (0 for the initial deployment). Run `Plan.enqueue` in

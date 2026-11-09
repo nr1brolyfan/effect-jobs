@@ -160,7 +160,7 @@ const JobsTable = (props: {
         cell: (cell) => {
           return (
             <span title="Finalized attempts, not all handler invocations">
-              {String(cell.row.original.attemptsMade).padStart(2, "0")}
+              {String(cell.row.original.finalizedAttempts).padStart(2, "0")}
             </span>
           )
         }

@@ -4,13 +4,13 @@ import { Effect, Exit, Layer, Logger, Schema, Tracer } from "effect"
 import { TestClock } from "effect/testing"
 import { it } from "vitest"
 import * as Codec from "../../../src/JobPayloadCodec.js"
-import * as Job from "../../../src/Job.js"
+import * as Job from "../definitions/ProtocolJob.js"
 import * as Queue from "../../../src/JobQueue.js"
-import * as Consumer from "../../../src/JobConsumer.js"
-import * as Worker from "../../../src/JobWorker.js"
-import { drain } from "../../../src/JobWorkerRuntime.js"
-import { layer as registryLayer } from "../../../src/JobRegistry.js"
-import { FinalizationResults } from "../../../src/JobStore.js"
+import * as Consumer from "../definitions/ProtocolConsumer.js"
+import * as Worker from "./ProtocolWorker.js"
+import { drain } from "./ProtocolWorker.js"
+import { layer as registryLayer } from "../definitions/ProtocolRegistry.js"
+import { FinalizationResult } from "../../../src/JobStore.js"
 import { harness, policy } from "./Harness.js"
 
 const queue = Queue.make("review-probe")
@@ -123,7 +123,7 @@ for (const phase of ["finalize", "reconcileFinalization"] as const) {
           {
             ...test.store,
             ...(phase === "reconcileFinalization"
-              ? { finalize: () => Effect.succeed(FinalizationResults.Unknown()) }
+              ? { finalize: () => Effect.succeed(FinalizationResult.Unknown()) }
               : {}),
             [phase]: () =>
               Effect.sync(() => {
@@ -149,7 +149,7 @@ for (const phase of ["finalize", "reconcileFinalization"] as const) {
         assert.equal(invoked, 1)
         assert.equal(defects, 1)
         assert.equal(test.rows[0]!.snapshot.state, "Active")
-        assert.equal(test.rows[0]!.snapshot.attemptsMade, 0)
+        assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 0)
         assert.equal(test.calls.releases, 0)
         for (const span of spans) {
           assert.equal(span.status._tag, "Ended")

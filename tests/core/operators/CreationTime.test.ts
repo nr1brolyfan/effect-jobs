@@ -48,18 +48,19 @@ test("store insertion stamps DB time separately from future availability and doe
       "payloads",
       value,
       500,
+      100,
       Schema.decodeSync(JobId)("first")
     )
   )
   expect(first._tag).toBe("Inserted")
   expect(calls[0]!.text).toContain("redrive_kind,created_at)")
-  expect(calls[0]!.text).toContain("$13,$14,$11)")
+  expect(calls[0]!.text).toContain("$13,$14,$11 WHERE $15::boolean")
   expect(calls[0]!.values[9]).toBe(9_000)
   expect(calls[0]!.values[10]).toBe(500)
   exists = true
   calls.length = 0
   const duplicate = await Effect.runPromise(
-    insertOrCompareAt(query, "jobs", "payloads", value, 700)
+    insertOrCompareAt(query, "jobs", "payloads", value, 700, 100)
   )
   expect(duplicate).toEqual({ _tag: "AlreadyPresent", jobId: "first" })
   expect(calls).toHaveLength(2)

@@ -15,7 +15,7 @@ for (const failure of ["none", "backfill", "migration"]) {
     let inTransaction = false
     let transactionCalls = 0
     const stop = new Error(failure === "none" ? "setup observed" : `${failure} failed`)
-    // The fixture deliberately has no pool/backend API: stop after setup.
+    // The fixture deliberately has no pool/jobs API: stop after setup.
     const client = {
       unsafe: (sql: string) =>
         Effect.suspend(() => {

@@ -5,6 +5,7 @@ import { Pool } from "../qualification/d6-pg/PgDriver.js"
 import { Cause, Effect, Exit, Option, Schema } from "effect"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import * as Job from "../../src/Job.js"
+import * as Producer from "../../src/JobProducer.js"
 import * as Queue from "../../src/JobQueue.js"
 import { define } from "../../src/FailureCode.js"
 import * as Policy from "../../src/JobPolicy.js"
@@ -21,7 +22,7 @@ const code = define({ retry: "fixture_retry" }).retry
 const config = process.env.CREATION_TIME_PRIVATE_CONFIG
 describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", () => {
   let pool: Pool
-  let backend: Jobs.Backend
+  let jobs: Jobs.Service
   let adapter: Adapter.FixtureAdapter
   const schema = "creation_" + randomUUID().replaceAll("-", "")
   const mapping = Tables.tables({
@@ -29,25 +30,28 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     jobsTable: "tasks",
     payloadsTable: "artifacts"
   })
-  const { jobs } = Tables.relations(mapping)
+  const { jobs: jobsRelation } = Tables.relations(mapping)
+  const queue = Queue.make("creation")
   const definition = Job.make({
-    queue: Queue.make("creation"),
     kind: "fixture",
     payload: Schema.String
   })
   const policy = Policy.defaultPolicy
+  const producer = Producer.make("fixture").pipe(
+    Producer.withSlot("job", definition, { queue, policy })
+  )
   const input = (operationId: string, availableAt?: number) => ({
-    producer: { operation: "fixture", operationId, slot: "job" },
-    policy,
+    operationId,
+    slot: "job" as const,
     payload: "fixture",
     ...(availableAt === undefined ? {} : { availableAt })
   })
   const read = async (id: string) =>
-    (await pool.query(`SELECT * FROM ${jobs} WHERE id=$1`, [id])).rows[0]
+    (await pool.query(`SELECT * FROM ${jobsRelation} WHERE id=$1`, [id])).rows[0]
   const enqueue = (id: string, availableAt?: number) =>
     Effect.runPromise(
-      backend.withTransaction((tx) =>
-        definition.enqueueInTransaction(tx, input(id, availableAt))
+      jobs.withTransaction((tx) =>
+        producer.enqueueInTransaction(tx, input(id, availableAt))
       )
     )
   beforeAll(async () => {
@@ -66,12 +70,12 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     // A populated pre-change schema: retain real historical rows and all old bytes.
     await pool.query(Tables.migration(mapping).replace("  created_at bigint,\n", ""))
     await pool.query(
-      `INSERT INTO ${jobs} (id,operation,operation_id,slot,queue,kind,version,policy,state,available_at,updated_at)
+      `INSERT INTO ${jobsRelation} (id,operation,operation_id,slot,queue,kind,version,policy,state,available_at,updated_at)
       VALUES ('legacy','fixture','legacy','job','creation','fixture',1,$1,'Pending',123,456)`,
-      [policy]
+      [Schema.encodeSync(Policy.PersistedJobPolicy)(policy)]
     )
     adapter = Adapter.make(App.source(pool))
-    backend = await Effect.runPromise(
+    jobs = await Effect.runPromise(
       Jobs.make({ ...mapping, operationResponseBudgetMillis: 100 }).pipe(
         Effect.provideService(PostgreSqlApplication, {
           ...adapter,
@@ -95,7 +99,7 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
   })
   test("populated additive migration preserves old bytes, readiness rejects unmigrated storage", async () => {
     const before = await read("legacy")
-    expect(Exit.isFailure(await Effect.runPromiseExit(backend.ready))).toBe(true)
+    expect(Exit.isFailure(await Effect.runPromiseExit(jobs.ready))).toBe(true)
     const client = await pool.connect()
     try {
       await client.query("BEGIN")
@@ -104,9 +108,9 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     } finally {
       client.release()
     }
-    expect(Exit.isFailure(await Effect.runPromiseExit(backend.ready))).toBe(true)
+    expect(Exit.isFailure(await Effect.runPromiseExit(jobs.ready))).toBe(true)
     await pool.query(Tables.creationTimeMigration(mapping))
-    await Effect.runPromise(backend.ready)
+    await Effect.runPromise(jobs.ready)
     const { created_at, ...after } = await read("legacy")
     expect(created_at).toBeNull()
     expect(after).toEqual(before)
@@ -137,13 +141,13 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     expect(duplicate).toEqual({ _tag: "AlreadyPresent", jobId: first.jobId })
     expect(await read(first.jobId)).toEqual(original)
     await pool.query(
-      `CREATE TABLE "${schema}".receipts (request text PRIMARY KEY, job_id text REFERENCES ${jobs}(id))`
+      `CREATE TABLE "${schema}".receipts (request text PRIMARY KEY, job_id text REFERENCES ${jobsRelation}(id))`
     )
     await Effect.runPromise(
       adapter.applicationTransaction((handle) =>
-        backend.joinTransaction(handle, (tx) =>
+        jobs.joinTransaction(handle, (tx) =>
           Effect.gen(function* () {
-            const result = yield* definition.enqueueInTransaction(tx, input("receipt"))
+            const result = yield* producer.enqueueInTransaction(tx, input("receipt"))
             yield* handle.query(`INSERT INTO "${schema}".receipts VALUES ('one',$1)`, [
               result.jobId
             ])
@@ -166,9 +170,9 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
   test("rollback removes timestamp/payload/job/receipt atomically and typed conflict stays unchanged", async () => {
     const failed = await Effect.runPromiseExit(
       adapter.applicationTransaction((handle) =>
-        backend.joinTransaction(handle, (tx) =>
+        jobs.joinTransaction(handle, (tx) =>
           Effect.gen(function* () {
-            const row = yield* definition.enqueueInTransaction(tx, input("rollback"))
+            const row = yield* producer.enqueueInTransaction(tx, input("rollback"))
             yield* handle.query(
               `INSERT INTO "${schema}".receipts VALUES ('rollback',$1)`,
               [row.jobId]
@@ -182,7 +186,7 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     expect(
       (
         await pool.query(
-          `SELECT count(*)::int AS n FROM ${jobs} WHERE operation_id='rollback'`
+          `SELECT count(*)::int AS n FROM ${jobsRelation} WHERE operation_id='rollback'`
         )
       ).rows[0].n
     ).toBe(0)
@@ -194,8 +198,8 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
       ).rows[0].n
     ).toBe(0)
     const result = await Effect.runPromiseExit(
-      backend.withTransaction((tx) =>
-        definition.enqueueInTransaction(tx, {
+      jobs.withTransaction((tx) =>
+        producer.enqueueInTransaction(tx, {
           ...input("delayed"),
           payload: "changed"
         })
@@ -213,11 +217,13 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     const original = (await read(inserted.jobId)).created_at
     const request = () => ({
       queue: "creation",
-      supportedCatalog: [definition.catalog],
+      supportedCatalog: [
+        { queue: queue.name, kind: definition.kind, version: definition.version }
+      ],
       leaseToken: randomUUID()
     })
     const claim = async () => {
-      const result = await Effect.runPromise(backend.store.claim(request()))
+      const result = await Effect.runPromise(jobs.store.claim(request()))
       expect(result._tag).toBe("Claimed")
       if (result._tag !== "Claimed") {
         throw new Error("expected claim")
@@ -226,15 +232,16 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
       return result.claim
     }
     // Exclude other fixture jobs from this worker selection without altering creation metadata.
-    await pool.query(`UPDATE ${jobs} SET available_at=253402300799999 WHERE id<>$1`, [
-      inserted.jobId
-    ])
+    await pool.query(
+      `UPDATE ${jobsRelation} SET available_at=253402300799999 WHERE id<>$1`,
+      [inserted.jobId]
+    )
     const first = await claim()
-    await Effect.runPromise(backend.store.release(first.ownership, "BeforeExecution"))
+    await Effect.runPromise(jobs.store.release(first.ownership, "BeforeExecution"))
     expect((await read(inserted.jobId)).created_at).toBe(original)
     const second = await claim()
     await Effect.runPromise(
-      backend.store.finalize({
+      jobs.store.finalize({
         before: second.snapshot,
         ownership: second.ownership,
         finalization: { _tag: "Retry", code }
@@ -244,8 +251,8 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     expect(retry.created_at).toBe(original)
     await Effect.runPromise(
       adapter.applicationTransaction((handle) =>
-        backend.joinTransaction(handle, () =>
-          backend.operators.retryNow({
+        jobs.joinTransaction(handle, () =>
+          jobs.operators.retryNow({
             jobId: inserted.jobId,
             state: "RetryScheduled",
             lifecycleVersion: Number(retry.lifecycle_version)
@@ -254,16 +261,16 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
       )
     )
     const third = await claim()
-    await pool.query(`UPDATE ${jobs} SET lease_expires_at=1 WHERE id=$1`, [
+    await pool.query(`UPDATE ${jobsRelation} SET lease_expires_at=1 WHERE id=$1`, [
       inserted.jobId
     ])
-    await Effect.runPromise(backend.store.recoverExpired(10))
+    await Effect.runPromise(jobs.store.recoverExpired(queue.name, 10))
     expect((await read(inserted.jobId)).created_at).toBe(original)
     const recovered = await read(inserted.jobId)
     await Effect.runPromise(
       adapter.applicationTransaction((handle) =>
-        backend.joinTransaction(handle, () =>
-          backend.operators.cancel({
+        jobs.joinTransaction(handle, () =>
+          jobs.operators.cancel({
             jobId: inserted.jobId,
             state: "Pending",
             lifecycleVersion: Number(recovered.lifecycle_version)
@@ -278,18 +285,22 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     async (kind) => {
       const first = await enqueue(kind)
       await pool.query(
-        `UPDATE ${jobs} SET state='Dead',completed_at=updated_at,attempts_made=3 WHERE id=$1`,
+        `UPDATE ${jobsRelation} SET state='Dead',completed_at=updated_at,attempts_made=3 WHERE id=$1`,
         [first.jobId]
       )
       const source = await read(first.jobId)
       const expected = { jobId: first.jobId, state: "Dead" as const, lifecycleVersion: 0 }
-      const producer = input(kind + "-successor").producer
+      const producer = {
+        operation: "fixture",
+        operationId: kind + "-successor",
+        slot: "job"
+      }
       const successor = await Effect.runPromise(
         adapter.applicationTransaction((handle) =>
-          backend.joinTransaction(handle, () =>
+          jobs.joinTransaction(handle, () =>
             kind === "Redrive"
-              ? backend.operators.redrive(definition, { expected, producer })
-              : backend.operators.correctedRedrive(definition, {
+              ? jobs.operators.redrive(definition, { expected, producer })
+              : jobs.operators.correctedRedrive(definition, {
                   expected,
                   producer,
                   payload: "corrected"
@@ -303,10 +314,10 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
       expect(Number(row.created_at)).toBeGreaterThanOrEqual(Number(source.created_at))
       const replay = await Effect.runPromise(
         adapter.applicationTransaction((handle) =>
-          backend.joinTransaction(handle, () =>
+          jobs.joinTransaction(handle, () =>
             kind === "Redrive"
-              ? backend.operators.redrive(definition, { expected, producer })
-              : backend.operators.correctedRedrive(definition, {
+              ? jobs.operators.redrive(definition, { expected, producer })
+              : jobs.operators.correctedRedrive(definition, {
                   expected,
                   producer,
                   payload: "corrected"

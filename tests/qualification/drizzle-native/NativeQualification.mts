@@ -25,7 +25,6 @@ import {
 import * as Job from "effect-jobs/Job"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Producer from "effect-jobs/JobProducer"
-import * as Policy from "effect-jobs/JobPolicy"
 import { encodeJobPayload } from "effect-jobs/JobPayloadCodec"
 import * as Application from "./NativeApplication.mjs"
 
@@ -61,15 +60,15 @@ const receipts = pgSchema(schema).table("receipts", {
 const definition = Job.make({
   kind: "invoice.generate",
   version: 1,
-  queue: Queue.make("billing"),
-  payload: Schema.Struct({ invoiceId: Schema.String }),
-  encodePayload: encodeJobPayload
+  payload: Schema.Struct({ invoiceId: Schema.String })
 })
-const producer = Producer.make({ operation: "billing.native", slots: ["generate"] })
+const producer = Producer.make("billing.native").pipe(
+  Producer.withSlot("generate", definition, { queue: Queue.make("billing") })
+)
 const input = (id: string, value = id) => ({
-  producer: producer.identity({ operationId: id, slot: "generate" }),
-  payload: { invoiceId: value },
-  policy: Policy.defaultPolicy
+  operationId: id,
+  slot: "generate" as const,
+  payload: { invoiceId: value }
 })
 const config = {
   host: "127.0.0.1",
@@ -133,15 +132,15 @@ try {
           const client = yield* PgClient.PgClient
           const db = yield* Drizzle.makeWithDefaults()
           const application = Application.make(client)
-          const backend = yield* Jobs.make({
+          const jobs = yield* Jobs.make({
             ...mapping,
             operationResponseBudgetMillis: 100
           }).pipe(Effect.provideService(PostgreSqlApplication, application))
           const writes = (id: string, tx: NativeDb, handle: unknown) =>
-            backend.joinTransaction(handle, (jobsTx) =>
+            jobs.joinTransaction(handle, (jobsTx) =>
               Effect.gen(function* () {
                 yield* tx.insert(domain).values({ id })
-                const result = yield* definition.enqueueInTransaction(jobsTx, input(id))
+                const result = yield* producer.enqueueInTransaction(jobsTx, input(id))
                 yield* tx.insert(receipts).values({ id, jobId: result.jobId })
                 return result
               })
@@ -177,8 +176,8 @@ try {
           yield* check(
             "native duplicate equality and first stored bytes",
             Effect.gen(function* () {
-              const duplicate = yield* backend.withTransaction((tx) =>
-                definition.enqueueInTransaction(tx, input("commit"))
+              const duplicate = yield* jobs.withTransaction((tx) =>
+                producer.enqueueInTransaction(tx, input("commit"))
               )
               assert.equal(duplicate._tag, "AlreadyPresent")
               assert.deepEqual(yield* Effect.promise(() => count("commit")), all)
@@ -192,11 +191,11 @@ try {
                 application.sanitizeControls(
                   client.withTransaction(
                     application.register((handle) =>
-                      backend.joinTransaction(handle, (jobsTx) =>
+                      jobs.joinTransaction(handle, (jobsTx) =>
                         Effect.gen(function* () {
                           invocations++
                           yield* db.insert(domain).values({ id: "caught-conflict" })
-                          yield* definition
+                          yield* producer
                             .enqueueInTransaction(jobsTx, input("commit", "changed"))
                             .pipe(
                               Effect.catchTags({
@@ -228,7 +227,7 @@ try {
               const Caller = Context.Service<{ readonly value: string }>(
                 "drizzle-native/Caller"
               )
-              const result = yield* backend
+              const result = yield* jobs
                 .withTransaction(() =>
                   Effect.gen(function* () {
                     return (yield* Caller).value
@@ -379,9 +378,9 @@ try {
                 let escaped:
                   | Effect.Effect<EnqueueResult, JobEnqueueError | PostgreSqlError>
                   | undefined
-                const body = backend.withTransaction((tx) =>
+                const body = jobs.withTransaction((tx) =>
                   Effect.gen(function* () {
-                    escaped = definition.enqueueInTransaction(
+                    escaped = producer.enqueueInTransaction(
                       tx,
                       input(`escaped-${channel}`)
                     )

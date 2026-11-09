@@ -2,18 +2,18 @@ import assert from "node:assert/strict"
 import { Duration, Effect, Layer, Schema } from "effect"
 import { TestClock } from "effect/testing"
 import { it } from "vitest"
-import * as Job from "../../../src/Job.js"
+import * as Job from "../definitions/ProtocolJob.js"
 import * as Queue from "../../../src/JobQueue.js"
 import * as Policy from "../../../src/JobPolicy.js"
 import * as Retry from "../../../src/JobRetryPolicy.js"
 import * as Codec from "../../../src/JobPayloadCodec.js"
 import * as Codes from "../../../src/FailureCode.js"
-import * as Registry from "../../../src/JobRegistry.js"
-import * as Worker from "../../../src/JobWorker.js"
-import * as Consumer from "../../../src/JobConsumer.js"
-import * as Runtime from "../../../src/JobWorkerRuntime.js"
+import * as Registry from "../definitions/ProtocolRegistry.js"
+import * as Worker from "./ProtocolWorker.js"
+import * as Consumer from "../definitions/ProtocolConsumer.js"
+import * as Runtime from "./ProtocolWorker.js"
 import { JobFailures } from "../../../src/JobFailure.js"
-import { FinalizationResults } from "../../../src/JobStore.js"
+import { FinalizationResult } from "../../../src/JobStore.js"
 import type { FinalizationRequest } from "../../../src/JobStore.js"
 import { harness } from "./Harness.js"
 
@@ -32,12 +32,12 @@ it.each([
       const built = yield* Policy.make({
         retry: Retry.exponential(Duration.seconds(1)).pipe(
           Retry.jittered(),
-          Retry.maxAttempts(5)
+          Retry.maxFinalizedAttempts(5)
         )
       })
       // Full is a previously stored format, not a new builder option.
       const policy = yield* Schema.decodeUnknownEffect(Policy.PersistedJobPolicy)({
-        ...built,
+        ...Schema.encodeSync(Policy.PersistedJobPolicy)(built),
         retrySchedule: { ...built.retrySchedule, jitter: scenario.jitter }
       })
       const test = harness([
@@ -57,8 +57,8 @@ it.each([
             return test.store.finalize(request)
           }
           return scenario.loss === "before-commit"
-            ? Effect.succeed(FinalizationResults.Unknown())
-            : test.store.finalize(request).pipe(Effect.as(FinalizationResults.Unknown()))
+            ? Effect.succeed(FinalizationResult.Unknown())
+            : test.store.finalize(request).pipe(Effect.as(FinalizationResult.Unknown()))
         }
       }
       let handlerCalls = 0
@@ -102,7 +102,7 @@ it.each([
           ? Math.floor(command.jitterSample * 1001)
           : 800 + Math.floor(command.jitterSample * 401)
       )
-      assert.equal(row.attemptsMade, 1)
+      assert.equal(row.finalizedAttempts, 1)
     }).pipe(Effect.provide(Layer.merge(Registry.layer, TestClock.layer())), Effect.scoped)
   )
 })

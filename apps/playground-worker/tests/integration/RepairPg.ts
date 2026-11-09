@@ -10,7 +10,7 @@ import * as Qualification from "../repairs/PostgreSqlQualification.js"
 import * as Migrations from "../../src/persistence/MigrationRegistry.js"
 import * as Event from "../../src/execution/Event.js"
 import * as Executor from "../../src/execution/Executor.js"
-import * as Drain from "effect-jobs/JobWorkerRuntime"
+import * as Drain from "effect-jobs/JobWorker"
 import * as Manager from "../../src/demo/Manager.js"
 import * as Showcase from "../../src/demo/RepairShowcase.js"
 import * as DemoHttp from "../../src/demo/Http.js"
@@ -96,9 +96,11 @@ export const prepareRecorded = async () => {
   report.stage = "actual trusted demo seed and handlers"
   await run(Manager.tick(cfg.schema))
   const drain = Effect.gen(function* () {
-    const plans = yield* Executor.consumers
-    for (const plan of plans) {
-      yield* Drain.drain(plan)
+    for (const queue of Executor.queues) {
+      yield* Drain.drain(queue, {
+        maxJobs: Executor.limits.claimLimit,
+        recoveryLimit: Executor.limits.recoveryLimit
+      })
     }
   })
   // Finite bounded drains, not sleep/polling or fabricated lifecycle changes.
@@ -131,8 +133,11 @@ export const drainRecorded = () => {
       config,
       Effect.void,
       Effect.gen(function* () {
-        for (const plan of yield* Executor.consumers) {
-          yield* Drain.drain(plan)
+        for (const queue of Executor.queues) {
+          yield* Drain.drain(queue, {
+            maxJobs: Executor.limits.claimLimit,
+            recoveryLimit: Executor.limits.recoveryLimit
+          })
         }
         const Reconcile = yield* Effect.promise(
           () => import("../../src/execution/RepairReconciliation.js")

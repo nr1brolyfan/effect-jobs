@@ -67,7 +67,7 @@ export function JobMetadata(inputProps: { readonly detail: JobDetail }) {
             <h2 {...stylex.props(styles.heading)}>Execution policy</h2>
             <PropertyGrid
               items={[
-                { label: "Attempt limit", value: policy.maxAttempts },
+                { label: "Finalized attempt limit", value: policy.maxFinalizedAttempts },
                 { label: "Recovery limit", value: policy.maxStalledCount },
                 {
                   label: "Attempt timeout",

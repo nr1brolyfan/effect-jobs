@@ -4,13 +4,16 @@ import { createHmac, randomUUID } from "node:crypto"
 import { Context, Duration, Effect, Layer, Logger, Schema, SchemaAST } from "effect"
 import { TestClock } from "effect/testing"
 import { it } from "vitest"
-import * as Job from "../../src/Job.js"
+import * as Job from "../core/definitions/ProtocolJob.js"
 import * as Queue from "../../src/JobQueue.js"
 import * as Codec from "../../src/JobPayloadCodec.js"
 import * as Policy from "../../src/JobPolicy.js"
 import { JobPayloadCodecError } from "../../src/JobContract.js"
 import { JobFailures } from "../../src/JobFailure.js"
-import { JobRegistry, layer as registryLayer } from "../../src/JobRegistry.js"
+import {
+  JobRegistry,
+  layer as registryLayer
+} from "../core/definitions/ProtocolRegistry.js"
 import { canonicalText } from "../../src/internal/codec/CanonicalJson.js"
 import { project } from "../../src/internal/codec/ProtectedProjection.js"
 import { executionFor } from "../../src/internal/worker/Execution.js"
@@ -398,14 +401,14 @@ for (const mode of [
           test.rows[0]!.snapshot.state,
           mode === "valid" ? "Completed" : "Isolated"
         )
-        assert.equal(test.rows[0]!.snapshot.attemptsMade, 1)
+        assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 1)
         if (mode !== "valid") {
           assert.equal(test.rows[0]!.snapshot.lastFailureCode, "invalid_claimed_artifact")
         }
         if (mode === "unavailable") {
           keys.outage(false)
           yield* TestClock.adjust("2 minutes")
-          assert.equal(yield* test.store.recoverExpired(1), 0)
+          assert.equal(yield* test.store.recoverExpired(definition.queue.name, 1), 0)
           const afterRecovery = yield* test.store.claim({
             queue: definition.queue.name,
             supportedCatalog: [definition.catalog],
@@ -430,8 +433,8 @@ for (const mode of [
   })
 }
 
-for (const maxAttempts of [1, 3]) {
-  it(`proposal control: explicit transient decode Retry with maxAttempts=${maxAttempts}`, async () => {
+for (const maxFinalizedAttempts of [1, 3]) {
+  it(`proposal control: explicit transient decode Retry with maxFinalizedAttempts=${maxFinalizedAttempts}`, async () => {
     const keys = keyFixture("receipt")
     let handlerCalls = 0
     await Effect.runPromise(
@@ -448,7 +451,9 @@ for (const maxAttempts of [1, 3]) {
               slot: "document"
             },
             policy: yield* Policy.make({
-              retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(maxAttempts))
+              retry: Retry.fixed(Duration.seconds(5)).pipe(
+                Retry.maxFinalizedAttempts(maxFinalizedAttempts)
+              )
             }),
             encoded
           }
@@ -499,9 +504,9 @@ for (const maxAttempts of [1, 3]) {
         )
         assert.equal(
           test.rows[0]!.snapshot.state,
-          maxAttempts === 1 ? "Dead" : "RetryScheduled"
+          maxFinalizedAttempts === 1 ? "Dead" : "RetryScheduled"
         )
-        assert.equal(test.rows[0]!.snapshot.attemptsMade, 1)
+        assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 1)
         assert.equal(test.rows[0]!.snapshot.stalledCount, 0)
         assert.equal(test.rows[0]!.snapshot.lastFailureCode, "payload_key_unavailable")
         assert.equal(handlerCalls, 0)
@@ -512,7 +517,7 @@ for (const maxAttempts of [1, 3]) {
           supportedCatalog: [definition.catalog],
           leaseToken: "00000000-0000-4000-8000-000000000002"
         })
-        if (maxAttempts === 1) {
+        if (maxFinalizedAttempts === 1) {
           assert.equal(resumed._tag, "Empty")
         } else {
           assert.equal(resumed._tag, "Claimed")
@@ -526,7 +531,7 @@ for (const maxAttempts of [1, 3]) {
             )
           }
           assert.equal(test.rows[0]!.snapshot.state, "Completed")
-          assert.equal(test.rows[0]!.snapshot.attemptsMade, 2)
+          assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 2)
           assert.equal(handlerCalls, 1)
         }
       }).pipe(

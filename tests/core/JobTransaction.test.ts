@@ -1,7 +1,7 @@
-import { Effect, Fiber, Latch, Schema } from "effect"
+import { Deferred, Effect, Fiber, Latch, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import {
-  EnqueueResults,
+  EnqueueResult,
   JobIntegrityConflict,
   type PreparedJob
 } from "../../src/JobContract.js"
@@ -10,6 +10,7 @@ import * as JobPolicy from "../../src/JobPolicy.js"
 import { JobsTransactionClosed, type JobsTransaction } from "../../src/JobTransaction.js"
 import {
   insertPrepared,
+  insertPreparing,
   withJoinedTransaction
 } from "../../src/internal/JobTransaction.js"
 
@@ -23,17 +24,85 @@ const prepared: PreparedJob = {
     semanticProjectionBytes: new Uint8Array()
   }
 }
-const jobId = Schema.decodeSync(JobId)("assigned-by-backend")
+const jobId = Schema.decodeSync(JobId)("assigned-by-jobs")
 
 describe("internal callback-scoped capability", () => {
-  it("forwards to exactly the supplied backend and remains provisional", async () => {
+  it("rechecks lifetime after asynchronous preparation without inserting after callback exit", async () => {
+    let writes = 0
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const entered = yield* Deferred.make<void>()
+        const proceed = yield* Deferred.make<void>()
+        const fiber = yield* withJoinedTransaction(
+          () =>
+            Effect.sync(() => {
+              writes++
+              return EnqueueResult.Inserted({ jobId })
+            }),
+          (tx) =>
+            Effect.gen(function* () {
+              const child = yield* insertPreparing(
+                tx,
+                Deferred.succeed(entered, undefined).pipe(
+                  Effect.andThen(Deferred.await(proceed)),
+                  Effect.as(prepared)
+                )
+              ).pipe(Effect.forkChild)
+              yield* Deferred.await(entered)
+              return child
+            })
+        )
+        yield* Deferred.succeed(proceed, undefined)
+        const result = yield* Fiber.join(fiber).pipe(Effect.result)
+        expect(result).toMatchObject({
+          _tag: "Failure",
+          failure: { _tag: "JobsTransactionClosed" }
+        })
+        expect(writes).toBe(0)
+      })
+    )
+  })
+  it("rejects an escaped operation before any preparation services run", async () => {
+    let escaped: JobsTransaction | undefined
+    let preparations = 0
+    let writes = 0
+    await Effect.runPromise(
+      withJoinedTransaction(
+        () =>
+          Effect.sync(() => {
+            writes++
+            return EnqueueResult.Inserted({ jobId })
+          }),
+        (tx) =>
+          Effect.sync(() => {
+            escaped = tx
+          })
+      )
+    )
+    const result = await Effect.runPromise(
+      insertPreparing(
+        escaped!,
+        Effect.sync(() => {
+          preparations++
+          return prepared
+        })
+      ).pipe(Effect.result)
+    )
+    expect(result).toMatchObject({
+      _tag: "Failure",
+      failure: { _tag: "JobsTransactionClosed" }
+    })
+    expect(preparations).toBe(0)
+    expect(writes).toBe(0)
+  })
+  it("forwards to exactly the supplied jobs and remains provisional", async () => {
     const received: Array<PreparedJob> = []
     const result = await Effect.runPromise(
       withJoinedTransaction(
         (value) =>
           Effect.sync(() => {
             received.push(value)
-            return EnqueueResults.Inserted({ jobId })
+            return EnqueueResult.Inserted({ jobId })
           }),
         (tx) => insertPrepared(tx, prepared)
       )
@@ -41,8 +110,8 @@ describe("internal callback-scoped capability", () => {
     expect(received).toEqual([prepared])
     expect(result).toEqual({ _tag: "Inserted", jobId })
   })
-  it("preserves backend and integrity failures rather than committing or replaying", async () => {
-    for (const error of ["backend-failure", new JobIntegrityConflict()]) {
+  it("preserves jobs and integrity failures rather than committing or replaying", async () => {
+    for (const error of ["jobs-failure", new JobIntegrityConflict()]) {
       let calls = 0
       const result = await Effect.runPromise(
         withJoinedTransaction(
@@ -68,7 +137,7 @@ describe("internal callback-scoped capability", () => {
         () =>
           Effect.sync(() => {
             calls++
-            return EnqueueResults.Inserted({ jobId })
+            return EnqueueResult.Inserted({ jobId })
           }),
         (tx) => {
           escaped = tx
@@ -114,7 +183,7 @@ describe("internal callback-scoped capability", () => {
             () =>
               Effect.sync(() => {
                 calls++
-                return EnqueueResults.Inserted({ jobId })
+                return EnqueueResult.Inserted({ jobId })
               }),
             (tx) =>
               Effect.gen(function* () {
@@ -136,7 +205,7 @@ describe("internal callback-scoped capability", () => {
   it("allocates independent lifetimes on every execution of a join Effect", async () => {
     const handles: Array<JobsTransaction> = []
     const program = withJoinedTransaction(
-      () => Effect.succeed(EnqueueResults.AlreadyPresent({ jobId })),
+      () => Effect.succeed(EnqueueResult.AlreadyPresent({ jobId })),
       (tx) =>
         Effect.gen(function* () {
           handles.push(tx)

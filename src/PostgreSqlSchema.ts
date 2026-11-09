@@ -5,7 +5,7 @@ import { Data } from "effect"
 import { createHash } from "node:crypto"
 
 /**
- * Thrown for invalid table configuration or returned for invalid backend budget.
+ * Thrown for invalid table configuration or returned for invalid storage budget.
  *
  * @category errors
  */
@@ -30,7 +30,7 @@ export interface TableOptions {
   readonly payloadsTable?: string
 }
 /**
- * Complete storage mapping shared by backend and application migration generation.
+ * Complete storage mapping shared by runtime configuration and application migration generation.
  *
  * @category models
  */
@@ -94,7 +94,7 @@ const lineageConstraints = (
 /**
  * Returns DDL for the configured jobs and immutable payload tables and indexes.
  * The application creates the schema and runs migrations; runtime never invokes DDL.
- * Use the same mapping for backend construction.
+ * Use the same mapping for jobs construction.
  *
  * @example
  * ```ts

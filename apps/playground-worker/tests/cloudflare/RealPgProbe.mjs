@@ -1,3 +1,5 @@
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 // Qualification FFI: identical packed-library program on Node, Bun and workerd.
 import assert from "node:assert/strict"
 import {
@@ -14,16 +16,16 @@ import {
 import * as Reactivity from "effect/reactivity/Reactivity"
 import * as Pg from "@effect/sql-pg/PgClient"
 import * as Native from "effect-jobs/PostgreSqlNative"
-import * as Backend from "effect-jobs/PostgreSqlJobs"
+import * as Jobs from "effect-jobs/PostgreSqlJobs"
 import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import * as Job from "effect-jobs/Job"
+import * as Producer from "effect-jobs/JobProducer"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Policy from "effect-jobs/JobPolicy"
-import * as Codec from "effect-jobs/JobPayloadCodec"
-import * as Registry from "effect-jobs/JobRegistry"
+import * as Group from "effect-jobs/JobGroup"
 import * as Worker from "effect-jobs/JobWorker"
-import * as Consumer from "effect-jobs/JobConsumer"
+import * as Storage from "effect-jobs/JobStorage"
 import * as Wake from "../../src/cloudflare/WakeCycle.js"
 import * as Retry from "effect-jobs/JobRetryPolicy"
 
@@ -45,28 +47,36 @@ export const probe = (url, schema, alarm, checks = []) =>
         idleTimeout: "1 second"
       })
       const adapter = Native.make({ client, operationTimeoutMillis: 2000 })
-      const backend = yield* Backend.make({
+      const jobs = yield* Jobs.make({
         schema,
         operationResponseBudgetMillis: 500
       }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
-      yield* backend.ready
-      checks.push("real connection and packed backend readiness")
+      yield* jobs.ready
+      checks.push("real connection and packed jobs readiness")
+      const queue = Queue.make("cf-real")
       const definition = Job.make({
-        queue: Queue.make("cf-real"),
         kind: "synthetic",
         payload: Schema.String
       })
       const policy = yield* Policy.make({
         leaseDuration: Duration.millis(1800),
         attemptTimeout: Duration.millis(200),
-        retry: Retry.fixed(Duration.millis(500)).pipe(Retry.maxAttempts(2))
+        retry: Retry.fixed(Duration.millis(500)).pipe(Retry.maxFinalizedAttempts(2))
       })
       const input = (id, payload = id, availableAt) => ({
-        producer: { operation: "cf.real", operationId: id, slot: "one" },
+        operationId: id,
+        slot: "one",
         payload,
-        policy,
         ...(availableAt === undefined ? {} : { availableAt })
       })
+      const producer = Producer.make("cf.real").pipe(
+        Producer.withSlot("one", definition, { queue, policy })
+      )
+      const catalog = {
+        queue: queue.name,
+        kind: definition.kind,
+        version: definition.version
+      }
       const sql = (text, values = []) => client.unsafe(text, values)
       const row = (id) =>
         sql(`SELECT * FROM ${schema}.jobs WHERE operation_id=$1`, [id]).pipe(
@@ -87,7 +97,7 @@ export const probe = (url, schema, alarm, checks = []) =>
               "SELECT pg_backend_pid() AS pid, txid_current()::text AS xid"
             ))[0]
             yield* sql(`INSERT INTO ${schema}.domain VALUES ($1)`, [id])
-            const job = yield* definition.enqueue(input(id))
+            const job = yield* producer.enqueue(input(id))
             yield* sql(`INSERT INTO ${schema}.receipts VALUES ($1,$2)`, [id, job.jobId])
             const after = (yield* sql(
               "SELECT pg_backend_pid() AS pid, txid_current()::text AS xid"
@@ -105,7 +115,7 @@ export const probe = (url, schema, alarm, checks = []) =>
           })
         )
       return yield* Effect.gen(function* () {
-        const absent = yield* Effect.flip(definition.enqueue(input("outside")))
+        const absent = yield* Effect.flip(producer.enqueue(input("outside")))
         assert.equal(absent.reason, "transaction-required")
         assert.equal(absent.commitKnowledge, "NotCommitted")
         yield* transact("commit", false)
@@ -117,7 +127,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         )
         const duplicates = yield* Effect.all(
           [0, 1].map(() =>
-            backend.withTransaction(() => definition.enqueue(input("duplicate")))
+            jobs.withTransaction(() => producer.enqueue(input("duplicate")))
           ),
           { concurrency: 2 }
         )
@@ -129,7 +139,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         const conflicts = yield* Effect.all(
           ["a", "b"].map((value) =>
             Effect.exit(
-              backend.withTransaction(() => definition.enqueue(input("conflict", value)))
+              jobs.withTransaction(() => producer.enqueue(input("conflict", value)))
             )
           ),
           { concurrency: 2 }
@@ -141,13 +151,13 @@ export const probe = (url, schema, alarm, checks = []) =>
         yield* sql(`DELETE FROM ${schema}.receipts`)
         yield* sql(`DELETE FROM ${schema}.jobs`)
         const claim = () =>
-          backend.store.claim({
-            queue: definition.queue.name,
-            supportedCatalog: [definition.catalog],
+          jobs.store.claim({
+            queue: queue.name,
+            supportedCatalog: [catalog],
             leaseToken: crypto.randomUUID()
           })
         const finish = (c, finalization) =>
-          backend.store.finalize({
+          jobs.store.finalize({
             ownership: c.ownership,
             before: c.snapshot,
             finalization
@@ -157,7 +167,7 @@ export const probe = (url, schema, alarm, checks = []) =>
             "SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now"
           ))[0].now
         )
-        yield* definition.enqueueStandalone(input("delayed", "delayed", now + 1000))
+        yield* producer.enqueueStandalone(input("delayed", "delayed", now + 1000))
         assert.equal((yield* claim())._tag, "Empty")
         yield* Effect.sleep("1100 millis")
         const first = yield* claim()
@@ -173,7 +183,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         yield* finish(second.claim, { _tag: "Complete" })
         assert.equal((yield* row("delayed")).state, "Completed")
         checks.push("DB-time delayed eligibility and persisted retry delay")
-        yield* definition.enqueueStandalone(input("recovery"))
+        yield* producer.enqueueStandalone(input("recovery"))
         const old = yield* claim()
         assert.equal(old._tag, "Claimed")
         const fixed = Number(old.claim.ownership.leaseExpiresAt)
@@ -181,7 +191,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         assert(
           Exit.isFailure(yield* Effect.exit(finish(old.claim, { _tag: "Complete" })))
         )
-        assert.equal(yield* backend.store.recoverExpired(1), 1)
+        assert.equal(yield* jobs.store.recoverExpired(queue.name, 1), 1)
         const fresh = yield* claim()
         assert.equal(fresh._tag, "Claimed")
         assert.notEqual(fresh.claim.ownership.leaseToken, old.claim.ownership.leaseToken)
@@ -195,7 +205,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         const sleeping = client.withTransaction(
           Effect.gen(function* () {
             yield* sql(`INSERT INTO ${schema}.domain VALUES ('interrupted')`)
-            yield* definition.enqueue(input("interrupted"))
+            yield* producer.enqueue(input("interrupted"))
             yield* Deferred.succeed(entered, undefined)
             yield* sql("SELECT pg_sleep(8)")
           })
@@ -213,28 +223,29 @@ export const probe = (url, schema, alarm, checks = []) =>
         })
         assert.equal(Number((yield* sql("SELECT 1 AS ok"))[0].ok), 1)
         checks.push("interruption during genuine SQL; rollback and reusable client")
-        yield* definition.enqueueStandalone(input("worker"))
+        yield* producer.enqueueStandalone(input("worker"))
         let calls = 0
-        const worker = Worker.layer(backend.store, {
-          catalog: [definition],
-          operationResponseBudgetMillis: 500
-        }).pipe(
+        const group = Group.make("cloudflare-real-pg", { synthetic: definition })
+        const worker = Worker.layer(
+          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          {
+            queues: [{ queue, concurrency: 2 }]
+          }
+        ).pipe(
+          Layer.provide(Layer.succeed(Storage.JobStorage, jobs.storage)),
           Layer.provide(
-            definition.handlerLayer(
-              () =>
-                Effect.sync(() => {
-                  calls++
-                }),
-              Codec.decodeJobPayload
+            JobApiBuilder.group(
+              JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+              group.name,
+              (_handlers) =>
+                _handlers.handle("synthetic", () =>
+                  Effect.sync(() => {
+                    calls++
+                  })
+                )
             )
-          ),
-          Layer.provide(Registry.layer)
+          )
         )
-        const consumer = yield* Consumer.make(definition.queue, {
-          localConcurrency: 2,
-          claimLimitPerRun: 10,
-          recoveryLimitPerRun: 10
-        })
         const schedule =
           sql(`WITH t AS MATERIALIZED (SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now)
       SELECT t.now,a.expires_at,
@@ -252,7 +263,7 @@ export const probe = (url, schema, alarm, checks = []) =>
             })),
             Effect.mapError(() => new Wake.WakeUnavailable())
           )
-        yield* Wake.run(consumer).pipe(
+        yield* Wake.run(queue).pipe(
           Effect.provide(worker),
           Effect.provideService(Wake.WakeSchedule, { read: schedule }),
           Effect.provideService(Wake.WakeAlarm, alarm)
@@ -268,6 +279,6 @@ export const probe = (url, schema, alarm, checks = []) =>
           hosted: "NotTested",
           cpuCrashNetwork: "NotTested"
         }
-      }).pipe(Effect.provideService(JobEnqueue, backend.producer))
+      }).pipe(Effect.provideService(JobEnqueue, jobs.producer))
     })
   ).pipe(Effect.provide(Reactivity.layer), Effect.timeout("40 seconds"))

@@ -68,18 +68,18 @@ const seedBatch = (
 ) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
-    const backend = yield* PostgreSqlJobs
+    const jobs = yield* PostgreSqlJobs
     const ref = yield* Schema.decodeUnknownEffect(SandboxRef)({
       sandboxId: id,
       generation: 1
     })
-    const jobs = yield* Plan.plan(
+    const plannedJobs = yield* Plan.plan(
       { sandbox: ref, requestId, scenario: "success", count },
       ref,
       seed,
       availableAt
     )
-    for (const job of jobs) {
+    for (const job of plannedJobs) {
       const profile = profiles?.[job.payload.sequence - 1]
       const planned = {
         ...job,
@@ -90,7 +90,7 @@ const seedBatch = (
         })
       }
       const result = yield* Plan.enqueue(planned).pipe(
-        Effect.provideService(JobEnqueue, backend.producer)
+        Effect.provideService(JobEnqueue, jobs.producer)
       )
       yield* sql.unsafe(
         `INSERT INTO ${relations(schema).associations} VALUES($1,1,$2,$3::jsonb)`,

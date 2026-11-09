@@ -42,12 +42,12 @@ describe("portable lifecycle (not database qualification)", () => {
       "malformed"
     ]
   ] as const)("known $0._tag transition", (command, state, code) => {
-    const before = active({ attemptsMade: 1, stalledCount: 1 })
+    const before = active({ finalizedAttempts: 1, stalledCount: 1 })
     const after = value(L.finalize(before, ownership(before), command, now + 1))
     expect(after).toMatchObject({
       state,
       lastFailureCode: code,
-      attemptsMade: 2,
+      finalizedAttempts: 2,
       stalledCount: 1,
       lifecycleVersion: 2,
       updatedAt: now + 1,
@@ -57,7 +57,7 @@ describe("portable lifecycle (not database qualification)", () => {
     expect(after.completedAt).toBe(
       state === "Completed" || state === "Dead" ? now + 1 : null
     )
-    expect(before.attemptsMade).toBe(1)
+    expect(before.finalizedAttempts).toBe(1)
   })
   it.each(["Pending", "RetryScheduled", "Completed", "Dead", "Isolated"] as const)(
     "recovery rejects %s",
@@ -77,14 +77,14 @@ describe("portable lifecycle (not database qualification)", () => {
     if (Result.isSuccess(result)) {
       expect(result.success).toMatchObject({
         state: "Active",
-        attemptsMade: 0,
+        finalizedAttempts: 0,
         stalledCount: 0,
         lifecycleVersion: 1,
         updatedAt: now,
         leaseExpiresAt: now + 100
       })
       expect(result.success.policy).toEqual(policy)
-      expect(L.attemptNumber(result.success)).toBe(1)
+      expect(L.nextFinalizationNumber(result.success)).toBe(1)
       expect(Schema.is(L.JobSnapshot)(result.success)).toBe(true)
     }
   })
@@ -121,7 +121,7 @@ describe("portable lifecycle (not database qualification)", () => {
       if (Result.isFailure(result)) {
         expect(result.failure.reason).toBe("ownership-lost")
       } else {
-        expect(result.success.attemptsMade).toBe(1)
+        expect(result.success.finalizedAttempts).toBe(1)
         expect(result.success.lifecycleVersion).toBe(2)
         expect(result.success.leaseToken).toBeNull()
         expect(result.success.leaseExpiresAt).toBeNull()
@@ -171,7 +171,7 @@ describe("portable lifecycle (not database qualification)", () => {
     if (Result.isSuccess(result)) {
       expect(result.success).toMatchObject({
         state: "Pending",
-        attemptsMade: 0,
+        finalizedAttempts: 0,
         stalledCount: 0,
         lifecycleVersion: 2,
         availableAt: now + 99,
@@ -191,7 +191,7 @@ describe("portable lifecycle (not database qualification)", () => {
         ownership(),
         L.JobFinalizations.Retry({
           code: FailureCodes.define({ value: "temporary" }).value,
-          notAfter: now + 6 + offset
+          retryBefore: now + 6 + offset
         }),
         now + 1
       )
@@ -199,41 +199,49 @@ describe("portable lifecycle (not database qualification)", () => {
     expect(row.state).toBe(offset <= 0 ? "Dead" : "RetryScheduled")
     expect(row.availableAt).toBe(now + 6)
     expect(row.completedAt).toBe(offset <= 0 ? now + 1 : null)
+    expect(row.finalizedAttempts).toBe(1)
+    expect(row.stalledCount).toBe(0)
+    expect(row.policy).toEqual(active().policy)
   })
-  it.each([1, 3, 100])("maxAttempts %i includes first finalization", (maxAttempts) => {
-    let row = pending({
-      policy: Effect.runSync(
-        Policy.make({
-          retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxAttempts(maxAttempts))
-        })
-      )
-    })
-    for (let n = 1; n <= maxAttempts; n++) {
-      row = value(L.claim(row, token, row.availableAt, 1))
-      expect(L.attemptNumber(row)).toBe(n)
-      const next = value(
-        L.finalize(
-          row,
-          ownership(row),
-          L.JobFinalizations.Retry({
-            code: FailureCodes.define({ value: "temporary" }).value
-          }),
-          row.updatedAt + 1
+  it.each([1, 3, 100])(
+    "maxFinalizedAttempts %i includes first finalization",
+    (maxFinalizedAttempts) => {
+      let row = pending({
+        policy: Effect.runSync(
+          Policy.make({
+            retry: Retry.fixed(Duration.seconds(5)).pipe(
+              Retry.maxFinalizedAttempts(maxFinalizedAttempts)
+            )
+          })
         )
-      )
-      expect(next.attemptsMade).toBe(n)
-      expect(next.state).toBe(n === maxAttempts ? "Dead" : "RetryScheduled")
-      row = next
+      })
+      for (let n = 1; n <= maxFinalizedAttempts; n++) {
+        row = value(L.claim(row, token, row.availableAt, 1))
+        expect(L.nextFinalizationNumber(row)).toBe(n)
+        const next = value(
+          L.finalize(
+            row,
+            ownership(row),
+            L.JobFinalizations.Retry({
+              code: FailureCodes.define({ value: "temporary" }).value
+            }),
+            row.updatedAt + 1
+          )
+        )
+        expect(next.finalizedAttempts).toBe(n)
+        expect(next.state).toBe(n === maxFinalizedAttempts ? "Dead" : "RetryScheduled")
+        row = next
+      }
+      expect(reason(L.claim(row, token, row.availableAt, 1))).toBe("not-eligible")
     }
-    expect(reason(L.claim(row, token, row.availableAt, 1))).toBe("not-eligible")
-  })
+  )
   it.each([-1, 0, 1])("recovery at expiry + %i", (offset) => {
     const result = L.recoverExpired(active(), now + 100 + offset)
     expect(Result.isSuccess(result)).toBe(offset >= 0)
     if (Result.isSuccess(result)) {
       expect(result.success).toMatchObject({
         state: "Pending",
-        attemptsMade: 0,
+        finalizedAttempts: 0,
         stalledCount: 1,
         lifecycleVersion: 2,
         leaseToken: null,
@@ -247,12 +255,12 @@ describe("portable lifecycle (not database qualification)", () => {
       let row = pending({ policy: Effect.runSync(Policy.make({ maxStalledCount })) })
       for (let n = 1; n <= maxStalledCount + 1; n++) {
         row = value(L.claim(row, token, Math.max(now, row.updatedAt), 1))
-        expect(L.attemptNumber(row)).toBe(1)
+        expect(L.nextFinalizationNumber(row)).toBe(1)
         const expiry = row.leaseExpiresAt!
         row = value(L.recoverExpired(row, expiry))
         expect(row.state).toBe(n > maxStalledCount ? "Dead" : "Pending")
         expect(row.stalledCount).toBe(n)
-        expect(row.attemptsMade).toBe(0)
+        expect(row.finalizedAttempts).toBe(0)
         expect(Schema.is(L.JobSnapshot)(row)).toBe(true)
       }
       expect(row.lastFailureCode).toBe("stall_limit_exceeded")
@@ -350,9 +358,9 @@ describe("portable lifecycle (not database qualification)", () => {
   it.each([
     {},
     { state: "OutcomeUnknown" },
-    { attemptsMade: -1 },
-    { attemptsMade: 0.5 },
-    { attemptsMade: 4 },
+    { finalizedAttempts: -1 },
+    { finalizedAttempts: 0.5 },
+    { finalizedAttempts: 4 },
     { stalledCount: 3 },
     { lifecycleVersion: Number.MAX_SAFE_INTEGER + 1 },
     { leaseToken: token },

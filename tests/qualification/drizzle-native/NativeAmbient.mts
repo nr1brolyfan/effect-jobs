@@ -4,7 +4,17 @@ import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto"
 import { Pool } from "pg"
-import { Cause, Deferred, Effect, Exit, Fiber, Option, Redacted, Schema } from "effect"
+import {
+  Cause,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Option,
+  Redacted,
+  Schema,
+  SchemaGetter
+} from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import * as Pg from "@effect/sql-pg/PgClient"
 import * as Drizzle from "drizzle-orm/effect-postgres"
@@ -19,13 +29,13 @@ import {
   PostgreSqlFailure,
   PostgreSqlApplication
 } from "effect-jobs/PostgreSqlTransaction"
-import { JobEnqueue, JobBackendError } from "effect-jobs/JobEnqueue"
+import { JobEnqueue, JobPersistenceError } from "effect-jobs/JobEnqueue"
 import * as Tables from "effect-jobs/PostgreSqlSchema"
 import * as Job from "effect-jobs/Job"
+import * as Producer from "effect-jobs/JobProducer"
 import * as Queue from "effect-jobs/JobQueue"
-import * as Policy from "effect-jobs/JobPolicy"
 import * as Payload from "effect-jobs/JobPayload"
-import { encodeJobPayload } from "effect-jobs/JobPayloadCodec"
+import * as Policy from "effect-jobs/JobPolicy"
 
 const resource = process.env.D6_RESOURCE_DIRECTORY!
 const ownership = readQualificationResource(resource)
@@ -53,14 +63,18 @@ const mapping = Tables.tables({ schema })
 const domain = pgSchema(schema).table("invoices", { id: text("id").primaryKey() })
 const receipts = pgSchema(schema).table("receipts", { id: text("id").primaryKey() })
 const traceReceipts: Array<{ id: string; pid: number; xid: string }> = []
+const queue = Queue.make("billing")
 const definition = Job.make({
-  queue: Queue.make("billing"),
   kind: "receipt",
   payload: Schema.Struct({ invoiceId: Schema.String })
 })
+const catalog = { queue: queue.name, kind: definition.kind, version: definition.version }
+const producer = Producer.make("billing.issue").pipe(
+  Producer.withSlot("receipt", definition, { queue })
+)
 const input = (id: string, value = id) => ({
-  producer: { operation: "billing.issue", operationId: id, slot: "receipt" },
-  policy: Policy.defaultPolicy,
+  operationId: id,
+  slot: "receipt" as const,
   payload: { invoiceId: value }
 })
 const admin = new Pool(config)
@@ -105,11 +119,11 @@ try {
     const db = yield* Drizzle.makeWithDefaults()
     assert.strictEqual(db.$client, client)
     const adapter = Native.make({ client, operationTimeoutMillis: 2000 })
-    const backend = yield* Jobs.make({
+    const jobs = yield* Jobs.make({
       ...mapping,
       operationResponseBudgetMillis: 100
     }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
-    yield* backend.ready
+    yield* jobs.ready
     return yield* Effect.gen(function* () {
       const produce = (
         id: string,
@@ -124,13 +138,13 @@ try {
             const before = yield* client.unsafe(
               "SELECT pg_backend_pid() AS pid,txid_current()::text AS xid"
             )
-            const result = yield* backend.withTransaction(() =>
+            const result = yield* jobs.withTransaction(() =>
               Effect.gen(function* () {
                 const joined = yield* Effect.serviceOption(client.transactionService)
                 assert(Option.isSome(joined))
                 assert.strictEqual(joined.value[0], active.value[0])
                 assert.equal(joined.value[1], 0)
-                return yield* definition.enqueue(input(id))
+                return yield* producer.enqueue(input(id))
               })
             )
             yield* db.insert(receipts).values({ id })
@@ -196,7 +210,7 @@ try {
           })
         )
       const joined = (id: string, value = id) =>
-        backend.withTransaction(() => definition.enqueue(input(id, value)))
+        jobs.withTransaction(() => producer.enqueue(input(id, value)))
       yield* produce("commit")
       assert.deepEqual(yield* count("commit"), all)
       const rolled = yield* Effect.exit(produce("rollback", true))
@@ -256,18 +270,60 @@ try {
       assert.equal(conflict.filter(Exit.isSuccess).length, 1)
       assert.equal(conflict.filter(Exit.isFailure).length, 1)
       checks.push("parallel isolated transactions and matching/conflicting dedup")
-      const absent = yield* Effect.flip(definition.enqueue(input("outside")))
-      assert(absent instanceof JobBackendError)
+      const priority = Queue.make("billing-priority")
+      const selectable = Producer.make("billing.issue").pipe(
+        Producer.withSlot("receipt", definition, { queues: [queue, priority] })
+      )
+      const priorityPolicy = { ...Policy.defaultPolicy, maxFinalizedAttempts: 7 }
+      for (const mode of ["ambient", "standalone"] as const) {
+        const command = {
+          ...input(`override-${mode}`),
+          queue: priority.name,
+          policy: priorityPolicy
+        }
+        const first =
+          mode === "ambient"
+            ? yield* client.withTransaction(selectable.enqueue(command))
+            : yield* selectable.enqueueStandalone(command)
+        const before = yield* client.unsafe<{ queue: string; policy: unknown }>(
+          `SELECT j.*,p.payload,p.projection FROM ${schema}.jobs j JOIN ${schema}.job_payloads p ON p.job_id=j.id WHERE j.id=$1`,
+          [first.jobId]
+        )
+        assert.equal(before[0]!.queue, priority.name)
+        assert.deepEqual(
+          before[0]!.policy,
+          Schema.encodeSync(Policy.PersistedJobPolicy)(priorityPolicy)
+        )
+        const replay = yield* selectable.enqueueStandalone({
+          ...input(`override-${mode}`),
+          queue: queue.name,
+          policy: Policy.defaultPolicy
+        })
+        assert.equal(replay._tag, "AlreadyPresent")
+        assert.equal(replay.jobId, first.jobId)
+        assert.deepEqual(
+          yield* client.unsafe(
+            `SELECT j.*,p.payload,p.projection FROM ${schema}.jobs j JOIN ${schema}.job_payloads p ON p.job_id=j.id WHERE j.id=$1`,
+            [first.jobId]
+          ),
+          before
+        )
+      }
+      checks.push(
+        "per-production native ambient/standalone overrides retain first routing, stored policy and artifact on replay"
+      )
+      const absent = yield* Effect.flip(producer.enqueue(input("outside")))
+      assert(absent instanceof JobPersistenceError)
       assert.equal(absent.reason, "transaction-required")
       assert.deepEqual(yield* count("outside"), none)
-      // A distinct client's transaction cannot satisfy this configured backend.
+      // A distinct client's transaction cannot satisfy this configured jobs.
       const foreign = yield* Pg.make({ ...client.config, maxConnections: 1 }).pipe(
         Effect.provide(Reactivity.layer)
       )
       const wrong = yield* Effect.flip(
-        foreign.withTransaction(definition.enqueue(input("foreign")))
+        foreign.withTransaction(producer.enqueue(input("foreign")))
       )
-      assert(wrong instanceof JobBackendError)
+      assert(wrong instanceof JobPersistenceError)
       assert.equal(wrong.reason, "transaction-required")
       checks.push("no active / foreign client rejection with no implicit transaction")
       const entered = yield* Deferred.make<void>()
@@ -275,7 +331,7 @@ try {
         client.withTransaction(
           Effect.gen(function* () {
             yield* db.insert(domain).values({ id: "interrupted" })
-            yield* definition.enqueue(input("interrupted"))
+            yield* producer.enqueue(input("interrupted"))
             yield* db.insert(receipts).values({ id: "interrupted" })
             yield* Deferred.succeed(entered, undefined)
             return yield* Effect.never
@@ -288,7 +344,7 @@ try {
       assert(Exit.isFailure(interrupted) && Cause.hasInterrupts(interrupted.cause))
       assert.deepEqual(yield* count("interrupted"), none)
       checks.push("caller interruption rolls back domain/job/payload")
-      const standalone = yield* definition.enqueueStandalone(input("standalone"))
+      const standalone = yield* producer.enqueueStandalone(input("standalone"))
       assert.equal(standalone._tag, "Inserted")
       assert.deepEqual(yield* count("standalone"), {
         domain: 0,
@@ -297,12 +353,12 @@ try {
         payload: 1
       })
       const active = yield* client.withTransaction(
-        Effect.flip(definition.enqueueStandalone(input("active")))
+        Effect.flip(producer.enqueueStandalone(input("active")))
       )
-      assert(active instanceof JobBackendError)
+      assert(active instanceof JobPersistenceError)
       assert.equal(active.reason, "active-transaction")
       assert.deepEqual(yield* count("active"), none)
-      const failed = yield* Effect.exit(definition.enqueueStandalone(input("fail-job")))
+      const failed = yield* Effect.exit(producer.enqueueStandalone(input("fail-job")))
       assert(Exit.isFailure(failed))
       assert.deepEqual(yield* count("fail-job"), none)
       checks.push(
@@ -310,40 +366,47 @@ try {
       )
       // Deterministic after-durable-COMMIT response loss injection on the actual native connection.
       // This is not a real lost-network / server-crash claim.
-      const lost = Job.make({
-        queue: definition.queue,
+      const lostContract = Job.make({
         kind: definition.kind,
-        payload: definition.payload,
-        encodePayload: (schema, value) =>
-          Effect.gen(function* () {
-            const active = yield* Effect.serviceOption(client.transactionService)
-            assert(Option.isSome(active))
-            const connection = active.value[0]
-            const executeRaw = connection.executeRaw.bind(connection)
-            Object.assign(connection, {
-              executeRaw: (...args: Parameters<typeof executeRaw>) => {
-                if (args[0] !== "COMMIT") {
-                  return executeRaw(...args)
-                }
-                Object.assign(connection, { executeRaw })
-                return executeRaw(...args).pipe(
-                  Effect.andThen(
-                    Effect.fail(
-                      new SqlError({
-                        reason: new ConnectionError({
-                          cause: "synthetic post-commit response loss"
-                        })
-                      })
+        payload: definition.payload.pipe(
+          Schema.decodeTo(definition.payload, {
+            decode: SchemaGetter.passthrough(),
+            encode: SchemaGetter.transformEffect((value) =>
+              Effect.gen(function* () {
+                const active = yield* Effect.serviceOption(client.transactionService)
+                assert(Option.isSome(active))
+                const connection = active.value[0]
+                const executeRaw = connection.executeRaw.bind(connection)
+                Object.assign(connection, {
+                  executeRaw: (...args: Parameters<typeof executeRaw>) => {
+                    if (args[0] !== "COMMIT") {
+                      return executeRaw(...args)
+                    }
+                    Object.assign(connection, { executeRaw })
+                    return executeRaw(...args).pipe(
+                      Effect.andThen(
+                        Effect.fail(
+                          new SqlError({
+                            reason: new ConnectionError({
+                              cause: "synthetic post-commit response loss"
+                            })
+                          })
+                        )
+                      )
                     )
-                  )
-                )
-              }
-            })
-            return yield* encodeJobPayload(schema, value)
+                  }
+                })
+                return value
+              })
+            )
           })
+        )
       })
+      const lost = Producer.make(producer.operation).pipe(
+        Producer.withSlot("receipt", lostContract, { queue })
+      )
       const unknown = yield* Effect.flip(lost.enqueueStandalone(input("lost-commit")))
-      assert(unknown instanceof JobBackendError)
+      assert(unknown instanceof JobPersistenceError)
       assert.equal(unknown.commitKnowledge, "Unknown")
       assert.deepEqual(yield* count("lost-commit"), {
         domain: 0,
@@ -366,7 +429,6 @@ try {
       const fingerprintKey = randomBytes(32)
       let keyId: "old" | "current" = "old"
       const protectedJob = Job.make({
-        queue: definition.queue,
         kind: "private.receipt",
         payload: Payload.encrypted({
           schema: Schema.String,
@@ -409,10 +471,13 @@ try {
           }
         })
       })
+      const protectedProducer = Producer.make(producer.operation).pipe(
+        Producer.withSlot("receipt", protectedJob, { queue })
+      )
       const protectedInput = (payload: string) => ({ ...input("encrypted"), payload })
-      const first = yield* protectedJob.enqueueStandalone(protectedInput("same"))
+      const first = yield* protectedProducer.enqueueStandalone(protectedInput("same"))
       keyId = "current"
-      const equal = yield* protectedJob.enqueueStandalone(protectedInput("same"))
+      const equal = yield* protectedProducer.enqueueStandalone(protectedInput("same"))
       assert.equal(first.jobId, equal.jobId)
       assert.equal(equal._tag, "AlreadyPresent")
       const stored = yield* Effect.promise(
@@ -429,15 +494,15 @@ try {
       )
       assert.equal(decoded, "same")
       const changed = yield* Effect.exit(
-        protectedJob.enqueueStandalone(protectedInput("changed"))
+        protectedProducer.enqueueStandalone(protectedInput("changed"))
       )
       assert(Exit.isFailure(changed))
       checks.push(
         "real PostgreSQL AES-GCM nonce/key rotation preserves semantic HMAC dedup and old-key decoding; changed content conflicts"
       )
-      const health = yield* backend.health.sample({
+      const health = yield* jobs.health.sample({
         queue: "billing",
-        supportedCatalog: [definition.catalog],
+        supportedCatalog: [catalog],
         limit: 1
       })
       assert.equal(health.supported.count, 1)
@@ -447,9 +512,9 @@ try {
       assert(health.sampledAt > 0)
       const ambientHealth = yield* Effect.exit(
         client.withTransaction(
-          backend.health.sample({
+          jobs.health.sample({
             queue: "billing",
-            supportedCatalog: [definition.catalog],
+            supportedCatalog: [catalog],
             limit: 1
           })
         )
@@ -458,8 +523,22 @@ try {
       checks.push(
         "bounded opt-in health distinguishes supported work and rejects ambient ownership"
       )
+      const scheduleRequest = { queue: "billing", supportedCatalog: [catalog], limit: 1 }
+      const schedule = yield* jobs.schedule.read(scheduleRequest)
+      assert(schedule.observedAt > 0)
+      assert.deepEqual(Object.keys(schedule).sort(), [
+        "nextAvailableAt",
+        "nextRecoveryAt",
+        "observedAt",
+        "saturated"
+      ])
+      const ambientSchedule = yield* Effect.exit(
+        client.withTransaction(jobs.schedule.read(scheduleRequest))
+      )
+      assert(Exit.isFailure(ambientSchedule))
+      checks.push("read-only bounded DB-time schedule hints reject ambient ownership")
       return checks
-    }).pipe(Effect.provideService(JobEnqueue, backend.producer))
+    }).pipe(Effect.provideService(JobEnqueue, jobs.producer))
   })
   const result = await Effect.runPromise(
     Effect.scoped(program).pipe(

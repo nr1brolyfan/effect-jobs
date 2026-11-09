@@ -34,9 +34,11 @@ import { makeJobTables } from "../../../src/PostgreSqlDrizzleSchema.js"
 
 const configPath = process.env.OPERATORS_PG_CONFIG_FILE
 const definition = {
-  catalog: { queue: "billing", kind: "invoice", version: 1 },
+  kind: "invoice",
+  version: 1,
   payload: Schema.Struct({ value: Schema.String })
 }
+const catalog = { queue: "billing", kind: definition.kind, version: definition.version }
 const producer = (id = randomUUID()) => ({
   operation: "manual",
   operationId: id,
@@ -69,13 +71,19 @@ describe.skipIf(!configPath)(
       const result = await run((q) =>
         Effect.gen(function* () {
           const encoded = yield* encodeJobPayload(definition.payload, { value: "valid" })
-          return yield* insertOrCompare(q, jobs, payloads, {
-            catalog: definition.catalog,
-            producer: producer(),
-            policy,
-            encoded,
-            availableAt: Date.now() + 60000
-          })
+          return yield* insertOrCompare(
+            q,
+            jobs,
+            payloads,
+            {
+              catalog,
+              producer: producer(),
+              policy,
+              encoded,
+              availableAt: Date.now() + 60000
+            },
+            100
+          )
         })
       )
       await query(
@@ -154,7 +162,7 @@ describe.skipIf(!configPath)(
           return accepted
         })
       )
-      expect(result.after.attemptsMade).toBe(0)
+      expect(result.after.finalizedAttempts).toBe(0)
       const rollback = await seed()
       await expect(
         run((q) =>
@@ -182,8 +190,10 @@ describe.skipIf(!configPath)(
       const result = await run(() => operators.retryNow(expected))
       expect(result.after.availableAt).toBe(result.after.updatedAt)
       expect(result.after.availableAt).toBeLessThan(Number(before.available_at))
-      expect(result.after.attemptsMade).toBe(Number(before.attempts_made))
-      expect(result.after.policy).toEqual(before.policy)
+      expect(result.after.finalizedAttempts).toBe(Number(before.attempts_made))
+      expect(result.after.policy).toEqual(
+        Schema.decodeUnknownSync(Policy.PersistedJobPolicy)(before.policy)
+      )
       const after = (
         await query(`SELECT * FROM ${jobs} WHERE id=$1`, [expected.jobId])
       )[0]
@@ -256,7 +266,7 @@ describe.skipIf(!configPath)(
       await expect(
         run(() =>
           operators.redrive(
-            { ...definition, catalog: { ...definition.catalog, version: 2 } },
+            { ...definition, version: 2 },
             { expected, producer: producer() }
           )
         )
@@ -304,12 +314,18 @@ describe.skipIf(!configPath)(
         )
       )
       const result = await run((q) =>
-        insertOrCompare(q, jobs, payloads, {
-          catalog: definition.catalog,
-          producer: producer(),
-          policy: Policy.defaultPolicy,
-          encoded
-        })
+        insertOrCompare(
+          q,
+          jobs,
+          payloads,
+          {
+            catalog,
+            producer: producer(),
+            policy: Policy.defaultPolicy,
+            encoded
+          },
+          100
+        )
       )
       await query(`UPDATE ${jobs} SET state='Isolated' WHERE id=$1`, [result.jobId])
       const expected = Schema.decodeSync(JobOperatorExpected)({
@@ -435,14 +451,14 @@ describe.skipIf(!configPath)(
       const claim = await Effect.runPromise(
         store.claim({
           queue: "billing",
-          supportedCatalog: [definition.catalog],
+          supportedCatalog: [catalog],
           leaseToken: randomUUID()
         })
       )
       if (claim._tag === "Claimed") {
         expect(claim.claim.snapshot.jobId).not.toBe(expected.jobId)
       }
-      expect(await Effect.runPromise(store.recoverExpired(100))).toBe(0)
+      expect(await Effect.runPromise(store.recoverExpired("billing", 100))).toBe(0)
       await Effect.runPromise(makeCleanup(adapter, jobs).cleanup(100))
       expect(
         (await query(`SELECT state FROM ${jobs} WHERE id=$1`, [expected.jobId]))[0].state
@@ -777,12 +793,18 @@ describe.skipIf(!configPath)(
             const encoded = yield* encodeJobPayload(definition.payload, {
               value: "legacy"
             })
-            yield* insertOrCompare(q, rel.jobs, rel.payloads, {
-              catalog: definition.catalog,
-              producer: producer(),
-              policy: Policy.defaultPolicy,
-              encoded
-            })
+            yield* insertOrCompare(
+              q,
+              rel.jobs,
+              rel.payloads,
+              {
+                catalog,
+                producer: producer(),
+                policy: Policy.defaultPolicy,
+                encoded
+              },
+              100
+            )
           })
         )
         await query(
@@ -932,12 +954,18 @@ describe.skipIf(!configPath)(
       await run((q) =>
         Effect.gen(function* () {
           const encoded = yield* encodeJobPayload(definition.payload, { value: "legacy" })
-          yield* insertOrCompare(q, rel.jobs, rel.payloads, {
-            catalog: definition.catalog,
-            producer: producer(),
-            policy: Policy.defaultPolicy,
-            encoded
-          })
+          yield* insertOrCompare(
+            q,
+            rel.jobs,
+            rel.payloads,
+            {
+              catalog,
+              producer: producer(),
+              policy: Policy.defaultPolicy,
+              encoded
+            },
+            100
+          )
         })
       )
       const before = await query(`SELECT * FROM ${rel.jobs}`)

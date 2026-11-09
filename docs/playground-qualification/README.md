@@ -64,7 +64,7 @@ entire preview session and removed on shutdown, not persisted across restarts.
 ## Runtime composition
 
 One shared gateway serializes HTTP events. Every event acquires one scoped native
-PgClient and a backend bound to that exact client, then closes its Scope before
+PgClient and a persistence bound to that exact client, then closes its Scope before
 returning. Application Context exposes issue/authenticate/describe, read,
 run/reset and exact receipt operations. CommandPersistence owns actual native
 transactions, admission and atomically committed job/association/receipt writes.
@@ -77,7 +77,7 @@ commands use the qualified bounded stream reader. Durable fixed-minute gateway
 budgets bound total requests, issuance and per-sandbox activity.
 
 Four fixed queue DO classes own communications, media, commerce and private work.
-Each serialized queue event scopes the native client/backend and installs the six
+Each serialized queue event scopes the native client/persistence and installs the six
 real handlers. Authorized describe renews the DB-time viewer lease and kicks all
 four queues. Activation is 400 ms, MoreWork 100 ms and Backoff 1000 ms. Global
 retirement requires no live viewer in any sandbox. Previously admitted unattended

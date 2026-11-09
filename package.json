@@ -8,6 +8,18 @@
   "sideEffects": false,
   "packageManager": "bun@1.4.2",
   "exports": {
+    "./JobSchedule": {
+      "types": "./dist/JobSchedule.d.ts",
+      "import": "./dist/JobSchedule.js"
+    },
+    "./JobStorage": {
+      "types": "./dist/JobStorage.d.ts",
+      "import": "./dist/JobStorage.js"
+    },
+    "./JobGroup": {
+      "types": "./dist/JobGroup.d.ts",
+      "import": "./dist/JobGroup.js"
+    },
     "./PostgreSqlJobs": {
       "types": "./dist/PostgreSqlJobs.d.ts",
       "import": "./dist/PostgreSqlJobs.js"
@@ -28,13 +40,9 @@
       "types": "./dist/JobWorker.d.ts",
       "import": "./dist/JobWorker.js"
     },
-    "./JobWorkerRuntime": {
-      "types": "./dist/JobWorkerRuntime.d.ts",
-      "import": "./dist/JobWorkerRuntime.js"
-    },
-    "./PollingJobWorker": {
-      "types": "./dist/PollingJobWorker.d.ts",
-      "import": "./dist/PollingJobWorker.js"
+    "./JobPolling": {
+      "types": "./dist/JobPolling.d.ts",
+      "import": "./dist/JobPolling.js"
     },
     ".": {
       "types": "./dist/index.d.ts",
@@ -59,14 +67,6 @@
     "./JobProducer": {
       "types": "./dist/JobProducer.d.ts",
       "import": "./dist/JobProducer.js"
-    },
-    "./JobRegistry": {
-      "types": "./dist/JobRegistry.d.ts",
-      "import": "./dist/JobRegistry.js"
-    },
-    "./JobConsumer": {
-      "types": "./dist/JobConsumer.d.ts",
-      "import": "./dist/JobConsumer.js"
     },
     "./JobPayload": {
       "types": "./dist/JobPayload.d.ts",
@@ -119,6 +119,14 @@
     "./JobOperators": {
       "types": "./dist/JobOperators.d.ts",
       "import": "./dist/JobOperators.js"
+    },
+    "./JobApi": {
+      "types": "./dist/JobApi.d.ts",
+      "import": "./dist/JobApi.js"
+    },
+    "./JobApiBuilder": {
+      "types": "./dist/JobApiBuilder.d.ts",
+      "import": "./dist/JobApiBuilder.js"
     }
   },
   "files": [
@@ -128,7 +136,7 @@
     "CHANGELOG.md",
     "specs/architecture-decisions.md",
     "specs/core-contract.md",
-    "specs/postgresql-backend.md",
+    "specs/postgresql-jobs.md",
     "specs/drizzle-compatibility.md",
     "specs/release-qualification.md",
     "specs/api-refinements.md",
@@ -153,6 +161,7 @@
     "qualify:docs:readme": "node tests/docs/readme/Run.mjs",
     "check:docs:api": "node tests/docs/api/Qualify.mjs",
     "test:release-imports": "node --test tests/qualification/ReleaseImports.mjs",
+    "qualify:cloudflare:alchemy": "bun run --cwd examples/cloudflare-alchemy qualify",
     "verify": "bun run check && bun run lint && bun run format:check && bun run build && bun run test && bun run test:release-imports && bun run check:docs:api && bun run check:docs:observability",
     "release:pack": "node scripts/pack-release.mjs",
     "release:check": "node scripts/check-release.mjs",
@@ -182,6 +191,7 @@
     "@effect/ai-openrouter": "4.1.0",
     "@effect/platform-node": "4.1.0",
     "@effect/platform-node-shared": "4.1.0",
+    "@effect/sql-pg": "4.1.0",
     "@effect/tsgo": "0.48.0",
     "@types/node": "26.4.1",
     "@types/pg": "8.20.0",
