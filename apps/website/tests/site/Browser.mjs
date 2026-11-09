@@ -162,6 +162,7 @@ try {
     }
   }
   for (const route of [
+    "concepts/api-design-decisions",
     "persistence/transactions",
     "start/tutorial",
     "start/first-job",
@@ -190,7 +191,41 @@ try {
       if (!baseline) {
         assertTypography(value)
       }
-      if (route !== "start/why-background-jobs") {
+      if (route === "concepts/api-design-decisions") {
+        const source = readFileSync(
+          resolve(
+            repository,
+            "apps/website/src/content/docs/concepts/api-design-decisions.mdx"
+          ),
+          "utf8"
+        )
+        const snippets = [...source.matchAll(/```ts\n([\s\S]*?)\n```/g)]
+        const panels = page.locator(".expressive-code")
+        await expect(panels).toHaveCount(7)
+        await expect(page.locator("job-visual")).toHaveCount(0)
+        for (let index = 0; index < snippets.length; index++) {
+          const lines = await panels
+            .nth(index)
+            .locator(".ec-line .code")
+            .allTextContents()
+          assert.equal(
+            lines
+              .map((line) => line.replaceAll("\u200b", "").replaceAll("\n", ""))
+              .join("\n"),
+            snippets[index][1],
+            "API design snippet matches typechecked source"
+          )
+          assert.ok(
+            lines.every((line) => !/\byield\s+\*|\byield\*[\t ]*$/.test(line)),
+            "Rendered yield* stays joined to its expression"
+          )
+        }
+        if ([1440, 390].includes(width)) {
+          await panels.nth(1).screenshot({
+            path: `${evidence}/api-design-yield-${width}.png`
+          })
+        }
+      } else if (route !== "start/why-background-jobs") {
         const panel = page.locator(".expressive-code").first()
         const sourceByRoute = {
           "persistence/transactions": ["apps/api/src/orders/PlaceOrder.ts", "request"],
@@ -359,6 +394,7 @@ try {
     await page.close()
   }
   for (const route of [
+    "concepts/api-design-decisions",
     "persistence/transactions",
     "start/tutorial",
     "start/first-job",

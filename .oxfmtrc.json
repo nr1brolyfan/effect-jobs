@@ -31,7 +31,10 @@
   ],
   "overrides": [
     {
-      "files": ["README.md"],
+      "files": [
+        "README.md",
+        "apps/website/src/content/docs/concepts/api-design-decisions.mdx"
+      ],
       "options": {
         "embeddedLanguageFormatting": "off"
       }
