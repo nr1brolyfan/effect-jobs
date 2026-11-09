@@ -1,3 +1,5 @@
+import * as JobApi from "../../../src/JobApi.js"
+import * as JobApiBuilder from "../../../src/JobApiBuilder.js"
 import assert from "node:assert/strict"
 import {
   Context,
@@ -32,7 +34,11 @@ const job = Job.make({
   encodePayload: Codec.encodeJobPayload
 })
 const group = Group.make("polling", { neutral: job })
-const handlers = group.toLayer({ neutral: () => Effect.void })
+const handlers = JobApiBuilder.group(
+  JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+  group.name,
+  (_handlers) => _handlers.handle("neutral", () => Effect.void)
+)
 const pollingOptions = { maxJobs: 2, recoveryLimit: 1 }
 const random = (value: number) =>
   Effect.provideService(Random.Random, {
@@ -48,7 +54,9 @@ const run = <A, E>(program: Effect.Effect<A, E, Scope.Scope>, value = 0) =>
     )
   )
 const make = (store: JobStoreService<unknown>) =>
-  Worker.make(group, { queues: [{ queue, concurrency: 2 }] }).pipe(
+  Worker.make(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
+    queues: [{ queue, concurrency: 2 }]
+  }).pipe(
     Effect.provide(
       Layer.mergeAll(
         Storage.layer({ store, operationResponseBudgetMillis: 100 }),
@@ -277,9 +285,12 @@ it("captures provider requirements once at worker construction, not as ambient p
             return yield* test.store.claim(request)
           })
       }
-      const worker = yield* Worker.make(group, {
-        queues: [{ queue, concurrency: 2 }]
-      }).pipe(
+      const worker = yield* Worker.make(
+        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+        {
+          queues: [{ queue, concurrency: 2 }]
+        }
+      ).pipe(
         Effect.provide(
           Layer.mergeAll(
             Storage.layer({ store, operationResponseBudgetMillis: 100 }),
@@ -310,23 +321,30 @@ it("zero grace interrupts active executions and never releases after execution b
       const reached = yield* Deferred.make<void>()
       let handlers = 0
       let stopped = 0
-      const activeHandlers = group.toLayer({
-        neutral: () =>
-          Effect.sync(() => {
-            handlers++
-          }).pipe(
-            Effect.andThen(Deferred.succeed(reached, undefined)),
-            Effect.andThen(Effect.never),
-            Effect.ensuring(
-              Effect.sync(() => {
-                stopped++
-              })
+      const activeHandlers = JobApiBuilder.group(
+        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+        group.name,
+        (_handlers) =>
+          _handlers.handle("neutral", () =>
+            Effect.sync(() => {
+              handlers++
+            }).pipe(
+              Effect.andThen(Deferred.succeed(reached, undefined)),
+              Effect.andThen(Effect.never),
+              Effect.ensuring(
+                Effect.sync(() => {
+                  stopped++
+                })
+              )
             )
           )
-      })
-      const worker = yield* Worker.make(group, {
-        queues: [{ queue, concurrency: 2 }]
-      }).pipe(
+      )
+      const worker = yield* Worker.make(
+        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+        {
+          queues: [{ queue, concurrency: 2 }]
+        }
+      ).pipe(
         Effect.provide(
           Layer.mergeAll(
             Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 }),

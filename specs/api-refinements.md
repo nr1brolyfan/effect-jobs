@@ -14,7 +14,11 @@ even for singleton lists. Missing/both declarations, duplicate names and
 `defaultQueue` are invalid. All three methods preserve per-slot payload/routing/
 Schema-service correlation and accept an independent complete-policy replacement.
 Matching duplicates preserve the first stored execution configuration and artifacts;
-complete handlers are installed through `JobGroup.toLayer`. The standard artifact
+complete group handlers are installed through `JobApiBuilder.group(catalog, name, build)`
+with immutable `.handle(alias, handler)` chains. `JobApi.make(name).pipe(JobApi.addGroup(group), ...)`
+is an inert catalog; `Worker.make/layer(catalog, options)` requires every group
+installation plus storage. Known duplicate group names fail statically; duplicate
+names and kind/version pairs fail safely at assembly. There is no record installer. The standard artifact
 codec is fixed; domain transformations and encryption belong in Schema, with no
 per-definition encoder override or per-handler decoder parameter. Static
 unsupported Schema structures fail during declaration/group setup before traffic.

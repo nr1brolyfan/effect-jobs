@@ -1,3 +1,5 @@
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 import { describe, expect, it } from "vitest"
 import { Cause, Effect, Exit, Fiber, Layer } from "effect"
 import * as Job from "effect-jobs/Job"
@@ -16,7 +18,11 @@ const definition = Job.make({
   payload: Schema.String
 })
 const group = Group.make("cloudflare-probe", { synthetic: definition })
-const handlers = group.toLayer({ synthetic: () => Effect.void })
+const handlers = JobApiBuilder.group(
+  JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+  group.name,
+  (_handlers) => _handlers.handle("synthetic", () => Effect.void)
+)
 
 const exercise = (
   snapshots: ReadonlyArray<WakeCycle.WakeSnapshot>,
@@ -45,7 +51,9 @@ const exercise = (
     finalize: unexpected,
     reconcileFinalization: unexpected
   }
-  const worker = Worker.layer(group, { queues: [{ queue, concurrency: 2 }] }).pipe(
+  const worker = Worker.layer(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
+    queues: [{ queue, concurrency: 2 }]
+  }).pipe(
     Layer.provide(Storage.layer({ store, operationResponseBudgetMillis: 100 })),
     Layer.provide(handlers)
   )
@@ -132,7 +140,9 @@ describe("finite wake cycle (mock storage, not PostgreSQL evidence)", () => {
   it("rejects invalid worker concurrency before touching alarm or storage", async () => {
     const program = WakeCycle.run(queue).pipe(
       Effect.provide(
-        Worker.layer(group, { queues: [{ queue, concurrency: 65 }] }).pipe(
+        Worker.layer(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
+          queues: [{ queue, concurrency: 65 }]
+        }).pipe(
           Layer.provide(
             Storage.layer({
               operationResponseBudgetMillis: 100,

@@ -1,3 +1,4 @@
+import * as JobApi from "effect-jobs/JobApi"
 // Executed on Node/Bun against exact source and installed fences. Test stores
 // prove composition only; separate native PG gates prove durable transactions.
 import assert from "node:assert/strict"
@@ -103,7 +104,7 @@ const store: Store.JobStoreService = {
   claim: (request) => Effect.sync(() => ++claims === 1 ? Store.ClaimResult.Claimed({ claim: { snapshot: { ...snapshot, leaseToken: request.leaseToken }, ownership: { ...ownership, leaseToken: request.leaseToken }, prepared: { catalog, producer: context.producer, policy: Policy.defaultPolicy, encoded } } }) : Store.ClaimResult.Empty()),
   recoverExpired: () => Effect.succeed(0), finalize: () => Effect.sync(() => { finalized++; return Store.FinalizationResult.Applied() }), release: unexpected, reconcileClaim: unexpected, reconcileFinalization: unexpected
 }
-const worker = Worker.layer(BillingJobs, { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(JobStorage.layer({ store, operationResponseBudgetMillis: 100 })), Layer.provide(ReceiptHandler), Layer.provide(Fixture.ReceiptMailerLayer))
+const worker = Worker.layer(JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs)), { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(JobStorage.layer({ store, operationResponseBudgetMillis: 100 })), Layer.provide(ReceiptHandler), Layer.provide(Fixture.ReceiptMailerLayer))
 const result = await Effect.runPromise(Effect.scoped(Worker.drain(BillingQueue, { maxJobs: 20, recoveryLimit: 20 }).pipe(Effect.provide(worker))).pipe(Effect.provide(TestClock.layer())))
 assert.equal(result.claimed, 1)
 assert.equal(finalized, 1)

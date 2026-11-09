@@ -1,3 +1,4 @@
+import * as JobApi from "effect-jobs/JobApi"
 // @effect-diagnostics unstableApiUsage:off
 // The native HTTP/SQL APIs are intentionally pinned to Effect 4.1.0.
 import * as Pg from "@effect/sql-pg/PgClient"
@@ -105,9 +106,12 @@ export const openInvocation = <R = never>(settings: Settings<R>) =>
           }
         })
     })
-    const WorkerLayer = Worker.layer(BillingJobs, {
-      queues: [{ queue: BillingQueue, concurrency: 1 }]
-    }).pipe(
+    const WorkerLayer = Worker.layer(
+      JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs)),
+      {
+        queues: [{ queue: BillingQueue, concurrency: 1 }]
+      }
+    ).pipe(
       Layer.provide(Layer.succeed(Storage.JobStorage, jobs.storage)),
       Layer.provide(Handlers.pipe(Layer.provide(DeliveryLayer)))
     )

@@ -1,3 +1,5 @@
+import * as JobApi from "../../../src/JobApi.js"
+import * as JobApiBuilder from "../../../src/JobApiBuilder.js"
 /**
  * Jobs operations already own safe terminal observations. The application owns
  * logger/tracer/exporter Layers, resources, finite transport/shutdown and sampling.
@@ -18,9 +20,14 @@ export const InvoiceJob = Job.make({
 // Expected failure classifies Retry. Do not attach payload, code, identity or Cause
 // to a span. Single expected Fail and mixed Cause have different meanings.
 const group = Group.make("observability-invoices", { invoice: InvoiceJob })
-export const InvoiceHandlerLayer = group.toLayer({
-  invoice: () => Effect.fail(JobFailures.Retry({ code: codes.temporarilyUnavailable }))
-})
+export const InvoiceHandlerLayer = JobApiBuilder.group(
+  JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+  group.name,
+  (_handlers) =>
+    _handlers.handle("invoice", () =>
+      Effect.fail(JobFailures.Retry({ code: codes.temporarilyUnavailable }))
+    )
+)
 
 // Own jobs spans deliberately finish with Success(void), then restore the original
 // Exit outside the span. A red span is not a durable-job/availability counter.

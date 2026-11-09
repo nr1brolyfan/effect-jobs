@@ -1,3 +1,5 @@
+import * as JobApi from "../../../src/JobApi.js"
+import * as JobApiBuilder from "../../../src/JobApiBuilder.js"
 import { Context, Effect, Schema, SchemaGetter } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Job from "../../../src/Job.js"
@@ -110,12 +112,16 @@ describe("pure Job contracts", () => {
           })
         ),
         Effect.provide(
-          group.toLayer({
-            generate: (input) =>
-              Effect.sync(() => {
-                seen.push(input.payload)
-              })
-          })
+          JobApiBuilder.group(
+            JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+            group.name,
+            (_handlers) =>
+              _handlers.handle("generate", (input) =>
+                Effect.sync(() => {
+                  seen.push(input.payload)
+                })
+              )
+          )
         ),
         Effect.provideService(Prefix, { value: "prefix:" })
       )

@@ -1,3 +1,5 @@
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 import { Cause, Effect, Match } from "effect"
 import * as FailureCode from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
@@ -125,12 +127,16 @@ export const executeSyntheticExport = Effect.fn("Playground.executeSyntheticExpo
 
 // Complete group implementation; importing this module installs nothing.
 // Provide the same FakeProvider Layer and DocumentKeys Layer for all handlers.
-export const layerNoDeps = Definitions.group.toLayer({
-  welcomeEmail: execute("welcome-email"),
-  imageProcessing: execute("image-processing"),
-  webhookDelivery: execute("webhook-delivery"),
-  syntheticDocumentExport: executeSyntheticExport,
-  privateDataExport: executeExport,
-  catalogSync: execute("catalog-sync"),
-  simulatedPayment: execute("simulated-payment")
-})
+export const layerNoDeps = JobApiBuilder.group(
+  JobApi.make(Definitions.group.name).pipe(JobApi.addGroup(Definitions.group)),
+  Definitions.group.name,
+  (_handlers) =>
+    _handlers
+      .handle("welcomeEmail", execute("welcome-email"))
+      .handle("imageProcessing", execute("image-processing"))
+      .handle("webhookDelivery", execute("webhook-delivery"))
+      .handle("syntheticDocumentExport", executeSyntheticExport)
+      .handle("privateDataExport", executeExport)
+      .handle("catalogSync", execute("catalog-sync"))
+      .handle("simulatedPayment", execute("simulated-payment"))
+)

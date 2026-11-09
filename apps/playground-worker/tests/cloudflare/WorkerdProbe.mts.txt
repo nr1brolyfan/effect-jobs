@@ -1,3 +1,5 @@
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 // @effect-diagnostics unstableApiUsage:off
 // Qualification-only native Cloudflare FFI. No public route or deployment registrar.
 import { DurableObject } from "cloudflare:workers"
@@ -80,11 +82,11 @@ export class Probe extends DurableObject {
         finalize: unexpected,
         reconcileFinalization: unexpected
       }
-      const worker = Worker.layer(group, { queues: [{ queue, concurrency: 2 }] }).pipe(Layer.provide(Storage.layer({
+      const worker = Worker.layer(JobApi.make(group.name).pipe(JobApi.addGroup(group)), { queues: [{ queue, concurrency: 2 }] }).pipe(Layer.provide(Storage.layer({
         store,
         operationResponseBudgetMillis: 100
       })),
-        Layer.provide(group.toLayer({ synthetic: () => Effect.void }))
+        Layer.provide(JobApiBuilder.group(JobApi.make(group.name).pipe(JobApi.addGroup(group)), group.name, (_handlers) => _handlers.handle("synthetic", () => Effect.void)))
       )
       const result = await Effect.runPromise(
         WakeCycle.run(queue).pipe(

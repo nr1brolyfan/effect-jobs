@@ -37,23 +37,26 @@ signatures are not delivery requirements. Names may change where that improves
 the resulting API. This authorization does not permit database resets, dropping
 owner data, cross-project edits, publication, deployment, push or merge.
 
-This document records the target and implementation acceptance criteria. It does
-not claim that the APIs below already exist or that any persistence is qualified.
-Existing implementation and qualification documents describe the baseline until
-their affected sections are updated with the implementation. No partly migrated
-snapshot is a release candidate.
+The catalog, complete group handler builder and catalog worker described below
+are implemented as a direct source API migration. Historical implementation
+checkpoints retain their original snapshots and superseded spellings; they do
+not describe the current public API. Final qualification binds the integrated
+source and immutable local archive to its own receipts. This is not publication,
+production qualification or permission to integrate the change.
 
 ## Responsibilities and names
 
-| Module        | Responsibility                                                           |
-| ------------- | ------------------------------------------------------------------------ |
-| `Job`         | Immutable, namespaced kind/version and payload Schema contract.          |
-| `JobGroup`    | Named collection of definitions and complete typed handler installation. |
-| `JobProducer` | Immutable operation/slot bindings to job and default queue/policy.       |
-| `JobWorker`   | Worker construction, queue concurrency and bounded `drain`.              |
-| `JobPolling`  | Explicit scoped polling; independent of storage and migrations.          |
-| `JobStorage`  | Portable configured execution store and its single response budget.      |
-| `JobSchedule` | Read-only, bounded next-wakeup observations.                             |
+| Module          | Responsibility                                                      |
+| --------------- | ------------------------------------------------------------------- |
+| `Job`           | Immutable, namespaced kind/version and payload Schema contract.     |
+| `JobGroup`      | Pure named collection of job definitions.                           |
+| `JobApi`        | Pure immutable aggregate of named groups.                           |
+| `JobApiBuilder` | Complete typed group handler installation.                          |
+| `JobProducer`   | Immutable operation/slot bindings to job and default queue/policy.  |
+| `JobWorker`     | Worker construction, queue concurrency and bounded `drain`.         |
+| `JobPolling`    | Explicit scoped polling; independent of storage and migrations.     |
+| `JobStorage`    | Portable configured execution store and its single response budget. |
+| `JobSchedule`   | Read-only, bounded next-wakeup observations.                        |
 
 Names are selected for the target API rather than retained for compatibility.
 Persistence-specific entrypoints continue to be separate from portable contracts.
@@ -113,21 +116,31 @@ not authorize reinterpretation or destruction of retained artifacts.
 `JobGroup.make(name, { alias: definition, ... })` produces an immutable declaration.
 The name distinguishes group service requirements statically; it is not a durable
 job identity. Separately constructed groups have distinct runtime Context keys.
-Its `toLayer` accepts a complete handler object (or an Effect constructing one).
-Each handler's decoded payload is inferred from its corresponding definition.
-Missing handlers are compile-time errors. Schema decoding services, handler
-services and construction errors remain explicit in the resulting Layer types.
+`JobApi.make(name).pipe(JobApi.addGroup(group), ...)` aggregates groups without
+routing or infrastructure. Assembly snapshots declaration structure, retaining exact
+Schema and installation identity, without freezing caller-owned values. Earlier and
+sibling catalogs stay unchanged. Names must be unique; duplicate kind/version pairs
+across groups fail rather than selecting a handler. Repeated aliases and differing
+versions are valid. An empty catalog can be assembled but cannot run a worker.
 
-Handler installation produces a group-specific typed service required by worker
-construction. It must not rely only on a mutable shared registry and `Layer<never>`
-to demonstrate completeness. Two independently constructed groups must not
-accidentally share handlers. Duplicate durable identities are rejected with safe,
-actionable declaration diagnostics. Runtime checks remain necessary for dynamic
-input and persisted artifacts.
+`JobApiBuilder.group(api, name, handlers => ...)` selects a declared literal group.
+Chain `handlers.handle(alias, implementation)` for every alias exactly once; return
+the complete builder directly or through an Effect. Builders are immutable. Unknown,
+duplicate, missing and foreign implementations fail static checks where knowable
+and typed Layer configuration validation for JavaScript/type bypass. A union-valued
+alias does not establish that every possible member was implemented. Each handler
+infers its exact decoded payload and context and returns `Effect<void, JobFailure, R>`.
+Callback build E/R, handler R and Schema decoding services remain in Layer E/R.
+Dependencies yielded by the callback are acquired once per Layer acquisition;
+invocations retain individual Scopes. There is no public record installer or shim.
 
-An application's selected group must be complete before the worker is built.
-Partial deployments select their own explicit group; they do not silently ignore
-missing handlers. Building a worker starts no polling, claim or migration.
+Worker construction accepts the complete catalog and requires every group's installed
+service plus JobStorage. All groups share one execution engine and each configured
+queue's permits across parallel drains. Group names/aliases add no prefix to durable
+identity or artifacts. Separate same-shaped group declarations remain structurally
+indistinguishable in TypeScript but have distinct runtime Context keys: supplying an
+unrelated installation fails safely through worker configuration E. Reuse the exact
+declaration used by the worker. Construction starts no polling, claim or migration.
 
 ## Worker and execution limits
 
@@ -241,7 +254,12 @@ testing/boundary examples, fixtures and both TypeScript configurations. Relevant
 stored traits and the applicable workflow/architecture contracts must also be
 reviewed before editing their corresponding implementation areas.
 
-## Implementation checkpoint: group foundation
+## Historical implementation checkpoints
+
+The checkpoints below preserve earlier evidence and superseded API spellings.
+The current catalog/installation contract is specified above.
+
+### Implementation checkpoint: group foundation
 
 `src/JobGroup.ts` now implements the named declaration, complete typed handler
 Layer, per-construction Context identity, standard artifact decoding and startup

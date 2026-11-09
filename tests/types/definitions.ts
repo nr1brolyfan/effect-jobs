@@ -1,3 +1,5 @@
+import * as JobApi from "../../src/JobApi.js"
+import * as JobApiBuilder from "../../src/JobApiBuilder.js"
 import * as FailureCodes from "../../src/FailureCode.js"
 import { Context, Effect, Layer, Schema } from "effect"
 import * as Job from "../../src/Job.js"
@@ -83,21 +85,25 @@ Job.make({ kind: "invoice.generate", payload: schema, encodePayload: () => Effec
 Job.make({ kind: "invoice.generate", payload: schema, queue })
 
 export const group = JobGroup.make("typed-invoices", { pdf: job })
-export const handler = group.toLayer({
-  pdf: (input) =>
-    Effect.gen(function* () {
-      yield* HandlerService
-      const amount: number = input.payload.amount
-      const attempt: number = input.context.nextFinalizationNumber
-      // @ts-expect-error Handler context has no finalization authority.
-      input.context.complete()
-      if (amount < attempt) {
-        return yield* Effect.fail(
-          JobFailures.Dead({ code: FailureCodes.define({ value: "rejected" }).value })
-        )
-      }
-    })
-})
+export const handler = JobApiBuilder.group(
+  JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+  group.name,
+  (_handlers) =>
+    _handlers.handle("pdf", (input) =>
+      Effect.gen(function* () {
+        yield* HandlerService
+        const amount: number = input.payload.amount
+        const attempt: number = input.context.nextFinalizationNumber
+        // @ts-expect-error Handler context has no finalization authority.
+        input.context.complete()
+        if (amount < attempt) {
+          return yield* Effect.fail(
+            JobFailures.Dead({ code: FailureCodes.define({ value: "rejected" }).value })
+          )
+        }
+      })
+    )
+)
 export const layerChannels: Layer.Layer<
   JobGroup.Handlers<"typed-invoices", typeof group.definitions>,
   JobGroup.JobGroupConfigurationError,

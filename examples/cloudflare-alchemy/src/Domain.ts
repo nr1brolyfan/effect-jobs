@@ -1,3 +1,5 @@
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 import { Context, Data, Effect, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
 import * as Group from "effect-jobs/JobGroup"
@@ -58,19 +60,23 @@ const codes = Codes.define({
   unconfirmed: "delivery_unconfirmed",
   forbidden: "invoice_forbidden"
 })
-export const Handlers = BillingJobs.toLayer({
-  deliver: (input) =>
-    Effect.gen(function* () {
-      const delivery = yield* InvoiceDelivery
-      yield* delivery
-        .deliver(input.payload.tenantId, input.payload.invoiceId, input.context.jobId)
-        .pipe(
-          Effect.catchTags({
-            AdmissionRejected: () =>
-              Effect.fail(JobFailures.Dead({ code: codes.forbidden })),
-            OperationUnconfirmed: () =>
-              Effect.fail(JobFailures.OutcomeUnknown({ code: codes.unconfirmed }))
-          })
-        )
-    })
-})
+export const Handlers = JobApiBuilder.group(
+  JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs)),
+  BillingJobs.name,
+  (_handlers) =>
+    _handlers.handle("deliver", (input) =>
+      Effect.gen(function* () {
+        const delivery = yield* InvoiceDelivery
+        yield* delivery
+          .deliver(input.payload.tenantId, input.payload.invoiceId, input.context.jobId)
+          .pipe(
+            Effect.catchTags({
+              AdmissionRejected: () =>
+                Effect.fail(JobFailures.Dead({ code: codes.forbidden })),
+              OperationUnconfirmed: () =>
+                Effect.fail(JobFailures.OutcomeUnknown({ code: codes.unconfirmed }))
+            })
+          )
+      })
+    )
+)

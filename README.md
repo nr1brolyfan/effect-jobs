@@ -20,25 +20,30 @@ const IssueInvoice = JobProducer.make("billing.issue-invoice").pipe(
 )
 
 // App setup: its Layer supplies a qualified PostgreSqlApplication adapter.
-const jobs = yield* PostgreSqlJobs.make({
-  operationResponseBudgetMillis: 100
-}).pipe(Effect.provide(ApplicationPostgresLayer))
+const jobs =
+  yield *
+  PostgreSqlJobs.make({
+    operationResponseBudgetMillis: 100
+  }).pipe(Effect.provide(ApplicationPostgresLayer))
 
 // Application: invoice and job commit together, or neither does.
-yield* jobs.withTransaction(() =>
-  Effect.gen(function* () {
-    yield* invoices.create({ id: invoiceId }) // Uses this same application transaction.
-    yield* IssueInvoice.enqueue({
-      operationId, slot: "receipt",
-      payload: { invoiceId }
+yield *
+  jobs.withTransaction(() =>
+    Effect.gen(function* () {
+      yield* invoices.create({ id: invoiceId }) // Uses this same application transaction.
+      yield* IssueInvoice.enqueue({
+        operationId,
+        slot: "receipt",
+        payload: { invoiceId }
+      })
     })
-  })
-)
+  )
 
 // Worker: typed payload, separate deployment, durable retries.
 const BillingJobs = JobGroup.make("billing", { receipt: SendReceipt })
-const ReceiptHandler = BillingJobs.toLayer({
-  receipt: (input) =>
+const ApplicationJobs = JobApi.make("application").pipe(JobApi.addGroup(BillingJobs))
+const ReceiptHandler = JobApiBuilder.group(ApplicationJobs, "billing", (handlers) =>
+  handlers.handle("receipt", (input) =>
     Effect.gen(function* () {
       const mailer = yield* ReceiptMailer
 
@@ -47,7 +52,8 @@ const ReceiptHandler = BillingJobs.toLayer({
         idempotencyKey: input.context.jobId // Execution is at least once, not exactly once.
       })
     })
-})
+  )
+)
 ```
 
 **Initial alpha · Effect · PostgreSQL · transaction-bound enqueue**
@@ -61,9 +67,17 @@ policy, failure-code and encrypted-payload APIs; update callers before upgrading
 npm install ./effect-jobs-0.1.0-alpha.1-effect.4.1.0.local.5.tgz effect@4.1.0
 ```
 
-Imports are omitted below. Use package subpaths (`effect-jobs/Job`, `effect-jobs/JobGroup`, `effect-jobs/JobPolicy`, …); the root export is empty. `Codec`, `Worker` and `Polling` refer to `JobPayloadCodec`, `JobWorker` and `JobPolling` respectively.
+Imports are omitted below. Use package subpaths (`effect-jobs/Job`, `effect-jobs/JobGroup`, `effect-jobs/JobApi`, `effect-jobs/JobApiBuilder`, `effect-jobs/JobPolicy`, …); the root export is empty. `Codec`, `Worker` and `Polling` refer to `JobPayloadCodec`, `JobWorker` and `JobPolling` respectively.
 
 `invoices`, mailers, credentials and protection services are application code, not library exports. Handler services return explicit `JobFailure` values.
+
+`JobApi` is a pure immutable catalog of groups. Install each group with
+`JobApiBuilder.group(api, name, handlers => ...)`, returning a complete immutable
+`.handle(alias, implementation)` chain, directly or through an Effect. A worker
+requires every declared group and shares its configured queue concurrency across
+all groups. Callback dependencies are acquired once per Layer acquisition; each
+job invocation has its own Scope. Group names and aliases do not change durable
+job identity. Duplicate group names and duplicate kind/version pairs are rejected.
 
 `NodeRuntime` is `@effect/platform-node/NodeRuntime`.
 `PgClient` is `@effect/sql-pg/PgClient`; `PostgreSqlNative` is the library module
@@ -112,8 +126,9 @@ const issueInvoice = (operationId: string, invoiceId: string) =>
 
 ```ts
 // apps/billing-worker — owns email credentials; does not import the API
-const ReceiptHandler = BillingJobs.toLayer({
-  receipt: (input) =>
+const ApplicationJobs = JobApi.make("application").pipe(JobApi.addGroup(BillingJobs))
+const ReceiptHandler = JobApiBuilder.group(ApplicationJobs, "billing", (handlers) =>
+  handlers.handle("receipt", (input) =>
     Effect.gen(function* () {
       const mailer = yield* ReceiptMailer
 
@@ -122,7 +137,8 @@ const ReceiptHandler = BillingJobs.toLayer({
         idempotencyKey: input.context.jobId
       })
     })
-})
+  )
+)
 ```
 
 Reuse `operationId` and `invoiceId` on request retries. Matching enqueues return the original job ID; changed content conflicts. Domain idempotency is still yours. `invoices.createOnce` must use the adapter's active transaction, not a separate connection.
@@ -192,18 +208,23 @@ Producer and consumer connect to the same PostgreSQL jobs tables.
 
 ```ts
 // The same app-owned PgClient is used by native Drizzle and this adapter.
-const client = yield* PgClient.PgClient
+const client = yield * PgClient.PgClient
 const ApplicationPostgresLayer = PostgreSqlNative.layer({
   client,
   operationTimeoutMillis: 2000
 })
-const jobs = yield* PostgreSqlJobs.make({
-  operationResponseBudgetMillis: 100
-}).pipe(Effect.provide(ApplicationPostgresLayer))
+const jobs =
+  yield *
+  PostgreSqlJobs.make({
+    operationResponseBudgetMillis: 100
+  }).pipe(Effect.provide(ApplicationPostgresLayer))
 
-const WorkerLayer = Worker.layer(BillingJobs, {
-  queues: [{ queue: BillingQueue, concurrency: 2 }]
-}).pipe(
+const WorkerLayer = Worker.layer(
+  JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs)),
+  {
+    queues: [{ queue: BillingQueue, concurrency: 2 }]
+  }
+).pipe(
   Layer.provide(Layer.succeed(JobStorage.JobStorage, jobs.storage)),
   Layer.provide(ReceiptHandler),
   Layer.provide(ReceiptMailerLayer)
@@ -348,8 +369,9 @@ const Codes = FailureCode.define({
 ```
 
 ```ts
-const ReceiptHandler = BillingJobs.toLayer({
-  receipt: (input) =>
+const ApplicationJobs = JobApi.make("application").pipe(JobApi.addGroup(BillingJobs))
+const ReceiptHandler = JobApiBuilder.group(ApplicationJobs, "billing", (handlers) =>
+  handlers.handle("receipt", (input) =>
     Effect.gen(function* () {
       const templates = yield* ReceiptTemplates
       const provider = yield* EmailProvider
@@ -388,7 +410,8 @@ const ReceiptHandler = BillingJobs.toLayer({
         Match.exhaustive
       )
     })
-})
+  )
+)
 ```
 
 | Outcome          | Use it when                                  |
@@ -493,14 +516,22 @@ yield* jobs.withTransaction(() =>
 
 ```ts
 const PrivateJobs = JobGroup.make("private-receipts", { receipt: SendPrivateReceipt })
-const PrivateReceiptHandler = PrivateJobs.toLayer({
-  receipt: (input) =>
-    Effect.gen(function* () {
-      const mailer = yield* PrivateReceiptMailer
+const PrivateApi = JobApi.make("private").pipe(JobApi.addGroup(PrivateJobs))
+const PrivateReceiptHandler = JobApiBuilder.group(
+  PrivateApi,
+  PrivateJobs.name,
+  (handlers) =>
+    handlers.handle("receipt", (input) =>
+      Effect.gen(function* () {
+        const mailer = yield* PrivateReceiptMailer
 
-      yield* mailer.send({ document: input.payload.document, idempotencyKey: input.context.jobId })
-    })
-})
+        yield* mailer.send({
+          document: input.payload.document,
+          idempotencyKey: input.context.jobId
+        })
+      })
+    )
+)
 ```
 
 `ReceiptEncryption` is an application codec with `envelope`, `seal` and `open`.

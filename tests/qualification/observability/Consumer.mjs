@@ -38,20 +38,33 @@ const { OtlpExporter, OtlpLogger, OtlpMetrics, OtlpSerialization, OtlpTracer } =
   await pkg("effect/observability")
 const { makeWithTransaction } = await pkg("effect/sql/SqlClient")
 const { ConnectionError, SqlError } = await pkg("effect/sql/SqlError")
-const [Job, Queue, Producer, Enqueue, Policy, Group, Worker, Native, Storage] =
-  await Promise.all(
-    [
-      "Job",
-      "JobQueue",
-      "JobProducer",
-      "JobEnqueue",
-      "JobPolicy",
-      "JobGroup",
-      "JobWorker",
-      "PostgreSqlNative",
-      "JobStorage"
-    ].map(library)
-  )
+const [
+  Job,
+  Queue,
+  Producer,
+  Enqueue,
+  Policy,
+  Group,
+  Worker,
+  Native,
+  Storage,
+  JobApi,
+  JobApiBuilder
+] = await Promise.all(
+  [
+    "Job",
+    "JobQueue",
+    "JobProducer",
+    "JobEnqueue",
+    "JobPolicy",
+    "JobGroup",
+    "JobWorker",
+    "PostgreSqlNative",
+    "JobStorage",
+    "JobApi",
+    "JobApiBuilder"
+  ].map(library)
+)
 const base = process.env.OBS_COLLECTOR_URL
 const metricBase = process.env.OBS_METRIC_URL
 assert.match(base, /^http:\/\/127\.0\.0\.1:\d+$/)
@@ -188,13 +201,20 @@ const program = Effect.gen(function* () {
           slot: "run"
         })
         .pipe(Effect.provideService(Enqueue.JobEnqueue, producer))
-      const handlers = group.toLayer({
-        synthetic: () =>
-          Effect.sync(() => {
-            invoked++
-          })
-      })
-      const worker = yield* Worker.make(group, { queues: [{ queue }] }).pipe(
+      const handlers = JobApiBuilder.group(
+        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+        group.name,
+        (_handlers) =>
+          _handlers.handle("synthetic", () =>
+            Effect.sync(() => {
+              invoked++
+            })
+          )
+      )
+      const worker = yield* Worker.make(
+        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+        { queues: [{ queue }] }
+      ).pipe(
         Effect.provide(
           Layer.mergeAll(
             Storage.layer({ store, operationResponseBudgetMillis: 100 }),

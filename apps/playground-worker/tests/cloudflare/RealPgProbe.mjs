@@ -1,3 +1,5 @@
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 // Qualification FFI: identical packed-library program on Node, Bun and workerd.
 import assert from "node:assert/strict"
 import {
@@ -224,17 +226,24 @@ export const probe = (url, schema, alarm, checks = []) =>
         yield* producer.enqueueStandalone(input("worker"))
         let calls = 0
         const group = Group.make("cloudflare-real-pg", { synthetic: definition })
-        const worker = Worker.layer(group, {
-          queues: [{ queue, concurrency: 2 }]
-        }).pipe(
+        const worker = Worker.layer(
+          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          {
+            queues: [{ queue, concurrency: 2 }]
+          }
+        ).pipe(
           Layer.provide(Layer.succeed(Storage.JobStorage, jobs.storage)),
           Layer.provide(
-            group.toLayer({
-              synthetic: () =>
-                Effect.sync(() => {
-                  calls++
-                })
-            })
+            JobApiBuilder.group(
+              JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+              group.name,
+              (_handlers) =>
+                _handlers.handle("synthetic", () =>
+                  Effect.sync(() => {
+                    calls++
+                  })
+                )
+            )
           )
         )
         const schedule =

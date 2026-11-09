@@ -1,6 +1,6 @@
 /** Worker service and construction. Execution remains explicit and scoped. */
 import { Context, Layer } from "effect"
-import type { JobGroup, Definitions } from "./JobGroup.js"
+import type { JobApi, Groups } from "./JobApi.js"
 import { WorkerCapability } from "./internal/worker/Capability.js"
 import type { RuntimeCapability } from "./internal/worker/Capability.js"
 import * as GroupWorker from "./internal/worker/GroupWorker.js"
@@ -14,6 +14,8 @@ import type { Options } from "./internal/worker/GroupWorker.js"
  * @example
  * ```ts
  * import { Effect, Layer, Schema } from "effect"
+ * import * as JobApi from "effect-jobs/JobApi"
+ * import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
  * import * as Queue from "effect-jobs/JobQueue"
  * import * as Group from "effect-jobs/JobGroup"
  * import * as Worker from "effect-jobs/JobWorker"
@@ -24,10 +26,11 @@ import type { Options } from "./internal/worker/GroupWorker.js"
  *   invoice: { kind: "invoice.generate", version: 1,
  *     payload: Schema.Struct({ invoiceId: Schema.String }) }
  * })
+ * const api = JobApi.make("application").pipe(JobApi.addGroup(group))
  * // Application supplies qualified storage; construction starts no activity.
  * const runOnce = <E, R>(storage: Storage.Options<E, R>) => {
- *   const HandlerLayer = group.toLayer({ invoice: () => Effect.void })
- *   const WorkerLayer = Worker.layer(group, {
+ *   const HandlerLayer = JobApiBuilder.group(api, "billing", (handlers) => handlers.handle("invoice", () => Effect.void))
+ *   const WorkerLayer = Worker.layer(api, {
  *     queues: [{ queue, concurrency: 2 }]
  *   }).pipe(Layer.provide(Layer.mergeAll(HandlerLayer, Storage.layer(storage))))
  *   return Worker.drain(queue, { maxJobs: 20, recoveryLimit: 10 }).pipe(
@@ -60,7 +63,5 @@ export class JobWorker extends Context.Service<JobWorker, JobWorkerService>()(
 export const make = GroupWorker.make
 
 /** Construction is inert; drain and polling have explicit application-owned lifetimes. */
-export const layer = <Name extends string, D extends Definitions>(
-  group: JobGroup<Name, D>,
-  options: Options
-) => Layer.effect(JobWorker, make(group, options))
+export const layer = <A extends JobApi<string, Groups>>(api: A, options: Options) =>
+  Layer.effect(JobWorker, make(api, options))

@@ -1,3 +1,5 @@
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 import assert from "node:assert/strict"
 import { inspect } from "node:util"
 import {
@@ -111,14 +113,21 @@ await Effect.runPromise(
         release: () => Effect.die("unexpected release"),
         reconcileFinalization: () => Effect.die("unexpected finalization reconciliation")
       }
-      const handlers = group.toLayer({
-        neutral: (input) =>
-          Effect.sync(() => {
-            assert.equal(input.payload.value, sentinel)
-            executions++
-          })
-      })
-      const worker = yield* Worker.make(group, { queues: [{ queue }] }).pipe(
+      const handlers = JobApiBuilder.group(
+        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+        group.name,
+        (_handlers) =>
+          _handlers.handle("neutral", (input) =>
+            Effect.sync(() => {
+              assert.equal(input.payload.value, sentinel)
+              executions++
+            })
+          )
+      )
+      const worker = yield* Worker.make(
+        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+        { queues: [{ queue }] }
+      ).pipe(
         Effect.provide(
           Layer.mergeAll(
             Storage.layer({ store, operationResponseBudgetMillis: 100 }),

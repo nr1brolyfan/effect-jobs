@@ -1,3 +1,5 @@
+import * as JobApi from "../../src/JobApi.js"
+import * as JobApiBuilder from "../../src/JobApiBuilder.js"
 import { Context, Effect, Layer, Schema } from "effect"
 import * as Job from "../../src/Job.js"
 import * as Queue from "../../src/JobQueue.js"
@@ -26,36 +28,44 @@ const installed: Layer.Layer<
   Group.Handlers<"typed-worker", typeof group.definitions>,
   Group.JobGroupConfigurationError,
   HandlerDependency
-> = group.toLayer({
-  message: (input) =>
-    Effect.gen(function* () {
-      const dependency = yield* HandlerDependency
-      const text: string = input.payload.text
-      const attempt: number = input.context.nextFinalizationNumber
-      void text
-      void attempt
-      // @ts-expect-error Handlers do not receive ownership powers.
-      void input.context.leaseToken
-      // @ts-expect-error Handlers do not receive transactions.
-      void input.context.transaction
-      // @ts-expect-error Handlers do not receive finalization powers.
-      input.context.finalize()
-      yield* dependency.send
-    })
-})
+> = JobApiBuilder.group(
+  JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+  group.name,
+  (_handlers) =>
+    _handlers.handle("message", (input) =>
+      Effect.gen(function* () {
+        const dependency = yield* HandlerDependency
+        const text: string = input.payload.text
+        const attempt: number = input.context.nextFinalizationNumber
+        void text
+        void attempt
+        // @ts-expect-error Handlers do not receive ownership powers.
+        void input.context.leaseToken
+        // @ts-expect-error Handlers do not receive transactions.
+        void input.context.transaction
+        // @ts-expect-error Handlers do not receive finalization powers.
+        input.context.finalize()
+        yield* dependency.send
+      })
+    )
+)
 void installed
 const storage = { store, operationResponseBudgetMillis: 100 }
 const made: Effect.Effect<
   Worker.JobWorkerService,
   Worker.JobWorkerConfigurationError,
   Storage.JobStorage | Group.Handlers<"typed-worker", typeof group.definitions>
-> = Worker.make(group, { queues: [{ queue }] })
+> = Worker.make(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
+  queues: [{ queue }]
+})
 void made
 const built: Layer.Layer<
   Worker.JobWorker,
   Worker.JobWorkerConfigurationError,
   Storage.JobStorage | Group.Handlers<"typed-worker", typeof group.definitions>
-> = Worker.layer(group, { queues: [{ queue }] })
+> = Worker.layer(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
+  queues: [{ queue }]
+})
 void built
 export const capturedStorage: Layer.Layer<
   Storage.JobStorage,
@@ -79,8 +89,12 @@ const polling: Layer.Layer<
   Worker.JobWorker
 > = Polling.layer([queue], { shutdownGraceMillis: 1000 })
 void polling
-// @ts-expect-error Response budget comes from configured storage, not a worker argument.
-export const explicitStorage = Worker.make(group, storage, { queues: [{ queue }] })
+export const explicitStorage = Worker.make(
+  JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+  storage,
+  // @ts-expect-error Response budget comes from configured storage, not a worker argument.
+  { queues: [{ queue }] }
+)
 // @ts-expect-error Configured storage requires its admission reserve.
 export const missingBudget = Storage.layer({ store })
 // @ts-expect-error No domain error classifier callback.

@@ -1,3 +1,5 @@
+import * as JobApi from "../../src/JobApi.js"
+import * as JobApiBuilder from "../../src/JobApiBuilder.js"
 import * as FailureCodes from "../../src/FailureCode.js"
 import { readFileSync, writeFileSync } from "node:fs"
 import { randomBytes, randomUUID } from "node:crypto"
@@ -266,11 +268,20 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const worker = yield* Worker.make(workerGroup, {
-            queues: [{ queue }]
-          }).pipe(
+          const worker = yield* Worker.make(
+            JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup)),
+            {
+              queues: [{ queue }]
+            }
+          ).pipe(
             Effect.provideService(Storage.JobStorage, jobs.storage),
-            Effect.provide(workerGroup.toLayer({ generate: execute }))
+            Effect.provide(
+              JobApiBuilder.group(
+                JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup)),
+                workerGroup.name,
+                (_handlers) => _handlers.handle("generate", execute)
+              )
+            )
           )
           return yield* worker.drain(queue, { maxJobs: 1, recoveryLimit: 1 })
         })
@@ -289,6 +300,93 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
         )
       ).rows[0].now
     )
+
+  test("dispatches complete catalogs with repeated aliases and versions on several queues", async () => {
+    await clear()
+    const slow = Queue.make("catalog-slow")
+    const next = Job.make({ ...definition, version: 2 })
+    const other = Job.make({ ...definition, kind: "invoice.other" })
+    const a = Group.make("catalog-a", { run: definition })
+    const b = Group.make("catalog-b", { run: next })
+    const c = Group.make("catalog-c", { run: other })
+    const api = JobApi.make("application").pipe(
+      JobApi.addGroup(a),
+      JobApi.addGroup(b),
+      JobApi.addGroup(c)
+    )
+    const configured = Effect.runSync(
+      Policy.make({ retry: Retry.fixed(Duration.millis(1)) })
+    )
+    for (const job of [definition, next, other]) {
+      const producer = Producer.make("catalog.dispatch").pipe(
+        Producer.withSlot("run", job, { queues: [queue, slow], policy: configured })
+      )
+      for (const destination of [queue, slow]) {
+        await Effect.runPromise(
+          jobs.withTransaction(() =>
+            producer.enqueue({
+              slot: "run",
+              operationId: `${destination.name}/${job.kind}/${job.version}`,
+              queue: destination.name,
+              payload: { invoiceId: "catalog-invoice" }
+            })
+          )
+        )
+      }
+    }
+    let retried = false
+    const seen: string[] = []
+    const execute = (input: HandlerInput<{ readonly invoiceId: string }>) =>
+      Effect.gen(function* () {
+        expect(input.payload.invoiceId).toBe("catalog-invoice")
+        const identity = input.context.catalog
+        if (!retried && identity.kind === definition.kind && identity.version === 1) {
+          retried = true
+          return yield* Effect.fail(
+            JobFailures.Retry({
+              code: FailureCodes.define({ retry: "catalog_retry" }).retry
+            })
+          )
+        }
+        seen.push(`${identity.queue}/${identity.kind}/${identity.version}`)
+      })
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const worker = yield* Worker.make(api, {
+          queues: [
+            { queue, concurrency: 2 },
+            { queue: slow, concurrency: 1 }
+          ]
+        })
+        yield* worker.drain(queue)
+        yield* worker.drain(slow)
+        yield* Effect.sleep("10 millis")
+        yield* worker.drain(queue)
+        yield* worker.drain(slow)
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            JobApiBuilder.group(api, "catalog-a", (h) => h.handle("run", execute)),
+            JobApiBuilder.group(api, "catalog-b", (h) => h.handle("run", execute)),
+            JobApiBuilder.group(api, "catalog-c", (h) => h.handle("run", execute)),
+            Layer.succeed(Storage.JobStorage, jobs.storage)
+          )
+        )
+      )
+    )
+    expect(seen).toHaveLength(6)
+    expect(new Set(seen).size).toBe(6)
+    const rows = (
+      await observer.query(
+        "SELECT state, attempts_made::int AS attempts_made FROM jobs_fixture.tasks"
+      )
+    ).rows
+    expect(rows).toHaveLength(6)
+    expect(rows.every((row) => row.state === "Completed")).toBe(true)
+    expect(rows.map((row) => row.attempts_made).sort((a, b) => a - b)).toEqual([
+      1, 1, 1, 1, 1, 2
+    ])
+  })
 
   test("read-only schedule hints use one DB clock, bound unsupported heads and isolate queue recovery", async () => {
     await clear()
@@ -431,16 +529,23 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
           Effect.gen(function* () {
             const reached = yield* Deferred.make<void>()
             const finish = yield* Deferred.make<void>()
-            const worker = Worker.layer(workerGroup, { queues: [{ queue }] }).pipe(
+            const worker = Worker.layer(
+              JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup)),
+              { queues: [{ queue }] }
+            ).pipe(
               Layer.provide(
                 Layer.mergeAll(
                   Layer.succeed(Storage.JobStorage, jobs.storage),
-                  workerGroup.toLayer({
-                    generate: () =>
-                      Deferred.succeed(reached, undefined).pipe(
-                        Effect.andThen(Deferred.await(finish))
+                  JobApiBuilder.group(
+                    JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup)),
+                    workerGroup.name,
+                    (_handlers) =>
+                      _handlers.handle("generate", () =>
+                        Deferred.succeed(reached, undefined).pipe(
+                          Effect.andThen(Deferred.await(finish))
+                        )
                       )
-                  })
+                  )
                 )
               )
             )
@@ -480,9 +585,18 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
       ...mapping,
       operationResponseBudgetMillis: 100
     }).pipe(Layer.provide(Layer.succeed(PostgreSqlApplication, adapter)))
-    const workerLayer = Worker.layer(workerGroup, { queues: [{ queue }] }).pipe(
+    const workerLayer = Worker.layer(
+      JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup)),
+      { queues: [{ queue }] }
+    ).pipe(
       Layer.provideMerge(jobsLayer),
-      Layer.provide(workerGroup.toLayer({ generate: () => Effect.void }))
+      Layer.provide(
+        JobApiBuilder.group(
+          JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup)),
+          workerGroup.name,
+          (_handlers) => _handlers.handle("generate", () => Effect.void)
+        )
+      )
     )
     expect(source.counters.borrows).toBe(borrows)
     await Effect.runPromise(
@@ -837,9 +951,12 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
     const group = Group.make("retained-policy", { generate: definition })
     await Effect.runPromise(
       Effect.gen(function* () {
-        const blocked = yield* Worker.make(group, {
-          queues: [{ queue }]
-        }).pipe(Effect.provideService(Storage.JobStorage, incompatible.storage))
+        const blocked = yield* Worker.make(
+          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          {
+            queues: [{ queue }]
+          }
+        ).pipe(Effect.provideService(Storage.JobStorage, incompatible.storage))
         expect(yield* blocked.drain(queue)).toMatchObject({
           _tag: "Backoff",
           phase: "claim",
@@ -847,21 +964,28 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
         })
         expect(yield* Effect.promise(() => row("retained-policy"))).toEqual(before)
         expect(executions).toBe(0)
-        const restored = yield* Worker.make(group, {
-          queues: [{ queue }]
-        }).pipe(Effect.provideService(Storage.JobStorage, jobs.storage))
+        const restored = yield* Worker.make(
+          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          {
+            queues: [{ queue }]
+          }
+        ).pipe(Effect.provideService(Storage.JobStorage, jobs.storage))
         expect(yield* restored.drain(queue)).toMatchObject({
           _tag: "Idle",
           claimed: 1
         })
       }).pipe(
         Effect.provide(
-          group.toLayer({
-            generate: () =>
-              Effect.sync(() => {
-                executions++
-              })
-          })
+          JobApiBuilder.group(
+            JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+            group.name,
+            (_handlers) =>
+              _handlers.handle("generate", () =>
+                Effect.sync(() => {
+                  executions++
+                })
+              )
+          )
         )
       )
     )

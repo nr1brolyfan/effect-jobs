@@ -119,6 +119,14 @@
     "./JobOperators": {
       "types": "./dist/JobOperators.d.ts",
       "import": "./dist/JobOperators.js"
+    },
+    "./JobApi": {
+      "types": "./dist/JobApi.d.ts",
+      "import": "./dist/JobApi.js"
+    },
+    "./JobApiBuilder": {
+      "types": "./dist/JobApiBuilder.d.ts",
+      "import": "./dist/JobApiBuilder.js"
     }
   },
   "files": [

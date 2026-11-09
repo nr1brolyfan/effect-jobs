@@ -1,3 +1,4 @@
+import * as JobApi from "../../src/JobApi.js"
 import { Context, Effect, Schema } from "effect"
 import * as Group from "../../src/JobGroup.js"
 import * as Queue from "../../src/JobQueue.js"
@@ -12,7 +13,9 @@ const definitions = {
 } as const
 const group = Group.make("billing-worker", definitions)
 const queue = Queue.make("billing")
-export const made = Worker.make(group, { queues: [{ queue, concurrency: 2 }] })
+export const made = Worker.make(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
+  queues: [{ queue, concurrency: 2 }]
+})
 export const storage = Storage.layer({ store, operationResponseBudgetMillis: 100 })
 export const composed = made.pipe(Effect.provide(storage))
 
@@ -43,8 +46,11 @@ export const invalidDrain = worker.drain(queue, {
   // @ts-expect-error Concurrency belongs to worker construction, not a drain.
   concurrency: 3
 })
-export const invalidBudget = Worker.make(group, {
-  queues: [{ queue }],
-  // @ts-expect-error The worker cannot duplicate or override its storage budget.
-  operationResponseBudgetMillis: 200
-})
+export const invalidBudget = Worker.make(
+  JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+  {
+    queues: [{ queue }],
+    // @ts-expect-error The worker cannot duplicate or override its storage budget.
+    operationResponseBudgetMillis: 200
+  }
+)

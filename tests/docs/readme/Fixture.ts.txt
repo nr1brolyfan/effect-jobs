@@ -1,3 +1,5 @@
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 // Application fixtures used by exact extracted fences. No production connection.
 import { Context, Effect, Layer, Schema } from "effect"
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto"
@@ -65,9 +67,9 @@ export class InvoicePdfRenderer extends Context.Service<InvoicePdfRenderer, { re
 export const InvoicePdfRendererLayer = Layer.succeed(InvoicePdfRenderer, { generate: () => Effect.void })
 export const receiptPolicy = Policy.defaultPolicy
 export const tables = Tables.tables()
-export const ReceiptHandler = BillingJobs.toLayer({ receipt: () => Effect.void })
+export const ReceiptHandler = JobApiBuilder.group(JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs)), BillingJobs.name, (_handlers) => _handlers.handle("receipt", () => Effect.void))
 export const SendPrivateReceipt = Job.make({ kind: "invoice.private-receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: Payload.encrypted({ schema: Document, codec: ReceiptEncryption }) }) })
-export const WorkerLayer = Worker.layer(BillingJobs, { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(Layer.succeed(JobStorage.JobStorage, jobs.storage)), Layer.provide(ReceiptHandler))
+export const WorkerLayer = Worker.layer(JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs)), { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(Layer.succeed(JobStorage.JobStorage, jobs.storage)), Layer.provide(ReceiptHandler))
 export const BillingWorkerLayer = WorkerLayer
 export const issueInvoice = (operationId: string, invoiceId: string) => jobs.withTransaction(() => IssueInvoice.enqueue({ operationId, slot: "receipt", payload: { invoiceId } }))
 

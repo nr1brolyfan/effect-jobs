@@ -1,3 +1,5 @@
+import * as JobApi from "../../../src/JobApi.js"
+import * as JobApiBuilder from "../../../src/JobApiBuilder.js"
 import { Context, Effect, Layer, Schema, Scope } from "effect"
 import { describe, expect, it, vi } from "vitest"
 import * as Group from "../../../src/JobGroup.js"
@@ -59,14 +61,18 @@ describe("contract-first groups", () => {
     ) {}
     const group = Group.make("billing", { receipt })
     const received: string[] = []
-    const handlers = group
-      .toLayer({
-        receipt: Effect.fnUntraced(function* (input) {
-          const mailer = yield* Mailer
-          received.push(mailer.prefix + input.payload.invoiceId)
-        })
-      })
-      .pipe(Layer.provide(Layer.succeed(Mailer, { prefix: "invoice:" })))
+    const handlers = JobApiBuilder.group(
+      JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+      group.name,
+      (_handlers) =>
+        _handlers.handle(
+          "receipt",
+          Effect.fnUntraced(function* (input) {
+            const mailer = yield* Mailer
+            received.push(mailer.prefix + input.payload.invoiceId)
+          })
+        )
+    ).pipe(Layer.provide(Layer.succeed(Mailer, { prefix: "invoice:" })))
     await Effect.runPromise(
       Effect.gen(function* () {
         const installed = yield* group.handlers
@@ -88,18 +94,26 @@ describe("contract-first groups", () => {
     expect(first.handlers.key).not.toBe(second.handlers.key)
     const calls: string[] = []
     const layers = Layer.mergeAll(
-      first.toLayer({
-        receipt: () =>
-          Effect.sync(() => {
-            calls.push("first")
-          })
-      }),
-      second.toLayer({
-        receipt: () =>
-          Effect.sync(() => {
-            calls.push("second")
-          })
-      })
+      JobApiBuilder.group(
+        JobApi.make(first.name).pipe(JobApi.addGroup(first)),
+        first.name,
+        (_handlers) =>
+          _handlers.handle("receipt", () =>
+            Effect.sync(() => {
+              calls.push("first")
+            })
+          )
+      ),
+      JobApiBuilder.group(
+        JobApi.make(second.name).pipe(JobApi.addGroup(second)),
+        second.name,
+        (_handlers) =>
+          _handlers.handle("receipt", () =>
+            Effect.sync(() => {
+              calls.push("second")
+            })
+          )
+      )
     )
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -121,7 +135,13 @@ describe("contract-first groups", () => {
     })
     const result = await Effect.runPromise(
       Effect.void.pipe(
-        Effect.provide(group.toLayer({ record: () => Effect.die("must not run") })),
+        Effect.provide(
+          JobApiBuilder.group(
+            JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+            group.name,
+            (_handlers) => _handlers.handle("record", () => Effect.die("must not run"))
+          )
+        ),
         Effect.result
       )
     )
@@ -134,15 +154,18 @@ describe("contract-first groups", () => {
   it("retains builder errors and closes resources on failed acquisition", async () => {
     const group = Group.make("builder", { receipt })
     let released = false
-    const handlers = group.toLayer(
-      Effect.gen(function* () {
-        yield* Effect.acquireRelease(Effect.void, () =>
-          Effect.sync(() => {
-            released = true
-          })
-        )
-        return yield* Effect.fail("builder-failed" as const)
-      })
+    const handlers = JobApiBuilder.group(
+      JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+      group.name,
+      (_handlers) =>
+        Effect.gen(function* () {
+          yield* Effect.acquireRelease(Effect.void, () =>
+            Effect.sync(() => {
+              released = true
+            })
+          )
+          return yield* Effect.fail("builder-failed" as const)
+        })
     )
     const result = await Effect.runPromise(
       Effect.void.pipe(Effect.provide(handlers), Effect.result)
@@ -155,16 +178,22 @@ describe("contract-first groups", () => {
     const group = Group.make("scope", { receipt })
     let finalized = 0
     const scopes: Scope.Scope[] = []
-    const handlers = group.toLayer({
-      receipt: Effect.fnUntraced(function* () {
-        scopes.push(yield* Scope.Scope)
-        yield* Effect.addFinalizer(() =>
-          Effect.sync(() => {
-            finalized++
+    const handlers = JobApiBuilder.group(
+      JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+      group.name,
+      (_handlers) =>
+        _handlers.handle(
+          "receipt",
+          Effect.fnUntraced(function* () {
+            scopes.push(yield* Scope.Scope)
+            yield* Effect.addFinalizer(() =>
+              Effect.sync(() => {
+                finalized++
+              })
+            )
           })
         )
-      })
-    })
+    )
     await Effect.runPromise(
       Effect.gen(function* () {
         const installed = yield* group.handlers

@@ -22,6 +22,8 @@ export const names = [
 export const imports = `import "effect/Schema"
 import { Context, Duration, Effect, Layer, Match, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 import * as JobGroup from "effect-jobs/JobGroup"
 import * as JobQueue from "effect-jobs/JobQueue"
 import * as JobProducer from "effect-jobs/JobProducer"

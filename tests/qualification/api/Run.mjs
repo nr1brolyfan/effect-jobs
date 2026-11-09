@@ -48,6 +48,8 @@ const types = publicImports(
 ).replace('"../core/codec/EncryptedFixture.js"', '"./EncryptedFixture.mjs"')
 writeFileSync(join(work, "Types.mts"), types)
 for (const [source, target] of [
+  ["catalog", "CatalogTypes"],
+  ["groups", "BuilderTypes"],
   ["schedule", "ScheduleTypes"],
   ["worker", "WorkerTypes"],
   ["group-worker", "GroupWorkerTypes"],
@@ -80,7 +82,9 @@ const nonDrizzle = types
 writeFileSync(join(work, "Strict.mts"), nonDrizzle)
 writeFileSync(
   join(work, "Runtime.mts"),
-  `
+  `import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
+
 import assert from "node:assert/strict"
 import { Cause, Duration, Effect, Exit, Layer, Result, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
@@ -181,7 +185,7 @@ for (const invalid of [{ queue: queue.name }, { queue: undefined }, { queue }, {
 assert.equal(prepared.length, 4)
 let calls = 0
 const group = Group.make("installed-receipts", { receipt: definition })
-const handler = group.toLayer({ receipt: (input) => Effect.sync(() => { assert.equal(input.payload.document.total, 12n); calls++ }) }).pipe(Layer.provide(keysLayer(keys())))
+const handler = JobApiBuilder.group(JobApi.make(group.name).pipe(JobApi.addGroup(group)), group.name, (_handlers) => _handlers.handle("receipt", (input) => Effect.sync(() => { assert.equal(input.payload.document.total, 12n); calls++ }))).pipe(Layer.provide(keysLayer(keys())))
 await Effect.runPromise(Effect.gen(function* () {
    const handlers = yield* group.handlers
    const context = { jobId: yield* Schema.decodeEffect(JobId)("fixture-job"), catalog, producer: prepared[0]!.producer, nextFinalizationNumber: 1 }
@@ -199,7 +203,7 @@ const storageLayer = Storage.layer({ operationResponseBudgetMillis: 100, store: 
   reconcileFinalization: () => Effect.succeed(Store.FinalizationReconciliation.Unknown()),
   recoverExpired: () => Effect.succeed(0)
 } })
-const workerLayer = Worker.layer(group, { queues: [{ queue }] }).pipe(Layer.provide(Layer.mergeAll(handler, storageLayer)))
+const workerLayer = Worker.layer(JobApi.make(group.name).pipe(JobApi.addGroup(group)), { queues: [{ queue }] }).pipe(Layer.provide(Layer.mergeAll(handler, storageLayer)))
 assert.equal(claims, 0)
 assert.deepEqual(await Effect.runPromise(Worker.drain(queue).pipe(Effect.provide(workerLayer))), { _tag: "Idle", claimed: 0, recovered: 0 })
 assert.equal(claims, 1)
@@ -247,6 +251,8 @@ writeFileSync(
         "Runtime.mts",
         "Operators.mts",
         "Repairs.mts",
+        "CatalogTypes.mts",
+        "BuilderTypes.mts",
         "WorkerTypes.mts",
         "GroupWorkerTypes.mts",
         "ScheduleTypes.mts",
@@ -264,6 +270,44 @@ run("strict-core", "node", [
   "-p",
   "tsconfig.strict.json"
 ])
+// Negative controls compile the exact maintained fixture with expect-error lines
+// stripped. Each graph must reject removed APIs and invalid/incomplete builders.
+const catalogNegative = readFileSync(join(work, "CatalogTypes.mts"), "utf8").replace(
+  /^.*@ts-expect-error.*\n/gm,
+  ""
+)
+writeFileSync(join(work, "CatalogNegative.mts"), catalogNegative)
+writeFileSync(
+  join(work, "tsconfig.negative.json"),
+  JSON.stringify({
+    compilerOptions: { ...compilerOptions, noEmit: true },
+    include: ["CatalogNegative.mts"]
+  })
+)
+const negative = spawnSync(
+  "node",
+  ["node_modules/typescript/bin/tsc", "-p", "tsconfig.negative.json"],
+  { cwd: work, timeout: 60000, encoding: "utf8" }
+)
+writeFileSync(
+  join(work, "catalog-negative.log"),
+  (negative.stdout ?? "") + (negative.stderr ?? "")
+)
+assert.equal(negative.status, 1)
+const negativeDiagnostics = [
+  ...(negative.stdout ?? "").matchAll(
+    /^CatalogNegative\.mts\(\d+,\d+\): error TS(\d+):/gm
+  )
+]
+assert.equal(negativeDiagnostics.length, 9)
+assert(
+  negativeDiagnostics.every((entry) =>
+    ["2322", "2339", "2739", "2345"].includes(entry[1])
+  )
+)
+for (const proof of ["toLayer", "JobApi", "Complete", "missing"]) {
+  assert((negative.stdout ?? "").includes(proof), `Missing negative diagnostic ${proof}`)
+}
 for (const runtime of ["node", "bun"]) {
   run(`${runtime}-runtime`, runtime, ["compiled/Runtime.mjs"])
 }
@@ -273,6 +317,7 @@ writeFileSync(
     {
       archiveSha256: createHash("sha256").update(readFileSync(archive)).digest("hex"),
       publicTypes: "PASS",
+      catalogNegativeControls: "PASS rejected stripped expect-error fixture",
       strictCoreDeclarations: "PASS skipLibCheck:false",
       drizzleDeclarations:
         "skipLibCheck:true; upstream limitation separately recorded by native runner",

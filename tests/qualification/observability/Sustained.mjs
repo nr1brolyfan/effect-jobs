@@ -36,17 +36,20 @@ const library = (name) =>
           )
     ).href
   )
-const [Job, JobQueue, Codec, Policy, Group, Worker, Storage] = await Promise.all(
-  [
-    "Job",
-    "JobQueue",
-    "JobPayloadCodec",
-    "JobPolicy",
-    "JobGroup",
-    "JobWorker",
-    "JobStorage"
-  ].map(library)
-)
+const [Job, JobQueue, Codec, Policy, Group, Worker, Storage, JobApi, JobApiBuilder] =
+  await Promise.all(
+    [
+      "Job",
+      "JobQueue",
+      "JobPayloadCodec",
+      "JobPolicy",
+      "JobGroup",
+      "JobWorker",
+      "JobStorage",
+      "JobApi",
+      "JobApiBuilder"
+    ].map(library)
+  )
 const queue = JobQueue.make("load-proof")
 const definition = Job.make({ kind: "load-proof", payload: Schema.String })
 const catalog = { queue: queue.name, kind: definition.kind, version: definition.version }
@@ -56,12 +59,16 @@ const runJob = () =>
     const encoded = yield* Codec.encodeJobPayload(definition.payload, "synthetic")
     let invoked = 0
     let finalized = false
-    const handlers = group.toLayer({
-      synthetic: () =>
-        Effect.sync(() => {
-          invoked++
-        })
-    })
+    const handlers = JobApiBuilder.group(
+      JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+      group.name,
+      (_handlers) =>
+        _handlers.handle("synthetic", () =>
+          Effect.sync(() => {
+            invoked++
+          })
+        )
+    )
     const store = {
       recoverExpired: () => Effect.succeed(0),
       claim: (request) =>
@@ -109,7 +116,10 @@ const runJob = () =>
       reconcileClaim: () => Effect.succeed({ _tag: "Unknown" }),
       reconcileFinalization: () => Effect.succeed({ _tag: "Unknown" })
     }
-    const worker = yield* Worker.make(group, { queues: [{ queue }] }).pipe(
+    const worker = yield* Worker.make(
+      JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+      { queues: [{ queue }] }
+    ).pipe(
       Effect.provide(
         Layer.mergeAll(
           Storage.layer({ store, operationResponseBudgetMillis: 100 }),

@@ -2,14 +2,12 @@
 /* oxlint-disable effecttsgo/any-unknown-in-error-context -- Unknown is only the
  * existential upper bound for heterogeneous handlers inside acquisition. The
  * exported Layer infers concrete requirements, verified by service-negative tests. */
-import { Context, Data, Effect, Layer, Schema, Scope } from "effect"
+import { Context, Data, Schema } from "effect"
+import type { Effect } from "effect"
 import type { EncodedJobPayload, HandlerInput, HandlerContext } from "./JobContract.js"
 import type { JobPayloadCodecError } from "./JobContract.js"
 import type { JobFailure } from "./JobFailure.js"
 import { JobKind, JobVersion } from "./JobIdentity.js"
-import { decodeJobPayload } from "./JobPayloadCodec.js"
-import { observe } from "./JobTelemetry.js"
-import { prepareProjection } from "./internal/codec/ProtectedProjection.js"
 import type { JobDefinition } from "./Job.js"
 
 /** Named job contracts, independent of queue routing. */
@@ -51,7 +49,8 @@ export interface Handlers<Name extends string, D extends Definitions> {
   }
 }
 
-type BoundHandler = (
+/** Encoded invocation boundary used by installed handler services. */
+export type BoundHandler = (
   encoded: EncodedJobPayload,
   context: HandlerContext
 ) => Effect.Effect<void, JobFailure | JobPayloadCodecError>
@@ -75,18 +74,11 @@ export class JobGroupConfigurationError extends Data.TaggedError(
   readonly alias?: string
 }> {}
 
-/** Immutable declaration and group-specific complete handler Layer constructor. */
+/** Immutable contract declaration with a distinct installation service identity. */
 export interface JobGroup<Name extends string, D extends Definitions> {
   readonly name: Name
   readonly definitions: D
   readonly handlers: Context.Service<Handlers<Name, D>, InstalledHandlers<D>>
-  readonly toLayer: <H extends HandlersFrom<D>, E = never, R = never>(
-    build: H | Effect.Effect<H, E, R>
-  ) => Layer.Layer<
-    Handlers<Name, D>,
-    E | JobGroupConfigurationError,
-    Exclude<R | HandlerServices<H> | DecodingServices<D>, Scope.Scope>
-  >
 }
 
 /**
@@ -106,6 +98,8 @@ export const make = <const Name extends string, const D extends Definitions>(
   const versions = new Map<string, Set<number>>()
   for (const [alias, definition] of entries) {
     if (
+      typeof definition !== "object" ||
+      definition === null ||
       !Schema.is(JobKind)(definition.kind) ||
       !Schema.is(JobVersion)(definition.version) ||
       !Schema.isSchema(definition.payload)
@@ -127,65 +121,6 @@ export const make = <const Name extends string, const D extends Definitions>(
   const service = Context.Service<Handlers<Name, D>, InstalledHandlers<D>>(
     `effect-jobs/JobGroup/${name}/${sequence.value++}`
   )
-  const toLayer = <H extends HandlersFrom<D>, E = never, R = never>(
-    build: H | Effect.Effect<H, E, R>
-  ): Layer.Layer<
-    Handlers<Name, D>,
-    E | JobGroupConfigurationError,
-    Exclude<R | HandlerServices<H> | DecodingServices<D>, Scope.Scope>
-  > => {
-    const acquisition = Effect.gen(function* () {
-      // Heterogeneous records are erased only inside acquisition. The public
-      // mapped types retain each payload and the union of all actual services.
-      const services = Context.omit(Scope.Scope)(yield* Effect.context<unknown>())
-      const implementations = Effect.isEffect(build) ? yield* build : build
-      const aliases = Object.keys(snapshot)
-      const supplied = Object.keys(implementations)
-      if (
-        supplied.length !== aliases.length ||
-        !aliases.every(
-          (alias) =>
-            Object.hasOwn(implementations, alias) &&
-            typeof implementations[alias] === "function"
-        )
-      ) {
-        return yield* new JobGroupConfigurationError({ reason: "invalid-handlers" })
-      }
-      const bound = yield* Effect.forEach(aliases, (alias) =>
-        Effect.gen(function* () {
-          const definition = snapshot[alias]!
-          yield* prepareProjection(definition.payload).pipe(
-            Effect.mapError(
-              () =>
-                new JobGroupConfigurationError({ reason: "unsupported-schema", alias })
-            )
-          )
-          const execute = implementations[alias]!
-          const handler: BoundHandler = (encoded, context) =>
-            decodeJobPayload(definition.payload, encoded).pipe(
-              Effect.flatMap((payload) =>
-                Effect.suspend(() => execute({ payload, context })).pipe(
-                  observe("invoke", "handler")
-                )
-              ),
-              Effect.provide(services),
-              Effect.scoped
-            )
-          return [alias, handler] as const
-        })
-      )
-      return Object.freeze(Object.fromEntries(bound)) as InstalledHandlers<D>
-    })
-    // Object iteration erases the mapped record's existential key and its R.
-    // Acquisition captures exactly those requirements described by toLayer.
-    return Layer.effect(
-      service,
-      acquisition as Effect.Effect<
-        InstalledHandlers<D>,
-        E | JobGroupConfigurationError,
-        R | HandlerServices<H> | DecodingServices<D>
-      >
-    )
-  }
-  return Object.freeze({ name, definitions: snapshot, handlers: service, toLayer })
+
+  return Object.freeze({ name, definitions: snapshot, handlers: service })
 }

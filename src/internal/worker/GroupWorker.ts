@@ -1,6 +1,6 @@
 /** Group-to-engine construction and bounded drain. */
-import { Effect, Schema } from "effect"
-import type { JobGroup, Definitions } from "../../JobGroup.js"
+import { Context, Effect, Option, Schema } from "effect"
+import type { JobApi, Groups, HandlerServices } from "../../JobApi.js"
 import { JobStorage } from "../../JobStorage.js"
 import type { JobQueue } from "../../JobQueue.js"
 import { QueueName } from "../../JobIdentity.js"
@@ -40,12 +40,21 @@ export const DrainLimitsSchema = Schema.Struct({
  * Resolves complete group handlers and fixes all queue semaphores at acquisition.
  * Uses the existing claim/reconciliation/finalization engine, not a second runtime.
  */
-export const make = <Name extends string, D extends Definitions>(
-  group: JobGroup<Name, D>,
-  options: Options
-) =>
+export const make = <A extends JobApi<string, Groups>>(api: A, options: Options) =>
   Effect.gen(function* () {
-    const handlers = yield* group.handlers
+    const services = yield* Effect.context<HandlerServices<A["groups"]>>()
+    const groups = yield* Effect.forEach(Object.values(api.groups), (group) =>
+      Effect.gen(function* () {
+        const installed = Context.getOption(services, group.handlers)
+        if (Option.isNone(installed)) {
+          return yield* new JobWorkerConfigurationError({ field: "catalog" })
+        }
+        return { group, handlers: installed.value }
+      })
+    )
+    if (groups.length === 0) {
+      return yield* new JobWorkerConfigurationError({ field: "catalog" })
+    }
     const storage = yield* JobStorage
     const queues = options.queues.map((entry) =>
       Object.freeze({
@@ -64,24 +73,21 @@ export const make = <Name extends string, D extends Definitions>(
     ) {
       return yield* new JobWorkerConfigurationError({ field: "queues" })
     }
-    const definitions = Object.entries(group.definitions)
-    const catalog = queues.flatMap((entry) =>
-      definitions.map((definition) => ({
-        catalog: Object.freeze({
-          queue: entry.queue.name,
-          kind: definition[1].kind,
-          version: definition[1].version
-        })
-      }))
+    const installed: ReadonlyArray<JobHandler> = queues.flatMap((entry) =>
+      groups.flatMap((bound) =>
+        Object.entries(bound.group.definitions).map((definition) =>
+          Object.freeze({
+            catalog: Object.freeze({
+              queue: entry.queue.name,
+              kind: definition[1].kind,
+              version: definition[1].version
+            }),
+            execute: bound.handlers[definition[0]]!
+          })
+        )
+      )
     )
-    const installed: ReadonlyArray<JobHandler> = catalog.map((entry) => {
-      const definition = definitions.find(
-        (candidate) =>
-          candidate[1].kind === entry.catalog.kind &&
-          candidate[1].version === entry.catalog.version
-      )!
-      return Object.freeze({ catalog: entry.catalog, execute: handlers[definition[0]]! })
-    })
+    const catalog = installed.map((entry) => ({ catalog: entry.catalog }))
     const worker = yield* makeWithHandlers(
       storage.store,
       { catalog, operationResponseBudgetMillis: storage.operationResponseBudgetMillis },

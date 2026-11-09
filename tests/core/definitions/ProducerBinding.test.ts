@@ -1,3 +1,5 @@
+import * as JobApi from "../../../src/JobApi.js"
+import * as JobApiBuilder from "../../../src/JobApiBuilder.js"
 import { Deferred, Effect, Fiber, Layer, Logger, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Producer from "../../../src/JobProducer.js"
@@ -172,9 +174,12 @@ describe("contract-first producer binding", () => {
         )
         expect(prepared[0]!.policy).toEqual(Policy.defaultPolicy)
         const test = harness(prepared)
-        const worker = yield* Worker.make(group, {
-          queues: [{ queue }, { queue: other }]
-        }).pipe(
+        const worker = yield* Worker.make(
+          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          {
+            queues: [{ queue }, { queue: other }]
+          }
+        ).pipe(
           Effect.provide(
             Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
           )
@@ -186,12 +191,16 @@ describe("contract-first producer binding", () => {
         Effect.provideService(JobEnqueue, capture(prepared)),
         Effect.provide(
           Layer.mergeAll(
-            group.toLayer({
-              receipt: (input) =>
-                Effect.sync(() => {
-                  seen.push(input.payload.invoiceId)
-                })
-            }),
+            JobApiBuilder.group(
+              JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+              group.name,
+              (_handlers) =>
+                _handlers.handle("receipt", (input) =>
+                  Effect.sync(() => {
+                    seen.push(input.payload.invoiceId)
+                  })
+                )
+            ),
             Logger.layer([])
           )
         )

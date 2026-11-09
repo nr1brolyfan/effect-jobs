@@ -1,3 +1,4 @@
+import * as JobApi from "effect-jobs/JobApi"
 // @effect-diagnostics unstableApiUsage:off
 import { Clock, Context, Effect, Layer, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
@@ -52,12 +53,15 @@ export const workerLayerNoDeps = (schema: string) =>
   Layer.unwrap(
     Effect.gen(function* () {
       const jobs = yield* PostgreSqlJobs
-      return Worker.layer(Definitions.group, {
-        queues: queues.map((queue) => ({
-          queue,
-          concurrency: limits.concurrency
-        }))
-      }).pipe(
+      return Worker.layer(
+        JobApi.make(Definitions.group.name).pipe(JobApi.addGroup(Definitions.group)),
+        {
+          queues: queues.map((queue) => ({
+            queue,
+            concurrency: limits.concurrency
+          }))
+        }
+      ).pipe(
         Layer.provide(Layer.succeed(Storage.JobStorage, jobs.storage)),
         Layer.provide(Handlers.layerNoDeps),
         Layer.provide(Provider.layerNoDeps(schema))
