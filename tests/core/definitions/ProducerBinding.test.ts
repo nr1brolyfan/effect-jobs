@@ -69,41 +69,31 @@ const produce = (
 
 describe("contract-first producer binding", () => {
   it.each(methods)(
-    "%s resolves independent overrides without changing defaults",
+    "%s uses fixed routing and independent policy replacements",
     async (method) => {
       const prepared: PreparedJob[] = []
-      const priority = Queue.make("billing-priority")
-      const policy = { ...Policy.defaultPolicy, maxFinalizedAttempts: 7 }
-      const input = {
-        slot: "receipt",
-        operationId: "same",
-        payload: { invoiceId: "one" }
-      } as const
-      for (const overrides of [
-        {},
-        { queue: priority },
-        { policy },
-        { queue: priority, policy },
-        {}
+      for (const policy of [
+        undefined,
+        { ...Policy.defaultPolicy, maxFinalizedAttempts: 7 }
       ]) {
-        await Effect.runPromise(produce(method, { ...input, ...overrides }, prepared))
+        await Effect.runPromise(
+          produce(
+            method,
+            {
+              slot: "receipt",
+              operationId: "same",
+              payload: { invoiceId: "one" },
+              ...(policy === undefined ? {} : { policy })
+            },
+            prepared
+          )
+        )
       }
       expect(prepared.map((value) => value.catalog.queue)).toEqual([
         queue.name,
-        priority.name,
-        queue.name,
-        priority.name,
         queue.name
       ])
-      expect(prepared.map((value) => value.policy.maxFinalizedAttempts)).toEqual([
-        Policy.defaultPolicy.maxFinalizedAttempts,
-        Policy.defaultPolicy.maxFinalizedAttempts,
-        7,
-        7,
-        Policy.defaultPolicy.maxFinalizedAttempts
-      ])
-      expect(prepared.every((value) => value.producer.operationId === "same")).toBe(true)
-      expect(receipt.slots.receipt.queue).toEqual(queue)
+      expect(prepared.map((value) => value.policy.maxFinalizedAttempts)).toEqual([3, 7])
     }
   )
 
@@ -131,7 +121,7 @@ describe("contract-first producer binding", () => {
               operationId: "same",
               payload: { invoiceId: "one" },
               ...overrides
-            },
+            } as never,
             prepared
           ).pipe(Effect.result)
         )
@@ -302,7 +292,7 @@ describe("contract-first producer binding", () => {
     ]) {
       const result = await Effect.runPromise(
         producer
-          .enqueue({ ...input, ...overrides })
+          .enqueue({ ...input, ...overrides } as never)
           .pipe(
             Effect.provideService(JobEnqueue, capture([])),
             Effect.provide(keysLayer(keys())),
@@ -377,7 +367,11 @@ describe("contract-first producer binding", () => {
           }
         })
         const producer = Producer.make("billing.snapshot-input").pipe(
-          Producer.withSlot("receipt", { ...job, payload }, { queue })
+          Producer.withSlot(
+            "receipt",
+            { ...job, payload },
+            { queues: [queue, Queue.make("billing-priority")] }
+          )
         )
         const destination = { ...Queue.make("billing-priority") }
         const configured = {
@@ -390,14 +384,14 @@ describe("contract-first producer binding", () => {
           operationId: "original",
           payload: { recipient: "private", total: 1n },
           availableAt: 1,
-          queue: destination,
+          queue: destination.name as "billing-priority" | "billing",
           policy: configured
         }
         const fiber = yield* producer.enqueue(input).pipe(Effect.forkChild)
         yield* Deferred.await(entered)
         input.operationId = "changed\u0000"
         input.availableAt = 2
-        destination.name = "changed" as typeof destination.name
+        input.queue = "billing"
         configured.maxFinalizedAttempts = 8
         configured.retrySchedule.delayMillis = 123
         yield* Deferred.succeed(proceed, undefined)

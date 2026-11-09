@@ -151,11 +151,23 @@ const produce = IssueInvoiceProducer.enqueue({
 })
 ```
 
-The owner subsequently accepted independent optional `queue` and `policy`
-overrides on `enqueue`, `enqueueStandalone` and `enqueueInTransaction`. The slot
-keeps the job contract and default queue/policy; a policy override is complete,
-not a partial merge. Overrides do not change producer identity or move matching
-duplicates: D3's first-write-wins execution configuration remains authoritative.
+The owner accepted fixed versus explicitly selectable routing. A slot declared
+with `{ queue: JobQueue }` is fixed; enqueue forbids any `queue` property, including
+an equal name/object or `undefined`. A slot declared with
+`{ queues: [JobQueue, ...JobQueue[]] }` requires an explicit queue-name string from
+that closed list, including singleton lists. Both/missing declarations, empty or
+duplicate-name lists and `defaultQueue` are rejected synchronously when the binding
+is applied. No fallback or implicit first choice exists. All three enqueue paths
+preserve per-slot payload/choice/Schema-service correlation, including discriminated
+union inputs. Bare uncorrelated union slots do not establish a valid input.
+
+`policy` remains independently optional and replaces the complete resolved value.
+Routing validation produces safe typed `InvalidJobInput` before encoding/insertion,
+after transaction authority/lifetime checks. Assembly snapshots only the new binding,
+list and members without freezing caller-owned objects. Selected queue and policy
+are captured before asynchronous encoding. Neither selection nor policy changes
+identity or moves matching duplicates; the first whole configuration and artifact
+remain authoritative, without checking retained routing against a new deployment list.
 No mandatory tenant field, per-tenant queue or DO topology is introduced. Shared
 queues by work class are an application default; tenant access and unique operation
 IDs, physical routing and deployment resource sharing remain application-owned.

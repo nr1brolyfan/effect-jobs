@@ -260,14 +260,16 @@ const diagnostics = [
     /Negative.mts\((\d+),\d+\): error (TS\d+):/g
   )
 ]
-assert.equal(diagnostics.length, 6)
+assert.equal(diagnostics.length, 8)
 const oracleNames = [
   "badQueryError",
   "badTransactionError",
   "badJoinedError",
   "badOutput",
   "missingCaller",
-  "values({ id:"
+  "values({ id:",
+  "badQueueObject",
+  "missingQueueChoice"
 ]
 for (const [i, diagnostic] of diagnostics.entries()) {
   assert(negative.split("\n")[Number(diagnostic[1]) - 1].includes(oracleNames[i]))

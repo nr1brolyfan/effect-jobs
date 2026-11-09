@@ -134,13 +134,13 @@ invoice can send a receipt and generate a PDF without their enqueue identities
 colliding:
 
 ```ts
+const PriorityBillingQueue = JobQueue.make("billing-priority")
 const IssueInvoiceWithPdf = JobProducer.make("billing.issue-invoice-with-pdf").pipe(
-  JobProducer.withSlot("send-receipt", SendReceipt, { queue: BillingQueue }),
+  JobProducer.withSlot("send-receipt", SendReceipt, { queues: [BillingQueue, PriorityBillingQueue] }),
   JobProducer.withSlot("generate-pdf", GeneratePdf, { queue: BillingQueue })
 )
 
 // Inside the application's transaction; GeneratePdf is another job definition.
-const PriorityBillingQueue = JobQueue.make("billing-priority")
 const priorityPolicy = yield* JobPolicy.make({
   retry: Retry.fixed(Duration.seconds(2)).pipe(Retry.maxFinalizedAttempts(4))
 })
@@ -148,7 +148,7 @@ const priorityPolicy = yield* JobPolicy.make({
 yield* IssueInvoiceWithPdf.enqueue({
   operationId, slot: "send-receipt",
   payload: { invoiceId },
-  queue: PriorityBillingQueue,
+  queue: PriorityBillingQueue.name,
   policy: priorityPolicy
 })
 
@@ -168,13 +168,16 @@ one consequence and returns a new producer. There is no `build()` step or slot
 replacement. Duplicate slot names are rejected, not overwritten. An empty
 declaration has no statically legal enqueue slot. Assembly starts no background work.
 
-Slots bind contracts and **default** execution configuration, not mandatory routes.
-All three enqueue methods accept optional `queue` and `policy` overrides. Each is
-independent; omitted values use the slot default. A policy override is a complete
-validated `JobPolicy` value, not a partial merge. Select configuration from trusted
-application context; this is not an authorization mechanism. Workers must be
-configured to drain the selected queue (the example above needs a priority-queue
-consumer). Malformed overrides fail in the typed enqueue channel before encoding.
+Slots declare either a fixed route with `{ queue: BillingQueue }` or a closed,
+nonempty choice with `{ queues: [BillingQueue, PriorityQueue] }`. Fixed slots
+forbid any enqueue `queue` field, even the same queue or `undefined`. Selectable
+slots require a queue **name** from their list, such as `queue: "billing.priority"`;
+a singleton list still requires explicit selection. There is no default choice.
+All three enqueue methods follow the same per-slot rules and accept an independent
+optional `policy`: a complete validated `JobPolicy`, never a partial merge.
+Workers still use JobQueue references and must drain the chosen queue. Routing
+is not an authorization mechanism. Invalid routing fails through `InvalidJobInput`
+before encoding/insertion, after transaction authority and lifetime checks.
 
 Replaying the same operation/ID/slot with another queue or policy still returns the
 original matching job and preserves its first configuration and artifact bytes.

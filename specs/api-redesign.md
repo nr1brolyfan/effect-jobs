@@ -68,13 +68,17 @@ execution routing, not contract identity. Group keys are local implementation
 aliases, not persisted job identities. Different versions can coexist in a group.
 
 A producer declares its operation and consequence slots once. Each slot binds a
-definition to a default queue and resolved default policy. Production supplies the
-stable operation ID and decoded payload, with independent optional `queue` and
-`policy` overrides on all three enqueue methods. Omitted values use slot defaults;
-policy overrides are complete resolved policies, never partial merges. Overrides
-are validated in the typed channel and copied before asynchronous encoding without
-mutating/freezing caller-owned configuration. Invalid routing reports
-`InvalidJobInput.field = "catalog"`; invalid policy reports `"policy"`.
+contract and resolved default policy to either a fixed `{ queue: JobQueue }` route
+or an explicit closed `{ queues: [JobQueue, ...JobQueue[]] }` choice. Fixed enqueue
+forbids a `queue` property, including `undefined`; selectable enqueue requires a
+member queue-name string, even with one choice. There is no implicit/default choice.
+Missing/both routing declarations, empty/invalid/duplicate lists and `defaultQueue`
+fail synchronously when applied. All three methods preserve per-slot payload/queue/
+encoding-service correlation and accept independently optional complete `policy`
+replacements. Configuration is copied without freezing caller objects; choice and
+policy are captured before asynchronous encoding. Invalid routing reports typed
+`InvalidJobInput.field = "catalog"` after authority/lifetime checks and before
+encoding/insertion; invalid policy reports `"policy"`.
 Dynamic IDs are rejected through the typed
 enqueue error channel, not synchronous exceptions from a runtime-value builder.
 Static malformed declarations fail synchronously during immutable assembly.

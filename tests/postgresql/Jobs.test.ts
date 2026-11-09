@@ -1022,24 +1022,27 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
     async (method) => {
       await clear()
       const priority = Queue.make("billing-priority")
+      const selectable = Producer.make("billing.issue").pipe(
+        Producer.withSlot("generate", definition, { queues: [queue, priority], policy })
+      )
       const configured = { ...policy, maxFinalizedAttempts: 7 }
       const produce = (
-        command: Producer.Input<typeof producer.slots, "generate">
+        command: Producer.Input<typeof selectable.slots, "generate">
       ): Effect.Effect<
         EnqueueResult,
         JobEnqueueError | JobPersistenceError | PostgreSqlError
       > =>
         method === "enqueueStandalone"
-          ? producer
+          ? selectable
               .enqueueStandalone(command)
               .pipe(Effect.provideService(JobEnqueue, jobs.producer))
           : method === "enqueue"
-            ? jobs.withTransaction(() => producer.enqueue(command))
-            : jobs.withTransaction((tx) => producer.enqueueInTransaction(tx, command))
+            ? jobs.withTransaction(() => selectable.enqueue(command))
+            : jobs.withTransaction((tx) => selectable.enqueueInTransaction(tx, command))
       const first = await Effect.runPromise(
         produce({
           ...input("overrides", "same", 1),
-          queue: priority,
+          queue: priority.name,
           policy: configured
         })
       )
@@ -1052,13 +1055,13 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
         "SELECT * FROM jobs_fixture.task_artifacts WHERE job_id=$1",
         [first.jobId]
       )
-      // Both omitted overrides and a valid but admission-incompatible replacement
+      // Both an omitted policy and a valid but admission-incompatible replacement
       // retain the first configuration instead of moving or revalidating old work.
       for (const command of [
-        input("overrides", "same", 2),
+        { ...input("overrides", "same", 2), queue: queue.name },
         {
           ...input("overrides", "same", 3),
-          queue,
+          queue: queue.name,
           policy: {
             ...policy,
             leaseDurationMillis: policy.attemptTimeoutMillis + 1
@@ -1124,14 +1127,17 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
       )
     ).toMatchObject({ _tag: "AlreadyPresent", jobId: first.jobId })
     expect(await row("duplicate")).toEqual(before)
+    const rerouted = Producer.make(producer.operation).pipe(
+      Producer.withSlot("generate", definition, { queues: [Queue.make("billing-slow")] })
+    )
     const movedRetry = await Effect.runPromise(
       jobs.withTransaction(() =>
-        producer.enqueue({
+        rerouted.enqueue({
           slot: "generate",
           operationId: "duplicate",
           payload: { invoiceId: "same" },
           availableAt: 3,
-          queue: Queue.make("billing-slow"),
+          queue: "billing-slow",
           policy: changed
         })
       )
@@ -1182,16 +1188,20 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
   })
   test("concurrent producer routing changes converge without changing the winner's route", async () => {
     await clear()
-    const routes = [queue, Queue.make("billing-slow")]
+    const routes = [queue, Queue.make("billing-slow")] as const
+    const selectable = Producer.make("billing.issue").pipe(
+      Producer.withSlot("generate", definition, { queues: routes, policy })
+    )
     const results = await Promise.all(
       routes.map((route) =>
         Effect.runPromise(
           jobs.withTransaction(() =>
-            producer.enqueue({
+            selectable.enqueue({
               slot: "generate",
               operationId: "routing-race",
               payload: { invoiceId: "same" },
-              queue: route,
+              queue: route.name,
+              availableAt: route === queue ? 1 : 2,
               policy: { ...policy, maxFinalizedAttempts: route === queue ? 3 : 7 }
             })
           )
@@ -1203,22 +1213,40 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
     const winner = results.findIndex((result) => result._tag === "Inserted")
     const before = await row("routing-race")
     expect(before.queue).toBe(routes[winner]!.name)
-    expect(before.policy.maxAttempts).toBe(winner === 0 ? 3 : 7)
+    expect(before.policy).toEqual(
+      Schema.encodeSync(Policy.PersistedJobPolicy)({
+        ...policy,
+        maxFinalizedAttempts: winner === 0 ? 3 : 7
+      })
+    )
+    expect(Number(before.initial_available_at)).toBe(winner === 0 ? 1 : 2)
+    const artifacts = await observer.query(
+      "SELECT * FROM jobs_fixture.task_artifacts WHERE job_id=$1",
+      [results[0]!.jobId]
+    )
     for (const route of routes) {
       expect(
         await Effect.runPromise(
           jobs.withTransaction(() =>
-            producer.enqueue({
+            selectable.enqueue({
               slot: "generate",
               operationId: "routing-race",
               payload: { invoiceId: "same" },
-              queue: route
+              queue: route.name
             })
           )
         )
       ).toMatchObject({ _tag: "AlreadyPresent", jobId: results[0]!.jobId })
     }
     expect(await row("routing-race")).toEqual(before)
+    expect(
+      (
+        await observer.query(
+          "SELECT * FROM jobs_fixture.task_artifacts WHERE job_id=$1",
+          [results[0]!.jobId]
+        )
+      ).rows
+    ).toEqual(artifacts.rows)
   })
   test("omitted availability comes from database time; future/unsupported tuples remain untouched", async () => {
     await clear()

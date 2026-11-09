@@ -7,8 +7,12 @@ The empty declaration is valid but has no legal typed enqueue slot. Each additio
 validates and snapshots only its new binding, preserves earlier bindings, and
 rejects duplicate names statically when known and synchronously at runtime.
 There is no record-constructor overload, `build()` or `replaceSlot`.
-Default queue routing and resolved policy belong to `JobProducer` slots;
-each enqueue method accepts independent optional queue and complete-policy overrides.
+Routing and resolved policy belong to `JobProducer` slots. `{ queue }` fixes the
+route and forbids any enqueue `queue` field. `{ queues: [first, ...rest] }` declares
+a nonempty closed choice and requires a member queue-name string on every enqueue,
+even for singleton lists. Missing/both declarations, duplicate names and
+`defaultQueue` are invalid. All three methods preserve per-slot payload/routing/
+Schema-service correlation and accept an independent complete-policy replacement.
 Matching duplicates preserve the first stored execution configuration and artifacts;
 complete handlers are installed through `JobGroup.toLayer`. The standard artifact
 codec is fixed; domain transformations and encryption belong in Schema, with no

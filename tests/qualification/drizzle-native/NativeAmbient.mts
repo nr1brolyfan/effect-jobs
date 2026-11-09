@@ -271,17 +271,20 @@ try {
       assert.equal(conflict.filter(Exit.isFailure).length, 1)
       checks.push("parallel isolated transactions and matching/conflicting dedup")
       const priority = Queue.make("billing-priority")
+      const selectable = Producer.make("billing.issue").pipe(
+        Producer.withSlot("receipt", definition, { queues: [queue, priority] })
+      )
       const priorityPolicy = { ...Policy.defaultPolicy, maxFinalizedAttempts: 7 }
       for (const mode of ["ambient", "standalone"] as const) {
         const command = {
           ...input(`override-${mode}`),
-          queue: priority,
+          queue: priority.name,
           policy: priorityPolicy
         }
         const first =
           mode === "ambient"
-            ? yield* client.withTransaction(producer.enqueue(command))
-            : yield* producer.enqueueStandalone(command)
+            ? yield* client.withTransaction(selectable.enqueue(command))
+            : yield* selectable.enqueueStandalone(command)
         const before = yield* client.unsafe<{ queue: string; policy: unknown }>(
           `SELECT j.*,p.payload,p.projection FROM ${schema}.jobs j JOIN ${schema}.job_payloads p ON p.job_id=j.id WHERE j.id=$1`,
           [first.jobId]
@@ -291,9 +294,9 @@ try {
           before[0]!.policy,
           Schema.encodeSync(Policy.PersistedJobPolicy)(priorityPolicy)
         )
-        const replay = yield* producer.enqueueStandalone({
+        const replay = yield* selectable.enqueueStandalone({
           ...input(`override-${mode}`),
-          queue,
+          queue: queue.name,
           policy: Policy.defaultPolicy
         })
         assert.equal(replay._tag, "AlreadyPresent")

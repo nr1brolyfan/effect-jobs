@@ -8,6 +8,8 @@ import * as Worker from "effect-jobs/JobWorker"
 import * as JobStorage from "effect-jobs/JobStorage"
 import * as Policy from "effect-jobs/JobPolicy"
 import * as Tables from "effect-jobs/PostgreSqlSchema"
+import * as Producer from "effect-jobs/JobProducer"
+import * as Queue from "effect-jobs/JobQueue"
 import * as Job from "effect-jobs/Job"
 import type { JobFailure } from "effect-jobs/JobFailure"
 import { BillingQueue, SendReceipt, BillingJobs, IssueInvoice } from "./contracts.js"
@@ -68,3 +70,11 @@ export const SendPrivateReceipt = Job.make({ kind: "invoice.private-receipt", pa
 export const WorkerLayer = Worker.layer(BillingJobs, { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(Layer.succeed(JobStorage.JobStorage, jobs.storage)), Layer.provide(ReceiptHandler))
 export const BillingWorkerLayer = WorkerLayer
 export const issueInvoice = (operationId: string, invoiceId: string) => jobs.withTransaction(() => IssueInvoice.enqueue({ operationId, slot: "receipt", payload: { invoiceId } }))
+
+// Installed/readme declarations must reject the removed queue-object override.
+// @ts-expect-error Fixed routing never accepts an enqueue queue field.
+export const forbiddenQueueObject = IssueInvoice.enqueue({ slot: "receipt", operationId: "one", payload: { invoiceId: "one" }, queue: BillingQueue })
+const selectable = Producer.make("readme.selection").pipe(Producer.withSlot("receipt", SendReceipt, { queues: [BillingQueue, Queue.make("priority")] }))
+export const selected = selectable.enqueue({ slot: "receipt", operationId: "one", payload: { invoiceId: "one" }, queue: "priority" })
+// @ts-expect-error Explicit selection is required, including readonly inline lists.
+export const missingChoice = selectable.enqueue({ slot: "receipt", operationId: "one", payload: { invoiceId: "one" } })

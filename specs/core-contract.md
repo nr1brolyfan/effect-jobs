@@ -109,12 +109,18 @@ Each addition copies and freezes its binding without freezing caller-owned
 configuration; previously installed bindings are reused unchanged. Omitted policy
 resolves to the library default. Operation and slot literals and
 each Schema's payload/encoding services remain inferred. Production accepts
-`{ slot, operationId, payload, availableAt?, queue?, policy? }` on ambient,
-standalone and explicit-handle enqueue. Each override independently replaces its
-slot default; policy is a complete resolved value, not a partial merge. Invalid
-overrides fail through `InvalidJobInput` (`catalog` for routing, `policy` for policy)
-before encoding/insertion once transaction authority has been checked. Override
-queue names and nested policy are snapshotted before asynchronous encoding.
+`{ slot, operationId, payload, availableAt?, policy? }` on ambient, standalone and
+explicit-handle paths. Fixed `{ queue }` bindings prohibit any enqueue `queue`
+property (even `undefined`); selectable `{ queues: [first, ...rest] }` bindings
+require a member queue-name string, including singleton lists. The nonempty list
+is closed, has unique names and no default. Missing/both routing declarations and
+`defaultQueue` are invalid. Per-slot discriminated inputs preserve payload/routing
+correlation without widening a slot to accept another slot's data.
+Policy is an independently optional complete resolved replacement. Invalid routing
+fails through `InvalidJobInput` (`catalog`), invalid policy through `policy`, before
+encoding/insertion after transaction authority checks. Lists and members are copied
+and frozen on application without freezing caller configuration. Selected names and
+nested policy are captured before asynchronous encoding.
 Matching duplicates retain the original ID, queue, policy, availability and artifact.
 Runtime ID validation uses the Effect error channel with bounded
 `InvalidOperationId` diagnostics. No global registry, identity builder or mutable

@@ -166,14 +166,15 @@ assert.deepEqual(prepared[0]!.encoded.semanticProjectionBytes, prepared[2]!.enco
 assert(!new TextDecoder().decode(prepared[0]!.encoded.payloadBytes).includes("PRIVATE"))
 assert.deepEqual(await Effect.runPromise(decodeJobPayload(definition.payload, prepared[0]!.encoded).pipe(Effect.provide(keysLayer(keys("two"))))), input.payload)
 const priority = Queue.make("billing-priority")
+const selectable = Producer.make(producer.operation).pipe(Producer.withSlot("receipt", definition, { queues: [queue, priority] }))
 const overridePolicy = { ...Policy.defaultPolicy, maxFinalizedAttempts: 7 }
-await Effect.runPromise(producer.enqueue({ ...input, queue: priority, policy: overridePolicy }).pipe(Effect.provideService(JobEnqueue, enqueueService), Effect.provide(keysLayer(keys()))))
+await Effect.runPromise(selectable.enqueue({ ...input, queue: priority.name, policy: overridePolicy }).pipe(Effect.provideService(JobEnqueue, enqueueService), Effect.provide(keysLayer(keys()))))
 assert.equal(prepared[3]!.catalog.queue, priority.name)
 assert.equal(prepared[3]!.policy.maxFinalizedAttempts, 7)
 assert.equal(prepared[3]!.producer.slot, input.slot)
 assert.equal(producer.slots.receipt.queue.name, queue.name)
-for (const invalid of [{ queue: { name: "INVALID/queue" } }, { policy: { ...overridePolicy, maxFinalizedAttempts: 0 } }]) {
-  const result = await Effect.runPromiseExit(producer.enqueue({ ...input, ...invalid } as Producer.Input<typeof producer.slots, "receipt">).pipe(Effect.provideService(JobEnqueue, enqueueService), Effect.provide(keysLayer(keys()))))
+for (const invalid of [{ queue: queue.name }, { queue: undefined }, { queue }, { queue: { name: "INVALID/queue" } }, { policy: { ...overridePolicy, maxFinalizedAttempts: 0 } }]) {
+  const result = await Effect.runPromiseExit(producer.enqueue({ ...input, ...invalid } as never).pipe(Effect.provideService(JobEnqueue, enqueueService), Effect.provide(keysLayer(keys()))))
   assert(Exit.isFailure(result))
   assert.equal(result.cause.reasons[0]!._tag, "Fail")
 }
