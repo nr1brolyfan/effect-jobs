@@ -1,3 +1,5 @@
+// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this qualification.
+// @effect-diagnostics unstableApiUsage:off
 // Disposable owned PG only. Executes the exact compiled canonical application.
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"

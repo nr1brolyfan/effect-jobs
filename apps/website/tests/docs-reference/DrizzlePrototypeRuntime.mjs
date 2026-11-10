@@ -1,3 +1,5 @@
+// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this qualification.
+// @effect-diagnostics unstableApiUsage:off
 // Real Drizzle builders and canonical Effects with a recording SQL boundary.
 // This exercises query generation, parameters, order and error propagation, NOT PG atomicity.
 import assert from "node:assert/strict"

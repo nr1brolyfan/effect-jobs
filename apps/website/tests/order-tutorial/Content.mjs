@@ -123,8 +123,9 @@ try {
         `${file}: exact source ${String(embed.sourcePath)}/${String(embed.region ?? "full")}`
       )
       assert.equal(actual.title, embed.sourcePath.replace(/^orders\//, ""))
-      if (!embed.beforeSourcePath)
+      if (!embed.beforeSourcePath) {
         assert.equal(actual.insertions, 0, "default panels remain plain")
+      }
       results.snippets++
       if (embed.role) {
         assert.equal(actual.role, embed.role)

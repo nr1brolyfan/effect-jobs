@@ -398,6 +398,7 @@ try {
     "persistence/transactions",
     "start/tutorial",
     "start/first-job",
+    "operations/production-checklist",
     "start/why-background-jobs"
   ]) {
     const noJs = await browser.newPage({
@@ -492,6 +493,29 @@ try {
     })
     await page.screenshot({
       path: `${evidence}/docs-${viewport.width}.png`,
+      fullPage: true
+    })
+    await page
+      .locator(".sl-markdown-content")
+      .getByRole("link", { name: "production checklist", exact: true })
+      .click()
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      "Production checklist"
+    )
+    await expect(page.locator('.ej-nav-group a[aria-current="page"]')).toHaveText(
+      "Production checklist"
+    )
+    await expect(page.locator(".sl-markdown-content input[type=checkbox]")).toHaveCount(
+      21
+    )
+    await expect(page.locator(".sl-markdown-content pre")).toHaveCount(5)
+    assert.equal(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      true,
+      "production checklist has no document overflow"
+    )
+    await page.screenshot({
+      path: `${evidence}/production-checklist-${viewport.width}.png`,
       fullPage: true
     })
     await page.close()

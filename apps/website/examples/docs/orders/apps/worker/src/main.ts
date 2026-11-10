@@ -1,3 +1,5 @@
+// Platform and native SQL APIs are intentionally pinned to Effect 4.0.5 here.
+// @effect-diagnostics unstableApiUsage:off
 import { Config, Effect, Layer } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import { NodeRuntime } from "@effect/platform-node"

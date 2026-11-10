@@ -17,6 +17,11 @@ try {
   const docs = await local.mf.dispatchFetch(local.origin + "/docs")
   assert.equal(docs.status, 200)
   assert.match(await docs.text(), /Durable jobs, explicit ownership/)
+  const checklist = await local.mf.dispatchFetch(
+    local.origin + "/docs/operations/production-checklist"
+  )
+  assert.equal(checklist.status, 200)
+  assert.match(await checklist.text(), /Production checklist/)
   for (const path of [
     "/jobs",
     "/jobs/private",

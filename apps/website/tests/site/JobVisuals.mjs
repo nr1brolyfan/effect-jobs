@@ -21,8 +21,9 @@ try {
     const page = await browser.newPage({ viewport: { width, height: 1000 } })
     page.on("pageerror", (error) => receipt.pageErrors.push(error.message))
     page.on("request", (request) => {
-      if (!["GET", "HEAD"].includes(request.method()))
+      if (!["GET", "HEAD"].includes(request.method())) {
         receipt.mutations.push(request.url())
+      }
     })
     await page.goto(origin + "/docs/start/tutorial/")
     await page.evaluate(() => document.fonts.ready)
@@ -32,7 +33,9 @@ try {
     await expect(overview.locator(".jv-controls")).toBeVisible()
     const position = await overview.evaluate((element) => {
       let next = element.nextElementSibling
-      while (next?.matches("script, style")) next = next.nextElementSibling
+      while (next?.matches("script, style")) {
+        next = next.nextElementSibling
+      }
       return {
         before: element.previousElementSibling.textContent,
         after: next.textContent
@@ -77,7 +80,9 @@ try {
     await transaction.locator('[data-mode="rollback"]').focus()
     await page.keyboard.press("Space")
     await expect(transaction).toHaveAttribute("data-step", "0")
-    for (let i = 0; i < 4; i++) await step(transaction)
+    for (let i = 0; i < 4; i++) {
+      await step(transaction)
+    }
     await expect(label(transaction, "decision")).toHaveText("ROLLBACK")
     await expect(label(transaction, "order")).toHaveText("—")
     await expect(label(transaction, "job")).toHaveText("—")

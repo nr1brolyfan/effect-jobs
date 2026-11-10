@@ -1,0 +1,172 @@
+---
+title: Production checklist
+description: Check transaction budgets, retries, retention and PostgreSQL health before deploying workers.
+---
+
+Use this checklist before deployment and when reviewing an existing installation.
+effect-jobs is an alpha: these checks are not production certification, a capacity
+guarantee or a promise of exactly-once external effects. The application owns
+database configuration, migrations, connection pools, worker lifetime and monitoring.
+
+## Transactions and timeouts
+
+- [ ] Enqueue and application writes use the [same qualified transaction](/docs/persistence/transactions).
+      Joined results remain provisional until the owner commits.
+- [ ] Keep transactions short. Do not wait for HTTP, user input or long computation
+      inside them. Workers commit a claim before invoking its handler.
+- [ ] Bound connection acquisition, queries, transaction controls and connection
+      release in the driver. An Effect deadline alone does not prove server work stopped.
+- [ ] Set server-side timeout budgets for application roles as well as workers.
+      Give legitimate long-running reports a separately considered budget.
+
+These are **illustrative operator settings**, not library defaults. Substitute your
+role/database names and choose values compatible with real transactions and persisted
+job policies. Apply through your normal database configuration process:
+
+```sql
+ALTER ROLE app_runtime IN DATABASE appdb SET statement_timeout = '15s';
+ALTER ROLE app_runtime IN DATABASE appdb SET lock_timeout = '2s';
+ALTER ROLE app_runtime IN DATABASE appdb SET idle_in_transaction_session_timeout = '30s';
+```
+
+`statement_timeout` bounds one statement, `lock_timeout` bounds lock waiting, and
+`idle_in_transaction_session_timeout` terminates a session left idle inside a
+transaction. PostgreSQL **17+ only** also supports a total transaction budget:
+
+```sql
+-- PostgreSQL 17+ only; choose your own total budget.
+ALTER ROLE app_runtime IN DATABASE appdb SET transaction_timeout = '60s';
+```
+
+Role defaults apply to new sessions. Recycle pools and verify from an actual
+application connection, including any proxy/pool overrides:
+
+```sql
+SHOW statement_timeout;
+SHOW lock_timeout;
+SHOW idle_in_transaction_session_timeout;
+-- PostgreSQL 17+ only:
+-- SHOW transaction_timeout;
+```
+
+A timeout or lost commit response does not authorize replay. Preserve the transaction
+owner's [unknown-outcome reconciliation](/docs/execution/recovery) policy.
+
+## Retries and idempotency
+
+- [ ] Handlers are safe to invoke again. Leases fence job-state writes, not external
+      payments, emails or HTTP requests.
+- [ ] External effects use stable provider idempotency keys derived from the job or
+      business consequence, not attempt numbers or fresh random values. Request
+      semantics remain stable for that key.
+- [ ] Distinguish known retryable failures, terminal failures and uncertain outcomes.
+      A timeout does not prove an external effect did not happen.
+- [ ] Choose [retry limits](/docs/execution/retries), stalled-recovery limits and
+      compatible budgets: attempt timeout is shorter than the lease, with room for
+      the storage response budget.
+- [ ] Test shutdown and lease recovery. Interruption cannot undo an external effect
+      or hard-kill arbitrary native code.
+
+## Retention and cleanup
+
+- [ ] Size retained history deliberately. On this version, Completed retention
+      defaults to **90 days**, Dead to infinity. Isolated jobs are not automatically purged.
+- [ ] Schedule explicit bounded cleanup and monitor progress. Retention eligibility
+      does not start a cleanup worker.
+- [ ] Retain identity evidence for the required producer deduplication window.
+      Deleting it permits a later enqueue to create another job.
+- [ ] Coordinate application-owned cleanup when domain receipts or other references
+      protect jobs. See [PostgreSQL cleanup ownership](/docs/persistence/postgresql).
+
+At one completed job/second, 90 days means approximately **7.8 million retained
+jobs**, plus payloads and indexes. This is live data, not dead-tuple bloat; VACUUM
+will not remove it. Policies are persisted at enqueue: changing defaults or
+submitting matching duplicates does not rewrite a retained job's first policy.
+
+## Monitoring and alerts
+
+- [ ] Export the existing [operation metrics](/docs/operations/telemetry). Watch
+      claim/finalization tail latency, Unknown outcomes and timeouts, not only
+      handler success.
+- [ ] Observe oldest eligible work and backlog using application-owned, bounded
+      database queries or monitoring. Operation metrics are **not queue-depth gauges**.
+- [ ] Monitor PostgreSQL separately: old transactions/XID horizons, dead tuples,
+      autovacuum progress, table/index growth, WAL, I/O and connection pressure.
+- [ ] Choose workload-specific alert thresholds. Missing telemetry or stale samples
+      must not look like a healthy empty queue.
+
+Keep diagnostic access with monitoring/operator roles. Workers do not need
+administrative privileges, and shared telemetry must not expose payloads or tokens.
+
+## Capacity testing
+
+- [ ] Test peak load with headroom, realistic handlers and payloads, multiple
+      queues/kinds, retained history, pool limits and competing database workloads.
+- [ ] Measure inserted/completed throughput, missed producer arrivals, backlog age
+      and tail latency separately. A configured arrival rate is not measured throughput.
+- [ ] In a disposable database, compare a held-old-snapshot run with a no-pin control
+      and recovery after release. Bound the experiment and clean up its transactions.
+- [ ] Repeat and run longer soaks before making capacity claims. A smoke run is not
+      capacity evidence; synthetic retained history does not simulate weeks of churn.
+
+Use your application load harness. Do not run snapshot-pinning experiments against
+production or infer universal capacity from a small synthetic benchmark.
+
+## When the queue slows down
+
+PostgreSQL's MVCC retains old row versions so readers can see a consistent view
+while writers change data. An old snapshot or transaction ID can prevent reclamation,
+even when its transaction does not access job tables. Queue updates and deletes can
+then accumulate versions and make scans more expensive. `SKIP LOCKED` avoids waiting
+on other row claims; it does not eliminate this MVCC cost. Replacing it with
+optimistic concurrency control would not remove the old snapshot either.
+
+Start with **read-only diagnostics**, outside a long-lived transaction. Other sessions'
+details may require `pg_read_all_stats` or provider-equivalent monitoring access:
+
+```sql
+SELECT pid, usename, application_name, state,
+       clock_timestamp() - xact_start AS transaction_age,
+       age(backend_xid) AS transaction_id_age,
+       age(backend_xmin) AS snapshot_xid_age,
+       wait_event_type, wait_event
+FROM pg_stat_activity
+WHERE datname = current_database()
+  AND pid <> pg_backend_pid()
+  AND xact_start IS NOT NULL
+ORDER BY xact_start
+LIMIT 20;
+```
+
+XID ages count transactions, not seconds. Age alone does not prove a session blocks
+vacuum: correlate XID/xmin, queue latency and vacuum evidence. For the default mapping,
+inspect these tables; substitute your configured schema/table names:
+
+```sql
+SELECT relname, n_live_tup, n_dead_tup, last_autovacuum, autovacuum_count,
+       pg_relation_size(relid) AS heap_bytes,
+       pg_indexes_size(relid) AS index_bytes
+FROM pg_stat_user_tables
+WHERE schemaname = 'public'
+  AND relname IN ('jobs', 'job_payloads')
+ORDER BY relname;
+```
+
+Tuple counts are delayed estimates, not exact bloat measurements. Autovacuum running
+does not prove it could reclaim old versions.
+
+1. [Check worker readiness and durable state](/docs/operations/troubleshooting), due
+   work, storage errors, pool pressure and expired leases before assuming MVCC.
+2. Identify the actual horizon holder. Its owner should commit/roll back where
+   possible. An operator can assess cancellation or termination of a specific
+   session. Query cancellation can leave its transaction open; the library never kills sessions.
+3. After release, watch vacuum, backlog age and claim latency. If vacuum falls
+   behind without an old horizon, review per-table thresholds and resources with
+   the database operator.
+4. Do not automatically run `VACUUM FULL`, reindex, rewrite job state or reset
+   budgets. Ordinary vacuum mainly makes space reusable; larger physical files
+   can remain after latency recovers.
+
+Transaction timeouts do not cover every horizon holder: replication feedback/slots
+and prepared transactions can also need investigation. Never blindly replay Unknown
+writes to clear an alert.
