@@ -5,6 +5,8 @@ coverage/
 .toolchain/
 *.tgz
 *.tsbuildinfo
+__pycache__/
+*.pyc
 .env
 .env.*
 !.env.example
