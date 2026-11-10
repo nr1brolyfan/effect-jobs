@@ -1,3 +1,4 @@
+import "../../../../playground/src/styles/Jobs.css"
 /* oxlint-disable effecttsgo/unstable-api-usage -- Owner-selected Atom API is pinned to Effect 4.0.0. */
 // Isolated frozen-contract fixture; NOT a shared runtime DTO or API response.
 import { RegistryContext, useAtomValue } from "@effect/atom-react"
@@ -14,6 +15,8 @@ import { JobDetailsPage } from "../../../../playground/src/features/jobs/details
 import * as Navigation from "../../../../playground/src/features/jobs/details/Navigation.js"
 import { Button, Panel } from "../../../../playground/src/ui/Primitives.js"
 
+const withNameFilter = new URLSearchParams(location.search).has("name-filter")
+
 const registry = AtomRegistry.make()
 const scope = Scope.makeUnsafe()
 const selected = Atom.make<JobId | null>(null).pipe(Atom.keepAlive)
@@ -29,7 +32,7 @@ const nav = Effect.runSync(
     sandbox: () => Fixtures.sandbox.ref,
     capture: () => ({
       sandbox: Fixtures.sandbox.ref,
-      filters: { state: "Dead", kind: "synthetic.kind" },
+      filters: { state: "Dead", ...(withNameFilter ? { name: "synthetic.kind" } : {}) },
       view: "jobs",
       pageSize: 20,
       pageNumber: 3,
@@ -195,7 +198,7 @@ function Fixture() {
       <p role="status">{explanation}</p>
       <p id="return-context">
         {saved
-          ? `Page ${saved.pageNumber}; ${saved.filters.state}; ${saved.filters.name}; ${saved.cursors[2]}`
+          ? `Page ${saved.pageNumber}; ${saved.filters.state}; ${saved.filters.name ?? "(not retained)"}; ${saved.cursors[2]}`
           : "Page 3; Dead; synthetic.kind"}
       </p>
       <div style={{ height: 700 }} aria-hidden="true" />
