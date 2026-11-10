@@ -6,16 +6,7 @@ const theme = await readFile(
   new URL("../../../playground/src/ui/Theme.stylex.ts", import.meta.url),
   "utf8"
 )
-const primitives = await readFile(
-  new URL("../../../playground/src/ui/Primitives.tsx", import.meta.url),
-  "utf8"
-)
-const design = await readFile(
-  new URL("../../../playground/src/features/jobs/Design.ts", import.meta.url),
-  "utf8"
-)
-
-// Source literals let the contrast and path checks run before foundation has
+// Source literals let the contrast checks run before foundation has
 // installed React/StyleX. These checks do not qualify compilation or DOM behavior.
 const literals = (source) =>
   Object.fromEntries(
@@ -67,15 +58,4 @@ test("focus indication has at least 3:1 contrast against each supported dark sur
   }
 })
 
-test("React icon names and SVG paths preserve the complete existing Design registry", () => {
-  const paths = (source, name) => {
-    const block = source.match(
-      new RegExp(String.raw`const ${name} = \{([\s\S]*?)\} as const`)
-    )?.[1]
-    assert.ok(block, `${name} registry is present`)
-    return Object.fromEntries(
-      [...block.matchAll(/(\w+):\s*"([^"\n]+)"/g)].map(([, key, path]) => [key, path])
-    )
-  }
-  assert.deepEqual(paths(primitives, "iconPaths"), paths(design, "paths"))
-})
+// Named Lucide mapping, aria and sizing are exercised in Field.browser.tsx.

@@ -1,7 +1,12 @@
 import { afterEach, expect, test } from "vitest"
 import { createElement, type ReactElement } from "react"
 import { page, userEvent } from "vitest/browser"
-import { Button, Icon, Field } from "../../../playground/src/ui/Primitives.js"
+import {
+  Button,
+  Icon,
+  Field,
+  type IconName
+} from "../../../playground/src/ui/Primitives.js"
 import { mount } from "./BrowserMount.js"
 
 let mounted: Awaited<ReturnType<typeof mount>> | undefined
@@ -95,4 +100,57 @@ test("decorative icon preserves the button's accessible name and keyboard activa
   native.focus()
   await userEvent.keyboard("{Enter}")
   expect(clicks).toBe(2)
+})
+
+const iconCases = [
+  ["grid", "layout-grid"],
+  ["jobs", "briefcase-business"],
+  ["activity", "activity"],
+  ["layers", "layers"],
+  ["settings", "settings"],
+  ["chevron", "chevron-right"],
+  ["down", "chevron-down"],
+  ["search", "search"],
+  ["refresh", "refresh-cw"],
+  ["plus", "plus"],
+  ["check", "check"],
+  ["clock", "clock"],
+  ["alert", "triangle-alert"],
+  ["arrow", "arrow-right"],
+  ["book", "book-open"],
+  ["shield", "shield-check"],
+  ["close", "x"],
+  ["filter", "list-filter"],
+  ["code", "code"],
+  ["mail", "mail"],
+  ["image", "image"],
+  ["webhook", "webhook"],
+  ["upload", "upload"],
+  ["terminal", "terminal"],
+  ["globe", "globe"]
+] as const satisfies ReadonlyArray<readonly [IconName, string]>
+
+test("all public icon names render named Lucide graphics with decorative semantics and sizing", async () => {
+  mounted = await mount(
+    <div>
+      {iconCases.map(([name]) => (
+        <Icon key={name} name={name} />
+      ))}
+      <Icon name="refresh" size={32} />
+    </div>
+  )
+  const graphics = Array.from(mounted.container.querySelectorAll("svg"))
+  expect(graphics).toHaveLength(iconCases.length + 1)
+  for (const [index, [, lucide]] of iconCases.entries()) {
+    const svg = graphics[index]!
+    expect(svg.classList.contains(`lucide-${lucide}`)).toBe(true)
+    expect(svg.getAttribute("width")).toBe("18")
+    expect(svg.getAttribute("height")).toBe("18")
+    expect(svg.getAttribute("stroke-width")).toBe("1.5")
+    expect(svg.getAttribute("aria-hidden")).toBe("true")
+    expect(svg.getAttribute("focusable")).toBe("false")
+    expect(svg.children.length).toBeGreaterThan(0)
+  }
+  expect(graphics.at(-1)!.getAttribute("width")).toBe("32")
+  expect(graphics.at(-1)!.getAttribute("height")).toBe("32")
 })

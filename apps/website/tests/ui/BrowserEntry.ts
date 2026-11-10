@@ -131,7 +131,8 @@ if (root === null) {
   throw new Error("Missing test mount")
 }
 const mounted = Mount.mount(root, client, sandbox(), {
-  poll: new URLSearchParams(window.location.search).has("poll")
+  poll: new URLSearchParams(window.location.search).has("poll"),
+  demo: window.location.pathname === "/demo"
 })
 const browserTest = {
   mode: (next: typeof mode) => {

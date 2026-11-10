@@ -12,6 +12,7 @@ export const buildFixture = async (entry: string, directory: string) => {
     root: playground,
     configFile: resolve(playground, "vite.config.ts"),
     mode: "fixtures",
+    resolve: { dedupe: ["react", "react-dom"] },
     plugins: [
       {
         name: "fixture-workspace-dependencies",

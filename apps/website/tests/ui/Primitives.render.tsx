@@ -1,3 +1,4 @@
+import "../../../playground/src/styles/Jobs.css"
 // Synthetic component fixture; no API, identity, or private data.
 import { createRoot } from "react-dom/client"
 import { useRef, useState } from "react"
