@@ -1,6 +1,6 @@
+import { useFormAtom } from "../FormAtoms.js"
 import { Dialog } from "@base-ui/react/dialog"
 import * as stylex from "@stylexjs/stylex"
-import { useState } from "react"
 import { Button } from "../../../ui/Primitives.js"
 import { JobTimeline } from "./JobTimeline.js"
 import { JobRelatedJobs } from "./JobRelatedJobs.js"
@@ -17,7 +17,7 @@ export function JobDetailsDrawer(props: JobDetailsProps) {
 function SelectedDrawer(props: JobDetailsProps) {
   const { detail, onClose, onOpenFull, onRelated, payloadSlot, repairSlot } = props
 
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useFormAtom(true)
   const leave = (action: () => void) => {
     setOpen(false)
     action()

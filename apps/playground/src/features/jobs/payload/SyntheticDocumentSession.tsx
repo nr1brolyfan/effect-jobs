@@ -1,14 +1,8 @@
-import {
-  createContext,
-  useContext,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode
-} from "react"
+import { useFormAtom } from "../FormAtoms.js"
+import { createContext, useContext, useLayoutEffect, useRef, type ReactNode } from "react"
 import type { Document } from "@effect-jobs/playground-contracts/SyntheticCryptoFixture"
 
-// Detail-lifetime React state only: never an Atom, command, storage or return context.
+// Detail-lifetime private Atom registries only; never runtime, storage or return context.
 interface Session {
   readonly document: Document | null
   readonly revision: number
@@ -19,8 +13,8 @@ interface Session {
 const Context = createContext<Session | null>(null)
 export const useSyntheticDocumentSession = () => useContext(Context)
 export const SyntheticDocumentSession = (props: { readonly children: ReactNode }) => {
-  const [document, setDocument] = useState<Document | null>(null)
-  const [revision, setRevision] = useState(0)
+  const [document, setDocument] = useFormAtom<Document | null>(null)
+  const [revision, setRevision] = useFormAtom(0)
   const lifetime = useRef({ revision: 0, mounted: true })
   const revoke = () => {
     lifetime.current.revision++
