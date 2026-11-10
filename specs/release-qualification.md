@@ -1,4 +1,34 @@
-# Local Effect 4.0.5 candidate
+# Release qualification
+
+## Alpha.2 preparation (unpublished)
+
+`0.1.0-alpha.2` is the release candidate prepared from main after the website,
+operator/repair, production-checklist and PostgreSQL runtime-matrix integrations.
+It replaces the local-only version suffix; this metadata is not evidence of npm
+publication. Effect/sql-pg `4.0.5`, both exact Drizzle snapshots, Node `24.15.0`
+and Bun `1.4.2` retain their existing qualification boundaries and upstream
+declaration exceptions below. Completed retention remains 90 days.
+
+Build the candidate once, then use that immutable `EFFECT_JOBS_ARCHIVE` for the
+README, public release, API, PostgreSQL installed, native Drizzle and index
+generation gates. Qualify both exact Drizzle snapshots with the same archive.
+Run the current Verify, PostgreSQL source Node/Bun and crash/recovery gates too.
+Source-test success is not a substitute for an installed-artifact result.
+
+During owner-only publication preparation, run
+`node scripts/check-release.mjs --metadata-only`: this checks final metadata,
+inventory, import boundaries and source/packed byte parity without invoking
+`npm publish`, including dry-run. Do not infer publication readiness from a
+successful pack or from historical local.2 receipts. Preserve final command
+results, artifact hashes and source commit/tree separately in the handoff.
+
+The owner rechecks registry version availability/ownership, authenticates, and
+publishes the **same qualified archive** with `--tag alpha`. Never change `latest`
+as part of this preparation. No Git tag, GitHub release, npm publication,
+registry installation or production deployment is performed by these gates.
+See [the owner release procedure](https://github.com/nr1brolyfan/effect-jobs/blob/main/docs/releasing.md).
+
+## Historical local Effect 4.0.5 candidate
 
 `0.1.0-alpha.1-effect.4.0.5.local.2` identifies local migration bytes based on
 published alpha.1/main `eb25dfa6272f0e2c807af6b3dbb57392e4c4a103`.

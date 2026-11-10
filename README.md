@@ -53,11 +53,15 @@ const ReceiptHandler = SendReceipt.handlerLayer(
 
 ## Install
 
-Examples target the local-only `0.1.0-alpha.1-effect.4.0.5.local.2` candidate, which is not an npm release. This prerelease changes the alpha.0 enqueue,
-policy, failure-code and encrypted-payload APIs; update callers before upgrading.
+Examples target the `0.1.0-alpha.2` release candidate. It is not yet published;
+install the supplied qualified tarball rather than the older registry alpha.
+Compared with alpha.1, this candidate requires Effect `4.0.5` and the current
+application-owned PostgreSQL schema, including operator/repair lineage support.
+Review the [changelog](./CHANGELOG.md) before upgrading. Alpha.0 callers must also
+adapt the enqueue, policy, failure-code and encrypted-payload APIs.
 
 ```sh
-npm install ./effect-jobs-0.1.0-alpha.1-effect.4.0.5.local.2.tgz effect@4.0.5
+npm install ./effect-jobs-0.1.0-alpha.2.tgz effect@4.0.5
 ```
 
 Imports are omitted below. Use package subpaths (`effect-jobs/Job`, `effect-jobs/JobPolicy`, …); the root export is empty. `Codec` refers to `JobPayloadCodec`; `Consumer`, `Worker`, `Runtime`, `Polling` and `Registry` refer to the corresponding `JobConsumer`, `JobWorker`, `JobWorkerRuntime`, `PollingJobWorker` and `JobRegistry` modules.

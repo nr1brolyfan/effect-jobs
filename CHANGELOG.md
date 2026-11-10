@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.1.0-alpha.2 (unpublished candidate)
+
+Breaking prerelease changes since alpha.1:
+
+- Rename public `Job.make({ kind })` to `{ name }`, definition/catalog and handler
+  context access from `.kind` to `.name`, and `JobIdentity.JobKind` to
+  `JobIdentity.JobName`. The public Drizzle jobs-column property also becomes
+  `.name`, including `extraIndexes` callbacks. Keep existing name values and
+  catalog versions: the physical PostgreSQL column is still `kind`, so this
+  rename alone needs no column rename, data rewrite/reset or migration. See
+  [the API migration contract](./specs/api-refinements.md).
+- Require exact Effect `4.0.5`; the qualified native PostgreSQL companion is
+  `@effect/sql-pg@4.0.5`. Optional Drizzle peers are the exact snapshots
+  `1.0.0-rc.5-ab785fc` and `1.0.0-rc.5-169397b`.
+- Bind producer slots to definitions with inferred enqueue inputs and explicit
+  application-owned transaction/service composition.
+- Extend the PostgreSQL schema/readiness contract for Cancelled jobs, guarded
+  operators, corrected redrive and durable repair lineage. Applications own
+  migration review and execution; runtime does not migrate old installations.
+
+Also included:
+
+- Focused `JobOperators` support for guarded retry acceleration, cancellation and
+  redrive; corrected redrive creates a new job and preserves source evidence.
+- Current Astro documentation, runnable application examples and the local
+  playground. The npm package excludes the website/playground implementation.
+- PostgreSQL Node/Bun CI, real-process crash/recovery tests, and a bounded manual
+  soak harness. These are scoped synthetic qualification, not production or
+  exactly-once guarantees.
+
+Completed retention remains 90 days by default. Upstream Drizzle full-declaration
+checks retain their documented known-failure exceptions; successful own-code
+checks do not mean upstream full strict PASS. Publication, registry installation
+and deployment remain separate owner actions.
+
 ## 0.1.0-alpha.1-effect.4.0.5.local.2 (local only)
 
 - Qualify exact Drizzle snapshots `1.0.0-rc.5-ab785fc` and `1.0.0-rc.5-169397b`
