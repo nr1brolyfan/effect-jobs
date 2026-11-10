@@ -143,6 +143,7 @@
     "soak:postgresql": "node tests/benchmarks/postgresql/Run.mjs",
     "test:soak": "node --test tests/benchmarks/postgresql/Support.test.mjs",
     "test:postgresql:crash": "bun run build && node tests/integration/worker-crash/node_modules/vitest/vitest.mjs run --config tests/integration/worker-crash/vitest.config.mjs",
+    "test:postgresql:matrix": "node tests/postgresql/Matrix.mjs",
     "test:postgresql:node": "PG_EXPECT_RUNTIME=node node node_modules/vitest/vitest.mjs run --config tests/postgresql/vitest.config.ts",
     "test:postgresql:bun": "PG_EXPECT_RUNTIME=bun bun --bun node_modules/vitest/vitest.mjs run --config tests/postgresql/vitest.config.ts",
     "qualify:postgresql:installed": "node scripts/qualify-postgresql.mjs",
