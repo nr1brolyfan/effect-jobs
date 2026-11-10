@@ -2,6 +2,7 @@ import "./styles/Jobs.css"
 import { Effect, Schedule } from "effect"
 import * as Http from "./integration/HttpClient.js"
 import * as Mount from "./features/jobs/Mount.js"
+
 const root = document.getElementById("jobs")
 if (root) {
   const demo =
@@ -10,10 +11,13 @@ if (root) {
   if (demo) {
     root.textContent = "Preparing public demo…"
   }
-  const controller = new AbortController()
-  window.addEventListener("pagehide", () => controller.abort(), { once: true })
-  void Effect.runPromise(
-    demo
+  const pagehide = Effect.callback<never>((resume) => {
+    const interrupt = () => resume(Effect.interrupt)
+    window.addEventListener("pagehide", interrupt, { once: true })
+    return Effect.sync(() => window.removeEventListener("pagehide", interrupt))
+  })
+  const bootstrap = Effect.gen(function* () {
+    const authority = demo
       ? client
           .describe()
           .pipe(
@@ -21,7 +25,7 @@ if (root) {
             Effect.timeout("45 seconds")
           )
       : document.cookie.includes(`${Http.csrfCookieName}=`)
-        ? Http.client
+        ? client
             .describe()
             .pipe(
               Effect.catch((error) =>
@@ -30,30 +34,26 @@ if (root) {
                   : Effect.fail(error)
               )
             )
-        : Http.issue(),
-    { signal: controller.signal }
-  ).then(
-    (sandbox) => {
-      if (controller.signal.aborted) {
-        return
-      }
-      const view = Mount.mount(root, client, sandbox, {
-        demo,
-        liveUrl: `${location.origin.replace("https:", "wss:").replace("http:", "ws:")}/api/${demo ? "demo/" : ""}changes`
-      })
-      window.addEventListener(
-        "pagehide",
-        () => {
-          controller.abort()
-          void view.dispose()
-        },
-        { once: true }
+        : Http.issue()
+    // The bootstrap listener ends on mount. Mount owns the dashboard pagehide
+    // listener and StrictMode lifetimes after this synchronous handoff.
+    yield* authority.pipe(
+      Effect.tap((sandbox) =>
+        Effect.sync(() => {
+          Mount.mount(root, client, sandbox, {
+            demo,
+            liveUrl: `${location.origin.replace("https:", "wss:").replace("http:", "ws:")}/api/${demo ? "demo/" : ""}changes`
+          })
+        })
+      ),
+      Effect.catch(() =>
+        Effect.sync(() => {
+          root.textContent = demo
+            ? "Public demo unavailable. Please reload to retry."
+            : "Sandbox unavailable. Reload to reconcile authority."
+        })
       )
-    },
-    () => {
-      root.textContent = demo
-        ? "Public demo unavailable. Please reload to retry."
-        : "Sandbox unavailable. Reload to reconcile authority."
-    }
-  )
+    )
+  }).pipe(Effect.raceFirst(pagehide))
+  Effect.runFork(bootstrap)
 }
