@@ -164,6 +164,7 @@
     "playground:qualify": "node packages/playground-contracts/qualification/Run.ts",
     "playground:preview": "python3 apps/playground-worker/tests/integration/RunOwned.py --preview",
     "playground:test:primitives": "bun apps/website/tests/ui/Primitives.mjs",
+    "playground:test:ui": "node apps/playground/tests/ui/FormAtoms.browser.ts",
     "site:build": "bun run --cwd apps/website site:build",
     "site:check": "bun run --cwd apps/website site:check",
     "site:test": "bun run --cwd apps/website site:test",

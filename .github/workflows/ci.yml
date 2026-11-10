@@ -56,6 +56,7 @@ jobs:
       - name: Check the compiled browser client
         run: |
           node apps/website/tests/ui/Production.mjs 2>&1 | tee "$CI_EVIDENCE/browser.log"
+          bun run playground:test:ui 2>&1 | tee "$CI_EVIDENCE/ui-lifecycle.log"
       - name: Check public docs and interactive islands in Chromium
         run: |
           bun run site:models 2>&1 | tee "$CI_EVIDENCE/site-models.log"
