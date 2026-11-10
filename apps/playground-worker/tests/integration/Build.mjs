@@ -119,8 +119,8 @@ const receipt = {
     ],
     { cwd: root, encoding: "utf8" }
   ).trim(),
-  cssSha256: hash(`${root}/apps/website/dist/Jobs.css`),
-  clientSha256: hash(`${root}/apps/website/dist/Client.js`),
+  cssSha256: hash(`${root}/apps/playground/dist/Jobs.css`),
+  clientSha256: hash(`${root}/apps/playground/dist/Client.js`),
   node: process.version,
   bun: execFileSync("bun", ["--version"], { encoding: "utf8" }).trim()
 }

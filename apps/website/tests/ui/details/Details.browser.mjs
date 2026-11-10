@@ -25,14 +25,16 @@ const ui = [
   "DateTime.tsx",
   "DateTimeFormat.ts"
 ]
-const details = (await readdir("apps/website/src/features/jobs/details")).filter((name) =>
-  /\.tsx?$/.test(name)
+const details = (await readdir("apps/playground/src/features/jobs/details")).filter(
+  (name) => /\.tsx?$/.test(name)
 )
 const paths = [
   ...ui.map((name) => `src/ui/${name}`),
   ...details.map((name) => `src/features/jobs/details/${name}`),
   "tests/ui/details/Details.render.tsx"
 ]
+const mirror = (path) =>
+  resolve(scratch, path.startsWith("src/") ? "apps/playground" : "apps/website", path)
 const rules = [],
   inputs = {},
   errors = [],
@@ -41,9 +43,12 @@ const hash = (bytes) => createHash("sha256").update(bytes).digest("hex")
 let browser, server
 try {
   for (const path of paths) {
-    const text = await readFile(resolve("apps/website", path), "utf8")
+    const text = await readFile(
+      resolve(path.startsWith("src/") ? "apps/playground" : "apps/website", path),
+      "utf8"
+    )
     inputs[path] = hash(text)
-    const filename = resolve(scratch, path.replace(/\.tsx?$/, ".js"))
+    const filename = mirror(path.replace(/\.tsx?$/, ".js"))
     await mkdir(dirname(filename), { recursive: true })
     const transpiled = await transformAsync(text, {
       filename: path,
@@ -64,7 +69,7 @@ try {
     await writeFile(filename, transpiled.code)
   }
   for (const path of paths) {
-    const filename = resolve(scratch, path.replace(/\.tsx?$/, ".js"))
+    const filename = mirror(path.replace(/\.tsx?$/, ".js"))
     const result = await transformAsync(await readFile(filename, "utf8"), {
       filename,
       babelrc: false,
@@ -86,7 +91,7 @@ try {
     await writeFile(filename, result.code)
   }
   const build = await Bun.build({
-    entrypoints: [resolve(scratch, "tests/ui/details/Details.render.js")],
+    entrypoints: [mirror("tests/ui/details/Details.render.js")],
     target: "browser",
     outdir: output,
     naming: "Details.js",
@@ -96,7 +101,7 @@ try {
   assert.equal(build.success, true, JSON.stringify(build.logs))
   const script = await readFile(resolve(output, "Details.js"))
   const css =
-    (await readFile("apps/website/src/styles/Jobs.css", "utf8")) +
+    (await readFile("apps/playground/src/styles/Jobs.css", "utf8")) +
     "\n" +
     stylexPlugin.processStylexRules(rules)
   await writeFile(resolve(output, "Details.css"), css)

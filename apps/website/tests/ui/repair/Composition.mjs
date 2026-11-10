@@ -13,8 +13,8 @@ const require = createRequire(resolve(root, "apps/playground-worker/package.json
 const { chromium, expect } = require("@playwright/test")
 const output = resolve(root, ".toolchain/t1/composition")
 mkdirSync(output, { recursive: true })
-const script = readFileSync(resolve(root, "apps/website/dist/Client.js"))
-const css = readFileSync(resolve(root, "apps/website/dist/Jobs.css"))
+const script = readFileSync(resolve(root, "apps/playground/dist/Client.js"))
+const css = readFileSync(resolve(root, "apps/playground/dist/Jobs.css"))
 const sandbox = {
   ref: { sandboxId: "review-sandbox", generation: 1 },
   expiresAt: Date.now() + 120000,

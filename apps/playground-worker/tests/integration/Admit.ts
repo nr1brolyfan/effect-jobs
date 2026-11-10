@@ -6,7 +6,7 @@ import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
 import * as Policy from "effect-jobs/JobPolicy"
 import * as Event from "../../src/execution/Event.js"
 import * as Plan from "../../src/scenarios/Plan.js"
-import { Application } from "../../../website/src/server/Services.js"
+import { Application } from "../../src/server/Services.js"
 export const delayed = (config: Event.Config, credential: string, requestId: string) =>
   Event.run(
     config,

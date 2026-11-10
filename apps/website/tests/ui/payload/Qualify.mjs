@@ -8,8 +8,8 @@ const root = resolve(import.meta.dirname, "../../../../..")
 const output = resolve(root, ".multica/payload-evidence")
 mkdirSync(output, { recursive: true })
 const owned = [
-  ...readdirSync(resolve(root, "apps/website/src/features/jobs/payload")).map(
-    (path) => `apps/website/src/features/jobs/payload/${path}`
+  ...readdirSync(resolve(root, "apps/playground/src/features/jobs/payload")).map(
+    (path) => `apps/playground/src/features/jobs/payload/${path}`
   ),
   ...readdirSync(import.meta.dirname)
     .filter((path) => !path.startsWith("."))

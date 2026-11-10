@@ -37,7 +37,9 @@ const run = (name, command, args, cwd = root, env = process.env) => {
   }
 }
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
-const website = JSON.parse(readFileSync(join(root, "apps/website/package.json"), "utf8"))
+const website = JSON.parse(
+  readFileSync(join(root, "apps/playground/package.json"), "utf8")
+)
 const dependencies = { ...website.dependencies, ...website.devDependencies }
 delete dependencies["@effect-jobs/playground-contracts"]
 delete dependencies["effect-jobs"]
@@ -92,7 +94,12 @@ for (const path of ["package.json", "src", "dist"]) {
 }
 // Preserve relative imports, including browser-consumed scenario Schemas.
 // Copy source inputs only; dependencies are independently installed above.
-for (const path of ["apps/website/src", "apps/website/build.mjs"]) {
+for (const path of [
+  "apps/playground/src",
+  "apps/playground/build.ts",
+  "apps/playground/vite.config.ts",
+  "apps/playground/tests/fixtures"
+]) {
   cpSync(join(root, path), join(consumer, path), { recursive: true })
 }
 for (const file of ["Definitions.ts", "PrivateDocument.ts"]) {
@@ -119,11 +126,11 @@ writeFileSync(
         types: ["node"]
       },
       include: [
-        "apps/website/src/features/**/*.ts",
-        "apps/website/src/features/**/*.tsx",
-        "apps/website/src/ui/**/*.ts",
-        "apps/website/src/ui/**/*.tsx",
-        "apps/website/src/live/**/*.ts"
+        "apps/playground/src/features/**/*.ts",
+        "apps/playground/src/features/**/*.tsx",
+        "apps/playground/src/ui/**/*.ts",
+        "apps/playground/src/ui/**/*.tsx",
+        "apps/playground/src/live/**/*.ts"
       ]
     },
     null,
@@ -148,7 +155,7 @@ run(
   ["node_modules/typescript/bin/tsc", "-p", "tsconfig.json", "--skipLibCheck"],
   consumer
 )
-run("browser", "bun", ["apps/website/build.mjs"], consumer)
+run("browser", "node", ["apps/playground/build.ts"], consumer)
 writeFileSync(
   join(consumer, "Smoke.ts"),
   `
@@ -157,9 +164,9 @@ import { createRequire } from "node:module"
 import { Effect, Layer, Schema } from "effect"
 import { JobId } from "effect-jobs/JobId"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
-import * as Atoms from "./apps/website/src/features/jobs/Atoms.js"
-import * as FixtureClient from "./apps/website/src/features/jobs/FixtureClient.js"
-import { JobsClient, type Client } from "./apps/website/src/features/jobs/Adapter.js"
+import * as Atoms from "./apps/playground/src/features/jobs/Atoms.js"
+import * as FixtureClient from "./apps/playground/tests/fixtures/FixtureClient.js"
+import { JobsClient, type Client } from "./apps/playground/src/features/jobs/Adapter.js"
 const require = createRequire(import.meta.url)
 assert.throws(() => require.resolve("drizzle-orm"))
 assert.throws(() => require.resolve("pg"))
@@ -219,7 +226,7 @@ const record = (directory, prefix) => {
     }
   }
 }
-record(join(root, "apps/website/src"), "apps/website/src")
+record(join(root, "apps/playground/src"), "apps/playground/src")
 for (const file of ["Definitions.ts", "PrivateDocument.ts"]) {
   const path = `apps/playground-worker/src/scenarios/${file}`
   hashes[path] = createHash("sha256")

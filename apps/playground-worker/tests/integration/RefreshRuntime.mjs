@@ -50,7 +50,7 @@ try {
   const dispatch = (path) => local.mf.dispatchFetch(local.origin + path)
   assert.equal(
     await (await dispatch("/Jobs.css")).text(),
-    readFileSync("apps/website/dist/Jobs.css", "utf8")
+    readFileSync("apps/playground/dist/Jobs.css", "utf8")
   )
   browser = await chromium.launch({
     headless: true,

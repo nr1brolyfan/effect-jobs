@@ -3,7 +3,7 @@ import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import { JobDetail, JobPage } from "@effect-jobs/playground-contracts/Jobs"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import type { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
-import type { Client } from "./Adapter.js"
+import type { Client } from "../../src/features/jobs/Adapter.js"
 
 // UI-only metadata. No durable enqueue, reset, provider or authority implementation.
 const items = Array.from({ length: 13 }, (_, index) => {

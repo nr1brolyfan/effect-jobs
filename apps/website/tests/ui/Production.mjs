@@ -9,8 +9,8 @@ import * as Fixtures from "../../../../packages/playground-contracts/dist/Fixtur
 
 const require = createRequire(resolve("apps/playground-worker/package.json"))
 const { chromium, expect } = require("@playwright/test")
-const script = readFileSync("apps/website/dist/Client.js")
-const css = readFileSync("apps/website/dist/Jobs.css")
+const script = readFileSync("apps/playground/dist/Client.js")
+const css = readFileSync("apps/playground/dist/Jobs.css")
 const errors = []
 const server = createServer((req, res) => {
   const path = new URL(req.url, "http://localhost").pathname

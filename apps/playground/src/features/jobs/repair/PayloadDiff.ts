@@ -2,7 +2,8 @@ import { Schema } from "effect"
 import type { Document } from "@effect-jobs/playground-contracts/SyntheticCryptoFixture"
 import * as BrowserDocumentCrypto from "../payload/BrowserDocumentCrypto.js"
 import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
-import * as Definitions from "../../../../../playground-worker/src/scenarios/Definitions.js"
+import * as Catalogs from "@effect-jobs/playground-contracts/ScenarioCatalogs"
+import * as Definitions from "@effect-jobs/playground-contracts/ScenarioPayloads"
 
 export interface Change {
   readonly kind: "Added" | "Removed" | "Changed"
@@ -65,7 +66,7 @@ export const parseReplacement = (
   if (new TextEncoder().encode(text).length > 65536) {
     return { valid: false as const, rule: "payload-too-large" }
   }
-  const definition = Definitions.definitions.find(
+  const definition = Catalogs.definitions.find(
     (entry) =>
       entry.catalog.name === detail.job.catalog.name &&
       entry.catalog.queue === detail.job.catalog.queue &&
@@ -73,8 +74,8 @@ export const parseReplacement = (
   )
   if (
     !definition ||
-    (definition === Definitions.SyntheticDocumentExport && !synthetic) ||
-    definition.catalog.name === Definitions.PrivateDataExport.catalog.name ||
+    (definition === Catalogs.SyntheticDocumentExport && !synthetic) ||
+    definition.catalog.name === Catalogs.PrivateDataExport.catalog.name ||
     (detail.payload._tag === "Available" &&
       detail.payload.encryption !== "None" &&
       !synthetic)

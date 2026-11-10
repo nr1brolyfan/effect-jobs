@@ -4,7 +4,7 @@ import {
   openSyntheticDocument
 } from "@effect-jobs/playground-contracts/SyntheticCryptoFixture"
 import { useSyntheticDocumentSession } from "../payload/SyntheticDocumentSession.js"
-import * as Definitions from "../../../../../playground-worker/src/scenarios/Definitions.js"
+import * as Definitions from "@effect-jobs/playground-contracts/ScenarioPayloads"
 import * as BrowserDocumentCrypto from "../payload/BrowserDocumentCrypto.js"
 import { useLayoutEffect, useId, useRef, useState } from "react"
 import { Dialog } from "@base-ui/react/dialog"

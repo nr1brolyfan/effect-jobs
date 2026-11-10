@@ -1,5 +1,5 @@
 // Local workerd FFI. All inputs are fresh synthetic configuration; no .env access.
-import { createAssets } from "../../../website/StaticAssets.mjs"
+import { createAssets } from "../../src/assets/StaticAssets.ts"
 import { Miniflare, convertV4MiniflareOptions } from "miniflare"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
@@ -39,10 +39,10 @@ export const createLocal = async (
     "/jobs": [page, "text/html"],
     "/demo": [page, "text/html"],
     "/Client.js": [
-      readFileSync(`${root}/apps/website/dist/Client.js`),
+      readFileSync(`${root}/apps/playground/dist/Client.js`),
       "text/javascript"
     ],
-    "/Jobs.css": [readFileSync(`${root}/apps/website/dist/Jobs.css`), "text/css"],
+    "/Jobs.css": [readFileSync(`${root}/apps/playground/dist/Jobs.css`), "text/css"],
     "/docs/jobs": [
       readFileSync(`${root}/apps/website/content/docs/Jobs.html`),
       "text/html"

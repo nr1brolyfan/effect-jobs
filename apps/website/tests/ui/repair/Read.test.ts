@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { Effect, Exit, Schema } from "effect"
 import { Cursor } from "@effect-jobs/playground-contracts/Jobs"
-import * as Codec from "../../../src/server/read/CursorCodec.js"
-import * as Read from "../../../src/server/read/PostgreSqlRead.js"
+import * as Codec from "../../../../playground-worker/src/server/read/CursorCodec.js"
+import * as Read from "../../../../playground-worker/src/server/read/PostgreSqlRead.js"
 import * as Fixture from "../../../../playground-worker/tests/repairs/Fixtures.js"
 
 const access = {

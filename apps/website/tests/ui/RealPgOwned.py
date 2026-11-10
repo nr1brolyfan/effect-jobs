@@ -19,7 +19,7 @@ private = evidence / ('private-' + secrets.token_hex(8) + '.json')
 try:
     subprocess.run(['apps/playground-worker/node_modules/.bin/esbuild', 'apps/playground-worker/tests/integration/SchemaEntry.ts', '--bundle', '--platform=node', '--format=esm', '--external:effect', '--external:effect/*', '--external:effect-jobs/*', '--outfile=' + str(evidence / 'Migrations.mjs')], cwd=root, check=True, capture_output=True, timeout=60)
     import hashlib
-    paths = ['apps/website/dist/Client.js', 'apps/website/dist/Jobs.css', 'apps/playground-worker/dist/Worker.js']
+    paths = ['apps/playground/dist/Client.js', 'apps/playground/dist/Jobs.css', 'apps/playground-worker/dist/Worker.js']
     (evidence / 'artifact-hashes.json').write_text(json.dumps({p: hashlib.sha256((root / p).read_bytes()).hexdigest() for p in paths}, indent=2))
     env = os.environ.copy()
     env.update(POSTGRES_USER='react_probe', POSTGRES_DB='react_probe', POSTGRES_PASSWORD=secrets.token_hex(32))

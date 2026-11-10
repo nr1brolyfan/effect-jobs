@@ -8,9 +8,9 @@ import {
   TabsList,
   TabsTab,
   TabsPanel
-} from "../../src/ui/Primitives.js"
-import * as Popover from "../../src/ui/Popover.js"
-import { Pagination } from "../../src/ui/Pagination.js"
+} from "../../../playground/src/ui/Primitives.js"
+import * as Popover from "../../../playground/src/ui/Popover.js"
+import { Pagination } from "../../../playground/src/ui/Pagination.js"
 
 function Fixture() {
   const button = useRef<HTMLButtonElement>(null)

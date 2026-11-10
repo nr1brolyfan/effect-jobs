@@ -3,8 +3,8 @@ import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import { JobId } from "effect-jobs/JobId"
 import { JobPage, type ListJobs } from "@effect-jobs/playground-contracts/Jobs"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
-import type { Client } from "../../src/features/jobs/Adapter.js"
-import * as FixtureClient from "../../src/features/jobs/FixtureClient.js"
+import type { Client } from "../../../playground/src/features/jobs/Adapter.js"
+import * as FixtureClient from "../../../playground/tests/fixtures/FixtureClient.js"
 
 // Synthetic keyset server: ordering, filters and global totals share one read.
 // Mutating this test dataset represents inserts/deletes between requests.

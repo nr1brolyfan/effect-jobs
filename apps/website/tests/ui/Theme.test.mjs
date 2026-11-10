@@ -3,15 +3,15 @@ import { readFile } from "node:fs/promises"
 import { test } from "node:test"
 
 const theme = await readFile(
-  new URL("../../src/ui/Theme.stylex.ts", import.meta.url),
+  new URL("../../../playground/src/ui/Theme.stylex.ts", import.meta.url),
   "utf8"
 )
 const primitives = await readFile(
-  new URL("../../src/ui/Primitives.tsx", import.meta.url),
+  new URL("../../../playground/src/ui/Primitives.tsx", import.meta.url),
   "utf8"
 )
 const design = await readFile(
-  new URL("../../src/features/jobs/Design.ts", import.meta.url),
+  new URL("../../../playground/src/features/jobs/Design.ts", import.meta.url),
   "utf8"
 )
 

@@ -27,7 +27,7 @@ const server = createServer(async (req, res) => {
   const path = new URL(req.url, "http://localhost").pathname
   if (path === "/Client.js" || path === "/Jobs.css") {
     res.setHeader("Content-Type", path.endsWith("js") ? "text/javascript" : "text/css")
-    res.end(readFileSync(`apps/website/dist${path}`))
+    res.end(readFileSync(`apps/playground/dist${path}`))
     return
   }
   if (

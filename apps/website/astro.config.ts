@@ -1,4 +1,6 @@
 import { defineConfig } from "astro/config"
+import react from "@astrojs/react"
+import { unplugin as stylex } from "@stylexjs/unplugin"
 import starlight from "@astrojs/starlight"
 
 export default defineConfig({
@@ -6,7 +8,20 @@ export default defineConfig({
   markdown: { syntaxHighlight: false },
   outDir: "./dist/site",
   trailingSlash: "never",
+  vite: {
+    // The renderer imports virtual options, which must be bundled for prerendering.
+    environments: { prerender: { resolve: { noExternal: ["@astrojs/react"] } } },
+    plugins: [
+      stylex.vite({
+        dev: false,
+        runtimeInjection: false,
+        treeshakeCompensation: true,
+        unstable_moduleResolution: { type: "commonJS", rootDir: import.meta.dirname }
+      })
+    ]
+  },
   integrations: [
+    react(),
     starlight({
       title: "effect-jobs",
       description: "Durable background jobs with explicit Effect ownership.",

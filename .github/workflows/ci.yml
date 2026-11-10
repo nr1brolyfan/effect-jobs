@@ -45,6 +45,16 @@ jobs:
         run: |
           bun run playground:check 2>&1 | tee "$CI_EVIDENCE/workspace-types.log"
           bun run playground:lint 2>&1 | tee "$CI_EVIDENCE/workspace-lint.log"
+      - name: Build playground and public site
+        run: |
+          bun run playground:build 2>&1 | tee "$CI_EVIDENCE/apps-build.log"
+          bun run site:check 2>&1 | tee "$CI_EVIDENCE/site-types.log"
+          bun run site:test 2>&1 | tee "$CI_EVIDENCE/site-tests.log"
+          bun run site:routes 2>&1 | tee "$CI_EVIDENCE/site-routes.log"
+      - name: Check the compiled browser client
+        run: |
+          apps/playground-worker/node_modules/.bin/playwright install --with-deps chromium 2>&1 | tee "$CI_EVIDENCE/browser-install.log"
+          node apps/website/tests/ui/Production.mjs 2>&1 | tee "$CI_EVIDENCE/browser.log"
       - name: Upload failure logs
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

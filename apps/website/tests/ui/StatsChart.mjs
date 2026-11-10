@@ -25,20 +25,27 @@ inputs.set(
     .digest("hex")
 )
 for (const [relative, sourcePath] of [
-  ["src/features/jobs/StatsChart.tsx", join(website, "src/features/jobs/StatsChart.tsx")],
+  [
+    "src/features/jobs/StatsChart.tsx",
+    join(website, "../playground/src/features/jobs/StatsChart.tsx")
+  ],
   [
     "src/features/jobs/StatsChart.stylex.ts",
-    join(website, "src/features/jobs/StatsChart.stylex.ts")
+    join(website, "../playground/src/features/jobs/StatsChart.stylex.ts")
   ],
   [
     "src/ui/Theme.stylex.ts",
-    themePath ? resolve(themePath) : join(website, "src/ui/Theme.stylex.ts")
+    themePath ? resolve(themePath) : join(website, "../playground/src/ui/Theme.stylex.ts")
   ],
   ["tests/ui/StatsChart.render.tsx", join(import.meta.dirname, "StatsChart.render.tsx")]
 ]) {
   const source = readFileSync(sourcePath, "utf8")
   inputs.set(sourcePath, createHash("sha256").update(source).digest("hex"))
-  const destination = join(fixture, relative)
+  const destination = join(
+    fixture,
+    relative.startsWith("src/") ? "apps/playground" : "apps/website",
+    relative
+  )
   mkdirSync(dirname(destination), { recursive: true })
   writeFileSync(destination, source)
 }
@@ -67,7 +74,7 @@ writeFileSync(
         "effect-jobs/*": [resolve(website, "../../src/*.ts")]
       }
     },
-    include: ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.tsx"]
+    include: ["apps/**/*.ts", "apps/**/*.tsx"]
   })
 )
 execFileSync(
@@ -84,7 +91,7 @@ execFileSync(
 )
 const rules = []
 const result = await Bun.build({
-  entrypoints: [join(fixture, "tests/ui/StatsChart.render.tsx")],
+  entrypoints: [join(fixture, "apps/website/tests/ui/StatsChart.render.tsx")],
   target: "bun",
   outdir: evidence,
   plugins: [
@@ -109,7 +116,7 @@ const result = await Bun.build({
                   runtimeInjection: false,
                   unstable_moduleResolution: {
                     type: "commonJS",
-                    rootDir: join(fixture, "src")
+                    rootDir: join(fixture, "apps/playground/src")
                   }
                 }
               ]

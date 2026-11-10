@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatDateTime } from "../../src/ui/DateTimeFormat.js"
+import { formatDateTime } from "../../../playground/src/ui/DateTimeFormat.js"
 
 describe("timestamp presentation", () => {
   const options = { locale: "en-GB", timeZone: "Europe/Warsaw" }

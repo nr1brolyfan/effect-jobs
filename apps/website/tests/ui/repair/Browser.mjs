@@ -18,12 +18,12 @@ const output = resolve(".toolchain/repairs/browser")
 await mkdir(output, { recursive: true })
 const scratch = await mkdtemp(resolve(".toolchain/repairs/browser-build-"))
 const sources = [
-  "apps/website/src/ui/Theme.stylex.ts",
-  "apps/website/src/ui/Primitives.stylex.ts",
-  "apps/website/src/ui/Primitives.tsx",
-  "apps/website/src/features/jobs/repair/JobRepairPanel.stylex.ts",
-  "apps/website/src/features/jobs/repair/JobRepairPanel.tsx",
-  "apps/website/src/features/jobs/repair/PayloadDiff.ts",
+  "apps/playground/src/ui/Theme.stylex.ts",
+  "apps/playground/src/ui/Primitives.stylex.ts",
+  "apps/playground/src/ui/Primitives.tsx",
+  "apps/playground/src/features/jobs/repair/JobRepairPanel.stylex.ts",
+  "apps/playground/src/features/jobs/repair/JobRepairPanel.tsx",
+  "apps/playground/src/features/jobs/repair/PayloadDiff.ts",
   "apps/website/tests/ui/repair/Panel.render.tsx"
 ]
 const inputs = {},
@@ -162,7 +162,7 @@ try {
   assert.equal(built.success, true, JSON.stringify(built.logs))
   const script = await readFile(resolve(output, "Panel.js"))
   const css =
-    (await readFile("apps/website/src/styles/Jobs.css", "utf8")) +
+    (await readFile("apps/playground/src/styles/Jobs.css", "utf8")) +
     "\n" +
     stylexPlugin.processStylexRules(rules)
   await writeFile(resolve(output, "Panel.css"), css)

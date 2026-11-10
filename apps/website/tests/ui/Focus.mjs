@@ -14,7 +14,7 @@ const files = {
   ],
   "/Jobs.css": [readFileSync(".multica/ui-browser/Jobs.css"), "text/css"],
   "/jobs": [
-    readFileSync("apps/website/src/features/jobs/Fixture.html", "utf8").replace(
+    readFileSync("apps/playground/tests/fixtures/Fixture.html", "utf8").replace(
       "/FixtureEntry.js",
       "/BrowserEntry.js"
     ),

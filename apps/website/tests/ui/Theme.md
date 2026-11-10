@@ -77,7 +77,7 @@ or compiler relaxation is used.
 
 Focused qualification uses disposable read-only links to foundation's root and
 website node_modules. A scratch tsconfig extends foundation's
-`tsconfig.playground.json` and includes `apps/website/src/ui/*.ts` and `*.tsx`.
+`tsconfig.playground.json` and includes `apps/playground/src/ui/*.ts` and `*.tsx`.
 `tsc -p .multica/theme-field-fix/tsconfig.json` reproduces the original error and
 passes with the correction. No package, lockfile or shared toolchain is changed.
 

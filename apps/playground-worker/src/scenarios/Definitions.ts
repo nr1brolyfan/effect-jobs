@@ -2,59 +2,18 @@ import { Effect, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
 import * as JobProducer from "effect-jobs/JobProducer"
 import * as JobQueue from "effect-jobs/JobQueue"
-import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
+import * as Catalogs from "@effect-jobs/playground-contracts/ScenarioCatalogs"
+import { Payload } from "@effect-jobs/playground-contracts/ScenarioPayloads"
 import * as Fixture from "@effect-jobs/playground-contracts/SyntheticCryptoFixture"
 import * as JobPayload from "effect-jobs/JobPayload"
 import { EncryptedDocument } from "./PrivateDocument.js"
-
-export type Workload = typeof Workload.Type
-export const Workload = Schema.Literals([
-  "welcome-email",
-  "image-processing",
-  "webhook-delivery",
-  "private-data-export",
-  "catalog-sync",
-  "simulated-payment"
-])
-// Trusted fixture is a provider catalog, not an additional public scenario slot.
-export type ProviderWorkload = typeof ProviderWorkload.Type
-export const ProviderWorkload = Schema.Literals([
-  ...Workload.literals,
-  "synthetic-document-export"
-])
-export type Behavior = typeof Behavior.Type
-export const Behavior = Schema.Literals([
-  "success",
-  "retry-then-success",
-  "dead",
-  "isolated",
-  "accepted-response-lost"
-])
-export type Payload = typeof Payload.Type
-export const Payload = Schema.Struct({
-  sandbox: SandboxRef,
-  version: Schema.Literal(1),
-  seed: Schema.Int.pipe(
-    Schema.check(Schema.isBetween({ minimum: 0, maximum: 0xffff_ffff }))
-  ),
-  sequence: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 1, maximum: 10 }))),
-  behavior: Behavior,
-  actor: Schema.Literal("demo-customer"),
-  tenant: Schema.Literals(["demo-tenant-a", "demo-tenant-b"]),
-  order: Schema.Literals(["demo-order-a", "demo-order-b"])
-})
-export type ExportPayload = typeof ExportPayload.Type
-export const ExportPayload = Schema.Struct({
-  ...Payload.fields,
-  document: EncryptedDocument
-})
-
-// Readable synthetic editor shape; never accepted as a repair command payload.
-export type SyntheticReadablePayload = typeof SyntheticReadablePayload.Type
-export const SyntheticReadablePayload = Schema.Struct({
-  ...Payload.fields,
-  document: Fixture.Document
-})
+export {
+  Workload,
+  ProviderWorkload,
+  Behavior,
+  Payload,
+  SyntheticReadablePayload
+} from "@effect-jobs/playground-contracts/ScenarioPayloads"
 
 export type SyntheticExportPayload = typeof SyntheticExportPayload.Type
 export const SyntheticExportPayload = Schema.Struct({
@@ -74,43 +33,50 @@ export const SyntheticExportPayload = Schema.Struct({
     }
   })
 })
-const communications = JobQueue.make("playground-communications")
-const media = JobQueue.make("playground-media")
-const commerce = JobQueue.make("playground-commerce")
-const privateData = JobQueue.make("playground-private")
+
+export type ExportPayload = typeof ExportPayload.Type
+export const ExportPayload = Schema.Struct({
+  ...Payload.fields,
+  document: EncryptedDocument
+})
+
+const communications = JobQueue.make(Catalogs.WelcomeEmail.catalog.queue)
+const media = JobQueue.make(Catalogs.ImageProcessing.catalog.queue)
+const commerce = JobQueue.make(Catalogs.CatalogSync.catalog.queue)
+const privateData = JobQueue.make(Catalogs.PrivateDataExport.catalog.queue)
 export const WelcomeEmail = Job.make({
   queue: communications,
-  name: "playground.welcome-email",
+  name: Catalogs.WelcomeEmail.catalog.name,
   payload: Payload
 })
 export const ImageProcessing = Job.make({
   queue: media,
-  name: "playground.image-processing",
+  name: Catalogs.ImageProcessing.catalog.name,
   payload: Payload
 })
 export const WebhookDelivery = Job.make({
   queue: communications,
-  name: "playground.webhook-delivery",
+  name: Catalogs.WebhookDelivery.catalog.name,
   payload: Payload
 })
 export const PrivateDataExport = Job.make({
   queue: privateData,
-  name: "playground.private-data-export",
+  name: Catalogs.PrivateDataExport.catalog.name,
   payload: ExportPayload
 })
 export const CatalogSync = Job.make({
   queue: commerce,
-  name: "playground.catalog-sync",
+  name: Catalogs.CatalogSync.catalog.name,
   payload: Payload
 })
 export const SimulatedPayment = Job.make({
   queue: commerce,
-  name: "playground.simulated-payment",
+  name: Catalogs.SimulatedPayment.catalog.name,
   payload: Payload
 })
 export const SyntheticDocumentExport = Job.make({
   queue: privateData,
-  name: "playground.synthetic-document-export",
+  name: Catalogs.SyntheticDocumentExport.catalog.name,
   payload: SyntheticExportPayload
 })
 export const Producer = JobProducer.make({

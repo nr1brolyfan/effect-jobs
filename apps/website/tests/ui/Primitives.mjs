@@ -22,6 +22,8 @@ const sources = [
   "Pagination.stylex.ts",
   "Pagination.tsx"
 ]
+const mirror = (path) =>
+  resolve(scratch, path.startsWith("src/") ? "apps/playground" : "apps/website", path)
 const rules = []
 const inputs = {}
 let server, browser
@@ -30,14 +32,17 @@ const errors = [],
   checks = []
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex")
 try {
-  await mkdir(resolve(scratch, "src/ui"), { recursive: true })
-  await mkdir(resolve(scratch, "tests/ui"), { recursive: true })
+  await mkdir(mirror("src/ui"), { recursive: true })
+  await mkdir(mirror("tests/ui"), { recursive: true })
   const paths = [
     ...sources.map((name) => `src/ui/${name}`),
     "tests/ui/Primitives.render.tsx"
   ]
   for (const path of paths) {
-    const source = await readFile(resolve("apps/website", path), "utf8")
+    const source = await readFile(
+      resolve(path.startsWith("src/") ? "apps/playground" : "apps/website", path),
+      "utf8"
+    )
     inputs[path] = hash(source)
     const transpiler = new Bun.Transpiler({
       loader: path.endsWith("tsx") ? "tsx" : "ts",
@@ -46,12 +51,12 @@ try {
       })
     })
     await writeFile(
-      resolve(scratch, path.replace(/\.tsx?$/, ".js")),
+      mirror(path.replace(/\.tsx?$/, ".js")),
       `import * as React from "react";\n${transpiler.transformSync(source)}`
     )
   }
   for (const path of paths) {
-    const filename = resolve(scratch, path.replace(/\.tsx?$/, ".js"))
+    const filename = mirror(path.replace(/\.tsx?$/, ".js"))
     const result = await transformAsync(await readFile(filename, "utf8"), {
       filename,
       babelrc: false,
@@ -74,7 +79,7 @@ try {
     await writeFile(filename, result.code)
   }
   const built = await Bun.build({
-    entrypoints: [resolve(scratch, "tests/ui/Primitives.render.js")],
+    entrypoints: [mirror("tests/ui/Primitives.render.js")],
     target: "browser",
     minify: true,
     outdir: output,
@@ -83,7 +88,7 @@ try {
   })
   assert.equal(built.success, true, JSON.stringify(built.logs))
   const css =
-    (await readFile("apps/website/src/styles/Jobs.css", "utf8")) +
+    (await readFile("apps/playground/src/styles/Jobs.css", "utf8")) +
     "\n" +
     stylexPlugin.processStylexRules(rules)
   await writeFile(resolve(output, "Jobs.css"), css)

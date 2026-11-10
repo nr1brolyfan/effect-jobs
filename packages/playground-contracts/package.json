@@ -59,6 +59,26 @@
     "./SyntheticCryptoFixture": {
       "types": "./src/SyntheticCryptoFixture.ts",
       "import": "./dist/SyntheticCryptoFixture.js"
+    },
+    "./Routes": {
+      "types": "./src/Routes.ts",
+      "import": "./dist/Routes.js"
+    },
+    "./LiveProtocol": {
+      "types": "./src/LiveProtocol.ts",
+      "import": "./dist/LiveProtocol.js"
+    },
+    "./ScenarioPayloads": {
+      "types": "./src/ScenarioPayloads.ts",
+      "import": "./dist/ScenarioPayloads.js"
+    },
+    "./ScenarioCatalogs": {
+      "types": "./src/ScenarioCatalogs.ts",
+      "import": "./dist/ScenarioCatalogs.js"
+    },
+    "./SyntheticDocument": {
+      "types": "./src/SyntheticDocument.ts",
+      "import": "./dist/SyntheticDocument.js"
     }
   }
 }

@@ -71,7 +71,7 @@ const server = createServer((req, res) => {
   }
   if (path === "/Client.js" || path === "/Jobs.css") {
     res.setHeader("Content-Type", path.endsWith(".js") ? "text/javascript" : "text/css")
-    return res.end(readFileSync(`${repo}/apps/website/dist${path}`))
+    return res.end(readFileSync(`${repo}/apps/playground/dist${path}`))
   }
   if (path === "/jobs" || path.startsWith("/jobs/")) {
     res.setHeader("Content-Type", "text/html")

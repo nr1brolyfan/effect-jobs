@@ -1,3 +1,4 @@
+import "./styles/Jobs.css"
 import { Effect, Schedule } from "effect"
 import * as Http from "./integration/HttpClient.js"
 import * as Mount from "./features/jobs/Mount.js"

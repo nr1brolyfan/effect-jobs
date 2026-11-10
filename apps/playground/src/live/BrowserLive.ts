@@ -2,7 +2,11 @@ import { Effect, Schema } from "effect"
 import { limits } from "@effect-jobs/playground-contracts/Sandbox"
 import type { SandboxView } from "@effect-jobs/playground-contracts/Sandbox"
 import type { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
-import { Signal, liveLimits, sameSandbox } from "./Protocol.js"
+import {
+  Signal,
+  liveLimits,
+  sameSandbox
+} from "@effect-jobs/playground-contracts/LiveProtocol"
 
 export interface BrowserOptions<A> {
   readonly sandbox: SandboxView

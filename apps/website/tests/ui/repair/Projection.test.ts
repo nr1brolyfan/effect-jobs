@@ -3,8 +3,8 @@ import { Effect } from "effect"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Definitions from "../../../../playground-worker/src/scenarios/Definitions.js"
 import { keysLayer } from "../../../../playground-worker/src/scenarios/PrivateDocument.js"
-import * as Projection from "../../../src/server/read/JobDetailsProjection.js"
-import * as Diff from "../../../src/features/jobs/repair/PayloadDiff.js"
+import * as Projection from "../../../../playground-worker/src/server/read/JobDetailsProjection.js"
+import * as Diff from "../../../../playground/src/features/jobs/repair/PayloadDiff.js"
 import * as Fixture from "../../../../playground-worker/tests/repairs/Fixtures.js"
 
 describe("truthful allowlisted detail projection", () => {

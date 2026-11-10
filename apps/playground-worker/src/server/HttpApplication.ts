@@ -1,4 +1,4 @@
-import { LocalPrivate } from "../../../playground-worker/src/persistence/authority/PrivateMode.js"
+import { LocalPrivate } from "../persistence/authority/PrivateMode.js"
 import { Repairs } from "@effect-jobs/playground-contracts/Repairs"
 import * as RepairHttp from "./commands/HttpRepairs.js"
 import * as OriginPolicy from "../OriginPolicy.js"
@@ -10,7 +10,7 @@ import {
   JobsRead,
   Scenarios
 } from "@effect-jobs/playground-contracts/Services"
-import { routes } from "./Routes.js"
+import { routes } from "@effect-jobs/playground-contracts/Routes"
 import { Application } from "./Services.js"
 import * as Commands from "./commands/HttpCommands.js"
 import * as Read from "./read/HttpRead.js"

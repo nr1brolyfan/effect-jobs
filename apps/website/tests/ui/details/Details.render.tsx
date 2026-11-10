@@ -9,10 +9,10 @@ import * as AtomRegistry from "effect/reactivity/AtomRegistry"
 import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
 import { JobId } from "effect-jobs/JobId"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
-import { JobDetailsDrawer } from "../../../src/features/jobs/details/JobDetailsDrawer.js"
-import { JobDetailsPage } from "../../../src/features/jobs/details/JobDetailsPage.js"
-import * as Navigation from "../../../src/features/jobs/details/Navigation.js"
-import { Button, Panel } from "../../../src/ui/Primitives.js"
+import { JobDetailsDrawer } from "../../../../playground/src/features/jobs/details/JobDetailsDrawer.js"
+import { JobDetailsPage } from "../../../../playground/src/features/jobs/details/JobDetailsPage.js"
+import * as Navigation from "../../../../playground/src/features/jobs/details/Navigation.js"
+import { Button, Panel } from "../../../../playground/src/ui/Primitives.js"
 
 const registry = AtomRegistry.make()
 const scope = Scope.makeUnsafe()

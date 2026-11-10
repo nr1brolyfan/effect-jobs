@@ -3,7 +3,13 @@ import { createHash } from "node:crypto"
 import { readFileSync, readdirSync } from "node:fs"
 import { resolve, extname, relative } from "node:path"
 
-const types = {
+type Asset = readonly [string | Uint8Array<ArrayBuffer>, string]
+interface AssetsOptions {
+  readonly siteDirectory: string
+  readonly dashboard: Readonly<Record<string, Asset>>
+}
+
+const types: Readonly<Record<string, string>> = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -18,12 +24,12 @@ const dashboardPolicy =
   "default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'"
 // Hash the final HTML bytes, including Starlight's inline initialization scripts.
 // The dashboard retains its separate existing policy. Site content is trusted build input.
-const sitePolicy = (entry) => {
+const sitePolicy = (entry: Asset) => {
   const hashes = entry[1].startsWith("text/html")
     ? Array.from(
         entry[0].toString().matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi),
         (match) =>
-          "'sha256-" + createHash("sha256").update(match[1]).digest("base64") + "'"
+          "'sha256-" + createHash("sha256").update(match[1]!).digest("base64") + "'"
       )
     : []
   return (
@@ -32,16 +38,16 @@ const sitePolicy = (entry) => {
     "; style-src 'self' 'unsafe-inline'"
   )
 }
-export const loadSite = (directory) => {
-  const entries = new Map()
-  const walk = (current) => {
+export const loadSite = (directory: string) => {
+  const entries = new Map<string, Asset>()
+  const walk = (current: string): void => {
     for (const entry of readdirSync(current, { withFileTypes: true })) {
       const file = resolve(current, entry.name)
       if (entry.isDirectory()) {
         walk(file)
       } else if (entry.isFile()) {
         const path = "/" + relative(directory, file).split("\\").join("/")
-        const value = [
+        const value: Asset = [
           readFileSync(file),
           types[extname(file)] ?? "application/octet-stream"
         ]
@@ -57,9 +63,9 @@ export const loadSite = (directory) => {
   walk(resolve(directory))
   return entries
 }
-export const createAssets = (options) => {
+export const createAssets = (options: AssetsOptions) => {
   const site = loadSite(resolve(options.siteDirectory))
-  return (request) => {
+  return (request: Request) => {
     if (request.method !== "GET" && request.method !== "HEAD") {
       return new Response(null, { status: 405 })
     }

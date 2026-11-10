@@ -13,7 +13,7 @@ import {
   SandboxAuthority,
   Scenarios
 } from "@effect-jobs/playground-contracts/Services"
-import { CommandPersistence } from "../../../../playground-worker/src/persistence/commands/Transactions.js"
+import { CommandPersistence } from "../../persistence/commands/Transactions.js"
 
 const fail = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
 const decode = <S extends Schema.Top & { readonly DecodingServices: never }>(

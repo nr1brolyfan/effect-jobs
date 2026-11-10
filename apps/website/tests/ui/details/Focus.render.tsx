@@ -2,11 +2,11 @@
 // No HTTP/PG fixture qualification, credentials, or mutations are claimed here.
 import { useEffect, useState } from "react"
 import { createRoot } from "react-dom/client"
-import { JobDetailsDrawer } from "../../../src/features/jobs/details/JobDetailsDrawer.js"
+import { JobDetailsDrawer } from "../../../../playground/src/features/jobs/details/JobDetailsDrawer.js"
 import { Effect } from "effect"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
-import * as FixtureClient from "../../../src/features/jobs/FixtureClient.js"
-import * as Mount from "../../../src/features/jobs/Mount.js"
+import * as FixtureClient from "../../../../playground/tests/fixtures/FixtureClient.js"
+import * as Mount from "../../../../playground/src/features/jobs/Mount.js"
 
 let releases: Array<() => void> = []
 let hold = true

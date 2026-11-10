@@ -53,7 +53,9 @@ for (const subpath of Object.keys(manifest.exports)) {
   )
 }
 assert.equal(
-  realpathSync(join(root, "apps/website/node_modules/@effect-jobs/playground-contracts")),
+  realpathSync(
+    join(root, "apps/playground/node_modules/@effect-jobs/playground-contracts")
+  ),
   join(root, "packages/playground-contracts")
 )
 const previousDirectory = process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY

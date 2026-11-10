@@ -69,8 +69,8 @@ bun run --filter @effect-jobs/playground-contracts build
 bunx --no-install tsc -p apps/website/tests/ui/details/tsconfig.navigation.json
 bunx --no-install vitest run apps/website/tests/ui/details/Navigation.test.ts
 bun apps/website/tests/ui/details/Details.browser.mjs
-bunx --no-install oxlint --deny-warnings apps/website/src/features/jobs/details apps/website/tests/ui/details
-bunx --no-install oxfmt --config .oxfmtrc.json --check apps/website/src/features/jobs/details apps/website/tests/ui/details
+bunx --no-install oxlint --deny-warnings apps/playground/src/features/jobs/details apps/website/tests/ui/details
+bunx --no-install oxfmt --config .oxfmtrc.json --check apps/playground/src/features/jobs/details apps/website/tests/ui/details
 ```
 
 The browser harness compiles actual components with production StyleX extraction

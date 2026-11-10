@@ -1,4 +1,1 @@
-{
-  "extends": "../../tsconfig.playground.json",
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
-}
+{ "extends": "./tsconfig.site.json" }

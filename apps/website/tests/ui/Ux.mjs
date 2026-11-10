@@ -13,7 +13,7 @@ const { chromium, expect } = require("@playwright/test")
 const workerRequire = createRequire(require.resolve("miniflare"))
 const { WebSocketServer } = workerRequire("ws")
 const baseline = process.argv.includes("--before")
-const assets = baseline ? ".multica/ux-base/apps/website/dist" : "apps/website/dist"
+const assets = baseline ? ".multica/ux-base/apps/website/dist" : "apps/playground/dist"
 const output = resolve(`.multica/ux-evidence/${baseline ? "before" : "after"}`)
 mkdirSync(output, { recursive: true })
 const script = readFileSync(`${assets}/Client.js`)

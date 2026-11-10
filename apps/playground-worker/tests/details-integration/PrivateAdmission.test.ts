@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { Effect, Layer } from "effect"
-import { Application } from "../../../website/src/server/Services.js"
+import { Application } from "../../src/server/Services.js"
 import { Repairs } from "@effect-jobs/playground-contracts/Repairs"
-import * as Http from "../../../website/src/server/HttpApplication.js"
+import * as Http from "../../src/server/HttpApplication.js"
 import { LocalPrivate } from "../../src/persistence/authority/PrivateMode.js"
 
 // Every unimplemented service operation fails loudly if disabled admission calls it.

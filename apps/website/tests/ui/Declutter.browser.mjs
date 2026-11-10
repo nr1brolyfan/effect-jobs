@@ -13,7 +13,7 @@ const baseline = process.argv.includes("--before")
 const output =
   process.env.DECLUTTER_OUTPUT_DIRECTORY ??
   `.multica/declutter/${baseline ? "before" : "after"}`
-const buildDirectory = process.env.DECLUTTER_BUILD_DIRECTORY ?? "apps/website/dist"
+const buildDirectory = process.env.DECLUTTER_BUILD_DIRECTORY ?? "apps/playground/dist"
 mkdirSync(output, { recursive: true })
 const script = readFileSync(resolve(buildDirectory, "Client.js"))
 const css = readFileSync(resolve(buildDirectory, "Jobs.css"))

@@ -12,13 +12,13 @@ const require = createRequire(
 const { chromium, expect } = require("@playwright/test")
 const output = resolve(".multica/ui-fixes/dx-browser")
 await mkdir(output, { recursive: true })
-execFileSync("bun", ["apps/website/build.mjs", "--fixtures"], {
+execFileSync(process.execPath, ["apps/playground/build.ts", "--fixtures"], {
   stdio: "inherit",
   timeout: 600_000,
   env: { ...process.env, UI_BUILD_DIRECTORY: output }
 })
 const css = await readFile(resolve(output, "Jobs.css"))
-const html = await readFile("apps/website/src/features/jobs/Fixture.html", "utf8")
+const html = await readFile("apps/playground/tests/fixtures/Fixture.html", "utf8")
 const guide = await readFile("apps/website/content/docs/Jobs.html")
 const scripts = {
   "/FixtureEntry.js": await readFile(resolve(output, "FixtureEntry.js")),

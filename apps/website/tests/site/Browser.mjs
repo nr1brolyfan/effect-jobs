@@ -5,7 +5,7 @@ import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
 import { resolve } from "node:path"
 import { mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs"
-import { createAssets } from "../../StaticAssets.mjs"
+import { createAssets } from "../../../playground-worker/src/assets/StaticAssets.ts"
 import { extractRegion } from "../../src/components/docs/ExtractExample.mjs"
 
 const repository = fileURLToPath(new URL("../../../../", import.meta.url))

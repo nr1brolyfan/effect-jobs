@@ -5,8 +5,8 @@ import type {
   JobProblem,
   JobRepairReason
 } from "@effect-jobs/playground-contracts/Repairs"
-import * as Definitions from "../../../../playground-worker/src/scenarios/Definitions.js"
-import * as Source from "../../../../playground-worker/src/persistence/commands/RepairSource.js"
+import * as Definitions from "../../scenarios/Definitions.js"
+import * as Source from "../../persistence/commands/RepairSource.js"
 
 const unavailable = (
   reason: Extract<JobPayloadView, { _tag: "Unavailable" }>["reason"]

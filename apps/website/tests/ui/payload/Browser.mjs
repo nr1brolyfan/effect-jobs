@@ -25,6 +25,8 @@ const paths = [
   "src/features/jobs/payload/SyntheticDocumentSession.tsx",
   "tests/ui/payload/Render.tsx"
 ]
+const mirror = (path) =>
+  resolve(scratch, path.startsWith("src/") ? "apps/playground" : "apps/website", path)
 const hash = (value) => createHash("sha256").update(value).digest("hex")
 const inputs = {},
   rules = [],
@@ -35,9 +37,12 @@ const inputs = {},
 let server, browser
 try {
   for (const path of paths) {
-    const source = await readFile(resolve("apps/website", path), "utf8")
+    const source = await readFile(
+      resolve(path.startsWith("src/") ? "apps/playground" : "apps/website", path),
+      "utf8"
+    )
     inputs[`apps/website/${path}`] = hash(source)
-    const target = resolve(scratch, path.replace(/\.tsx?$/, ".js"))
+    const target = mirror(path.replace(/\.tsx?$/, ".js"))
     const transpiled = await transformAsync(source, {
       filename: path,
       babelrc: false,
@@ -58,7 +63,7 @@ try {
     await writeFile(target, transpiled.code)
   }
   for (const path of paths) {
-    const filename = resolve(scratch, path.replace(/\.tsx?$/, ".js"))
+    const filename = mirror(path.replace(/\.tsx?$/, ".js"))
     const compiled = await transformAsync(await readFile(filename, "utf8"), {
       filename,
       babelrc: false,
@@ -86,7 +91,7 @@ try {
     await readFile(fixturePath)
   )
   const built = await Bun.build({
-    entrypoints: [resolve(scratch, "tests/ui/payload/Render.js")],
+    entrypoints: [mirror("tests/ui/payload/Render.js")],
     target: "browser",
     minify: true,
     outdir: output,
@@ -107,7 +112,7 @@ try {
   })
   assert.equal(built.success, true, JSON.stringify(built.logs))
   const css =
-    (await readFile("apps/website/src/styles/Jobs.css", "utf8")) +
+    (await readFile("apps/playground/src/styles/Jobs.css", "utf8")) +
     "\n" +
     stylexPlugin.processStylexRules(rules)
   await writeFile(resolve(output, "Payload.css"), css)

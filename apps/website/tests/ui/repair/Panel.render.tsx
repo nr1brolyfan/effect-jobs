@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { createRoot } from "react-dom/client"
-import { JobRepairPanel } from "../../../src/features/jobs/repair/JobRepairPanel.js"
+import { JobRepairPanel } from "../../../../playground/src/features/jobs/repair/JobRepairPanel.js"
 import type {
   JobRepairCommand,
   JobResolutionCommand

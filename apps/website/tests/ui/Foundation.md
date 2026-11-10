@@ -21,7 +21,7 @@ and block further writes.
 
 ## Compilation
 
-`bun apps/website/build.mjs` builds the production client. The build creates a
+`bun apps/playground/build.ts` builds the production client. The build creates a
 short-lived JS mirror of every website TS/TSX source, resolves NodeNext `.js`
 theme imports there, runs the pinned StyleX Babel compiler without runtime
 injection, and bundles with Bun. Extracted CSS is appended to the document reset
@@ -29,7 +29,7 @@ in `dist/Jobs.css`. The local worker serves that generated file. Every transform
 source and the production bundles are checked for uncompiled StyleX calls, and a
 source-hash/CSS-rule receipt is written alongside the assets.
 
-`bun apps/website/build.mjs --fixtures` also builds FixtureEntry and BrowserEntry.
+`bun apps/playground/build.ts --fixtures` also builds FixtureEntry and BrowserEntry.
 `UI_BUILD_DIRECTORY` can select an owned output directory. The browser harnesses
 invoke this compiler and serve the resulting CSS, rather than bundling raw styles.
 Never substitute theme/chart modules: integrate their actual author commits first.
@@ -44,7 +44,7 @@ bun run --filter @effect-jobs/playground-contracts build
 bunx vitest run apps/website/tests/ui/Atoms.test.ts apps/website/tests/ui/Runtime.test.ts apps/website/tests/ui/RetryTime.test.ts
 bunx oxlint --deny-warnings apps/website
 bun run playground:check
-bun apps/website/build.mjs
+bun apps/playground/build.ts
 ```
 
 The playground TypeScript configuration skips third-party declaration checking

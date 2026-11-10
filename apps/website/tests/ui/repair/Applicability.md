@@ -60,7 +60,7 @@ Source evidence (paths and lines at the implementation handoff):
   DB-time `already-due` rejection at 501–508.
 - `src/internal/postgresql/Operators.ts:80`: source/version validation;
   Dead/Isolated redrive at 146, canonical source and policy checks afterward.
-- `apps/website/src/server/read/JobDetailsProjection.ts:91`: source/chain common
+- `apps/playground-worker/src/server/read/JobDetailsProjection.ts:91`: source/chain common
   refusal; plain artifact checks at 105; supported correction/encryption at 112.
 - `apps/playground-worker/src/persistence/commands/RepairPersistence.ts:90`:
   resolution version, Resolved, InProgress and current member refusal.
@@ -70,13 +70,13 @@ Source evidence (paths and lines at the implementation handoff):
 - `apps/playground-worker/src/persistence/commands/RepairSource.ts:206`:
   known-failure evidence and investigation; replacement catalog, authenticated
   synthetic envelope and immutable relations checks below.
-- `apps/website/src/server/read/PostgreSqlRead.ts:291`: projected problem,
+- `apps/playground-worker/src/server/read/PostgreSqlRead.ts:291`: projected problem,
   payload and eligibility. `apps/playground-worker/src/persistence/read/Queries.ts`
   projects implicit failures and retained chain membership.
-- `apps/website/src/features/jobs/OperatorEligibility.ts:11`: private capabilities
+- `apps/playground/src/features/jobs/OperatorEligibility.ts:11`: private capabilities
   and state/time eligibility; `repairApplicability` consumes server repair metadata.
 - `packages/playground-contracts/src/Jobs.ts:213` and
-  `apps/website/src/server/read/JobDetailsProjection.ts:134`: result has only
+  `apps/playground-worker/src/server/read/JobDetailsProjection.ts:134`: result has only
   Unavailable/not-stored. There is no stored handler result to relocate. Retained
   provider/history evidence continues in the existing overview/timeline; no dummy
   result section is rendered in the payload panel.

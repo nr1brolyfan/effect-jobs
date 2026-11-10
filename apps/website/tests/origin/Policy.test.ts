@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import * as OriginPolicy from "../../src/OriginPolicy.js"
+import * as OriginPolicy from "../../../playground-worker/src/OriginPolicy.js"
 
 const aliases = ["http://localhost:8787", "http://127.0.0.1:8787"]
 const forbidden = [

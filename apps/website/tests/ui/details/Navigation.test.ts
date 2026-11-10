@@ -4,7 +4,7 @@ import { Effect, Exit, Schema, Scope } from "effect"
 import * as AtomRegistry from "effect/reactivity/AtomRegistry"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import { JobId } from "effect-jobs/JobId"
-import * as Navigation from "../../../src/features/jobs/details/Navigation.js"
+import * as Navigation from "../../../../playground/src/features/jobs/details/Navigation.js"
 
 const sandbox = Schema.decodeSync(SandboxRef)({ sandboxId: "synthetic", generation: 2 })
 const jobId = Schema.decodeSync(JobId)("job a/#%")

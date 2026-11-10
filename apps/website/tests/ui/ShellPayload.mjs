@@ -14,7 +14,7 @@ const { chromium, expect } = require("@playwright/test")
 // Reuse the lockfile-pinned worker test dependency, never install a new package.
 const workerRequire = createRequire(require.resolve("miniflare"))
 const { WebSocketServer } = workerRequire("ws")
-const assets = "apps/website/dist"
+const assets = "apps/playground/dist"
 const output = resolve(".multica/shell-payload-evidence")
 mkdirSync(output, { recursive: true })
 const script = readFileSync(`${assets}/Client.js`)

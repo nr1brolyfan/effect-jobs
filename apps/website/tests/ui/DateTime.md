@@ -66,8 +66,8 @@ Run from the repository root with isolated, lockfile-pinned dependencies:
 ```sh
 node_modules/.bin/vitest run apps/website/tests/ui/DateTimeFormat.test.ts apps/website/tests/ui/RetryTime.test.ts
 bun apps/website/tests/ui/DateTime.compile.mjs
-node_modules/.bin/oxlint --deny-warnings apps/website/src/ui/DateTime.tsx apps/website/src/ui/DateTime.stylex.ts apps/website/src/ui/DateTimeFormat.ts apps/website/tests/ui/DateTimeFormat.test.ts apps/website/tests/ui/DateTime.compile.mjs
-node_modules/.bin/oxfmt --config .oxfmtrc.json --check apps/website/src/ui/DateTime.tsx apps/website/src/ui/DateTime.stylex.ts apps/website/src/ui/DateTimeFormat.ts apps/website/tests/ui/DateTimeFormat.test.ts apps/website/tests/ui/DateTime.compile.mjs apps/website/tests/ui/DateTime.md
+node_modules/.bin/oxlint --deny-warnings apps/playground/src/ui/DateTime.tsx apps/playground/src/ui/DateTime.stylex.ts apps/playground/src/ui/DateTimeFormat.ts apps/website/tests/ui/DateTimeFormat.test.ts apps/website/tests/ui/DateTime.compile.mjs
+node_modules/.bin/oxfmt --config .oxfmtrc.json --check apps/playground/src/ui/DateTime.tsx apps/playground/src/ui/DateTime.stylex.ts apps/playground/src/ui/DateTimeFormat.ts apps/website/tests/ui/DateTimeFormat.test.ts apps/website/tests/ui/DateTime.compile.mjs apps/website/tests/ui/DateTime.md
 ```
 
 The formatter suite covers absence, zero, invalid numbers, seconds, millisecond
@@ -96,7 +96,7 @@ This is synthetic component evidence, not real backend or physical-device testin
 Run `bun apps/website/tests/ui/Primitives.mjs` to verify default Popover behavior
 and existing shared controls. Build contracts before the full production website:
 `bun run --filter @effect-jobs/playground-contracts build`, then
-`bun apps/website/build.mjs`. Integrated Dashboard locations and real runtime/axe
+`bun apps/playground/build.ts`. Integrated Dashboard locations and real runtime/axe
 qualification remain the integration stream's responsibility; this slice does
 not repeat the previous completed review or backend matrix.
 

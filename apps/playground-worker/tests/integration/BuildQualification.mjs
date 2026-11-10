@@ -16,8 +16,8 @@ for (const name of ["RepairPg", "RepairHistorical", "SchemaEntry"]) {
 }
 const paths = [
   "apps/playground-worker/dist/Worker.js",
-  "apps/website/dist/Client.js",
-  "apps/website/dist/Jobs.css",
+  "apps/playground/dist/Client.js",
+  "apps/playground/dist/Jobs.css",
   ...["RepairPg", "RepairHistorical", "Migrations"].map(
     (name) => `${directory}/${name}.mjs`
   )

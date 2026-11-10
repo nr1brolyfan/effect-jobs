@@ -1,5 +1,5 @@
 import { Schema } from "effect"
-import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
+import { SandboxRef } from "./Sandbox.js"
 
 export type Signal = typeof Signal.Type
 export const Signal = Schema.Struct({

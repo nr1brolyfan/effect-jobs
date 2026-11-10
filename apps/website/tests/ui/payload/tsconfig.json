@@ -10,8 +10,8 @@
     }
   },
   "include": [
-    "../../../src/features/jobs/payload/*.ts",
-    "../../../src/features/jobs/payload/*.tsx",
+    "../../../../playground/src/features/jobs/payload/*.ts",
+    "../../../../playground/src/features/jobs/payload/*.tsx",
     "./*.ts",
     "./*.tsx",
     "../../../../../packages/playground-contracts/tests/SyntheticCryptoFixture.test.ts"

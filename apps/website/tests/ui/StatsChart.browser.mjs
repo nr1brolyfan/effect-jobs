@@ -15,7 +15,7 @@ const assets = {
   "/Jobs.css": await readFile(resolve(output, "Jobs.css")),
   "/jobs": (
     await readFile(
-      resolve(fixture, "apps/website/src/features/jobs/Fixture.html"),
+      resolve(fixture, "apps/playground/tests/fixtures/Fixture.html"),
       "utf8"
     )
   ).replace("/FixtureEntry.js", "/BrowserEntry.js")

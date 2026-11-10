@@ -20,7 +20,7 @@ const inputs = []
 try {
   for (const name of modules) {
     const source = await readFile(
-      resolve(import.meta.dirname, "../../src/ui", name),
+      resolve(import.meta.dirname, "../../../playground/src/ui", name),
       "utf8"
     )
     inputs.push({ name, sha256: createHash("sha256").update(source).digest("hex") })

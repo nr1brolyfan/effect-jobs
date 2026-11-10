@@ -5,8 +5,12 @@ import {
   limits
 } from "@effect-jobs/playground-contracts/Sandbox"
 import type { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
-import { Ack, liveLimits, sameSandbox } from "../../../website/src/live/Protocol.js"
-import * as OriginPolicy from "../../../website/src/OriginPolicy.js"
+import {
+  Ack,
+  liveLimits,
+  sameSandbox
+} from "@effect-jobs/playground-contracts/LiveProtocol"
+import * as OriginPolicy from "../OriginPolicy.js"
 
 // Narrow Cloudflare FFI ports. No SDK, pool, timer or service starts on import.
 export interface HibernatingSocket {

@@ -16,7 +16,7 @@ import {
 } from "@effect-jobs/playground-contracts/Jobs"
 import type { SandboxAccess, SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import { JobsRead, PlaygroundError } from "@effect-jobs/playground-contracts/Services"
-import * as Queries from "../../../../playground-worker/src/persistence/read/Queries.js"
+import * as Queries from "../../persistence/read/Queries.js"
 import * as Projection from "./JobDetailsProjection.js"
 import { CursorCodec } from "./CursorCodec.js"
 

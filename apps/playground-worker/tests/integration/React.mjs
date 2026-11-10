@@ -38,7 +38,7 @@ try {
   assert.notEqual(new URL(local.origin).port, "8787")
   const dispatch = (path, options) => local.mf.dispatchFetch(local.origin + path, options)
   const css = await (await dispatch("/Jobs.css")).text()
-  assert.equal(css, readFileSync("apps/website/dist/Jobs.css", "utf8"))
+  assert.equal(css, readFileSync("apps/playground/dist/Jobs.css", "utf8"))
   assert(css.includes("@media") && css.includes("--"))
   checks.push("production extracted StyleX CSS served byte-for-byte by workerd assets")
   browser = await chromium.launch({

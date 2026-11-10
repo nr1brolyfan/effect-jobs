@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { Effect } from "effect"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
-import { liveLimits } from "../../../website/src/live/Protocol.js"
+import { liveLimits } from "@effect-jobs/playground-contracts/LiveProtocol"
 import * as Live from "../../src/live/SandboxLive.js"
 
 const now = 1_800_000_000_000

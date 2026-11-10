@@ -10,7 +10,7 @@ import type {
   JobOperatorCommand,
   JobOperatorReceiptRequest
 } from "@effect-jobs/playground-contracts/Operators"
-import { Application } from "../../../website/src/server/Services.js"
+import { Application } from "../../src/server/Services.js"
 import * as Event from "../../src/execution/Event.js"
 import * as Plan from "../../src/scenarios/Plan.js"
 import * as Definitions from "../../src/scenarios/Definitions.js"

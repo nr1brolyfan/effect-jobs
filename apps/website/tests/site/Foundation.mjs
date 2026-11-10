@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { createAssets } from "../../StaticAssets.mjs"
+import { createAssets } from "../../../playground-worker/src/assets/StaticAssets.ts"
 import {
   extractRegion,
   extractExample

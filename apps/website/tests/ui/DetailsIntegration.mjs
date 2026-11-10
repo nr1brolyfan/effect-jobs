@@ -39,8 +39,8 @@ const detail = {
     encryption: "SyntheticDocumentV1"
   }
 }
-const script = readFileSync("apps/website/dist/Client.js"),
-  css = readFileSync("apps/website/dist/Jobs.css")
+const script = readFileSync("apps/playground/dist/Client.js"),
+  css = readFileSync("apps/playground/dist/Jobs.css")
 const html =
   '<!doctype html><html lang="en"><head><title>Details integration</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/Jobs.css"></head><body><main id="jobs"></main><script type="module" src="/Client.js"></script></body></html>'
 const requests = [],

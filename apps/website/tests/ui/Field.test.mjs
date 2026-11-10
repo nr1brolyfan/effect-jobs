@@ -16,7 +16,7 @@ try {
   for (const name of modules) {
     const extension = name === "Primitives" ? "tsx" : "ts"
     const source = await readFile(
-      resolve(import.meta.dirname, `../../src/ui/${name}.${extension}`),
+      resolve(import.meta.dirname, `../../../playground/src/ui/${name}.${extension}`),
       "utf8"
     )
     const transpiler = new Bun.Transpiler({

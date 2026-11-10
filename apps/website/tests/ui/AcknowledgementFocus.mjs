@@ -10,8 +10,8 @@ const playwrightPackage =
   "/home/pc/multica_workspaces/upventure-43a8c02fcc9d/upve-2151-dc3e0e68e0b3/qualification/node_modules/.bun/@playwright+test@1.56.1/node_modules/@playwright/test"
 const require = createRequire(resolve(playwrightPackage, "package.json"))
 const { chromium, expect } = require("./index.js")
-const script = readFileSync(root + "/apps/website/dist/Client.js")
-const css = readFileSync(root + "/apps/website/dist/Jobs.css")
+const script = readFileSync(root + "/apps/playground/dist/Client.js")
+const css = readFileSync(root + "/apps/playground/dist/Jobs.css")
 const sandbox = {
   ref: { sandboxId: "review-sandbox", generation: 1 },
   expiresAt: Date.now() + 120000,
