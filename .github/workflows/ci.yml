@@ -1,0 +1,159 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # GitHub invokes bash with -e -o pipefail: tee must not hide test failures.
+    shell: bash
+
+env:
+  CI_EVIDENCE: /tmp/opencode/ci-evidence
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.15.0
+          package-manager-cache: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+      - name: Prepare evidence directory
+        run: mkdir -p "$CI_EVIDENCE"
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile --ignore-scripts 2>&1 | tee "$CI_EVIDENCE/install.log"
+      - name: Verify library and workspace tests
+        run: bun run verify 2>&1 | tee "$CI_EVIDENCE/verify.log"
+      - name: Check workspace types and lint
+        run: |
+          bun run playground:check 2>&1 | tee "$CI_EVIDENCE/workspace-types.log"
+          bun run playground:lint 2>&1 | tee "$CI_EVIDENCE/workspace-lint.log"
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: verify-failure-${{ github.run_attempt }}
+          path: /tmp/opencode/ci-evidence/*.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  postgresql:
+    name: PostgreSQL (${{ matrix.runtime }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: [node, bun]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.15.0
+          package-manager-cache: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+      - name: Prepare evidence directory
+        run: mkdir -p "$CI_EVIDENCE"
+      - name: Install locked dependencies
+        run: |
+          bun install --frozen-lockfile --ignore-scripts 2>&1 | tee "$CI_EVIDENCE/install.log"
+          bun install --cwd tests/postgresql --frozen-lockfile --ignore-scripts 2>&1 | tee "$CI_EVIDENCE/backend-install.log"
+          bun install --cwd tests/qualification/d6-pg --frozen-lockfile --ignore-scripts 2>&1 | tee "$CI_EVIDENCE/bridge-install.log"
+      - name: Fetch the disposable PostgreSQL image
+        run: docker pull postgres:16.15-alpine 2>&1 | tee "$CI_EVIDENCE/postgres-image.log"
+      - name: Test all existing PostgreSQL suites
+        env:
+          MATRIX_RUNTIME: ${{ matrix.runtime }}
+          PG_MATRIX_EVIDENCE_DIRECTORY: /tmp/opencode/ci-evidence/postgresql
+        run: bun run test:postgresql:matrix "$MATRIX_RUNTIME" 2>&1 | tee "$CI_EVIDENCE/postgresql.log"
+      - name: Upload PostgreSQL reports and logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: postgresql-${{ matrix.runtime }}-${{ github.run_attempt }}
+          # Never include resource directories or connection configuration.
+          path: |
+            /tmp/opencode/ci-evidence/*.log
+            /tmp/opencode/ci-evidence/postgresql/*/results.json
+            /tmp/opencode/ci-evidence/postgresql/*/results.junit.xml
+            /tmp/opencode/ci-evidence/postgresql/*/resource.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  worker-crash:
+    name: PostgreSQL crash recovery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.15.0
+          package-manager-cache: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+      - name: Prepare evidence directory
+        run: mkdir -p "$CI_EVIDENCE"
+      - name: Install locked dependencies
+        run: |
+          bun install --frozen-lockfile --ignore-scripts 2>&1 | tee "$CI_EVIDENCE/install.log"
+          npm ci --prefix tests/integration/worker-crash --ignore-scripts --no-audit --no-fund 2>&1 | tee "$CI_EVIDENCE/fixture-install.log"
+      - name: Fetch the disposable PostgreSQL image
+        run: docker pull postgres:16.15-alpine 2>&1 | tee "$CI_EVIDENCE/postgres-image.log"
+      - name: Test SIGKILL, lease recovery and fencing
+        run: |
+          bun run test:postgresql:crash --reporter=default --reporter=junit --outputFile.junit="$CI_EVIDENCE/worker-crash.junit.xml" 2>&1 | tee "$CI_EVIDENCE/worker-crash.log"
+      - name: Collect non-secret fixture receipts
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os
+          import shutil
+          from pathlib import Path
+
+          destination = Path(os.environ["CI_EVIDENCE"]) / "receipts"
+          for fixture in Path("/tmp/opencode").glob("effect-jobs-worker-crash-*"):
+              for name in ("metadata.json", "resource.json"):
+                  source = fixture / name
+                  if source.is_file():
+                      target = destination / fixture.name / name
+                      target.parent.mkdir(parents=True, exist_ok=True)
+                      shutil.copyfile(source, target)
+          PY
+      - name: Upload integration report and logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: worker-crash-${{ github.run_attempt }}
+          # Never upload whole fixture directories: interrupted teardown may leave credentials.
+          path: |
+            /tmp/opencode/ci-evidence/*.log
+            /tmp/opencode/ci-evidence/*.xml
+            /tmp/opencode/ci-evidence/receipts/**/metadata.json
+            /tmp/opencode/ci-evidence/receipts/**/resource.json
+          if-no-files-found: warn
+          retention-days: 7

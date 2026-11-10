@@ -1,5 +1,5 @@
 import { readQualificationResource } from "../Resource.mjs"
-// Native low-level SQL APIs are intentionally pinned to 4.0.0 by the consumer runner.
+// Native low-level SQL APIs are intentionally pinned to 4.0.5 by the consumer runner.
 // @effect-diagnostics unstableApiUsage:off
 import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
@@ -11,20 +11,6 @@ import type { PostgreSqlError } from "effect-jobs/PostgreSqlTransaction"
 import type { EnqueueResult } from "effect-jobs/JobContract"
 import type { JobEnqueueError } from "effect-jobs/JobTransaction"
 type NativeDb = Effect.Success<ReturnType<typeof Drizzle.makeWithDefaults>>
-type NativeTx = Parameters<Parameters<NativeDb["transaction"]>[0]>[0]
-import type { SqlError } from "effect/sql/SqlError"
-// Drizzle rc still references the removed effect/unstable/sql/SqlError path.
-// Restore only this declaration boundary to the actual pinned driver error;
-// full upstream declaration checking remains a separately reported limitation.
-const transact = <A, E, R>(
-  db: Pick<NativeDb, "transaction">,
-  body: (tx: NativeTx) => Effect.Effect<A, E, R>
-): Effect.Effect<A, E | SqlError, R> => {
-  const invoke: (
-    body: (tx: NativeTx) => Effect.Effect<A, E, R>
-  ) => Effect.Effect<A, E | SqlError, R> = db.transaction.bind(db)
-  return invoke(body)
-}
 import { Cause, Context, Deferred, Effect, Exit, Fiber, Redacted, Schema } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import * as Drizzle from "drizzle-orm/effect-postgres"
@@ -72,13 +58,16 @@ const receipts = pgSchema(schema).table("receipts", {
   jobId: text("job_id").notNull()
 })
 const definition = Job.make({
-  kind: "invoice.generate",
+  name: "invoice.generate",
   version: 1,
   queue: Queue.make("billing"),
   payload: Schema.Struct({ invoiceId: Schema.String }),
   encodePayload: encodeJobPayload
 })
-const producer = Producer.make({ operation: "billing.native", slots: ["generate"] })
+const producer = Producer.make({
+  operation: "billing.native",
+  slots: { generate: definition }
+})
 const input = (id: string, value = id) => ({
   producer: producer.identity({ operationId: id, slot: "generate" }),
   payload: { invoiceId: value },
@@ -150,7 +139,7 @@ try {
             ...mapping,
             operationResponseBudgetMillis: 100
           }).pipe(Effect.provideService(PostgreSqlApplication, application))
-          const writes = (id: string, tx: NativeTx, handle: unknown) =>
+          const writes = (id: string, tx: NativeDb, handle: unknown) =>
             backend.joinTransaction(handle, (jobsTx) =>
               Effect.gen(function* () {
                 yield* tx.insert(domain).values({ id })
@@ -161,8 +150,8 @@ try {
             )
           const run = (id: string) =>
             application.sanitizeControls(
-              transact(db, (tx) =>
-                application.register((handle) => writes(id, tx, handle))
+              client.withTransaction(
+                application.register((handle) => writes(id, db, handle))
               )
             )
           yield* check(
@@ -203,12 +192,12 @@ try {
               let invocations = 0
               const exit = yield* Effect.exit(
                 application.sanitizeControls(
-                  transact(db, (tx) =>
+                  client.withTransaction(
                     application.register((handle) =>
                       backend.joinTransaction(handle, (jobsTx) =>
                         Effect.gen(function* () {
                           invocations++
-                          yield* tx.insert(domain).values({ id: "caught-conflict" })
+                          yield* db.insert(domain).values({ id: "caught-conflict" })
                           yield* definition
                             .enqueueInTransaction(jobsTx, input("commit", "changed"))
                             .pipe(
@@ -294,7 +283,7 @@ try {
             Effect.gen(function* () {
               const rejection = Object.freeze({ reason: "outer-rejection" })
               const exit = yield* Effect.exit(
-                transact(db, (tx) =>
+                client.withTransaction(
                   application.instrument((handle) =>
                     Effect.gen(function* () {
                       const query = yield* application.validate(handle)
@@ -306,7 +295,7 @@ try {
                       assert.equal(a[0]!.pid, b[0]!.pid)
                       const before = application.controls.length
                       yield* application.withTransaction((registered) =>
-                        writes("provisional", tx, registered)
+                        writes("provisional", db, registered)
                       )
                       stage = "join has zero controls"
                       assert.equal(application.controls.length, before)
@@ -330,12 +319,12 @@ try {
             })
           )
           yield* check(
-            "nested Drizzle negative control creates real savepoint",
-            transact(db, (tx) =>
+            "nested native negative control creates real savepoint",
+            client.withTransaction(
               application.instrument(() =>
                 Effect.gen(function* () {
                   const before = application.controls.length
-                  yield* transact(tx, () => Effect.void)
+                  yield* client.withTransaction(Effect.void)
                   assert(
                     application.controls
                       .slice(before)
@@ -350,7 +339,7 @@ try {
             Effect.gen(function* () {
               let saved: Handle | undefined
               const foreign = Application.make(client)
-              yield* transact(db, () =>
+              yield* client.withTransaction(
                 application.register((handle) =>
                   Effect.gen(function* () {
                     saved = handle
@@ -441,9 +430,9 @@ try {
             Effect.gen(function* () {
               const ready = yield* Deferred.make()
               const fiber = yield* Effect.forkChild(
-                transact(db, (tx) =>
+                client.withTransaction(
                   application.register((handle) =>
-                    writes("interrupt", tx, handle).pipe(
+                    writes("interrupt", db, handle).pipe(
                       Effect.andThen(Deferred.succeed(ready, undefined)),
                       Effect.andThen(Effect.never)
                     )
@@ -505,9 +494,11 @@ try {
   const evidence = {
     runtime: process.versions.bun === undefined ? "node" : "bun",
     runtimeVersion: process.versions.bun ?? process.version,
-    drizzle: "1.0.0-rc.5-169397b",
-    nativeDriver: "@effect/sql-pg@4.0.0",
-    effect: "4.0.0",
+    drizzle: JSON.parse(
+      readFileSync(new URL("./package.json", import.meta.resolve("drizzle-orm")), "utf8")
+    ).version,
+    nativeDriver: "@effect/sql-pg@4.0.5",
+    effect: "4.0.5",
     passed,
     stage,
     cleanup,

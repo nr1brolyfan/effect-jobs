@@ -268,8 +268,8 @@ describe("bounded unknown reconciliation", () => {
     { ...request, supportedCatalog: [] },
     { ...request, queue: "invalid queue" },
     { ...request, leaseToken: "invalid" },
-    { ...request, supportedCatalog: [{ queue: "other", kind: "invoice", version: 1 }] },
-    { ...request, supportedCatalog: [{ queue: "billing", kind: "invoice", version: 0 }] },
+    { ...request, supportedCatalog: [{ queue: "other", name: "invoice", version: 1 }] },
+    { ...request, supportedCatalog: [{ queue: "billing", name: "invoice", version: 0 }] },
     { ...request, secret: "private" }
   ])("invalid claim request %j", (input) => {
     expect(Result.isFailure(S.validateClaimRequest(input))).toBe(true)

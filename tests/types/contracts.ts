@@ -32,12 +32,12 @@ export const producer: ProducerIdentity<"billing.issue", "email"> = {
 }
 export const catalog: CatalogIdentity<"billing", "email", 1> = {
   queue: "billing",
-  kind: "email",
+  name: "email",
   version: 1
 }
 export const wrongCatalog: CatalogIdentity<"billing", "email", 1> = {
   queue: "billing",
-  kind: "email",
+  name: "email",
   // @ts-expect-error Wrong catalog version literal.
   version: 2
 }

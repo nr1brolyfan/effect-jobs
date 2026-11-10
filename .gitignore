@@ -1,9 +1,15 @@
 node_modules/
 dist/
 coverage/
+.multica/
 .toolchain/
 *.tgz
 *.tsbuildinfo
+__pycache__/
+*.pyc
 .env
 .env.*
 !.env.example
+
+# Astro generated content types and cache
+apps/website/.astro/

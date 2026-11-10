@@ -30,7 +30,7 @@ export type { DrainResult } from "./internal/worker/Results.js"
  *
  * const queue = Queue.make("billing")
  * const definition = Job.make({
- *   queue, kind: "invoice.generate", version: 1,
+ *   queue, name: "invoice.generate", version: 1,
  *   payload: Schema.Struct({ invoiceId: Schema.String }),
  *   encodePayload: Codec.encodeJobPayload
  * })

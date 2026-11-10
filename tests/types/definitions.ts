@@ -39,9 +39,16 @@ declare const tx: JobsTransaction<"backend-error", BackendService>
 declare const appId: string & { readonly AppId: unique symbol }
 
 export const queue = JobQueue.make("billing")
+export const job = Job.make({
+  queue,
+  name: "invoice.generate",
+  version: 1,
+  payload: schema,
+  encodePayload: encode
+})
 export const producer = JobProducer.make({
   operation: "billing.issue",
-  slots: ["pdf", "email"]
+  slots: { pdf: job, email: job }
 })
 export const identity = producer.identity({ operationId: appId, slot: "pdf" })
 export const literals: {
@@ -52,18 +59,11 @@ export const literals: {
 // @ts-expect-error Undeclared slots are rejected, not widened to string.
 export const badSlot = producer.identity({ operationId: appId, slot: "sms" })
 // @ts-expect-error Declarations and their copied slots are immutable.
-producer.slots.push("sms")
+producer.slots.pdf = job
 
-export const job = Job.make({
-  queue,
-  kind: "invoice.generate",
-  version: 1,
-  payload: schema,
-  encodePayload: encode
-})
 export const catalogLiteral: {
   readonly queue: "billing"
-  readonly kind: "invoice.generate"
+  readonly name: "invoice.generate"
   readonly version: 1
 } = job.catalog
 export const input = {

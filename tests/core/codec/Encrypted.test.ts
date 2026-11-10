@@ -76,7 +76,7 @@ describe("schema-bound local encrypted fields", () => {
     let calls = 0
     const definition = Job.make({
       queue: Queue.make("billing"),
-      kind: "receipt",
+      name: "receipt",
       payload: schema
     })
     const RegistryLayer = Registry.layer
@@ -256,7 +256,7 @@ it("actual worker isolates invalid opened artifacts before the handler under exi
     ])
   const definition = Job.make({
     queue: Queue.make("encrypted-worker"),
-    kind: "receipt",
+    name: "receipt",
     payload: schema
   })
   const good = await run(encodeJobPayload(schema, value))

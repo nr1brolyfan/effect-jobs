@@ -1,0 +1,64 @@
+/* Document reset and static guide theme. Dashboard components use compiled StyleX. */
+:root {
+  color-scheme: dark;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  color: #e5eddf;
+  background: #101510;
+}
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+[hidden] {
+  display: none !important;
+}
+/* The static guide is the only main.jobs-app with a Documentation nav. */
+main.jobs-app:has(> nav[aria-label="Documentation"]) {
+  max-width: 76ch;
+  margin-inline: auto;
+  padding: 32px 20px;
+  font-size: 15px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+main.jobs-app > nav[aria-label="Documentation"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-bottom: 36px;
+}
+main.jobs-app:has(> nav[aria-label="Documentation"]) a {
+  color: #d1efab;
+  text-underline-offset: 4px;
+}
+main.jobs-app:has(> nav[aria-label="Documentation"]) :focus-visible {
+  outline: 2px solid #d1efab;
+  outline-offset: 4px;
+}
+main.jobs-app:has(> nav[aria-label="Documentation"]) h1,
+main.jobs-app:has(> nav[aria-label="Documentation"]) h2 {
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+main.jobs-app:has(> nav[aria-label="Documentation"]) section {
+  margin-block: 36px;
+  scroll-margin-top: 20px;
+}

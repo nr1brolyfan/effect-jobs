@@ -1,0 +1,40 @@
+{
+  "name": "order-tutorial",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#orders/*": {
+      "types": "./packages/orders/src/*.ts",
+      "development": "./packages/orders/src/*.ts",
+      "default": "./dist/packages/orders/src/*.js"
+    },
+    "#database/*": {
+      "types": "./packages/database/src/*.ts",
+      "development": "./packages/database/src/*.ts",
+      "default": "./dist/packages/database/src/*.js"
+    },
+    "#api/orders/*": {
+      "types": "./apps/api/src/orders/*.ts",
+      "development": "./apps/api/src/orders/*.ts",
+      "default": "./dist/apps/api/src/orders/*.js"
+    },
+    "#worker/orders/*": {
+      "types": "./apps/worker/src/orders/*.ts",
+      "development": "./apps/worker/src/orders/*.ts",
+      "default": "./dist/apps/worker/src/orders/*.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "effect": "4.0.5",
+    "@effect/sql-pg": "4.0.5",
+    "drizzle-orm": "1.0.0-rc.5-ab785fc",
+    "@effect/platform-node": "4.0.5"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "@types/node": "26.4.1"
+  }
+}

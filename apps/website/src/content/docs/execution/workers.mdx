@@ -1,0 +1,86 @@
+---
+title: Run workers within a scope
+description: Bound report execution with local concurrency, finite drains and an application-owned polling lifetime.
+---
+
+import { CodeExample } from "../../../components/docs/index"
+
+A request has committed a report job. It will stay queued until your application
+explicitly starts a worker. Importing a definition or constructing a worker Layer
+starts no polling, database pool or migration.
+
+## Give execution a lifetime
+
+Build one application-owned graph: the configured backend, one shared
+`JobRegistry.layer`, report handler Layers, then `JobWorker.layer`. Handler
+installation captures its decoding and application service requirements. Worker
+construction captures the store's requirements. Reuse the same registry Layer
+reference for installation and worker construction.
+
+The worker catalog contains the supported queue/name/version entries. Install a
+handler for **every** catalog entry before execution; readiness checks the whole
+catalog, including entries outside the queue being drained. Unsupported versions
+are excluded from claims rather than executed by a different decoder.
+
+Choose how the application owns execution:
+
+| Need                               | Public operation                               | Lifetime                                                          |
+| ---------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------- |
+| Process a bounded slice of reports | `JobWorkerRuntime.drain(consumer)`             | Waits for its scoped executions before returning normally         |
+| Keep consuming on Node/Bun         | `PollingJobWorker.layerForPlan(plan, options)` | Starts loops when built; the Layer scope owns and interrupts them |
+
+Keep the polling Layer built for the application's intended lifetime. Building it
+inside a short request scope stops those loops when that scope closes. Scope
+closure interrupts work; it does not establish whether an external report
+provider completed a request. See [recovery](/docs/execution/recovery).
+
+Start from the [complete order tutorial](/docs/start/tutorial) for the full
+application. This partial excerpt installs the shared catalog and handlers,
+creates a bounded consumer and exposes both finite drain and scoped polling.
+The complete source supplies the same application Database, jobs services and
+native client. The synthetic mail adapter needs no provider credentials.
+
+<CodeExample
+  sourcePath="orders/apps/worker/src/main.ts"
+  region="composition"
+  role="Composition"
+/>
+
+Keep the polling Layer alive until application shutdown. The API does not import
+this worker composition; importing its definitions starts no processing.
+
+## Read the limits correctly
+
+| Setting                         | Bound                                 | Meaning                                                                                 |
+| ------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------- |
+| `localConcurrency`              | Integer 1–64                          | Per-queue permits shared by concurrent drains of the same worker; acquired before claim |
+| `claimLimitPerRun`              | Integer 1–10,000                      | Maximum started claims in one finite drain                                              |
+| `recoveryLimitPerRun`           | Integer 1–10,000                      | Recovery budget per drain; backend requests are split into batches of at most 500       |
+| `operationResponseBudgetMillis` | Positive bounded integer milliseconds | Worker/store response budget; configure the same value in both                          |
+
+Local concurrency is **per worker instance**, not a fleet-wide limit. Two separate
+worker instances each have their own permits. Reusing a queue on one worker with
+a different concurrency value fails configuration. `JobConsumer.plan` rejects
+multiple consumers for the same logical queue.
+
+A stored lease must leave enough time for the attempt timeout **plus** the
+operation response budget. Configure finite database acquisition, control and
+release timeouts at the application adapter too.
+
+## Interpret a drain result
+
+| Result     | What was observed                                              | What to do next                                                                   |
+| ---------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `Idle`     | An empty claim was observed                                    | Sleep before checking again; future jobs or concurrent production can still exist |
+| `MoreWork` | The started-claim limit was reached                            | Schedule another bounded drain; it may find no work                               |
+| `Backoff`  | Recovery, claim or reconciliation failed or remained uncertain | Delay; inspect its `phase` and supported telemetry                                |
+
+`claimed` counts started claims, not successful reports. `recovered` counts
+recovery transitions, not completions. A drain can return `MoreWork` even when a
+handler's outcome remains unknown.
+
+The polling implementation handles these results: idle polling defaults to
+1,000 ms, backoff uses bounded steps from 1 to 30 seconds, and both sleeps add
+jitter. `MoreWork` yields before continuing. Polling backoff controls store
+pressure; [persisted retry policy](/docs/execution/retries) controls a job's next
+eligible attempt.

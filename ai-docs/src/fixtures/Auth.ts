@@ -1,22 +1,22 @@
 import { Context, Data, Effect, Redacted, Schema } from "effect"
 
-export const UserId = Schema.String.pipe(Schema.brand("UserId"))
 export type UserId = typeof UserId.Type
+export const UserId = Schema.String.pipe(Schema.brand("UserId"))
 
+export type RegistrationInput = typeof RegistrationInput.Type
 export const RegistrationInput = Schema.Struct({
   username: Schema.Redacted(Schema.String),
   password: Schema.Redacted(Schema.String)
 })
-export type RegistrationInput = typeof RegistrationInput.Type
 
+export type CreatedRegistration = typeof CreatedRegistration.Type
 export const CreatedRegistration = Schema.Struct({
   operationId: Schema.String,
   userId: UserId
 })
-export type CreatedRegistration = typeof CreatedRegistration.Type
 
-export const CommitKnowledge = Schema.Literals(["Committed", "NotCommitted", "Unknown"])
 export type CommitKnowledge = typeof CommitKnowledge.Type
+export const CommitKnowledge = Schema.Literals(["Committed", "NotCommitted", "Unknown"])
 
 export class RegistrationInputRejected extends Schema.TaggedError<RegistrationInputRejected>()(
   "RegistrationInputRejected",
@@ -32,7 +32,7 @@ export class RegistrationConflict extends Data.TaggedError("RegistrationConflict
 
 export class RegistrationUnavailable extends Schema.TaggedError<RegistrationUnavailable>()(
   "RegistrationUnavailable",
-  { commitKnowledge: Schema.optional(CommitKnowledge) }
+  { commitKnowledge: CommitKnowledge.pipe(Schema.optional) }
 ) {}
 
 export class RegistrationOutcomeUnknown extends Schema.TaggedError<RegistrationOutcomeUnknown>()(

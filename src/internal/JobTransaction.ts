@@ -38,10 +38,10 @@ export const withJoinedTransaction = <A, E, R, BackendError, BackendRequirements
         })
       return { lifetime, transaction }
     }),
-    ({ transaction }) => Effect.suspend(() => body(transaction)).pipe(Effect.scoped),
-    ({ lifetime }) =>
+    (resource) => Effect.suspend(() => body(resource.transaction)).pipe(Effect.scoped),
+    (resource) =>
       Effect.sync(() => {
-        lifetime.active = false
+        resource.lifetime.active = false
       })
   )
 

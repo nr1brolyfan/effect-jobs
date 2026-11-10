@@ -1,6 +1,8 @@
 /** Validated application-owned diagnostic identifiers. */
 import { Data, Result, Schema } from "effect"
 
+/** @category models */
+export type FailureCode = typeof FailureCode.Type
 /** 1–128 ASCII identifier characters. Catalog membership is not a storage requirement.
  * Codes must never contain provider messages, secrets or private identifiers.
  * Validation checks syntax, not whether a valid identifier contains sensitive data.
@@ -14,8 +16,6 @@ export const FailureCode = Schema.String.pipe(
   ),
   Schema.brand("effect-jobs/FailureCode")
 )
-/** @category models */
-export type FailureCode = typeof FailureCode.Type
 
 /** Safe entry-specific configuration diagnostic, without retaining the value.
  * @category errors

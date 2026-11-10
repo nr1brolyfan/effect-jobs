@@ -1,6 +1,6 @@
 {
   "name": "effect-jobs",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.1-effect.4.0.5.local.2",
   "private": false,
   "description": "Effect-native durable, transaction-bound background jobs.",
   "license": "MIT",
@@ -111,6 +111,10 @@
     "./PostgreSqlNative": {
       "types": "./dist/PostgreSqlNative.d.ts",
       "import": "./dist/PostgreSqlNative.js"
+    },
+    "./JobOperators": {
+      "types": "./dist/JobOperators.d.ts",
+      "import": "./dist/JobOperators.js"
     }
   },
   "files": [
@@ -123,17 +127,23 @@
     "specs/postgresql-backend.md",
     "specs/drizzle-compatibility.md",
     "specs/release-qualification.md",
-    "specs/api-refinements.md"
+    "specs/api-refinements.md",
+    "specs/operator-contract.md"
   ],
   "scripts": {
     "toolchain:setup": "effect-tsgo patch --typescript --oxlint",
+    "workspace:prepare": "bun run build && bun install --frozen-lockfile --ignore-scripts --force && bun run toolchain:setup && bun run --filter @effect-jobs/playground-contracts build",
     "check": "bun run toolchain:setup && tsc --project tsconfig.json --noEmit && tsc --project tsconfig.build.json --noEmit",
     "build": "bun run toolchain:setup && tsc --project tsconfig.build.json",
     "lint": "bun run toolchain:setup && oxlint --deny-warnings src tests",
     "format": "oxfmt --config .oxfmtrc.json --write .",
     "format:check": "oxfmt --config .oxfmtrc.json --check .",
-    "test": "bun run toolchain:setup && vitest run --exclude 'tests/poc/**'",
+    "test": "bun run toolchain:setup && vitest run --exclude 'tests/poc/**' --exclude 'apps/website/tests/ui/Field.test.mjs' --exclude 'apps/website/tests/ui/Theme.test.mjs' --exclude 'tests/benchmarks/postgresql/Support.test.mjs' && bun apps/website/tests/ui/Field.test.mjs && node --test apps/website/tests/ui/Theme.test.mjs && bun run test:soak",
     "check:postgresql": "tsc --project tests/postgresql/tsconfig.json --noEmit",
+    "soak:postgresql": "node tests/benchmarks/postgresql/Run.mjs",
+    "test:soak": "node --test tests/benchmarks/postgresql/Support.test.mjs",
+    "test:postgresql:crash": "bun run build && node tests/integration/worker-crash/node_modules/vitest/vitest.mjs run --config tests/integration/worker-crash/vitest.config.mjs",
+    "test:postgresql:matrix": "node tests/postgresql/Matrix.mjs",
     "test:postgresql:node": "PG_EXPECT_RUNTIME=node node node_modules/vitest/vitest.mjs run --config tests/postgresql/vitest.config.ts",
     "test:postgresql:bun": "PG_EXPECT_RUNTIME=bun bun --bun node_modules/vitest/vitest.mjs run --config tests/postgresql/vitest.config.ts",
     "qualify:postgresql:installed": "node scripts/qualify-postgresql.mjs",
@@ -141,16 +151,32 @@
     "qualify:docs:readme": "node tests/docs/readme/Run.mjs",
     "check:docs:api": "node tests/docs/api/Qualify.mjs",
     "test:release-imports": "node --test tests/qualification/ReleaseImports.mjs",
-    "verify": "bun run check && bun run lint && bun run format:check && bun run build && bun run test && bun run test:release-imports && bun run check:docs:api",
+    "verify": "bun run workspace:prepare && bun run check && bun run lint && bun run format:check && bun run test && bun run test:release-imports && bun run check:docs:api",
     "release:pack": "node scripts/pack-release.mjs",
     "release:check": "node scripts/check-release.mjs",
     "qualify:release": "node scripts/qualify-release.mjs",
     "qualify:drizzle:indexes": "node tests/qualification/drizzle-indexes/Run.mjs",
-    "qualify:api:installed": "node tests/qualification/api/Run.mjs"
+    "qualify:api:installed": "node tests/qualification/api/Run.mjs",
+    "playground:check": "bun run toolchain:setup && tsc -p tsconfig.playground.json",
+    "playground:lint": "oxlint --deny-warnings apps packages/playground-contracts",
+    "playground:test": "vitest run packages/playground-contracts/tests apps/playground-worker/tests/repairs apps/website/tests/ui/repair apps/website/tests/ui/details/Navigation.test.ts apps/playground-worker/tests/details-integration apps/website/tests/ui/RepairAtoms.test.ts",
+    "playground:build": "bun run --filter @effect-jobs/playground-contracts build && bun run --filter @effect-jobs/playground-website --filter @effect-jobs/playground-worker build",
+    "playground:qualify": "node packages/playground-contracts/qualification/Run.mjs",
+    "playground:preview": "python3 apps/playground-worker/tests/integration/RunOwned.py --preview",
+    "playground:test:primitives": "bun apps/website/tests/ui/Primitives.mjs",
+    "site:build": "bun run --cwd apps/website site:build",
+    "site:check": "bun run --cwd apps/website site:check",
+    "site:test": "bun run --cwd apps/website site:test",
+    "site:browser": "node apps/website/tests/site/Browser.mjs",
+    "qualify:docs:orders": "node apps/website/tests/order-tutorial/Qualify.mjs",
+    "qualify:docs:examples": "node apps/website/tests/docs-reference/Qualify.mjs",
+    "check:docs:reference": "node apps/website/tests/docs-reference/Reference.mjs --check",
+    "site:routes": "node apps/website/tests/site/Routes.mjs",
+    "check:docs:snippets": "node apps/website/tests/docs-reference/Snippets.mjs"
   },
   "peerDependencies": {
-    "drizzle-orm": "1.0.0-rc.5-169397b",
-    "effect": "4.0.0"
+    "drizzle-orm": "1.0.0-rc.5-ab785fc || 1.0.0-rc.5-169397b",
+    "effect": "4.0.5"
   },
   "peerDependenciesMeta": {
     "drizzle-orm": {
@@ -158,13 +184,21 @@
     }
   },
   "devDependencies": {
+    "@effect/ai-openrouter": "4.0.5",
+    "@effect/platform-node": "4.0.5",
+    "@effect/platform-node-shared": "4.0.5",
+    "@effect/sql-pg": "4.0.5",
     "@effect/tsgo": "0.48.0",
     "@types/node": "26.4.1",
-    "drizzle-orm": "1.0.0-rc.5-169397b",
-    "effect": "4.0.0",
+    "@types/pg": "8.20.0",
+    "axe-core": "4.11.0",
+    "drizzle-orm": "1.0.0-rc.5-ab785fc",
+    "effect": "4.0.5",
     "oxfmt": "0.71.0",
     "oxlint": "1.86.0",
     "oxlint-tsgolint": "7.0.2003",
+    "pg": "8.23.0",
+    "traits": "0.5.9",
     "typescript": "7.0.2",
     "vitest": "4.1.11"
   },
@@ -183,5 +217,9 @@
     "access": "public",
     "registry": "https://registry.npmjs.org",
     "tag": "alpha"
-  }
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
 }

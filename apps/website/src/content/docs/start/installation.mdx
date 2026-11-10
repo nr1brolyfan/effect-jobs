@@ -1,0 +1,62 @@
+---
+title: Installation
+description: Install the local Effect 4.0.5 candidate without peer bypasses.
+sidebar:
+  order: 2
+---
+
+These docs target `0.1.0-alpha.1-effect.4.0.5.local.2`, a **local candidate**,
+not a published npm release. Obtain its qualified tarball before installing;
+installing an older registry alpha does not give you the APIs shown here.
+
+From your application directory, install that supplied file normally:
+
+```sh
+npm install ./effect-jobs-0.1.0-alpha.1-effect.4.0.5.local.2.tgz effect@4.0.5
+```
+
+No force install, peer override or dependency patch is part of this setup.
+
+## Choose the database integration
+
+PostgreSQL is the current durable backend. For the native Effect SQL route, add
+the matching client and driver:
+
+```sh
+npm install @effect/sql-pg@4.0.5 pg@8.23.0
+```
+
+For optional native Drizzle query building and schema declarations:
+
+```sh
+npm install drizzle-orm@1.0.0-rc.5-ab785fc
+```
+
+The other qualified Drizzle peer is `1.0.0-rc.5-169397b`. This is an exact peer
+set, not support for arbitrary Drizzle releases. Use public
+`PgClient.withTransaction` with queries in the same Effect context; see
+[native Drizzle integration](/docs/persistence/drizzle).
+
+| Component                    | Supported qualification scope                                                                                         |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Effect and native SQL client | Exact `4.0.5`                                                                                                         |
+| Node.js                      | `24.15.0` qualification; package engine `>=24.15.0 <25`                                                               |
+| Bun                          | `1.4.2` qualification                                                                                                 |
+| Persistence                  | PostgreSQL with application-owned pools and migrations                                                                |
+| Declaration checks           | Own strict/exact-optional source checks; separately recorded upstream Drizzle declaration failures remain unresolved. |
+
+Other runtimes, driver versions and production deployment are not established by
+these examples. The queue's portable core does not imply a qualified backend on
+every platform.
+
+## Import focused modules
+
+Use subpaths such as `effect-jobs/Job`, `effect-jobs/JobQueue` and
+`effect-jobs/JobPolicy`. The root export is empty. Core imports require no
+PostgreSQL or Drizzle peer, and imports do not connect to a database or start a
+worker.
+
+Create and migrate the jobs tables before running a worker. Backend readiness
+checks validate the expected schema; they do not run migrations. Follow
+[PostgreSQL setup](/docs/persistence/postgresql) for storage, then
+[run your first job](/docs/start/first-job).

@@ -11,6 +11,7 @@ import * as Policy from "effect-jobs/JobPolicy"
 import * as Tables from "effect-jobs/PostgreSqlSchema"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Job from "effect-jobs/Job"
+import * as JobProducer from "effect-jobs/JobProducer"
 import type { JobFailure } from "effect-jobs/JobFailure"
 import { BillingQueue, SendReceipt } from "./contracts.js"
 const unavailable = () => Effect.fail(new PostgreSqlFailure({ commitKnowledge: "NotCommitted" }))
@@ -66,8 +67,10 @@ export const InvoicePdfRendererLayer = Layer.succeed(InvoicePdfRenderer, { gener
 export const receiptPolicy = Policy.defaultPolicy
 export const tables = Tables.tables()
 export const ReceiptHandler = SendReceipt.handlerLayer(() => Effect.void, Codec.decodeJobPayload)
-export const SendPrivateReceipt = Job.make({ queue: BillingQueue, kind: "invoice.private-receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: Payload.encrypted({ schema: Document, codec: ReceiptEncryption }) }) })
+export const SendPrivateReceipt = Job.make({ queue: BillingQueue, name: "invoice.private-receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: Payload.encrypted({ schema: Document, codec: ReceiptEncryption }) }) })
 export const WorkerLayer = Worker.layer(jobsStorage.store, { catalog: [SendReceipt], operationResponseBudgetMillis: 100 }).pipe(Layer.provideMerge(ReceiptHandler), Layer.provide(Registry.layer))
 export const BillingWorkerLayer = WorkerLayer
 export const billing = Effect.runSync(Consumer.make(BillingQueue, { localConcurrency: 2, claimLimitPerRun: 20, recoveryLimitPerRun: 20 }))
 export const issueInvoice = (operationId: string, invoiceId: string) => jobsStorage.withTransaction(() => SendReceipt.enqueue({ producer: { operation: "billing.issue-invoice", operationId, slot: "receipt" }, payload: { invoiceId }, policy: receiptPolicy }))
+
+export const IssueInvoice = JobProducer.make({ operation: "billing.issue-invoice", slots: { receipt: SendReceipt } })

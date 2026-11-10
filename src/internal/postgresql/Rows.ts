@@ -2,11 +2,12 @@ import { Effect, Result, Schema } from "effect"
 import * as Lifecycle from "../../JobLifecycle.js"
 import { JobStoreProtocolError } from "../../JobStore.js"
 import type { ClaimedJob } from "../../JobStore.js"
+import { JobLineage } from "../../JobOperators.js"
 import { EpochMillis } from "../../JobPolicy.js"
 import type { TransactionQuery } from "../../PostgreSqlTransaction.js"
 
 /** pg int8 is text by default; accept only exact bounded decimal integer values. */
-const integer = (value: unknown): unknown =>
+export const integer = (value: unknown): unknown =>
   typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value) ? Number(value) : value
 export const snapshot = (row: Record<string, unknown>) =>
   Lifecycle.validateSnapshot({
@@ -31,7 +32,7 @@ export const claimArtifact = (
     ownership,
     snapshot: stored,
     prepared: {
-      catalog: { queue: row.queue, kind: row.kind, version: row.version },
+      catalog: { queue: row.queue, name: row.kind, version: row.version },
       producer: {
         operation: row.operation,
         operationId: row.operation_id,
@@ -81,7 +82,9 @@ export const writeSnapshot = (
   const retention =
     row.state === "Completed" ? row.policy.completedRetention : row.policy.deadRetention
   const expiry =
-    row.completedAt !== null && retention._tag === "Duration"
+    (row.state === "Completed" || row.state === "Dead") &&
+    row.completedAt !== null &&
+    retention._tag === "Duration"
       ? Lifecycle.addTimestamp(row.completedAt, retention.millis)
       : null
   const cleanupAt = expiry !== null && Result.isSuccess(expiry) ? expiry.success : null
@@ -104,3 +107,26 @@ export const writeSnapshot = (
     ]
   )
 }
+
+/** Validate the durable immediate edge independently of worker lifecycle snapshots. */
+export const lineage = (row: Record<string, unknown>) =>
+  Effect.gen(function* () {
+    if (
+      row.original_source_job_id === null &&
+      row.source_job_id === null &&
+      row.redrive_kind === null
+    ) {
+      return null
+    }
+    const edge = yield* Schema.decodeUnknownEffect(JobLineage)({
+      originalSourceJobId: row.original_source_job_id,
+      sourceJobId: row.source_job_id,
+      kind: row.redrive_kind
+    }).pipe(
+      Effect.mapError(() => new JobStoreProtocolError({ reason: "invalid-artifact" }))
+    )
+    if (edge.originalSourceJobId === row.id) {
+      return yield* new JobStoreProtocolError({ reason: "invalid-artifact" })
+    }
+    return edge
+  })

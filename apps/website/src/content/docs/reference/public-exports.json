@@ -1,0 +1,1258 @@
+[
+  {
+    "subpath": "effect-jobs",
+    "filename": "src/index.ts",
+    "sha256": "37e5fcd648c97b606d67fa87cfe9c862da528b20fd5db68a4572de7b1deca5da",
+    "symbols": []
+  },
+  {
+    "subpath": "effect-jobs/Job",
+    "filename": "src/Job.ts",
+    "sha256": "2b59afacc943ba75a4fe35de617ff507aeba7811abc89aa1c4fd72c28840ec5e",
+    "symbols": [
+      {
+        "name": "InvalidJobDefinition",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Thrown synchronously for an invalid catalog identity or payload Schema."
+      },
+      {
+        "name": "JobDefinition",
+        "kind": "type",
+        "category": "models",
+        "description": "Immutable job declaration. Payload carries decoded data and its Schema service requirements."
+      },
+      {
+        "name": "make",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Creates a frozen definition; throws InvalidJobDefinition for invalid declarations.\nOmitted version is exactly 1; the standard payload encoder is the default.\nAn explicit encoder overrides it. Enqueue requires the Schema's encoding\nservices; handler installation captures decoding and execution services."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobQueue",
+    "filename": "src/JobQueue.ts",
+    "sha256": "9f18a11a766a368caee5daf2e0ed7aae13bdf1769c38166e10a3a6f437287759",
+    "symbols": [
+      {
+        "name": "InvalidJobQueue",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Thrown synchronously when the queue name violates QueueName."
+      },
+      {
+        "name": "JobQueue",
+        "kind": "type",
+        "category": "models",
+        "description": "Logical queue identity; Name preserves the declaration literal."
+      },
+      {
+        "name": "make",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Creates a frozen logical queue. Names are 1–64 ASCII characters matching\n^[a-z][a-z0-9.-]*$; invalid names throw InvalidJobQueue. Creates no storage or worker."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobProducer",
+    "filename": "src/JobProducer.ts",
+    "sha256": "e23117dec01019a71f897ea2812e5a6f110196613e0c183d068dbc487fd111af",
+    "symbols": [
+      {
+        "name": "BoundEnqueueInput",
+        "kind": "type",
+        "category": "models",
+        "description": "Slot-specific input without the derived producer tuple."
+      },
+      {
+        "name": "JobBinding",
+        "kind": "type",
+        "category": "models",
+        "description": "A binding retains the payload Schema, default presence and ambient enqueue."
+      },
+      {
+        "name": "JobProducer",
+        "kind": "type",
+        "category": "models",
+        "description": "Immutable operation and slot-to-job bindings. identity is structural, not binding proof."
+      },
+      {
+        "name": "make",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Declares nonempty slot bindings near the owning business operation.\nBound enqueue selects the contract and joins the existing transaction; it never\nbegins, commits or replays one. identity remains useful for lower-level calls."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobIdentity",
+    "filename": "src/JobIdentity.ts",
+    "sha256": "2b1ff4673bc7bd4d332fcbb63ca4ba28eb2a55d31dccfc31336f88bdba954945",
+    "symbols": [
+      {
+        "name": "CatalogIdentity",
+        "kind": "value + type",
+        "category": "schemas",
+        "description": "Queue/name/version Schema and literal-preserving structural identity."
+      },
+      {
+        "name": "InvalidOperationId",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Synchronous identifier failure; reports the violated rule without echoing the ID."
+      },
+      {
+        "name": "JobDeclarationError",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Synchronous declaration failure with an actionable field/name constraint."
+      },
+      {
+        "name": "JobName",
+        "kind": "value + type",
+        "category": "schemas",
+        "description": "Job-name Schema: 1–128 ASCII characters matching nameFormat.\nStable job-name Schema: 1–128 ASCII characters matching nameFormat."
+      },
+      {
+        "name": "JobVersion",
+        "kind": "value",
+        "category": "schemas",
+        "description": "Explicit catalog version Schema: an integer in 1–32,767."
+      },
+      {
+        "name": "nameFormat",
+        "kind": "value",
+        "category": "constants",
+        "description": "ASCII declaration-name grammar shared by queue, name, operation and slot Schemas."
+      },
+      {
+        "name": "OperationId",
+        "kind": "value",
+        "category": "schemas",
+        "description": "Opaque operation-ID Schema: valid Unicode scalars, no NUL, 1–256 UTF-8 bytes.\nApplication-branded strings are accepted without an extra library brand."
+      },
+      {
+        "name": "OperationName",
+        "kind": "value",
+        "category": "schemas",
+        "description": "Producer operation-name Schema: 1–128 ASCII characters matching nameFormat."
+      },
+      {
+        "name": "ProducerIdentity",
+        "kind": "value + type",
+        "category": "schemas",
+        "description": "Operation/operationId/slot Schema and literal-preserving deduplication identity."
+      },
+      {
+        "name": "QueueName",
+        "kind": "value",
+        "category": "schemas",
+        "description": "Queue-name Schema: 1–64 ASCII characters matching nameFormat."
+      },
+      {
+        "name": "SlotName",
+        "kind": "value",
+        "category": "schemas",
+        "description": "Consequence-slot Schema: 1–128 ASCII characters matching nameFormat."
+      },
+      {
+        "name": "validateOperationId",
+        "kind": "value",
+        "category": "operations",
+        "description": "Validates Unicode scalars, absence of NUL and 1–256 UTF-8 bytes. Throws\nInvalidOperationId; compares IDs exactly, without trimming or normalization."
+      },
+      {
+        "name": "validateProducerDeclaration",
+        "kind": "value",
+        "category": "operations",
+        "description": "Validates operation and nonempty unique slots synchronously; throws\nJobDeclarationError. Called by JobProducer.make before returning configuration."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobId",
+    "filename": "src/JobId.ts",
+    "sha256": "0d7977d8519a1343fa2636d2c9ebac9a6f8c41926450bbf381adbce9ce18b55d",
+    "symbols": [
+      {
+        "name": "JobId",
+        "kind": "value + type",
+        "category": "models",
+        "description": "Decoded value of the JobId Schema.\nNonempty branded identifier generated by the backend on first insertion.\nApplications never supply job IDs to enqueue."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobContract",
+    "filename": "src/JobContract.ts",
+    "sha256": "7c8ab757a50b83bcb3a51bf6dc41be6eb523fe88e67f110393f034ec027c29d9",
+    "symbols": [
+      {
+        "name": "EncodedJobPayload",
+        "kind": "type",
+        "category": "models",
+        "description": "Validated canonical payload and semantic bytes. Codec executions own their buffers;\nreceivers copy before retention because readonly does not freeze Uint8Array contents."
+      },
+      {
+        "name": "EnqueueInput",
+        "kind": "type",
+        "category": "models",
+        "description": "Decoded enqueue options plus the explicit producer identity."
+      },
+      {
+        "name": "EnqueueOptions",
+        "kind": "type",
+        "category": "models",
+        "description": "Decoded payload, stable producer identity and resolved policy. No caller job ID.\nMatching duplicates retain the original policy and availability."
+      },
+      {
+        "name": "EnqueueResult",
+        "kind": "type",
+        "category": "models",
+        "description": "Inserted or AlreadyPresent with the durable job ID. Success inside a joined\ntransaction is provisional until the application owner commits."
+      },
+      {
+        "name": "EnqueueResults",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Tagged constructors and matchers for enqueue results."
+      },
+      {
+        "name": "HandlerContext",
+        "kind": "type",
+        "category": "models",
+        "description": "Handler metadata without SQL, lease tokens or finalization authority.\nattemptNumber is one-based and may repeat after unknown outcomes and recovery."
+      },
+      {
+        "name": "HandlerInput",
+        "kind": "type",
+        "category": "models",
+        "description": "Decoded Schema payload plus library metadata; handler dependencies use Effect services."
+      },
+      {
+        "name": "InvalidJobInput",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Typed enqueue validation failure exposing only the invalid field."
+      },
+      {
+        "name": "JobIntegrityConflict",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Same producer tuple with different catalog or semantic payload. Propagate the\nfailure to the transaction owner; do not commit partial domain writes."
+      },
+      {
+        "name": "JobPayloadCodecError",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Bounded codec failure reason without raw payload or Schema diagnostic inputs."
+      },
+      {
+        "name": "JobPayloadDecoder",
+        "kind": "type",
+        "category": "models",
+        "description": "Codec signature preserving Schema decoding services in the Effect environment."
+      },
+      {
+        "name": "JobPayloadEncoder",
+        "kind": "type",
+        "category": "models",
+        "description": "Codec signature preserving Schema encoding services in the Effect environment."
+      },
+      {
+        "name": "jobPayloadFormatVersion",
+        "kind": "value",
+        "category": "constants",
+        "description": "Current canonical encoded payload/projection format discriminator."
+      },
+      {
+        "name": "maximumJobPayloadBytes",
+        "kind": "value",
+        "category": "constants",
+        "description": "Maximum canonical payload size in bytes (64 KiB)."
+      },
+      {
+        "name": "maximumJobPayloadDepth",
+        "kind": "value",
+        "category": "constants",
+        "description": "Maximum payload nesting depth (32)."
+      },
+      {
+        "name": "maximumJobPayloadSchemaPathBytes",
+        "kind": "value",
+        "category": "constants",
+        "description": "Maximum protected Schema path size in UTF-8 bytes (256)."
+      },
+      {
+        "name": "maximumJobSemanticProjectionBytes",
+        "kind": "value",
+        "category": "constants",
+        "description": "Maximum canonical semantic-projection size in bytes (64 KiB)."
+      },
+      {
+        "name": "maximumProtectedJobPayloadSubtrees",
+        "kind": "value",
+        "category": "constants",
+        "description": "Maximum marked protected subtrees per payload (16)."
+      },
+      {
+        "name": "PreparedJob",
+        "kind": "type",
+        "category": "models",
+        "description": "Producer-to-backend artifact and first configuration; the backend assigns the ID."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobEnqueue",
+    "filename": "src/JobEnqueue.ts",
+    "sha256": "e9efe2c5cf6c4f83044e981428f2df530fbc653bd585e2e55c1fbb19e3d15318",
+    "symbols": [
+      {
+        "name": "JobBackendError",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Safe backend failure preserving commit knowledge and transaction misuse.\nNo SQL, credentials, provider Causes or payloads are retained."
+      },
+      {
+        "name": "JobEnqueue",
+        "kind": "value + type",
+        "category": "services",
+        "description": "Configured application storage; provided by a qualified backend Layer."
+      },
+      {
+        "name": "JobEnqueueService",
+        "kind": "type",
+        "category": "models",
+        "description": "Backend owns presence checks and the transaction; preparation preserves E/R.\nenqueue joins only an active configured transaction. Standalone owns the entire\nprepare/insert/commit operation and returns after commit acknowledgement."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobTransaction",
+    "filename": "src/JobTransaction.ts",
+    "sha256": "a1c5434c035de1fa76de067fc221edc1f7318e9fe94c940492fd4209d54f22e8",
+    "symbols": [
+      {
+        "name": "JobEnqueueError",
+        "kind": "type",
+        "category": "models",
+        "description": "Core enqueue failures; backend errors remain in the caller's separate E channel."
+      },
+      {
+        "name": "JobsTransaction",
+        "kind": "type",
+        "category": "models",
+        "description": "Backend callback capability; never fabricate or retain it outside the callback.\nE and R preserve backend errors and requirements. No public constructor, SQL,\ncommit, rollback or replay authority; sequence operations on the same transaction."
+      },
+      {
+        "name": "JobsTransactionClosed",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Typed failure when enqueue runs after its backend callback has exited."
+      },
+      {
+        "name": "JobTransactionsService",
+        "kind": "type",
+        "category": "models",
+        "description": "Qualified application manager port, delegating join-or-establish without a\nsecond transaction engine. The outer application owner controls commit and replay."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobPayload",
+    "filename": "src/JobPayload.ts",
+    "sha256": "52d7f10eb19fc3dcd747a2275e0b02aa57bc4ffdb35411b581255afbb1213fcc",
+    "symbols": [
+      {
+        "name": "encrypted",
+        "kind": "value",
+        "category": "schemas",
+        "description": "Bind a decoded domain Schema to an app-owned encrypted JSON envelope.\nDomain encoding/validation precedes seal; open precedes domain decoding/validation.\nMultiple independent fields, structs, arrays, optionals and unions are supported.\nEncrypted-within-encrypted and recursive domain schemas fail at construction.\nAll encrypted fields are opened before the handler; this is not selective access.\nMalformed envelopes/domain data follow the existing bounded artifact decode path.\nDefects and interruption are not converted to codec failures. No remote key retry\ncontract is added; configured keys must be validated before worker startup."
+      },
+      {
+        "name": "EncryptionCodec",
+        "kind": "type",
+        "category": "models",
+        "description": "Application codec over the domain's encoded representation. The envelope must\nbe an identity JSON schema with an own fingerprint field. Seal/open resolve\napplication services lazily; keys are validated by application Layers at startup.\nFingerprints must use stable keyed semantics independent of encryption randomness.\nNo cryptographic implementation or authenticated context binding is supplied."
+      },
+      {
+        "name": "InvalidEncryptedSchema",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Actionable unsupported schema configuration, without domain values."
+      },
+      {
+        "name": "JobEncryptionError",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Bounded codec failure. Provider details, plaintext and keys must stay private."
+      },
+      {
+        "name": "protected",
+        "kind": "value",
+        "category": "schemas",
+        "description": "Marks an application-owned, already-protected JSON representation. Requires an\nown fingerprint in the encoded value. This neither proves protection nor seals\nor opens data. Encryption and stable fingerprint keys remain application-owned.\nThe schema may describe any JSON fingerprint; no envelope shape or crypto key\nmanager is imposed. Unsupported protected mappings fail when the codec runs."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobPayloadCodec",
+    "filename": "src/JobPayloadCodec.ts",
+    "sha256": "0c82d06eaf61e7b2ff263c5939e61881ced2fddfeb76cfb26d285be00b92dd8d",
+    "symbols": [
+      {
+        "name": "decodeJobPayload",
+        "kind": "value",
+        "category": "decoding",
+        "description": "Validates canonical format, bounds, Schema and semantic projection before\ndomain decoding. Requires the Schema's decoding services; fails with\nJobPayloadCodecError. Consistent projection bytes are not authenticity."
+      },
+      {
+        "name": "encodeJobPayload",
+        "kind": "value",
+        "category": "encoding",
+        "description": "Encodes the validated wire representation, not the decoded domain object.\nStructs, arrays, absent optional keys and unions are supported. Domain\ntransforms must have a JSON encoded side; transforms across protected markers,\nrecursive/custom shapes, records and tuples fail with invalid-schema.\nEach returned buffer is owned independently by this execution. Receivers must\ncopy buffers before retaining them; readonly properties do not freeze bytes.\nRequires the Schema's encoding services; failures are JobPayloadCodecError.\nFinite fractional numbers are supported; NaN and infinities are rejected."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobPolicy",
+    "filename": "src/JobPolicy.ts",
+    "sha256": "fa63661f5c7d6c7f0f93537cc54e2717aafc923d5f5080f792d742e4e8617f47",
+    "symbols": [
+      {
+        "name": "defaultPolicy",
+        "kind": "value",
+        "category": "constants",
+        "description": "Deeply immutable shared policy with the same defaults as make().\nCaller-owned options are never frozen or mutated."
+      },
+      {
+        "name": "EpochMillis",
+        "kind": "value",
+        "category": "schemas",
+        "description": "Positive bounded epoch-millisecond Schema. Epoch zero is rejected; past positive\ntimestamps are valid and availability is not an execution deadline."
+      },
+      {
+        "name": "FixedDelayV1",
+        "kind": "value",
+        "category": "schemas",
+        "description": "Versioned persisted fixed-delay retry schedule; no exponential backoff."
+      },
+      {
+        "name": "JobPolicy",
+        "kind": "type",
+        "category": "models",
+        "description": "Complete immutable policy resolved by make and validated by PersistedJobPolicy."
+      },
+      {
+        "name": "JobPolicyConfigurationError",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Thrown synchronously with the invalid option field and expected constraint."
+      },
+      {
+        "name": "JobPolicyOptions",
+        "kind": "type",
+        "category": "models",
+        "description": "Optional Duration-based configuration. Finite durations must be positive integer\nmilliseconds; only retention accepts Duration.infinity."
+      },
+      {
+        "name": "JobRetention",
+        "kind": "value + type",
+        "category": "models",
+        "description": "Decoded value of the JobRetention Schema.\nPersisted Forever or finite Duration retention, measured from terminal completion."
+      },
+      {
+        "name": "make",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Resolves and freezes policy, throwing JobPolicyConfigurationError for invalid input.\nDefaults: 90s fixed lease, 30s attempt timeout, 5s retry delay, 3 finalized attempts,\n1 stalled recovery, 90d Completed retention and Forever Dead retention.\nTimeout must be strictly shorter than the lease. Unknown outcomes can repeat an\nattempt number; maxAttempts does not bound every handler invocation."
+      },
+      {
+        "name": "maximumMillis",
+        "kind": "value",
+        "category": "constants",
+        "description": "Upper bound for persisted durations and positive epoch-millisecond timestamps."
+      },
+      {
+        "name": "PersistedJobPolicy",
+        "kind": "value",
+        "category": "schemas",
+        "description": "Complete V1 policy Schema, requiring attemptTimeoutMillis < leaseDurationMillis.\nDecoding stored policy never applies current deployment defaults."
+      },
+      {
+        "name": "PositiveMillis",
+        "kind": "value",
+        "category": "schemas",
+        "description": "Integer milliseconds in 1–253,402,300,799,999; no rounding or clamping."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobFailure",
+    "filename": "src/JobFailure.ts",
+    "sha256": "4d1ff31e61743dc47d6c472d344670a3ce2fbb7ab023023318ff62fa3e90bc6f",
+    "symbols": [
+      {
+        "name": "FailureCode",
+        "kind": "value + type",
+        "category": "models",
+        "description": "1–128 ASCII identifier characters. Catalog membership is not a storage requirement.\nCodes must never contain provider messages, secrets or private identifiers.\nValidation checks syntax, not whether a valid identifier contains sensitive data."
+      },
+      {
+        "name": "InvalidJobFailure",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Thrown synchronously by JobFailures for an invalid retry cutoff."
+      },
+      {
+        "name": "JobFailure",
+        "kind": "value + type",
+        "category": "models",
+        "description": "Decoded value of the JobFailure Schema.\nExplicit Retry, Dead, Isolate or OutcomeUnknown handler failure Schema/type.\nUnknown does not prove the external effect failed and is not a durable state."
+      },
+      {
+        "name": "JobFailures",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Frozen outcome factories taking validated codes; invalid retry cutoffs throw InvalidJobFailure.\nMap domain errors with ordinary Effect composition before installing handlers."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/FailureCode",
+    "filename": "src/FailureCode.ts",
+    "sha256": "6702e145766a71c187f03959a55cce3f9e86fcb1a1938b8f752629f7bc4a7459",
+    "symbols": [
+      {
+        "name": "define",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Validate a catalog once, preserving each literal and adding the brand.\nThrows InvalidFailureCode at definition time. Define catalogs before startup."
+      },
+      {
+        "name": "FailureCode",
+        "kind": "value + type",
+        "category": "models",
+        "description": "1–128 ASCII identifier characters. Catalog membership is not a storage requirement.\nCodes must never contain provider messages, secrets or private identifiers.\nValidation checks syntax, not whether a valid identifier contains sensitive data."
+      },
+      {
+        "name": "InvalidFailureCode",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Safe entry-specific configuration diagnostic, without retaining the value."
+      },
+      {
+        "name": "parse",
+        "kind": "value",
+        "category": "decoding",
+        "description": "Parse a dynamic or historical identifier without throwing or requiring a catalog."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobRegistry",
+    "filename": "src/JobRegistry.ts",
+    "sha256": "60653d575bdf6746e4d902d82383fc194eec028b03ea93c4e52833d10804a471",
+    "symbols": [
+      {
+        "name": "catalog",
+        "kind": "value",
+        "category": "operations",
+        "description": "Validates unique queue/name/version tuples and freezes a copy, retaining entry types.\nFails with DuplicateJobCatalogEntry; creates no global catalog or workers."
+      },
+      {
+        "name": "CatalogEntry",
+        "kind": "type",
+        "category": "models",
+        "description": "Catalog identity accepted by worker configuration; job definitions satisfy this port."
+      },
+      {
+        "name": "DuplicateJobCatalogEntry",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Typed catalog validation failure for a repeated queue/name/version."
+      },
+      {
+        "name": "DuplicateJobHandler",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Typed installation failure for an already registered queue/name/version."
+      },
+      {
+        "name": "JobHandler",
+        "kind": "type",
+        "category": "models",
+        "description": "Registered artifact decoder and handler; application services are captured at installation."
+      },
+      {
+        "name": "JobRegistry",
+        "kind": "value + type",
+        "category": "models",
+        "description": "Context service required by definition handler Layers and worker construction."
+      },
+      {
+        "name": "JobRegistryService",
+        "kind": "type",
+        "category": "models",
+        "description": "Application-local handler installation and exact catalog lookup."
+      },
+      {
+        "name": "layer",
+        "kind": "value",
+        "category": "layers",
+        "description": "Builds a fresh registry per Layer acquisition. Reuse the same Layer reference for\nworkers and handler installation so they share one registry; starts no fibers."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobConsumer",
+    "filename": "src/JobConsumer.ts",
+    "sha256": "4a7a96d077f2ef1ebd7d09845e258e86884adab76ec044fd531a2307d34a4894",
+    "symbols": [
+      {
+        "name": "DuplicateJobConsumer",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Typed plan failure when multiple consumers name the same logical queue."
+      },
+      {
+        "name": "InvalidJobConsumer",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Typed configuration failure for invalid bounds or excess option keys."
+      },
+      {
+        "name": "JobConsumer",
+        "kind": "type",
+        "category": "models",
+        "description": "Per-run limits and local concurrency for one logical queue; not a running worker."
+      },
+      {
+        "name": "JobPlan",
+        "kind": "type",
+        "category": "models",
+        "description": "Explicit consumer list for scoped polling; one consumer per logical queue."
+      },
+      {
+        "name": "make",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Validates localConcurrency (1–64) and claim/recovery limits (1–10,000).\nReturns an Effect failing with InvalidJobConsumer; starts no work."
+      },
+      {
+        "name": "plan",
+        "kind": "value",
+        "category": "operations",
+        "description": "Copies and freezes the consumer list, preserving tuple types. Duplicate queue names\nfail with DuplicateJobConsumer when the Effect runs; starts no work."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobWorker",
+    "filename": "src/JobWorker.ts",
+    "sha256": "87e01787221ac255bd3d7b16e69a0042d67ae1e8e6a9c041a91bb39c24210328",
+    "symbols": [
+      {
+        "name": "JobWorker",
+        "kind": "value + type",
+        "category": "models",
+        "description": "Context service required by JobWorkerRuntime.drain and scoped polling."
+      },
+      {
+        "name": "JobWorkerConfigurationError",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "Public integration contract; see the exported declaration."
+      },
+      {
+        "name": "JobWorkerNotReady",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "Public integration contract; see the exported declaration."
+      },
+      {
+        "name": "JobWorkerOptions",
+        "kind": "type",
+        "category": "models",
+        "description": "Nonempty unique supported catalog and positive response budget matching the store."
+      },
+      {
+        "name": "JobWorkerService",
+        "kind": "type",
+        "category": "models",
+        "description": "Sealed runtime service used by drain and polling; no public manual dispatch capability."
+      },
+      {
+        "name": "JobWorkerUnavailable",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "Public integration contract; see the exported declaration."
+      },
+      {
+        "name": "layer",
+        "kind": "value",
+        "category": "layers",
+        "description": "Produces JobWorker, requiring JobRegistry and the store's R services.\nConstruction validates configuration but starts no drain, polling, migration or pool."
+      },
+      {
+        "name": "make",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Captures JobRegistry and store requirements R and validates catalog/budget.\nFails with JobWorkerConfigurationError; creates no running worker or pool.\nEvery catalog entry needs an installed handler before drain or polling is ready."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobWorkerRuntime",
+    "filename": "src/JobWorkerRuntime.ts",
+    "sha256": "34f0194fa4c29f889d9f95c09335e69ee12656e430b9b8a1f4d25a07b614cc64",
+    "symbols": [
+      {
+        "name": "drain",
+        "kind": "value",
+        "category": "operations",
+        "description": "Runs bounded recovery and claims, acquiring local permits before claiming.\nRequires JobWorker; waits for scoped executions and shares per-queue permits\nacross concurrent drains of that worker. Idle means an empty claim was observed;\nMoreWork means the claim limit was reached; Backoff requests delayed retry after\nclaim/recovery/reconciliation uncertainty. None promises exactly-once effects."
+      },
+      {
+        "name": "DrainResult",
+        "kind": "type",
+        "category": "contract",
+        "description": "Public integration contract; see the exported declaration."
+      },
+      {
+        "name": "DrainResults",
+        "kind": "value",
+        "category": "contract",
+        "description": "Public integration contract; see the exported declaration."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/PollingJobWorker",
+    "filename": "src/PollingJobWorker.ts",
+    "sha256": "6a3ec97d87fc928498dc7f31807c1f291b031c5f031c17272fe5d0e74e2e8d1d",
+    "symbols": [
+      {
+        "name": "layerForPlan",
+        "kind": "value",
+        "category": "layers",
+        "description": "Starts one scoped loop per consumer when the Layer is built, requiring JobWorker.\nValidates the whole plan before forking; Scope closure interrupts the loops.\nBuild only in the application-owned lifetime; importing or constructing starts no work."
+      },
+      {
+        "name": "PollingJobWorkerOptions",
+        "kind": "type",
+        "category": "models",
+        "description": "Polling configuration; idlePollMillis defaults to 1,000 positive integer\nmilliseconds. Idle/backoff sleeps include jitter."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobLifecycle",
+    "filename": "src/JobLifecycle.ts",
+    "sha256": "ba03805c8091709e8db0655340473f9822ba2bad1a49a4c30685f6a818f1add0",
+    "symbols": [
+      {
+        "name": "addTimestamp",
+        "kind": "value",
+        "category": "operations",
+        "description": "Adds positive bounded milliseconds without overflow/clamping. Adapters supply\none DB-time snapshot for the entire atomic transition; reads no process clock."
+      },
+      {
+        "name": "attemptNumber",
+        "kind": "value",
+        "category": "operations",
+        "description": "One-based attemptsMade + 1; may repeat after unknown outcomes and recovery.\nNot an invocation count or external idempotency key."
+      },
+      {
+        "name": "BatchLimit",
+        "kind": "value",
+        "category": "schemas",
+        "description": "Bounded backend recovery/cleanup batch Schema: integer 1–500."
+      },
+      {
+        "name": "cancel",
+        "kind": "value",
+        "category": "operations",
+        "description": "Cancels only unowned executable rows. Cancelled retention is Forever."
+      },
+      {
+        "name": "claim",
+        "kind": "value",
+        "category": "operations",
+        "description": "Plans a due Pending/RetryScheduled claim (availableAt <= dbNow) with a fixed lease.\nDoes not increment attempts; the backend must lock/CAS and commit atomically."
+      },
+      {
+        "name": "cleanupEligible",
+        "kind": "value",
+        "category": "operations",
+        "description": "Pure terminal-retention eligibility at expiry <= dbNow. Pending, Active,\nRetryScheduled, Isolated and Cancelled are excluded. Application/backend must coordinate\ndomain references and deletion atomically; this result is not deletion authority."
+      },
+      {
+        "name": "Counter",
+        "kind": "value",
+        "category": "schemas",
+        "description": "Nonnegative safe integer Schema for durable counters, not a policy limit."
+      },
+      {
+        "name": "finalizationFromFailure",
+        "kind": "value",
+        "category": "operations",
+        "description": "Maps only validated explicit failure values; OutcomeUnknown returns null, leaving\nno confirmed transition. Cause/defect/interruption classification belongs to the worker."
+      },
+      {
+        "name": "finalize",
+        "kind": "value",
+        "category": "operations",
+        "description": "Plans one fenced Complete/Retry/Dead/Isolate transition and increments attempts once.\nUses first stored fixed delay; next availability >= notAfter or exhausted attempts\nbecomes Dead. notAfter limits retry scheduling, not handler execution."
+      },
+      {
+        "name": "isOwned",
+        "kind": "value",
+        "category": "operations",
+        "description": "Checks exact Active job/token/version/expiry and leaseExpiresAt > dbNow.\nA lease at the expiry millisecond is no longer owned."
+      },
+      {
+        "name": "JobFinalization",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "Confirmable durable transitions; OutcomeUnknown is deliberately absent.\nRetry uses the first stored policy; callers cannot replace its schedule."
+      },
+      {
+        "name": "JobFinalizations",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Tagged constructors and matchers for durable finalization commands."
+      },
+      {
+        "name": "JobLifecycleError",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Bounded validation, arithmetic, eligibility or ownership failure for a pure plan."
+      },
+      {
+        "name": "JobOwnership",
+        "kind": "value + type",
+        "category": "models",
+        "description": "Decoded value of the JobOwnership Schema.\nExact job/token/expiry/version fencing identity; handlers do not receive it."
+      },
+      {
+        "name": "JobSnapshot",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "Decoded complete lifecycle metadata; does not include or validate the payload.\nComplete durable metadata. Payload validation belongs to the codec, not this Schema."
+      },
+      {
+        "name": "JobState",
+        "kind": "value",
+        "category": "schemas",
+        "description": "Durable states; OutcomeUnknown is an attempt outcome rather than a state."
+      },
+      {
+        "name": "LeaseToken",
+        "kind": "value",
+        "category": "schemas",
+        "description": "Bounded lease token Schema: 1–128 hexadecimal/hyphen characters."
+      },
+      {
+        "name": "ownershipOf",
+        "kind": "value",
+        "category": "operations",
+        "description": "Extracts fencing identity from an Active snapshot; otherwise returns ownership-lost."
+      },
+      {
+        "name": "recoverExpired",
+        "kind": "value",
+        "category": "operations",
+        "description": "Plans recovery at leaseExpiresAt <= dbNow. Increments stalls, not attempts;\nexceeding maxStalledCount makes the job Dead. Backend owns bounded atomic recovery."
+      },
+      {
+        "name": "release",
+        "kind": "value",
+        "category": "operations",
+        "description": "Plans release only before execution and while the exact lease remains owned.\nClears ownership without incrementing attempts; backend commits the plan atomically."
+      },
+      {
+        "name": "retryNow",
+        "kind": "value",
+        "category": "operations",
+        "description": "Strictly accelerates a future stored retry without changing any budget or policy."
+      },
+      {
+        "name": "usableLease",
+        "kind": "value",
+        "category": "operations",
+        "description": "Checks remaining lease >= attempt timeout + positive operation response budget."
+      },
+      {
+        "name": "validateSnapshot",
+        "kind": "value",
+        "category": "operations",
+        "description": "Validates complete lifecycle metadata and cross-field invariants, returning\nResult rather than raw Schema diagnostics; does not validate payload artifacts."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobStore",
+    "filename": "src/JobStore.ts",
+    "sha256": "22ecf57515b8ad78a07ea5dcc4a9f9220ef3a1856d7bf87ce16fefda44bf61d5",
+    "symbols": [
+      {
+        "name": "ClaimedJob",
+        "kind": "type",
+        "category": "models",
+        "description": "Fenced claim plus untrusted prepared artifact; validate fully before handler dispatch."
+      },
+      {
+        "name": "ClaimReconciliation",
+        "kind": "type",
+        "category": "models",
+        "description": "Read-only original-token result: usable Owned, InsufficientLease, NotOwned or Unknown."
+      },
+      {
+        "name": "ClaimReconciliations",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Tagged constructors and matchers for claim reconciliation."
+      },
+      {
+        "name": "ClaimRequest",
+        "kind": "type",
+        "category": "models",
+        "description": "One supported queue/catalog selection with a fresh caller token for reconciliation."
+      },
+      {
+        "name": "ClaimResult",
+        "kind": "type",
+        "category": "models",
+        "description": "Claimed, observed Empty or uncertain Unknown; reconcile Unknown by its original\ncaller token before further dispatch."
+      },
+      {
+        "name": "ClaimResults",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Tagged constructors and matchers for claim results."
+      },
+      {
+        "name": "FinalizationReconciliation",
+        "kind": "type",
+        "category": "models",
+        "description": "Read-only exact-transition result; StillOwned permits only bounded identical\nfinalization retry, never immediate handler replay."
+      },
+      {
+        "name": "FinalizationReconciliations",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Tagged constructors and matchers for finalization reconciliation."
+      },
+      {
+        "name": "FinalizationRequest",
+        "kind": "type",
+        "category": "models",
+        "description": "Exact ownership, frozen pre-write snapshot and requested durable transition."
+      },
+      {
+        "name": "FinalizationResult",
+        "kind": "type",
+        "category": "models",
+        "description": "Applied or Unknown write result; response loss does not prove rollback."
+      },
+      {
+        "name": "FinalizationResults",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Tagged constructors and matchers for finalization results."
+      },
+      {
+        "name": "JobCleanupService",
+        "kind": "type",
+        "category": "contract",
+        "description": "Separate replaceable app-owned port; the store must not bypass domain references."
+      },
+      {
+        "name": "JobOwnershipLost",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Typed rejection of a stale or expired ownership capability."
+      },
+      {
+        "name": "JobStoreProtocolError",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Bounded malformed input/artifact failure, without persisted payload diagnostics."
+      },
+      {
+        "name": "JobStoreService",
+        "kind": "type",
+        "category": "contract",
+        "description": "Explicit configured port, not a backend constructor or atomicity proof.\nE/R preserve provider failure and connection requirements. Unknown dispatched writes\nMUST be returned as Unknown (including response loss); typed failures cannot imply rollback.\nNever replay mutations automatically. Lock/CAS the exact state/token/version using one\nDB-time snapshot, fixed non-renewable leases and bounded validated arithmetic.\nClaim atomically selects at most one due supported row and its immutable payload;\nits lease must reserve stored timeout plus configured positive operation-response budget.\nReconciliation reads once by the ORIGINAL caller token, never by an unrelated new claim.\nAll transitions preserve first policy, identities and artifact bytes; no lease renewal."
+      },
+      {
+        "name": "validateClaimRequest",
+        "kind": "value",
+        "category": "operations",
+        "description": "Validates queue, nonempty same-queue catalogs and token before dispatching mutation.\nReturns Result with sanitized JobStoreProtocolError on malformed input."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobOperators",
+    "filename": "src/JobOperators.ts",
+    "sha256": "ed666fbb52121a3916d923762da4428baf34ad122caa0b209267cec5fb218abd",
+    "symbols": [
+      {
+        "name": "JobCorrectedRedriveRequest",
+        "kind": "type",
+        "category": "models",
+        "description": "Full replacement in the definition's decoded payload type."
+      },
+      {
+        "name": "JobLineage",
+        "kind": "value + type",
+        "category": "models",
+        "description": "Live reference may disappear without erasing original identity."
+      },
+      {
+        "name": "JobOperatorExpected",
+        "kind": "value + type",
+        "category": "models",
+        "description": "Exact source state/version guard."
+      },
+      {
+        "name": "JobOperatorRejected",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Bounded rejection; no SQL, payload or provider diagnostics."
+      },
+      {
+        "name": "JobOperators",
+        "kind": "value + type",
+        "category": "services",
+        "description": "Trusted application composition, not caller authentication."
+      },
+      {
+        "name": "JobOperatorsService",
+        "kind": "type",
+        "category": "models",
+        "description": "All successes are provisional until the outer owner commits."
+      },
+      {
+        "name": "JobOperatorTransition",
+        "kind": "value + type",
+        "category": "models",
+        "description": "Provisional transition evidence; commit belongs to the application."
+      },
+      {
+        "name": "JobRedriveKind",
+        "kind": "value + type",
+        "category": "models",
+        "description": "Immediate repair edge; original identity survives source retention."
+      },
+      {
+        "name": "JobRedriveRequest",
+        "kind": "value + type",
+        "category": "models",
+        "description": "New producer identity, never the original tuple."
+      },
+      {
+        "name": "JobRedriveResult",
+        "kind": "value + type",
+        "category": "models",
+        "description": "Source remains unchanged; timestamp is sampled after validation."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/PostgreSqlJobs",
+    "filename": "src/PostgreSqlJobs.ts",
+    "sha256": "bc0f4d33683bd49cb203163212bb4db471f176d04ddf9915bea3d2b8747cec78",
+    "symbols": [
+      {
+        "name": "Backend",
+        "kind": "type",
+        "category": "models",
+        "description": "Configured persistence and callback bridge. Readiness, workers and cleanup are\nexplicit; migrations and pool lifetime remain application-owned."
+      },
+      {
+        "name": "layerNoDeps",
+        "kind": "value",
+        "category": "layers",
+        "description": "Produces PostgreSqlJobs while requiring PostgreSqlApplication. Supply a qualified\napplication adapter separately; neither the driver nor a transaction engine is bundled."
+      },
+      {
+        "name": "make",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Captures PostgreSqlApplication and validates mapping/budget. Fails with\nPostgreSqlConfigurationError; performs no borrowing, readiness SQL, DDL,\nworker startup or pool shutdown. Invoke backend.ready explicitly before use."
+      },
+      {
+        "name": "Options",
+        "kind": "type",
+        "category": "models",
+        "description": "Storage mapping and positive operation response budget; match the worker budget."
+      },
+      {
+        "name": "PostgreSqlJobs",
+        "kind": "value + type",
+        "category": "services",
+        "description": "Context service produced by make or layerNoDeps; construction starts no SQL."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/PostgreSqlTransaction",
+    "filename": "src/PostgreSqlTransaction.ts",
+    "sha256": "0a2b090b31cc04d2b8b6e054f79f7d017f0c989a8753699868bcb69b93899a32",
+    "symbols": [
+      {
+        "name": "ApplicationAdapter",
+        "kind": "type",
+        "category": "contract",
+        "description": "Explicit trusted extension contract, NOT a structural SQL-client constructor.\nvalidate must prove private registration, source identity and active invocation.\nwithTransaction delegates join-or-establish to the application's manager.\nownedTransaction must reject ambient transactions, commit before returning, and\nreport uncertain COMMIT/response delivery as Unknown. No automatic replay.\nA COMMIT command tag of ROLLBACK is a NotCommitted failure, not success.\nAll acquisition/query/control/release paths must have finite application bounds.\nThe application owns rollback, pool lifetime, readiness and migrations."
+      },
+      {
+        "name": "PostgreSqlApplication",
+        "kind": "value + type",
+        "category": "services",
+        "description": "Context service supplied by the application; no universal pg/Drizzle adapter ships."
+      },
+      {
+        "name": "PostgreSqlError",
+        "kind": "type",
+        "category": "models",
+        "description": "Sanitized persistence failure or rejected transaction handle."
+      },
+      {
+        "name": "PostgreSqlFailure",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Sanitized adapter failure. Unknown commit knowledge must stay unknown; never\nattach SQL, parameters, DSNs or provider Causes, or infer rollback from timeout."
+      },
+      {
+        "name": "PostgreSqlInvalidHandle",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Typed rejection of foreign, unqualified, inactive or ambient transaction handles."
+      },
+      {
+        "name": "TransactionQuery",
+        "kind": "type",
+        "category": "models",
+        "description": "Exact-connection query capability supplied only by the owning qualified adapter.\nSequence queries and revalidate invocation lifetime before each query."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/PostgreSqlNative",
+    "filename": "src/PostgreSqlNative.ts",
+    "sha256": "e367e189f4d558b7937c44c7b4fa365e41eb75c7e456dd033b79319c243b50a4",
+    "symbols": [
+      {
+        "name": "layer",
+        "kind": "value",
+        "category": "layers",
+        "description": "Supply the application-owned native client explicitly; starts no work."
+      },
+      {
+        "name": "make",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Construct an adapter without borrowing connections or reading keys/env.\nAmbient enqueue resolves this client's transactionService, with no fallback.\nThe transaction owner must sequence operations and await them in its callback;\nretaining/forking transaction contexts outside that callback is unsupported.\nStandalone rejects active same-client transactions and returns after native\nchecked COMMIT. Provider control failures retain Unknown; no automatic replay."
+      },
+      {
+        "name": "Options",
+        "kind": "type",
+        "category": "models",
+        "description": "Only native PgClient@4.0.5 is qualified. Pass the exact application-owned client\nused by Effect-native Drizzle@1.0.0-rc.5-169397b. Other SQL drivers/clients require\nseparate qualification; structural type compatibility is not a driver guarantee."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/PostgreSqlSchema",
+    "filename": "src/PostgreSqlSchema.ts",
+    "sha256": "503db56dc69908d12a3c1d08eb06fd606786d6187a92b8c1a0c7f59238acc185",
+    "symbols": [
+      {
+        "name": "indexPrefix",
+        "kind": "value",
+        "category": "operations",
+        "description": "Bounded schema-wide index prefix retaining a hash of the jobs table name."
+      },
+      {
+        "name": "lineageMigration",
+        "kind": "value",
+        "category": "operations",
+        "description": "Add empty lineage to existing rows; never infer historical operator edges.\nApplications run this once in their own migration transaction."
+      },
+      {
+        "name": "migration",
+        "kind": "value",
+        "category": "operations",
+        "description": "Returns DDL for the configured jobs and immutable payload tables and indexes.\nThe application creates the schema and runs migrations; runtime never invokes DDL.\nUse the same mapping for backend construction."
+      },
+      {
+        "name": "operatorMigration",
+        "kind": "value",
+        "category": "operations",
+        "description": "Adds Cancelled to exactly the two known legacy CHECKs; refuses unexpected schema.\nDoes not alter rows, indexes or unrelated constraints. The application runs it\nin its migration transaction after preserving historical migration bytes."
+      },
+      {
+        "name": "PostgreSqlConfigurationError",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Thrown for invalid table configuration or returned for invalid backend budget."
+      },
+      {
+        "name": "relations",
+        "kind": "value",
+        "category": "operations",
+        "description": "Returns quoted qualified relation names after validating the mapping.\nNever interpolate producer or catalog values as identifiers."
+      },
+      {
+        "name": "TableOptions",
+        "kind": "type",
+        "category": "models",
+        "description": "Optional lowercase PostgreSQL identifiers; defaults to public.jobs/job_payloads."
+      },
+      {
+        "name": "tables",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Validates and freezes mapping without database access. Names match\n^[a-z_][a-z0-9_]{0,62}$ and tables must differ; throws PostgreSqlConfigurationError."
+      },
+      {
+        "name": "Tables",
+        "kind": "type",
+        "category": "models",
+        "description": "Complete storage mapping shared by backend and application migration generation."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/PostgreSqlDrizzleSchema",
+    "filename": "src/PostgreSqlDrizzleSchema.ts",
+    "sha256": "3204fbc54a9284fbd0f08941f3922f363784e7725a926b6a0b4fdbc451c8eabb",
+    "symbols": [
+      {
+        "name": "JobsIndexColumns",
+        "kind": "type",
+        "category": "models",
+        "description": "Actual typed required jobs columns supplied to the extraIndexes callback."
+      },
+      {
+        "name": "makeJobTables",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Creates fixed-column Drizzle declarations for the configured namespace/table names.\nRequires optional drizzle-orm@1.0.0-rc.5-169397b. Applications generate/run migrations;\nthese declarations neither open a connection nor qualify a transaction adapter.\nFull upstream strict declaration checking remains an alpha limitation."
+      },
+      {
+        "name": "Options",
+        "kind": "type",
+        "category": "models",
+        "description": "Drizzle-only additive jobs indexes. The application owns unique schema-wide\nnames and migration generation. Runtime readiness and baseline SQL are unchanged."
+      }
+    ]
+  }
+]

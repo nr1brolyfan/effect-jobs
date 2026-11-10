@@ -1,0 +1,61 @@
+---
+title: Observe worker operations
+description: Use existing Effect logs, spans and bounded metrics without exporting private job data.
+---
+
+Reports are waiting, but the process is alive. Start with the worker's operation
+signals to distinguish empty claims, storage uncertainty and interrupted handlers.
+Then inspect durable state through an authorized application tool.
+
+## Use the signals already emitted
+
+The worker emits these observations through Effect's configured logging, tracing
+and metric facilities. The application owns logger/exporter setup and collection;
+there is no jobs-specific exporter installation API.
+
+| Signal    | Name                                    | Meaning                                                                      |
+| --------- | --------------------------------------- | ---------------------------------------------------------------------------- |
+| Counter   | `effect_jobs_operation_total`           | One observation per instrumented operation boundary                          |
+| Histogram | `effect_jobs_operation_duration_millis` | Elapsed operation milliseconds; boundaries 1, 10, 100, 1,000, 10,000, 60,000 |
+| Span      | `effect-jobs.<operation>`               | Instrumented boundary with bounded fields                                    |
+| Info log  | `effect-jobs operation completed`       | Same operation classification                                                |
+
+These are operation signals, not a durable event history, queue-depth gauge or
+end-to-end report completion counter. A successful claim means the claim operation
+succeeded; it does not mean report generation succeeded. Nested finalization
+boundaries produce separate observations and must not be summed as unique jobs.
+
+## Group by bounded fields
+
+| Field                      | Emitted vocabulary                                                                 |
+| -------------------------- | ---------------------------------------------------------------------------------- |
+| `jobs.operation`           | `claim`, `release`, `execute`, `finalize`, `recover-expired`, `polling`, `backoff` |
+| `jobs.phase`               | `dispatch`, `handler`, `finalization`, `reconciliation`, `protocol`, `maintenance` |
+| `jobs.outcome`             | `success`, `failure`, `interrupted`, `unknown`, `timeout`                          |
+| `jobs.cause_kind`          | When a Cause is observed: `failure`, `defect`, `interrupted`, or `mixed`           |
+| `jobs.reason_count_bucket` | When a Cause is observed: `1`, `2`, or `3+`                                        |
+
+Not every operation/phase/outcome combination occurs. An `Unknown` or `Unresolved`
+operation result classifies as `unknown`; a polling `Backoff` result classifies as
+`failure`. A single observed timeout failure classifies as `timeout`. These labels
+summarize that boundary, not the external provider's outcome. For example, the
+outer attempt timeout may interrupt the handler boundary, which records
+`interrupted` rather than establishing a safe retry.
+
+## Keep private evidence private
+
+Built-in observations exclude payloads, semantic projections, fingerprints, job
+and producer identifiers, lease tokens, SQL, provider messages and raw Causes.
+Failure codes are also excluded from these metric/log/span fields. Span completion
+is sanitized rather than exporting the operation value or Cause.
+
+Application handlers and external instrumentation remain application-owned. Do not
+add report contents, identifiers, raw exceptions or tokens as span attributes or
+metric labels. Keep investigation evidence in an appropriately authorized private
+system; bounded telemetry alone cannot correlate an individual report.
+
+Use rising `claim`/`reconciliation` uncertainty or `recover-expired` failures as a
+reason to check backend health and response budgets. Pair `execute` interruptions
+with stored lease/policy inspection and the provider's authoritative receipt;
+never infer that an upload failed solely from a timeout. Continue with
+[troubleshooting](/docs/operations/troubleshooting).

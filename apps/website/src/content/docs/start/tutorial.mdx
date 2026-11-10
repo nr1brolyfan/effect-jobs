@@ -1,0 +1,537 @@
+---
+title: Getting started
+description: Define a queue, save an order, and run its durable consequences with Effect.
+sidebar:
+  order: 3
+---
+
+import CodeExample from "../../../components/docs/CodeExample.astro"
+import TransactionFlow from "../../../components/docs/TransactionFlow.astro"
+import OrderFlow from "../../../components/docs/OrderFlow.astro"
+import JobVisual from "../../../components/docs/JobVisual.astro"
+import { Code } from "@astrojs/starlight/components"
+import orderProject from "../../../../examples/docs/orders/package.json"
+
+Let's start with a small example that shows why background jobs are useful.
+A customer places an order: we save it to the database, then send a confirmation
+email. This is a reasonable starting point, but it has a few problems.
+
+Here, `Database` is our application's Drizzle service and `TransactionalEmails`
+sends customer emails through our chosen provider. This `placeOrder` use case
+lives in the API's `orders` feature module. The request has already been validated
+and authorized.
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/Orders.ts"
+  region="request"
+  role="Producer without effect-jobs"
+/>
+
+1. ## Dual-write problem
+
+   Saving the order and sending its confirmation are two separate actions,
+   not one atomic operation. If our application crashes between them, or the
+   email provider rejects the send, the order is already saved but the customer
+   may not receive a confirmation. This gap is the **dual-write problem**.
+
+2. ## A slow provider means a long loading screen
+
+   Even a healthy provider can be slow. Because our request waits for email,
+   the customer can be stuck on a loading screen for many seconds—even though
+   their order is already saved. That is unnecessary waiting and a poor checkout
+   experience. A provider failure does not mean the order failed.
+
+3. ## The confirmation email does not need to arrive immediately
+
+   The customer needs to know their order was accepted straight away. The email
+   is important, but it does not need to arrive at that exact moment: a small
+   delay is acceptable. We can respond first and send it as durable background
+   work. A detached in-process task is not enough—it disappears when the process stops.
+
+With effect-jobs, commit the order and its durable send-email job in **one
+PostgreSQL transaction on the same client**. Respond after the acknowledged
+commit without waiting for email; a worker makes the external call separately.
+This makes the database writes atomic, not the database and external email.
+Delivery is not exactly-once: external idempotency and uncertain outcomes still matter.
+
+For local runs, the mail adapter records messages in PostgreSQL instead of
+sending real emails. You do not need a provider account or credentials.
+
+<JobVisual variant="overview" />
+
+## 1. Place an order without waiting for email
+
+First, give the API and worker a shared description of the work. The payload
+contains the order ID, so the worker knows which order to confirm. `name` selects
+the stable contract and handler; `queue` groups work for a consumer. Declaring
+this contract starts no processing, and the omitted version is `1`.
+
+We'll also choose a default policy here: three finalized attempts with a fixed
+five-second retry delay. Each new job stores the complete policy for its worker.
+
+<CodeExample
+  sourcePath="orders/packages/orders/src/contracts/jobs.ts"
+  region="shared-contract"
+  role="Shared contract"
+/>
+
+Next, keep the producer beside the API use case that owns order placement. It
+imports `JobProducer` and the shared contract, without importing a worker or provider.
+
+<details className="ej-setup">
+<summary>Producer imports</summary>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/PlaceOrder.ts"
+  region="imports"
+  role="Producer"
+/>
+
+</details>
+
+We call this business action `order.place`. Its `operation` stays stable;
+`operationId` identifies one submission, and must stay the same when that
+submission is retried. It is not automatically the order ID. `slot` names this
+operation's consequence: `send-confirmation`. Declaring a slot does not enqueue it.
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/PlaceOrder.ts"
+  region="operation"
+  role="Producer"
+/>
+
+Before saving anything, we need to check the incoming submission.
+`OrderSubmission` validates that input. `OperationId`
+comes from `effect-jobs/JobIdentity`; the order ID uses the shared contract schema.
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/OrderSubmission.ts"
+  region="submission"
+  role="Producer"
+/>
+
+Now replace the direct email call with an enqueue. We decode the input, then
+save the order and its confirmation job together.
+Drizzle builds the application queries; **`PgClient.withTransaction` owns the
+transaction**. Enqueue joins that exact client's ambient transaction and Effect
+Context. Database and jobs services are composed once, outside the request.
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/PlaceOrder.ts"
+  region="request"
+  beforeSourcePath="orders/apps/api/src/orders/Orders.ts"
+  beforeRegion="request"
+  role="Producer"
+/>
+
+This use case creates a **new order**. The unique `operationId` constraint
+rejects a repeated submission, even with identical input. The whole transaction
+rolls back; no extra order or job survives. This is duplicate rejection, not
+idempotent response replay. The unique order ID also rejects another operation
+trying to claim the same order.
+
+<details className="ej-setup">
+<summary>Duplicate new-order submissions reject</summary>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/SubmissionScenarios.ts"
+  region="duplicate-create"
+  role="Checked new-order scenario"
+/>
+
+</details>
+
+<details className="ej-setup">
+<summary>Advanced: validate an idempotent submission replay</summary>
+
+`placeOrderIdempotent` is a separate application use case. It reuses a matching
+order, checks every immutable submission field and invoice choice, and retains
+the operation-to-job receipt. Queue deduplication alone cannot validate business
+fields absent from the job payload.
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/OrderSubmission.ts"
+  region="matching"
+  role="Advanced producer contract"
+/>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/PlaceOrderIdempotent.ts"
+  region="request"
+  role="Advanced idempotent producer"
+/>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/SubmissionScenarios.ts"
+  region="advanced-replay"
+  role="Checked advanced replay scenario"
+/>
+
+Matching replay returns the first job ID; changed business input fails with
+`OrderConflict`. Retain its order, receipt and referenced job for the replay and
+reconciliation window. This example validates submission replay, not an entire
+HTTP response replay protocol.
+
+</details>
+
+<TransactionFlow />
+
+<div className="ej-result">
+  <span>RESULT</span>
+  <div>
+
+After acknowledged COMMIT, the new order and queued confirmation exist.
+Confirmed rollback persists none of them. The response does not wait for email.
+
+  </div>
+</div>
+
+## 2. Handle the job in the worker
+
+With the request finished, a worker can pick up the confirmation. Its handler
+receives a decoded `payload` and `context`. Here the payload contains
+only the order ID, and `context.jobId` supplies a stable delivery key across
+handler retries. The application mail service owns delivery and its error contract.
+
+<CodeExample
+  sourcePath="orders/apps/worker/src/orders/jobs/SendConfirmation.ts"
+  region="handler"
+  role="Consumer"
+/>
+
+`EmailBusy` means a known replay-safe rejection and becomes `Retry`.
+`EmailUncertain` means acceptance cannot be established and becomes `OutcomeUnknown`.
+A real provider may have sent email before a timeout: queue deduplication cannot
+prove exactly-once delivery. Its adapter needs idempotency or reconciliation.
+Defects and interruption remain distinct from these typed outcomes.
+
+To make it run, install the handler Layer and the registry,
+then explicitly run a bounded drain with the same application services. The API
+imports only shared contracts and database code; it never imports this handler or
+a mail adapter. API and worker are roles that can also share one host process.
+
+<CodeExample
+  sourcePath="orders/apps/worker/src/main.ts"
+  region="confirmation-composition"
+  role="Composition"
+/>
+
+A drain waits for its bounded executions, not all future retries. Its counts
+measure claims, so inspect the durable business result when verifying completion.
+The runnable local adapter inserts one `synthetic_mail` row per delivery key;
+that is a synthetic adapter property, not a production provider guarantee.
+
+<details className="ej-setup">
+<summary>Set up the checked application</summary>
+
+Use the [local installation](/docs/start/installation) with Effect `4.0.5`,
+`@effect/sql-pg@4.0.5`, Drizzle `1.0.0-rc.5-ab785fc` and
+`@effect/platform-node@4.0.5`. Copy the complete `orders` source tree listed in
+[checked order examples](/docs/reference/examples), preserving its paths.
+
+<CodeExample
+  sourcePath="orders/packages/database/src/Database.ts"
+  region="setup"
+  role="Composition"
+/>
+
+The application owns one scoped PgClient, its pool lifetime, migrations and
+finite acquisition/control/release deadlines. This supported native route uses
+`PgClient.withTransaction`, not Drizzle `db.transaction` or a second client.
+
+<CodeExample
+  sourcePath="orders/packages/database/src/schema.ts"
+  region="schema"
+  role="Composition"
+/>
+
+Apply `migrationSql` from `packages/database/src/Migrations.ts` through your
+migration tool before starting either role. This is migration DDL; application
+queries remain Drizzle queries. Imports and `backend.ready` do not create tables.
+Retain orders, receipts and their referenced jobs for the required reconciliation
+and deduplication window; application cleanup must coordinate these references.
+
+Set `DATABASE_URL` privately in the process environment. From the copied source root:
+
+The example uses package import aliases: `#orders` for shared contracts,
+`#database` for persistence, and `#api/orders` and `#worker/orders` for each role's
+order code. They are configured in `package.json`, not in the job library:
+
+<Code
+  code={JSON.stringify({ imports: orderProject.imports }, null, 2)}
+  lang="json"
+  title="package.json"
+/>
+
+Use the `development` condition to run the TypeScript sources directly:
+
+```sh
+OPERATION_ID=submission-1 ORDER_ID=order-1 bun --conditions=development apps/api/src/main.ts
+WORKER_MODE=confirmation bun --conditions=development apps/worker/src/main.ts
+```
+
+The result is a new order and a synthetic confirmation in `synthetic_mail`.
+Repeating the first command rejects the duplicate submission; it creates no
+extra order or job. The optional advanced `placeOrderIdempotent` use case adds
+validated replay and a retained receipt. For Node, run `npm run build` with the included standalone `tsconfig.json`,
+then invoke `node dist/apps/api/src/main.js` and `node dist/apps/worker/src/main.js`
+with the same settings. NodeRuntime owns signal handling
+and closes scoped resources at shutdown.
+
+</details>
+
+## 3. Add a second independent consequence
+
+Suppose each new order also needs an invoice. Extend the shared module with two
+contracts: one to create it, and one to send it later. Below, the original contract
+stays unchanged while the appended definitions are marked as additions. They carry order and invoice
+identifiers, without customer secrets or provider configuration.
+
+<CodeExample
+  sourcePath="orders/packages/orders/src/contracts/jobs.ts"
+  region="shared-contract"
+  appendRegion="invoice-contracts"
+  beforeSourcePath="orders/packages/orders/src/contracts/jobs.ts"
+  beforeRegion="shared-contract"
+  role="Shared contract"
+/>
+
+We can now give `order.place` two slots. Each names an independent consequence,
+so neither waits for the other. This expanded producer replaces the earlier
+declaration in a separate checked use case. Its
+source is `PlaceOrderWithInvoice.ts`; it uses the advanced replay contract above.
+It deliberately adds replay validation and a receipt to the simple create path.
+The operation identity remains a submission identity, not a handler attempt number.
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/PlaceOrderWithInvoice.ts"
+  region="operation"
+  beforeSourcePath="orders/apps/api/src/orders/PlaceOrder.ts"
+  beforeRegion="operation"
+  role="Producer"
+/>
+
+Save the order and enqueue both consequences in the same transaction. Compared
+with the simple request, this version also validates replay and retains a receipt. The
+expanded receipt references both jobs. `invoiceRequested` is immutable request
+semantics: replaying an old confirmation-only submission through this expanded
+use case conflicts, rather than silently adding work to an existing operation.
+Use the expanded use case for new submissions when adopting this requirement.
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/PlaceOrderWithInvoice.ts"
+  region="request"
+  beforeSourcePath="orders/apps/api/src/orders/PlaceOrder.ts"
+  beforeRegion="request"
+  role="Producer"
+/>
+
+<details className="ej-setup">
+<summary>Imports for the checked scenarios</summary>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/SubmissionScenarios.ts"
+  region="imports"
+  role="Checked scenario"
+/>
+
+</details>
+
+<details className="ej-setup">
+<summary>Two slots create two independent consequences</summary>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/SubmissionScenarios.ts"
+  region="two-consequences"
+  role="Checked scenario"
+/>
+
+</details>
+
+<details className="ej-setup">
+<summary>Matching replay returns AlreadyPresent and the first ID</summary>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/SubmissionScenarios.ts"
+  region="matching-replay"
+  role="Checked scenario"
+/>
+
+</details>
+
+<details className="ej-setup">
+<summary>Changed business fields raise OrderConflict</summary>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/SubmissionScenarios.ts"
+  region="business-conflict"
+  role="Checked scenario"
+/>
+
+</details>
+
+<details className="ej-setup">
+<summary>Same tuple with changed payload raises JobIntegrityConflict</summary>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/SubmissionScenarios.ts"
+  region="payload-conflict"
+  role="Checked scenario"
+/>
+
+</details>
+
+<details className="ej-setup">
+<summary>Low-level identity with a different job raises JobIntegrityConflict</summary>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/SubmissionScenarios.ts"
+  region="catalog-conflict"
+  role="Checked scenario"
+/>
+
+</details>
+
+Slot names are neither queues, retries, worker permits nor numbered workflow
+steps. Listing them causes no automatic enqueue or dependency tracking.
+Confirmation and invoice creation can execute independently and in either order.
+
+<OrderFlow />
+
+## 4. Send the invoice only after it exists
+
+We cannot send an invoice before it exists. This calls for a **dependent handoff**,
+so the invoice handler explicitly produces a new job. It is not a third independent
+slot of `order.place`, and the worker does not wait for all earlier slots.
+
+<CodeExample
+  sourcePath="orders/apps/worker/src/orders/jobs/CreateInvoice.ts"
+  region="handoff"
+  role="Consumer + producer"
+/>
+
+This example has exactly one synthetic invoice per order, enforced by the unique
+order reference. The invoice ID and the `invoice.create` operation ID therefore
+both use the order ID. Unlike the original submission identity, this key denotes
+the one immutable invoice result; it stays the same across handler retries.
+A fresh UUID per attempt would create a fresh delivery consequence.
+
+The invoice row and delivery job commit together. The delivery worker cannot
+observe the job before its invoice commits. Repeating the handoff finds the same
+invoice and job; a failed invoice write rolls back the new delivery job as well.
+No mail or non-idempotent provider request runs inside this SQL transaction.
+A real PDF or invoice provider would need its own repeatable result and
+reconciliation contract before this boundary.
+
+<CodeExample
+  sourcePath="orders/apps/worker/src/orders/jobs/SendInvoice.ts"
+  region="handler"
+  role="Consumer"
+/>
+
+The delivery handler reads the committed document and calls the same application
+mail service with its stable job ID. Bounded lease recovery may invoke it again;
+the external service still owns idempotency and reconciliation. There is no built-in
+DAG, join, parent-child status or exactly-once email guarantee.
+
+## Same handler, different business reasons
+
+The same work can have more than one business reason. Our checked recipient-aware
+delivery recipe uses one `SendInvoice` contract for
+initial delivery and deliberate resend. Those are different business actions,
+so they have different producer operations, while keeping the same handler/name.
+The compact recipe is an additional contract; the introductory invoice-ID-only
+contract above keeps its existing name, payload and version.
+
+<details className="ej-setup">
+<summary>Initial delivery, resend and two recipient copies</summary>
+
+<CodeExample
+  sourcePath="orders/packages/orders/src/contracts/invoice-delivery.ts"
+  region="delivery-contract"
+  role="Shared contract"
+/>
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/InvoiceDelivery.ts"
+  region="delivery-identities"
+  role="Producer"
+/>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/SubmissionScenarios.ts"
+  region="delivery-reasons"
+  role="Checked scenario"
+/>
+
+</details>
+
+Keep delivery idempotent at the external provider too. Slot declarations stay near
+the owning application use case; shared contracts import no producer or handler.
+Share a producer only when multiple callers execute that same operation.
+
+## 5. What if something fails?
+
+If the order transaction rolls back, none of its new order or jobs survive.
+The advanced use cases also roll back their new receipts. For a lost response,
+the beginner create path must not blindly resubmit or claim replay success; use
+an application reconciliation path. The advanced example reads its exact receipt. A mail timeout may
+follow acceptance; keep that outcome uncertain and reconcile the provider.
+
+The small shared policy allows three finalized attempts with a fixed five-second
+retry delay. Its other defaults are a 30-second attempt timeout, a 90-second lease,
+one stalled recovery, 90-day Completed retention and infinite Dead retention.
+`defaultPolicy` supplies that complete policy when enqueue omits one. A complete
+override replaces the entire default; without a definitely provided default,
+policy stays required. Optional/dynamic defaults are typed conservatively.
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/InvoiceDelivery.ts"
+  region="policy-override"
+  role="Producer"
+/>
+
+Changing a definition default from three attempts to five affects new insertions
+only. Matching duplicates keep their first policy and availability, including
+after a deployment changes defaults. The worker executes stored configuration;
+a default change alone needs no job version bump and changes no pending row. Attempt numbers can repeat after
+uncertainty and are not idempotency keys. An attempt timeout does not prove that
+an external action failed.
+
+Keep expected typed failures, defects and interruption distinct. The invoice
+handler conservatively maps SQL/control uncertainty to `OutcomeUnknown`;
+it does not blindly retry the whole transaction. An absent receipt also does not
+establish `NotCommitted`. See [transactions](/docs/persistence/transactions),
+[retry safety](/docs/execution/retries), [fencing and recovery](/docs/execution/recovery)
+and [retention](/docs/persistence/postgresql#plan-retention-with-receipts) for the operational boundaries.
+
+## 6. Where each piece runs
+
+Finish the worker setup by installing the confirmation, invoice creation and
+invoice delivery handlers.
+
+<CodeExample
+  sourcePath="orders/apps/worker/src/main.ts"
+  region="composition"
+  beforeSourcePath="orders/apps/worker/src/main.ts"
+  beforeRegion="confirmation-composition"
+  role="Composition"
+/>
+
+Run it in its own process or compose the roles in one host; two apps illustrate deployment
+choices, not mandatory microservices. A bounded drain may observe empty before a
+new handoff is visible, so a later drain may be needed.
+
+After the [checked setup](/docs/reference/examples), submit a **new** operation:
+
+```sh
+WITH_INVOICE=true OPERATION_ID=submission-2 ORDER_ID=order-2 bun --conditions=development apps/api/src/main.ts
+WORKER_MODE=drain bun --conditions=development apps/worker/src/main.ts
+WORKER_MODE=drain bun --conditions=development apps/worker/src/main.ts
+# Or process continuously until the application closes its Scope:
+WORKER_MODE=poll bun --conditions=development apps/worker/src/main.ts
+```
+
+Expect one order receipt with two job references, one synthetic invoice with its
+delivery reference, and two synthetic mail records. Check those durable results,
+rather than treating claim counts as proof of completion. The [complete source and
+qualification commands](/docs/reference/examples) use the same paths and contracts.

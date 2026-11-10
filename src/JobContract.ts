@@ -35,13 +35,20 @@ export interface HandlerInput<Payload> {
  *
  * @category models
  */
-export interface EnqueueInput<Payload> {
-  readonly producer: ProducerIdentity
+export type EnqueueOptions<Payload, Default extends JobPolicy | undefined = undefined> = {
   readonly payload: Payload
-  readonly policy: JobPolicy
   /** Omitted means database time on first insertion, never on matching duplicate. */
   readonly availableAt?: number
-}
+} & ([Default] extends [JobPolicy]
+  ? { readonly policy?: JobPolicy }
+  : { readonly policy: JobPolicy })
+/** Decoded enqueue options plus the explicit producer identity.
+ * @category models
+ */
+export type EnqueueInput<
+  Payload,
+  Default extends JobPolicy | undefined = undefined
+> = EnqueueOptions<Payload, Default> & { readonly producer: ProducerIdentity }
 /**
  * Inserted or AlreadyPresent with the durable job ID. Success inside a joined
  * transaction is provisional until the application owner commits.

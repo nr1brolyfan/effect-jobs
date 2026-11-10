@@ -43,8 +43,9 @@ import * as FailureCode from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 `
-const common = ["BillingQueue", "SendReceipt", "IssueInvoice", "GeneratePdf"]
+const common = ["BillingQueue", "SendReceipt", "GeneratePdf"]
 const fixtures = [
+  "IssueInvoice",
   "jobsStorage",
   "ApplicationPostgresLayer",
   "invoices",
@@ -106,7 +107,7 @@ export const wrap = (name, code) => {
   }
   if (name === "native") {
     prefix +=
-      'import * as nativeDrizzle from "drizzle-orm/effect-postgres"\nimport { pgTable, text } from "drizzle-orm/pg-core"\nconst invoiceTable = pgTable("invoices", { id: text("id").primaryKey() })\n'
+      'import * as PgClient from "@effect/sql-pg/PgClient"\nimport * as nativeDrizzle from "drizzle-orm/effect-postgres"\nimport { pgTable, text } from "drizzle-orm/pg-core"\nconst invoiceTable = pgTable("invoices", { id: text("id").primaryKey() })\n'
   }
   if (name === "node-worker") {
     prefix +=
@@ -169,7 +170,7 @@ export const wrap = (name, code) => {
     prefix +
     (name === "contracts"
       ? code +
-        '\nexport const GeneratePdf = Job.make({ queue: BillingQueue, kind: "invoice.generate-pdf", payload: Schema.Struct({ invoiceId: Schema.String }) })\n'
+        '\nexport const GeneratePdf = Job.make({ queue: BillingQueue, name: "invoice.generate-pdf", payload: Schema.Struct({ invoiceId: Schema.String }) })\n'
       : code) +
     (exportBindings[name] ? `\nexport { ${exportBindings[name]} }\n` : "")
   )

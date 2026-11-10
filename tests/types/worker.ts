@@ -20,7 +20,7 @@ class HandlerDependency extends Context.Service<
 declare const store: JobStoreService<string, Provider>
 const definition = Job.make({
   queue: Queue.make("types"),
-  kind: "message",
+  name: "message",
   version: 1,
   payload: Schema.Struct({ text: Schema.String }),
   encodePayload: Codec.encodeJobPayload

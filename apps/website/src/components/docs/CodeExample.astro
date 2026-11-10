@@ -1,0 +1,25 @@
+---
+import { root } from "astro:config/server"
+import { Code } from "@astrojs/starlight/components"
+import { extractExample, addedLines } from "./ExtractExample.mjs"
+
+interface Props {
+  sourcePath: string
+  region?: string
+  appendRegion?: string
+  beforeSourcePath?: string
+  beforeRegion?: string
+  role?: "Shared contract" | "Producer" | "Consumer" | "Consumer + producer" | "Composition" | "Checked scenario"
+}
+let code = await extractExample(Astro.props.sourcePath, Astro.props.region, new URL("./examples/docs/", root))
+const directory = new URL("./examples/docs/", root)
+if (Astro.props.appendRegion) {
+  code += "\n\n" + await extractExample(Astro.props.sourcePath, Astro.props.appendRegion, directory)
+}
+const before = Astro.props.beforeSourcePath
+  ? await extractExample(Astro.props.beforeSourcePath, Astro.props.beforeRegion, directory)
+  : undefined
+const inserts = before === undefined ? [] : addedLines(before, code)
+---
+{Astro.props.role && <p class="ej-code-role">{Astro.props.role}</p>}
+<Code ins={inserts} code={code} lang="ts" title={Astro.props.sourcePath.replace(/^orders\//, "")} />

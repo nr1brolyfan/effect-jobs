@@ -2,6 +2,8 @@
 
 The `.ts` files are canonical, typechecked patterns. Load only what the task needs.
 
+For library Layer design, start with [the concise design guide](./01_services/40_library-layer-design.ts); it defines principles, not new package exports.
+
 ```text
 Always:          01_services, 02_modeling, 03_errors, 08_style
 Auth operation:  + 04_observability, 05_resources, 09_testing

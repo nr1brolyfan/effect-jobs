@@ -4,6 +4,7 @@ import { defineConfig } from "vitest/config"
 export default defineConfig({
   resolve: {
     alias: {
+      pg: fileURLToPath(new URL("../../node_modules/pg/lib/index.js", import.meta.url)),
       "drizzle-orm/pg-core": fileURLToPath(
         new URL("./node_modules/drizzle-orm/pg-core/index.js", import.meta.url)
       ),
@@ -12,5 +13,5 @@ export default defineConfig({
       )
     }
   },
-  test: { include: ["tests/postgresql/*.test.ts"] }
+  test: { include: ["tests/postgresql/**/*.test.ts"] }
 })

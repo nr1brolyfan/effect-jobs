@@ -34,7 +34,7 @@ declare const mutation: Effect.Effect<
 
 // Ordinary expected recovery stays in the typed channel.
 export const recovered = mutation.pipe(
-  Effect.catchTag("RegistrationConflict", () => recoverConflict)
+  Effect.catchTags({ RegistrationConflict: () => recoverConflict })
 )
 
 /*

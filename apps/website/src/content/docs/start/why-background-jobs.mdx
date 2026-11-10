@@ -1,0 +1,45 @@
+---
+title: Why background jobs?
+description: Return an order submission promptly while keeping its work durable.
+sidebar:
+  order: 1
+---
+
+import TransactionFlow from "../../../components/docs/TransactionFlow.astro"
+
+A customer places an order. Sending its confirmation inside the HTTP request makes
+them wait for the mail provider. Starting an untracked
+background promise shortens the response, but a process restart can lose the work.
+
+Save the order and a durable job together. Return after that transaction commits;
+a separately started worker can send the confirmation later.
+
+<TransactionFlow />
+
+The response acknowledges durable acceptance, before confirmation delivery. Your
+application decides how customers check progress or receive the result.
+
+## What the queue takes care of
+
+| Problem                                            | Mechanism                                                                      |
+| -------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Crash between the business write and enqueue       | Both writes use the same application-owned transaction.                        |
+| Retried request creates the same consequence twice | A stable producer identity returns the existing matching job.                  |
+| Several workers see the same due job               | Database-time leases and fenced state transitions establish durable ownership. |
+| Safe transient failure                             | Persisted policy schedules a bounded retry.                                    |
+| Worker disappears                                  | Bounded recovery handles expired leases.                                       |
+
+## What remains application work
+
+Authenticate the request, validate business input and own the database pool and
+migrations. Write handlers that tolerate repeated execution. A queue cannot make
+an external delivery exactly once: a provider might accept a message just before
+the response is lost. Use stable provider idempotency keys and a reconciliation
+contract for that case.
+
+Jobs do not implicitly depend on one another. If invoice delivery must follow creation,
+the application must record that next consequence after the invoice exists. The
+[order tutorial](/docs/start/tutorial) builds that explicit handoff.
+
+Next: [install the supported candidate](/docs/start/installation), then
+[run your first job](/docs/start/first-job).

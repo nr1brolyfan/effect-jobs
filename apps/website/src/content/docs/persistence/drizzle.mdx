@@ -1,0 +1,88 @@
+---
+title: Use Effect-native Drizzle with the same PgClient
+description: Qualified native query composition, optional schema declarations and exact version limits.
+---
+
+import { CodeExample } from "../../../components/docs/index"
+
+Keep Drizzle for typed order queries and migrations while the queue joins the
+same native PostgreSQL transaction. Schema declarations alone do not bind a
+transaction: wire the runtime client explicitly.
+
+## Build one native graph
+
+1. The application provides its scoped `PgClient` from `@effect/sql-pg/PgClient`.
+2. `drizzle-orm/effect-postgres.makeWithDefaults()` obtains that service for order
+   and receipt queries.
+3. Pass that exact client to `PostgreSqlNative.layer({ client,
+operationTimeoutMillis })`, then provide the resulting `PostgreSqlApplication`
+   to `PostgreSqlJobs.layerNoDeps({ ...mapping,
+operationResponseBudgetMillis })`.
+4. Supply the jobs Layer's `JobEnqueue` to the mutation. Run Drizzle queries and
+   `SendOrderConfirmation.enqueue(input)` inside public `client.withTransaction(body)`.
+
+The shared order example builds the Drizzle `Database` service and jobs producer
+once from that same client. Application writes use Drizzle query builders.
+
+<CodeExample
+  sourcePath="orders/packages/database/src/Database.ts"
+  region="setup"
+  role="Composition"
+/>
+
+Reuse the same configured client Layer reference. Separately building a client
+with equal options does not establish transaction identity. Joining jobs adds
+no BEGIN, savepoint, independent COMMIT or replay. The application retains pool,
+migration, timeout and outer error/reconciliation ownership.
+
+`db.transaction` has an upstream error-type limitation and is excluded from the
+qualified positive route. Do not cast its errors away or use it as the documented
+owner. Nested transactions, transaction options and isolation are not promised
+to behave identically between Drizzle and the native client.
+
+## Optional declarations for migrations
+
+`makeJobTables` from `effect-jobs/PostgreSqlDrizzleSchema` returns
+`{ mapping, jobs, payloads }`. It accepts `schema`, `jobsTable`, `payloadsTable`
+and optional `extraIndexes(jobs)` for additive Drizzle indexes. Feed its `mapping`
+to the backend; keep the required fixed columns, constraints and indexes.
+The application owns unique schema-wide names for its extra indexes.
+
+Generate and apply migrations with your application tooling. The SQL helper
+`PostgreSqlSchema.migration(mapping)` generates only the library baseline; it does
+not include `extraIndexes`. Neither declarations nor the runtime execute DDL.
+
+Drizzle is optional: core imports and the PostgreSQL runtime do not import it.
+A non-Drizzle application can use the SQL migration helper and a qualified
+application adapter. The root `effect-jobs` export is empty; import focused public
+subpaths rather than internal modules.
+
+## Exact supported graph and limits
+
+The current local candidate targets Effect **4.0.5**, native
+**`@effect/sql-pg@4.0.5`**, and exactly either Drizzle
+**`1.0.0-rc.5-ab785fc`** or **`1.0.0-rc.5-169397b`**. The qualified native matrix
+uses Node **24.15.0**, Bun **1.4.2**, PostgreSQL **16.15** and pg **8.23.0**.
+These two Drizzle snapshots are separately qualified; their hash suffixes imply
+no compatible range. Use ordinary peer resolution, one physical Effect instance
+and the intended native peers, without force installs or dependency overrides.
+
+Own-source strict/exact-optional contracts (A+B) use the accepted dependency
+`skipLibCheck: true` setting, with actual negative compiler checks. Full foreign
+declaration checking (C, `skipLibCheck: false`) remains **known upstream FAIL**:
+three removed SQL error imports and four policy/role declaration diagnostics.
+That exact-seven exception is not full strict PASS and covers no new diagnostics.
+
+Real PostgreSQL qualification covers same-connection atomic writes, rollback,
+concurrent duplicates/conflicts, interruption and synthetic lost response after
+durable COMMIT. It does not qualify arbitrary drivers or versions, nested/options
+semantics, real network/server crashes, Cloudflare PostgreSQL or production use.
+An Alchemy **2.0.0-beta.83** combined install graph is qualified with `ab785fc`;
+that is install evidence, not cloud execution or deployment evidence.
+
+Return to [transaction ownership](/docs/persistence/transactions/) before adapting
+this graph to application requests.
+
+See the [PostgreSQL API reference](/docs/reference/postgresql/) for the public
+module inventory and the [complete order examples](/docs/reference/examples/)
+for the companion source files.

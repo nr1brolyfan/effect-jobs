@@ -48,7 +48,7 @@ writeFileSync(
   JSON.stringify({
     private: true,
     type: "module",
-    dependencies: { "effect-jobs": `file:${archive}`, effect: "4.0.0" }
+    dependencies: { "effect-jobs": `file:${archive}`, effect: "4.0.5" }
   })
 )
 run("bun", ["install", "--ignore-scripts"])
@@ -72,7 +72,7 @@ run("bun", [
   "add",
   "--ignore-scripts",
   "pg@8.23.0",
-  `drizzle-orm@${manifest.peerDependencies["drizzle-orm"]}`,
+  `drizzle-orm@${process.env.DRIZZLE_ORM_VERSION ?? manifest.devDependencies["drizzle-orm"]}`,
   "vitest@4.1.11",
   "typescript@7.0.2",
   "@types/node@26.4.1",
@@ -173,7 +173,10 @@ assert.equal(jobs.schema, "installed")
 assert.equal(jobs.name, "tasks")
 assert.equal(payloads.name, "artifacts")
 assert.equal(payloads.foreignKeys.length, 1)
-assert.equal(jobs.indexes.length, 3)
+assert.equal(jobs.indexes.length, 4)
+assert.equal(jobs.checks.length, 11)
+assert.equal(jobs.foreignKeys.length, 1)
+assert.equal(jobs.foreignKeys[0].onDelete, "set null")
 console.log("installed Drizzle mapping/constraints PASS")
 `
 )

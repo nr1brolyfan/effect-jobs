@@ -30,7 +30,7 @@ const sentinel = "PRIVATE_INSTALLED_PAYLOAD"
 const queue = Queue.make("installed")
 const definition = Job.make({
   queue,
-  kind: "neutral",
+  name: "neutral",
   version: 1,
   payload: Schema.Struct({ value: Schema.String }),
   encodePayload: Codec.encodeJobPayload
@@ -88,7 +88,7 @@ await Effect.runPromise(
         catalog: definition.catalog,
         producer: Producer.make({
           operation: "installed.produce",
-          slots: ["run"]
+          slots: { run: definition }
         }).identity({ operationId: "PRIVATE_INSTALLED_OPERATION", slot: "run" }),
         policy,
         encoded

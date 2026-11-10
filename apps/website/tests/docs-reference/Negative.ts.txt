@@ -1,0 +1,13 @@
+import { Effect, Layer } from "effect"
+import { GenerateReport, RequestReport, ReportHandlerLayer, ReportPolicy } from "./ReportWorkflow.js"
+
+// @ts-expect-error payload units must be numeric
+GenerateReport.enqueue({ producer: RequestReport.identity({ operationId: "r-1", slot: "generate" }), payload: { reportId: "r-1", rows: [{ product: "x", units: "3" }] }, policy: ReportPolicy })
+// @ts-expect-error only the declared consequence slot is accepted
+RequestReport.identity({ operationId: "r-1", slot: "deliver" })
+// @ts-expect-error installing handlers still requires registry and application storage
+const closed: Layer.Layer<never> = ReportHandlerLayer
+// @ts-expect-error an enqueue effect still requires JobEnqueue
+const missingBackend: Effect.Effect<unknown, unknown> = GenerateReport.enqueue({} as never)
+void closed
+void missingBackend

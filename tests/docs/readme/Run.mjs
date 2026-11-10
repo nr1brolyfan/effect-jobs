@@ -18,7 +18,7 @@ assert.equal(fences.filter((m) => m[1] === "sh").length, 1)
 assert.equal(fences.filter((m) => m[1] === "text").length, 1)
 assert.equal(
   fences.find((m) => m[1] === "sh")[2].trim(),
-  `npm install effect-jobs@${manifest.version} effect@4.0.0`
+  `npm install ./effect-jobs-${manifest.version}.tgz effect@4.0.5`
 )
 const hash = (value) => createHash("sha256").update(value).digest("hex")
 mkdirSync(join(root, ".toolchain/readme"), { recursive: true })
@@ -45,8 +45,12 @@ if (!process.env.EFFECT_JOBS_ALCHEMY_DIRECTORY) {
     JSON.stringify({
       private: true,
       type: "module",
-      dependencies: { alchemy: "2.0.0-beta.81", effect: "4.0.0" },
-      overrides: { "@effect/sql-d1": "4.0.0", "@effect/sql-sqlite-do": "4.0.0" }
+      dependencies: {
+        alchemy: "2.0.0-beta.83",
+        effect: "4.0.5",
+        "@effect/sql-d1": "4.0.5",
+        "@effect/sql-sqlite-do": "4.0.5"
+      }
     }) + "\n"
   )
 }
@@ -62,7 +66,7 @@ try {
   const alchemyManifest = JSON.parse(
     readFileSync(join(alchemy, "node_modules/alchemy/package.json"))
   )
-  assert.equal(alchemyManifest.version, "2.0.0-beta.81")
+  assert.equal(alchemyManifest.version, "2.0.0-beta.83")
   const declarations = [
     "lib/Callback.d.ts",
     "lib/Cloudflare/Workers/DurableObject.d.ts",
@@ -104,14 +108,14 @@ try {
       type: "module",
       dependencies: {
         "effect-jobs": `file:${archive}`,
-        effect: "4.0.0",
-        "drizzle-orm": "1.0.0-rc.5-169397b",
-        "@effect/sql-pg": "4.0.0",
-        "@effect/platform-node": "4.0.0",
+        effect: "4.0.5",
+        "drizzle-orm": process.env.DRIZZLE_ORM_VERSION ?? "1.0.0-rc.5-ab785fc",
+        "@effect/sql-pg": "4.0.5",
+        "@effect/platform-node": "4.0.5",
+        "@effect/platform-node-shared": "4.0.5",
         typescript: "7.0.2",
         "@types/node": "26.4.1"
-      },
-      overrides: { "@effect/platform-node-shared": "4.0.0" }
+      }
     }) + "\n"
   )
   run(

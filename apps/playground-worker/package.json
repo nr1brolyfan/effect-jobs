@@ -1,0 +1,23 @@
+{
+  "name": "@effect-jobs/playground-worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "effect": "4.0.5",
+    "effect-jobs": "file:../..",
+    "@effect-jobs/playground-contracts": "workspace:*",
+    "@effect/sql-pg": "4.0.5"
+  },
+  "scripts": {
+    "check": "tsc -p tsconfig.json",
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "miniflare": "5.20261006.1-alpha",
+    "pg": "8.23.0",
+    "@types/pg": "8.15.5",
+    "@playwright/test": "1.56.1"
+  }
+}

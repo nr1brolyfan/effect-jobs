@@ -14,7 +14,7 @@ import {
 } from "../../src/internal/JobTransaction.js"
 
 const prepared: PreparedJob = {
-  catalog: { queue: "billing", kind: "email", version: 1 },
+  catalog: { queue: "billing", name: "email", version: 1 },
   producer: { operation: "billing.issue", operationId: "request-1", slot: "email" },
   policy: JobPolicy.make(),
   encoded: {

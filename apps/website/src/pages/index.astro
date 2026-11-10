@@ -1,0 +1,173 @@
+---
+import System from "../components/landing/System.astro";
+import "../components/landing/Landing.css";
+import "../styles/site/tokens.css";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Effect-native durable jobs. Schema-defined work, atomic PostgreSQL enqueue, and explicit scoped workers."
+    />
+    <meta name="theme-color" content="#090b10" />
+    <title>effect-jobs — Give background work a durable home</title>
+  </head>
+  <body class="ej-landing">
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="site-header wrap">
+      <a class="wordmark" href="/" aria-label="effect-jobs home"
+        ><span class="mark" aria-hidden="true">e<span>j</span></span
+        >effect-jobs</a
+      >
+      <nav aria-label="Main navigation">
+        <a href="/docs">Documentation</a><a href="/demo"
+          >Demo <span aria-hidden="true">↗</span></a
+        >
+      </nav>
+      <span class="alpha">PUBLIC ALPHA</span>
+    </header>
+    <main id="main">
+      <section class="hero wrap" aria-labelledby="promise">
+        <div class="eyebrow">
+          <span class="tiny-mark" aria-hidden="true"></span> DURABLE EXECUTION ·
+          NATIVE EFFECT
+        </div>
+        <h1 id="promise">
+          Your request ends.<br /><span>The work goes on.</span>
+        </h1>
+        <p class="hero-copy">
+          Give background work a durable home. Schema-defined jobs, atomic
+          PostgreSQL enqueue, and scoped workers that compose with your Effect
+          application.
+        </p>
+        <div class="actions">
+          <a class="primary" href="/docs/start/first-job"
+            >Build your first job <span aria-hidden="true">→</span></a
+          ><a class="secondary" href="/demo"
+            >Explore the demo <span aria-hidden="true">↗</span></a
+          >
+        </div>
+        <p class="hero-note">
+          Your database. Your transactions. Explicit execution.
+        </p>
+        <System />
+      </section>
+      <section class="stack-strip wrap" aria-label="Supported stack">
+        <span>BUILT TO COMPOSE</span><strong>Effect 4.0.5</strong><i
+          aria-hidden="true">/</i
+        ><strong>PostgreSQL</strong><i aria-hidden="true">/</i><strong
+          >Node.js · Bun</strong
+        ><i aria-hidden="true">/</i><strong>Optional Drizzle</strong>
+      </section>
+      <section class="atomic wrap section" aria-labelledby="atomic-title">
+        <div>
+          <p class="eyebrow">01 / CLOSE THE GAP</p><h2 id="atomic-title">
+            The write and the work.<br /><span>One transaction.</span>
+          </h2><p>
+            A report request is only useful if its job exists too. Join
+            application writes and enqueue in the same configured client
+            transaction: commit together, or roll back together.
+          </p><a class="text-link" href="/docs/persistence/transactions"
+            >Understand atomic enqueue <span aria-hidden="true">→</span></a
+          >
+        </div>
+        <div class="transaction-card">
+          <div class="panel-label">
+            <span>TRANSACTION BOUNDARY</span><span class="status-dot"
+              >same client</span
+            >
+          </div><ol>
+            <li>
+              <span>01</span><div>
+                <strong>Save report request</strong><small
+                  >Application-owned business data</small
+                >
+              </div>
+            </li><li>
+              <span>02</span><div>
+                <strong>Enqueue report job</strong><small
+                  >Producer identity + encoded payload</small
+                >
+              </div>
+            </li><li>
+              <span>03</span><div>
+                <strong>Commit together</strong><small
+                  >Joined enqueue results are provisional until commit</small
+                >
+              </div>
+            </li>
+          </ol><div class="identity">
+            <span>REPEATED REQUEST?</span><p>
+              The same <code>(operation, operationId, slot)</code> and matching semantics
+              find the retained job. Changed semantics produce a conflict.
+            </p><a href="/docs/persistence/deduplication"
+              >How deduplication works →</a
+            >
+          </div>
+        </div>
+      </section>
+      <section
+        class="wrap section reliability"
+        aria-labelledby="reliability-title"
+      >
+        <p class="eyebrow">02 / MAKE FAILURE EXPLICIT</p><div
+          class="section-heading"
+        >
+          <h2 id="reliability-title">
+            Reliability has<br /><span>more than one path.</span>
+          </h2><p>
+            Retries are a policy. Ownership is a lease. An uncertain external
+            outcome still needs application-level reconciliation.
+          </p>
+        </div><div class="principles">
+          <article>
+            <span class="principle-icon" aria-hidden="true">↻</span><h3>
+              Retries that persist
+            </h3><p>
+              A confirmed retry stores the next availability using the first
+              persisted policy and a bounded attempt budget.
+            </p><a href="/docs/execution/retries">Retry semantics →</a>
+          </article><article>
+            <span class="principle-icon" aria-hidden="true">⌁</span><h3>
+              Ownership that fences
+            </h3><p>
+              Database-time leases and exact ownership checks guard durable
+              finalization. External side effects still need idempotency.
+            </p><a href="/docs/execution/recovery">Leases & recovery →</a>
+          </article><article>
+            <span class="principle-icon" aria-hidden="true">?</span><h3>
+              Unknown stays unknown
+            </h3><p>
+              A lost response does not prove rollback. OutcomeUnknown is an
+              attempt outcome, not a durable job state or permission to replay.
+            </p><a href="/docs/concepts/lifecycle">Follow the lifecycle →</a>
+          </article>
+        </div>
+      </section>
+      <section class="wrap section finish">
+        <div>
+          <p class="eyebrow">SMALL CORE. EXPLICIT BOUNDARIES.</p><h2>
+            Make the next request<br /><span
+              >the start of something durable.</span
+            >
+          </h2><p>
+            Current alpha: PostgreSQL persistence, application-owned migrations
+            and pools, explicit worker lifetime. Read the supported setup before
+            integrating.
+          </p>
+        </div><a class="primary" href="/docs/start/installation"
+          >Read the installation guide <span aria-hidden="true">→</span></a
+        >
+      </section>
+    </main>
+    <footer class="wrap">
+      <a class="wordmark" href="/">effect-jobs</a><p>
+        Durable jobs, composed with Effect.
+      </p><a href="/docs">Documentation →</a>
+    </footer>
+  </body>
+</html>

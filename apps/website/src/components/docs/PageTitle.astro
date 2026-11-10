@@ -1,0 +1,6 @@
+---
+const { entry } = Astro.locals.starlightRoute
+const prototype = entry.id === "docs/persistence/transactions"
+---
+<div class="ej-page-context">DOCUMENTATION <span aria-hidden="true">/</span> {prototype ? "PRODUCE" : "GUIDE"}</div>
+<h1 id="_top">{entry.data.title}</h1>

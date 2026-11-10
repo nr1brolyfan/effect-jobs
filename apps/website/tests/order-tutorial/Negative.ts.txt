@@ -1,0 +1,15 @@
+import { Effect, Layer } from "effect"
+import { PlaceOrder } from "./apps/api/src/orders/PlaceOrder.js"
+import { SendOrderConfirmation, OrderPolicy } from "./packages/orders/src/contracts/jobs.js"
+import { ConfirmationHandlerLayer } from "./apps/worker/src/orders/jobs/SendConfirmation.js"
+
+// @ts-expect-error the introductory producer has no create-invoice slot
+PlaceOrder.identity({ operationId: "submission", slot: "create-invoice" })
+// @ts-expect-error payload identity must be a string
+SendOrderConfirmation.enqueue({ producer: PlaceOrder.identity({ operationId: "submission", slot: "send-confirmation" }), payload: { orderId: 1 }, policy: OrderPolicy })
+// @ts-expect-error enqueue still requires JobEnqueue
+const missingProducer: Effect.Effect<unknown, unknown> = SendOrderConfirmation.enqueue({ producer: PlaceOrder.identity({ operationId: "submission", slot: "send-confirmation" }), payload: { orderId: "order-1" }, policy: OrderPolicy })
+// @ts-expect-error the handler requires its registry and TransactionalEmails
+const missingEmails: Layer.Layer<never> = ConfirmationHandlerLayer
+void missingProducer
+void missingEmails

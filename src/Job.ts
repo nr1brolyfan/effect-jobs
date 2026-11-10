@@ -13,7 +13,7 @@ import type {
 import type { JobFailure } from "./JobFailure.js"
 import { CatalogIdentity, ProducerIdentity } from "./JobIdentity.js"
 import type { JobQueue } from "./JobQueue.js"
-import { EpochMillis, PersistedJobPolicy } from "./JobPolicy.js"
+import { EpochMillis, PersistedJobPolicy, type JobPolicy } from "./JobPolicy.js"
 import { JobRegistry, type DuplicateJobHandler } from "./JobRegistry.js"
 import type { JobEnqueueError, JobsTransaction } from "./JobTransaction.js"
 import { encodeJobPayload } from "./JobPayloadCodec.js"
@@ -36,21 +36,23 @@ export class InvalidJobDefinition extends Data.TaggedError("InvalidJobDefinition
  */
 export interface JobDefinition<
   Payload extends Schema.Top = Schema.Top,
-  Kind extends string = string,
+  Name extends string = string,
   Version extends number = number,
-  Queue extends string = string
+  Queue extends string = string,
+  Default extends JobPolicy | undefined = JobPolicy | undefined
 > {
-  readonly kind: Kind
+  readonly name: Name
   readonly version: Version
   readonly queue: JobQueue<Queue>
   readonly payload: Payload
-  readonly catalog: CatalogIdentity<Queue, Kind, Version>
+  readonly defaultPolicy: Default
+  readonly catalog: CatalogIdentity<Queue, Name, Version>
   /** Enqueues in the active configured backend transaction; runs no commit or replay.
    * Same producer tuple compares catalog and semantic payload, returning the first ID
    * for a match or JobIntegrityConflict for changed content. Results are provisional
    * until outer commit; encoding services and backend E/R remain explicit. */
   readonly enqueue: (
-    input: EnqueueInput<Payload["Type"]>
+    input: EnqueueInput<Payload["Type"], Default>
   ) => Effect.Effect<
     EnqueueResult,
     JobEnqueueError | JobBackendError,
@@ -59,7 +61,7 @@ export interface JobDefinition<
   /** Owns an atomic transaction; rejects an active configured-client transaction.
    * Success follows acknowledged commit; uncertain outcomes stay unknown. */
   readonly enqueueStandalone: (
-    input: EnqueueInput<Payload["Type"]>
+    input: EnqueueInput<Payload["Type"], Default>
   ) => Effect.Effect<
     EnqueueResult,
     JobEnqueueError | JobBackendError,
@@ -68,7 +70,7 @@ export interface JobDefinition<
   /** Explicit invocation-scoped primitive for qualified custom adapters. */
   readonly enqueueInTransaction: <E, R>(
     tx: JobsTransaction<E, R>,
-    input: EnqueueInput<Payload["Type"]>
+    input: EnqueueInput<Payload["Type"], Default>
   ) => Effect.Effect<EnqueueResult, E | JobEnqueueError, R | Payload["EncodingServices"]>
   /** Installs one decoder/handler in JobRegistry and captures its Effect services.
    * Requires JobRegistry plus decoding and execute requirements; duplicate installation
@@ -98,7 +100,7 @@ export interface JobDefinition<
  *
  * const definition = Job.make({
  *   queue: Queue.make("billing"),
- *   kind: "invoice.generate",
+ *   name: "invoice.generate",
  *   payload: Schema.Struct({ invoiceId: Schema.String })
  * })
  * // Provide JobRegistry when building this Layer. Add application services as needed.
@@ -113,65 +115,126 @@ export interface JobDefinition<
  */
 export function make<
   Payload extends Schema.Top,
-  const Kind extends string,
+  const Name extends string,
   const Queue extends string,
   const Version extends number
 >(options: {
-  readonly kind: Kind
+  readonly name: Name
   readonly version: Version
   readonly queue: JobQueue<Queue>
   readonly payload: Payload
+  readonly defaultPolicy: JobPolicy
   readonly encodePayload?: JobPayloadEncoder
-}): JobDefinition<Payload, Kind, Version, Queue>
+}): JobDefinition<Payload, Name, Version, Queue, JobPolicy>
 export function make<
   Payload extends Schema.Top,
-  const Kind extends string,
+  const Name extends string,
   const Queue extends string
 >(options: {
-  readonly kind: Kind
+  readonly name: Name
   readonly version?: undefined
   readonly queue: JobQueue<Queue>
   readonly payload: Payload
+  readonly defaultPolicy: JobPolicy
   readonly encodePayload?: JobPayloadEncoder
-}): JobDefinition<Payload, Kind, 1, Queue>
+}): JobDefinition<Payload, Name, 1, Queue, JobPolicy>
 export function make<
   Payload extends Schema.Top,
-  const Kind extends string,
+  const Name extends string,
   const Queue extends string,
   const Version extends number = 1
 >(options: {
-  readonly kind: Kind
+  readonly name: Name
   readonly version?: Version | undefined
   readonly queue: JobQueue<Queue>
   readonly payload: Payload
+  readonly defaultPolicy: JobPolicy
   readonly encodePayload?: JobPayloadEncoder
-}): JobDefinition<Payload, Kind, Version | 1, Queue>
+}): JobDefinition<Payload, Name, Version | 1, Queue, JobPolicy>
 export function make<
   Payload extends Schema.Top,
-  Kind extends string,
+  const Name extends string,
+  const Queue extends string,
+  const Version extends number
+>(options: {
+  readonly name: Name
+  readonly version: Version
+  readonly queue: JobQueue<Queue>
+  readonly payload: Payload
+  readonly defaultPolicy?: JobPolicy | undefined
+  readonly encodePayload?: JobPayloadEncoder
+}): JobDefinition<Payload, Name, Version, Queue, JobPolicy | undefined>
+export function make<
+  Payload extends Schema.Top,
+  const Name extends string,
+  const Queue extends string
+>(options: {
+  readonly name: Name
+  readonly version?: undefined
+  readonly queue: JobQueue<Queue>
+  readonly payload: Payload
+  readonly defaultPolicy?: JobPolicy | undefined
+  readonly encodePayload?: JobPayloadEncoder
+}): JobDefinition<Payload, Name, 1, Queue, JobPolicy | undefined>
+export function make<
+  Payload extends Schema.Top,
+  const Name extends string,
+  const Queue extends string,
+  const Version extends number = 1
+>(options: {
+  readonly name: Name
+  readonly version?: Version | undefined
+  readonly queue: JobQueue<Queue>
+  readonly payload: Payload
+  readonly defaultPolicy?: JobPolicy | undefined
+  readonly encodePayload?: JobPayloadEncoder
+}): JobDefinition<Payload, Name, Version | 1, Queue, JobPolicy | undefined>
+export function make<
+  Payload extends Schema.Top,
+  Name extends string,
   Queue extends string,
   Version extends number
 >(options: {
-  readonly kind: Kind
+  readonly name: Name
   readonly version?: Version | undefined
   readonly queue: JobQueue<Queue>
   readonly payload: Payload
+  readonly defaultPolicy?: JobPolicy | undefined
   readonly encodePayload?: JobPayloadEncoder
-}): JobDefinition<Payload, Kind, Version | 1, Queue> {
-  const { kind, queue, payload } = options
+}): JobDefinition<Payload, Name, Version | 1, Queue, JobPolicy | undefined> {
+  const { name, queue, payload } = options
   const version = options.version === undefined ? 1 : options.version
   const encodePayload = options.encodePayload ?? encodeJobPayload
-  const catalog = Object.freeze({ queue: queue.name, kind, version })
+  const catalog = Object.freeze({ queue: queue.name, name, version })
   if (!Schema.is(CatalogIdentity)(catalog) || !Schema.isSchema(payload)) {
     throw new InvalidJobDefinition({
-      expected: "valid queue/kind/version and payload Schema"
+      expected: "valid queue/name/version and payload Schema"
     })
   }
-  const prepare = Effect.fnUntraced(function* (input: EnqueueInput<Payload["Type"]>) {
+  const configuredPolicy = options.defaultPolicy
+  if (
+    configuredPolicy !== undefined &&
+    !Schema.is(PersistedJobPolicy)(configuredPolicy)
+  ) {
+    throw new InvalidJobDefinition({ expected: "complete valid defaultPolicy" })
+  }
+  const snapshotPolicy = (policy: JobPolicy): JobPolicy =>
+    Object.freeze({
+      ...policy,
+      retrySchedule: Object.freeze({ ...policy.retrySchedule }),
+      completedRetention: Object.freeze({ ...policy.completedRetention }),
+      deadRetention: Object.freeze({ ...policy.deadRetention })
+    })
+  const defaultPolicy =
+    configuredPolicy === undefined ? undefined : snapshotPolicy(configuredPolicy)
+  const prepare = Effect.fnUntraced(function* (
+    input: EnqueueInput<Payload["Type"], JobPolicy>
+  ) {
     if (!Schema.is(ProducerIdentity)(input.producer)) {
       return yield* new InvalidJobInput({ field: "producer" })
     }
-    if (!Schema.is(PersistedJobPolicy)(input.policy)) {
+    const selectedPolicy = input.policy === undefined ? defaultPolicy : input.policy
+    if (!Schema.is(PersistedJobPolicy)(selectedPolicy)) {
       return yield* new InvalidJobInput({ field: "policy" })
     }
     if (input.availableAt !== undefined && !Schema.is(EpochMillis)(input.availableAt)) {
@@ -182,12 +245,7 @@ export function make<
       operationId: input.producer.operationId,
       slot: input.producer.slot
     })
-    const policy = Object.freeze({
-      ...input.policy,
-      retrySchedule: Object.freeze({ ...input.policy.retrySchedule }),
-      completedRetention: Object.freeze({ ...input.policy.completedRetention }),
-      deadRetention: Object.freeze({ ...input.policy.deadRetention })
-    })
+    const policy = snapshotPolicy(selectedPolicy)
     const availableAt = input.availableAt
     const encoded = yield* encodePayload(payload, input.payload)
     return Object.freeze({
@@ -199,25 +257,28 @@ export function make<
     })
   })
   return Object.freeze({
-    kind,
+    name,
     version,
     queue,
     payload,
+    defaultPolicy,
     catalog,
-    enqueue: Effect.fnUntraced(function* (input: EnqueueInput<Payload["Type"]>) {
+    enqueue: Effect.fnUntraced(function* (
+      input: EnqueueInput<Payload["Type"], JobPolicy>
+    ) {
       const backend = yield* JobEnqueue
       // Check transaction presence before potentially asynchronous encryption.
       return yield* backend.enqueue(prepare(input))
     }),
     enqueueStandalone: Effect.fnUntraced(function* (
-      input: EnqueueInput<Payload["Type"]>
+      input: EnqueueInput<Payload["Type"], JobPolicy>
     ) {
       const backend = yield* JobEnqueue
       return yield* backend.enqueueStandalone(prepare(input))
     }),
     enqueueInTransaction: Effect.fnUntraced(function* <E, R>(
       tx: JobsTransaction<E, R>,
-      input: EnqueueInput<Payload["Type"]>
+      input: EnqueueInput<Payload["Type"], JobPolicy>
     ) {
       return yield* insertPrepared(tx, yield* prepare(input))
     }),

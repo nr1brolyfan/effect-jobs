@@ -1,0 +1,65 @@
+---
+title: Diagnose a report that is not progressing
+description: Follow concrete state, readiness and telemetry checks before retrying or changing durable data.
+---
+
+A user is still waiting for a report. First identify the job through the
+application's authorized private lookup, then compare its durable state with
+worker readiness and operation telemetry. Keep payloads, tokens and provider
+responses out of shared logs and support tickets.
+
+## Start with the symptom
+
+| Symptom                                                  | Check                                                                                                                                     | Next action                                                                                              |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `Pending` never becomes `Active`                         | Is a drain running or the polling Layer still built? Is availability due by DB time? Does queue/name/version match the supported catalog? | Start execution within the intended scope, or install the correct versioned handler                      |
+| `JobWorkerNotReady`                                      | Every configured catalog entry needs a handler, even outside the drained queue; the requested queue must be configured                    | Check shared registry Layer identity and complete handler installation before starting                   |
+| `DuplicateJobHandler`                                    | The same queue/name/version was installed twice in one registry                                                                           | Remove duplicate installation from the application graph                                                 |
+| `DuplicateJobConsumer` or consumer configuration failure | Duplicate queue names in a plan, inconsistent concurrency on one worker, or out-of-range limits                                           | Configure one consumer per queue and valid consistent bounds                                             |
+| Drain returns `Backoff`                                  | Read `phase`: `recovery`, `claim`, or `reconciliation`; check operation failures/timeouts and database health                             | Delay further drains; inspect finite connection/query/control budgets and original operation evidence    |
+| Drain returns `Idle`, but reports remain                 | Future availability, concurrent enqueue, unsupported catalog versions, or rows already Active                                             | Inspect states and DB time; `Idle` only proves one empty claim was observed                              |
+| `RetryScheduled` waits longer than expected              | Stored availability and first-write policy; polling idle interval and database contention                                                 | Use persisted settings, not new deployment defaults, when explaining the next eligible attempt           |
+| Repeated `Active` expiries                               | Handler/protocol duration, worker shutdown, response loss, and remaining lease reserve                                                    | Investigate unknown effects before changing time budgets; inspect provider evidence                      |
+| `Dead`                                                   | Stored failure code, `attemptsMade`, `stalledCount` and first policy                                                                      | Distinguish known failure, retry cutoff/exhaustion and stall exhaustion before an authorized redrive     |
+| `Isolated`                                               | Catalog/codec compatibility, payload bounds/integrity and application decoding services                                                   | Investigate the artifact; do not force it back to Pending or blindly retry corrupt data                  |
+| `Completed`, but report is missing                       | What does the application's handler success mean? Was provider acceptance confused with delivery?                                         | Reconcile the provider/application receipt; queue completion is the handler's confirmed success contract |
+
+## Check startup and storage separately
+
+Construction is inert: invoke backend readiness explicitly after application-owned
+migrations. A readiness failure can mean missing tables, incompatible constraints
+or storage mapping mismatch. Runtime never repairs the schema or applies DDL.
+Verify that backend and migration configuration name the same namespace/tables.
+
+`operationResponseBudgetMillis` must agree between worker and store, and the
+stored lease must reserve the attempt timeout plus that budget. Keep native
+acquisition/control/release timeouts finite in the application adapter; a body
+query timeout alone does not bound every native transaction finalizer.
+
+Missing encryption configuration should fail application initialization. Malformed
+or tampered artifacts and invalid decoded data follow isolation semantics.
+Defects, timeouts and interruption preserve unknown-outcome handling; do not
+reclassify every decoding problem as a transient retry.
+
+## Stop before an unsafe replay
+
+A timeout, interruption or lost commit response does not prove rollback or failed
+external delivery. Preserve the original operation identity and inspect its
+receipt under the application's authority. Do not enqueue with a fresh identity
+simply to bypass a conflict or an uncertain result.
+
+Changing the policy on a duplicate enqueue leaves the first policy intact. Once
+retention removes all durable producer-identity evidence, a later enqueue can
+create another job. Keep application receipts and job retention coordinated for
+the required deduplication window.
+
+Operator tools require application authorization, admission and receipt/audit
+handling in the same qualified transaction. `retryNow` only accelerates a future
+`RetryScheduled` job. Cancellation applies to `Pending`/`RetryScheduled`, cannot
+undo past effects and does not interrupt Active work. Redrive of an eligible
+terminal job creates a new job with lineage; inspect external evidence and confirm
+duplicate-effects risk first.
+
+Read [worker ownership](/docs/execution/workers),
+[retry semantics](/docs/execution/retries), and
+[lease recovery](/docs/execution/recovery) before choosing an intervention.

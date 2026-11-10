@@ -27,12 +27,14 @@
     "/.opencode/skills/multica-platform/references/agents.md",
     "/.opencode/skills/multica-platform/references/issues.md",
     "/.opencode/skills/multica-platform/references/mentions.md",
-    "/.opencode/skills/multica-platform/references/skill-import.md",
-    "/AGENTS.md"
+    "/.opencode/skills/multica-platform/references/skill-import.md"
   ],
   "overrides": [
     {
-      "files": ["README.md"],
+      "files": [
+        "README.md",
+        "apps/website/src/content/docs/concepts/api-design-decisions.mdx"
+      ],
       "options": {
         "embeddedLanguageFormatting": "off"
       }

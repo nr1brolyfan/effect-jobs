@@ -25,7 +25,10 @@ assert.deepEqual(
 )
 assert.equal(manifest.name, "effect-jobs")
 assert.equal(manifest.private, false)
-assert.match(manifest.version, /^\d+\.\d+\.\d+-alpha\.\d+$/)
+assert.match(
+  manifest.version,
+  /^\d+\.\d+\.\d+-alpha\.\d+(?:-effect\.4\.0\.5\.local\.\d+)?$/
+)
 assert.deepEqual(manifest.publishConfig, {
   access: "public",
   registry: "https://registry.npmjs.org",
@@ -93,21 +96,28 @@ for (const entry of entries) {
     `Packed byte mismatch: ${entry}`
   )
 }
-const dryRun = JSON.parse(
-  run("npm", [
-    "publish",
-    archive,
-    "--dry-run",
-    "--ignore-scripts",
-    "--tag",
-    "alpha",
-    "--access",
-    "public",
-    "--registry",
-    "https://registry.npmjs.org",
-    "--json"
-  ])
+const metadataOnly = process.argv.includes("--metadata-only")
+assert(
+  !manifest.version.includes(".local.") || metadataOnly,
+  "Local candidates require --metadata-only; publication is outside qualification"
 )
+const dryRun = metadataOnly
+  ? "NotTested: npm publish (including dry-run) deliberately not invoked"
+  : JSON.parse(
+      run("npm", [
+        "publish",
+        archive,
+        "--dry-run",
+        "--ignore-scripts",
+        "--tag",
+        "alpha",
+        "--access",
+        "public",
+        "--registry",
+        "https://registry.npmjs.org",
+        "--json"
+      ])
+    )
 console.log(
   JSON.stringify(
     {

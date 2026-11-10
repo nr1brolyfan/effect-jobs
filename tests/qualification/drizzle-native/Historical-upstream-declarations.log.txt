@@ -1,0 +1,19 @@
+node_modules/drizzle-orm/cockroach-core/policies.d.ts(15,15): error TS2420: Class 'CockroachPolicy' incorrectly implements interface 'CockroachPolicyConfig'.
+  Types of property 'as' are incompatible.
+    Type '"permissive" | "restrictive" | undefined' is not assignable to type '"permissive" | "restrictive"'.
+      Type 'undefined' is not assignable to type '"permissive" | "restrictive"'.
+node_modules/drizzle-orm/cockroach-core/roles.d.ts(8,15): error TS2420: Class 'CockroachRole' incorrectly implements interface 'CockroachRoleConfig'.
+  Types of property 'createDb' are incompatible.
+    Type 'boolean | undefined' is not assignable to type 'boolean'.
+      Type 'undefined' is not assignable to type 'boolean'.
+node_modules/drizzle-orm/effect-postgres/session.d.ts(14,26): error TS2307: Cannot find module 'effect/unstable/sql/SqlError' or its corresponding type declarations.
+node_modules/drizzle-orm/pg-core/effect/db.d.ts(30,26): error TS2307: Cannot find module 'effect/unstable/sql/SqlError' or its corresponding type declarations.
+node_modules/drizzle-orm/pg-core/effect/session.d.ts(13,26): error TS2307: Cannot find module 'effect/unstable/sql/SqlError' or its corresponding type declarations.
+node_modules/drizzle-orm/pg-core/policies.d.ts(15,15): error TS2420: Class 'PgPolicy' incorrectly implements interface 'PgPolicyConfig'.
+  Types of property 'as' are incompatible.
+    Type '"permissive" | "restrictive" | undefined' is not assignable to type '"permissive" | "restrictive"'.
+      Type 'undefined' is not assignable to type '"permissive" | "restrictive"'.
+node_modules/drizzle-orm/pg-core/roles.d.ts(9,15): error TS2420: Class 'PgRole' incorrectly implements interface 'PgRoleConfig'.
+  Types of property 'createDb' are incompatible.
+    Type 'boolean | undefined' is not assignable to type 'boolean'.
+      Type 'undefined' is not assignable to type 'boolean'.

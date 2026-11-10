@@ -135,7 +135,7 @@ it("keeps telemetry capture invocation-local for reused and concurrent Effects",
 const queue = Queue.make("permit-regression")
 const job = Job.make({
   queue,
-  kind: "neutral",
+  name: "neutral",
   version: 1,
   payload: Schema.String,
   encodePayload: Codec.encodeJobPayload

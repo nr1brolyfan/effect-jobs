@@ -1,0 +1,183 @@
+---
+title: Checked order examples
+description: Complete order source, application composition and reproducible qualification.
+---
+
+import CodeExample from "../../../components/docs/CodeExample.astro"
+
+The [Getting started guide](/docs/start/tutorial) builds an order application.
+The API produces work, the worker processes it, and both share job contracts.
+Find the complete example in `apps/website/examples/docs/orders`.
+
+## Source map
+
+| File                                              | Responsibility                                                       |
+| ------------------------------------------------- | -------------------------------------------------------------------- |
+| `packages/orders/src/contracts/jobs.ts`           | Shared payload contracts, logical queue and policy.                  |
+| `packages/database/src/schema.ts`                 | Orders, operation receipts, synthetic invoices and mail records.     |
+| `packages/database/src/Database.ts`               | Drizzle Database and same-client jobs setup.                         |
+| `packages/database/src/Migrations.ts`             | Host-owned DDL; imports perform no migration.                        |
+| `apps/api/src/orders/PlaceOrder.ts`               | New order creation; repeated submissions reject.                     |
+| `apps/api/src/orders/PlaceOrderIdempotent.ts`     | Advanced validated submission replay and read-only receipt lookup.   |
+| `apps/api/src/orders/OrderSubmission.ts`          | Input schema and advanced replay predicate.                          |
+| `apps/api/src/orders/Orders.ts`                   | Order placement with synchronous confirmation email.                 |
+| `apps/api/src/orders/TransactionalEmails.ts`      | Application-owned transactional email service contract.              |
+| `apps/api/src/orders/PlaceOrderWithInvoice.ts`    | Expanded two-slot submission with explicit immutable invoice intent. |
+| `apps/worker/src/orders/jobs/SendConfirmation.ts` | Mail service contract and confirmation handler.                      |
+| `apps/worker/src/orders/jobs/CreateInvoice.ts`    | Repeatable synthetic invoice and atomic delivery handoff.            |
+| `apps/worker/src/orders/jobs/SendInvoice.ts`      | Delivery of the committed invoice document.                          |
+| `apps/worker/src/orders/SyntheticMail.ts`         | Local database recording adapter; no email is sent.                  |
+| `apps/api/src/main.ts`                            | Producer CLI composition.                                            |
+| `apps/worker/src/main.ts`                         | Worker composition, bounded drains and scoped polling.               |
+
+These are application example paths, not new library exports or a mandatory
+microservice layout. The API imports shared contracts, not worker/provider code.
+Use the name `Database` for the shared application database service.
+
+## Complete shared contract
+
+<CodeExample
+  sourcePath="orders/packages/orders/src/contracts/jobs.ts"
+  role="Shared contract"
+/>
+
+`(operation, operationId, slot)` locates retained job evidence. Matching catalog
+and semantic payload return the original ID; changes conflict. Policy and initial
+availability remain first-write-wins. Removing all evidence ends that deduplication
+window. Whole-operation safety additionally needs the unique order and receipt.
+
+## Producer and application schema
+
+<CodeExample sourcePath="orders/apps/api/src/orders/PlaceOrder.ts" role="Producer" />
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/Orders.ts"
+  role="Producer without effect-jobs"
+/>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/TransactionalEmails.ts"
+  role="Application service"
+/>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/OrderSubmission.ts"
+  role="Producer contract"
+/>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/PlaceOrderIdempotent.ts"
+  role="Advanced idempotent producer"
+/>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/PlaceOrderWithInvoice.ts"
+  role="Producer"
+/>
+
+<CodeExample sourcePath="orders/packages/database/src/schema.ts" role="Composition" />
+
+Receipt and invoice foreign keys retain their referenced jobs. Generic cleanup
+does not understand application retention; coordinate removal atomically through
+an application-owned cleanup policy. This example supplies no automatic cleanup.
+
+## Consumer implementation
+
+<CodeExample
+  sourcePath="orders/apps/worker/src/orders/jobs/SendConfirmation.ts"
+  role="Consumer"
+/>
+
+<CodeExample
+  sourcePath="orders/apps/worker/src/orders/jobs/CreateInvoice.ts"
+  role="Consumer + producer"
+/>
+
+<CodeExample
+  sourcePath="orders/apps/worker/src/orders/jobs/SendInvoice.ts"
+  role="Consumer"
+/>
+
+<CodeExample
+  sourcePath="orders/apps/worker/src/orders/SyntheticMail.ts"
+  role="Composition"
+/>
+
+The local adapter records an immutable synthetic message under the stable job ID.
+Invoice content explicitly says **SYNTHETIC PDF STAND-IN**; no real PDF, email,
+payment, fiscal issuance or cloud integration is qualified. Production provider
+adapters need independent idempotency, reconciliation and privacy controls.
+
+## Compose and run
+
+Copy this complete source tree into an application and preserve its relative
+paths. Install the current local effect-jobs archive as described in
+[installation](/docs/start/installation), plus `effect@4.0.5`, `@effect/sql-pg@4.0.5`,
+`drizzle-orm@1.0.0-rc.5-ab785fc` and `@effect/platform-node@4.0.5` through normal
+peer resolution. The included private `package.json` pins the example dependencies
+and declares ESM; install the local effect-jobs archive into that copied example
+root before running it. No cast, dependency shim or raw application query is needed.
+
+<CodeExample sourcePath="orders/packages/database/src/Database.ts" role="Composition" />
+
+<CodeExample sourcePath="orders/packages/database/src/Migrations.ts" role="Composition" />
+
+Apply the exported migration SQL with your migration tool **before startup**.
+This DDL reuses the library jobs schema; it is not a copied second jobs schema.
+Set `DATABASE_URL` privately. The application owns its pool and finite native
+acquisition/control/release deadlines. Server-side statement and lock deadlines
+bound healthy-server work, not every network failure.
+
+<CodeExample sourcePath="orders/apps/api/src/main.ts" role="Composition" />
+
+<CodeExample sourcePath="orders/apps/worker/src/main.ts" role="Composition" />
+
+The included `package.json` defines the `#orders`, `#database`, `#api/orders`
+and `#worker/orders` import aliases. The `development` condition resolves
+TypeScript sources; compiled Node and Bun programs use `dist` instead.
+From the copied source root, run the introductory confirmation:
+
+```sh
+OPERATION_ID=submission-1 ORDER_ID=order-1 bun --conditions=development apps/api/src/main.ts
+WORKER_MODE=confirmation bun --conditions=development apps/worker/src/main.ts
+```
+
+Then use a **new** submission for the expanded application:
+
+```sh
+WITH_INVOICE=true OPERATION_ID=submission-2 ORDER_ID=order-2 bun --conditions=development apps/api/src/main.ts
+WORKER_MODE=drain bun --conditions=development apps/worker/src/main.ts
+WORKER_MODE=drain bun --conditions=development apps/worker/src/main.ts
+WORKER_MODE=poll bun --conditions=development apps/worker/src/main.ts
+```
+
+Choose finite drains or continuous polling. A later drain may be needed if a new
+handoff was not visible before an empty claim. Inspect durable invoices and mail
+records rather than treating claim counts as proof of completion. For Node, run `npm run build` with the included standalone `tsconfig.json`, then
+invoke `node dist/apps/api/src/main.js` or `node dist/apps/worker/src/main.js`
+with the same environment settings.
+
+## Reproduce qualification
+
+Use Node `24.15.0`, Bun `1.4.2`, npm and Docker from a fresh checkout:
+
+```sh
+bun install --frozen-lockfile
+node apps/website/tests/docs-reference/Snippets.mjs
+node apps/website/tests/order-tutorial/Qualify.mjs
+```
+
+The qualifier builds and packs the current library, installs an isolated consumer
+with normal peers, checks strict/exactOptional source and installed types and
+records the actual transitive producer import graph. Its owned loopback PostgreSQL
+container executes both teaching stages in Node and Bun: same connection and
+transaction, atomic rollback at the last write, whole-operation and job replay,
+semantic/catalog conflicts, distinct slots, repeated invoice handoff, worker
+completion and synthetic post-COMMIT acknowledgement loss with read-only receipt
+reconciliation. It removes only its own container and retains source hashes and
+logs under ignored `.toolchain/order-tutorial`.
+
+Compilation uses `skipLibCheck:true` because upstream declaration issues are
+tracked separately. Effect unstable-API diagnostics remain unresolved; passing
+runtime tests alone does not mean every build check passes. These local tests
+do not cover server/network crashes or a real external email provider.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-alpha.1-effect.4.0.5.local.2 (local only)
+
+- Qualify exact Drizzle snapshots `1.0.0-rc.5-ab785fc` and `1.0.0-rc.5-169397b`
+  with Effect/sql-pg 4.0.5; use `ab785fc` for the Alchemy beta.83 peer graph.
+- Preserve native PgClient transaction ownership and production runtime bytes.
+- Keep the narrowly approved seven upstream declaration diagnostics as separate
+  C FAIL; require independent A+B source and negative controls for both snapshots.
+
 ## 0.1.0-alpha.1
 
 Breaking prerelease API changes since alpha.0:

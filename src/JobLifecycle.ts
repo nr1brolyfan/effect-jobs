@@ -46,8 +46,15 @@ export const JobState = Schema.Literals([
   "RetryScheduled",
   "Completed",
   "Dead",
-  "Isolated"
+  "Isolated",
+  "Cancelled"
 ])
+/**
+ * Decoded value of the JobOwnership Schema.
+ *
+ * @category models
+ */
+export type JobOwnership = typeof JobOwnership.Type
 /**
  * Exact job/token/expiry/version fencing identity; handlers do not receive it.
  *
@@ -59,12 +66,6 @@ export const JobOwnership = Schema.Struct({
   leaseExpiresAt: EpochMillis,
   lifecycleVersion: Counter
 })
-/**
- * Decoded value of the JobOwnership Schema.
- *
- * @category models
- */
-export type JobOwnership = typeof JobOwnership.Type
 
 const SnapshotStruct = Schema.Struct({
   jobId: JobId,
@@ -75,11 +76,13 @@ const SnapshotStruct = Schema.Struct({
   attemptsMade: Counter,
   stalledCount: Counter,
   lifecycleVersion: Counter,
-  leaseToken: Schema.NullOr(LeaseToken),
-  leaseExpiresAt: Schema.NullOr(EpochMillis),
-  completedAt: Schema.NullOr(EpochMillis),
-  lastFailureCode: Schema.NullOr(FailureCode)
+  leaseToken: LeaseToken.pipe(Schema.NullOr),
+  leaseExpiresAt: EpochMillis.pipe(Schema.NullOr),
+  completedAt: EpochMillis.pipe(Schema.NullOr),
+  lastFailureCode: FailureCode.pipe(Schema.NullOr)
 })
+/** Decoded complete lifecycle metadata; does not include or validate the payload. */
+export type JobSnapshot = typeof JobSnapshot.Type
 /** Complete durable metadata. Payload validation belongs to the codec, not this Schema. */
 export const JobSnapshot = SnapshotStruct.pipe(
   Schema.check(
@@ -92,7 +95,7 @@ export const JobSnapshot = SnapshotStruct.pipe(
             row.leaseExpiresAt !== null &&
             row.completedAt === null
           : row.leaseToken === null && row.leaseExpiresAt === null) &&
-        (row.state === "Completed" || row.state === "Dead"
+        (row.state === "Completed" || row.state === "Dead" || row.state === "Cancelled"
           ? row.completedAt !== null
           : row.completedAt === null) &&
         (!(
@@ -105,21 +108,19 @@ export const JobSnapshot = SnapshotStruct.pipe(
     )
   )
 )
-/** Decoded complete lifecycle metadata; does not include or validate the payload. */
-export type JobSnapshot = typeof JobSnapshot.Type
 
+/** Confirmable durable transitions; OutcomeUnknown is deliberately absent. */
+export type JobFinalization = typeof JobFinalization.Type
 /** Retry uses the first stored policy; callers cannot replace its schedule. */
 export const JobFinalization = Schema.Union([
   Schema.TaggedStruct("Complete", {}),
   Schema.TaggedStruct("Retry", {
     code: FailureCode,
-    notAfter: Schema.optional(EpochMillis)
+    notAfter: EpochMillis.pipe(Schema.optional)
   }),
   Schema.TaggedStruct("Dead", { code: FailureCode }),
   Schema.TaggedStruct("Isolate", { code: FailureCode })
 ])
-/** Confirmable durable transitions; OutcomeUnknown is deliberately absent. */
-export type JobFinalization = typeof JobFinalization.Type
 /**
  * Tagged constructors and matchers for durable finalization commands.
  *
@@ -140,6 +141,8 @@ export class JobLifecycleError extends Data.TaggedError("JobLifecycleError")<{
     | "not-eligible"
     | "ownership-lost"
     | "execution-started"
+    | "state-version-conflict"
+    | "already-due"
 }> {}
 const invalid = (reason: JobLifecycleError["reason"]) => new JobLifecycleError({ reason })
 const decodeSnapshot = Schema.decodeUnknownResult(JobSnapshot, {
@@ -433,7 +436,7 @@ export const finalizationFromFailure = (
 
 /**
  * Pure terminal-retention eligibility at expiry <= dbNow. Pending, Active,
- * RetryScheduled and Isolated are excluded. Application/backend must coordinate
+ * RetryScheduled, Isolated and Cancelled are excluded. Application/backend must coordinate
  * domain references and deletion atomically; this result is not deletion authority.
  *
  * @category operations
@@ -463,3 +466,70 @@ export const cleanupEligible = (
   })
 
 const internalCodes = defineFailureCodes({ stall_limit_exceeded: "stall_limit_exceeded" })
+
+/** Exact optimistic operator guard; no worker ownership is fabricated. */
+const operatorExpected = Schema.Struct({
+  jobId: JobId,
+  state: JobState,
+  lifecycleVersion: Counter
+})
+const operatorPlan = (
+  input: unknown,
+  expected: {
+    readonly jobId: JobId
+    readonly state: typeof JobState.Type
+    readonly lifecycleVersion: number
+  },
+  dbNow: number,
+  action: "retryNow" | "cancel"
+): Result.Result<JobSnapshot, JobLifecycleError> =>
+  Result.gen(function* () {
+    const row = yield* validateSnapshot(input)
+    const guard = yield* Result.mapError(
+      Schema.decodeResult(operatorExpected, { onExcessProperty: "error" })(expected),
+      () => invalid("invalid-command")
+    )
+    yield* validateTime(dbNow)
+    if (
+      row.jobId !== guard.jobId ||
+      row.state !== guard.state ||
+      row.lifecycleVersion !== guard.lifecycleVersion
+    ) {
+      return yield* Result.fail(invalid("state-version-conflict"))
+    }
+    if (
+      action === "retryNow"
+        ? row.state !== "RetryScheduled"
+        : row.state !== "Pending" && row.state !== "RetryScheduled"
+    ) {
+      return yield* Result.fail(invalid("not-eligible"))
+    }
+    if (action === "retryNow" && row.availableAt <= dbNow) {
+      return yield* Result.fail(invalid("already-due"))
+    }
+    const lifecycleVersion = yield* increment(row.lifecycleVersion)
+    return {
+      ...row,
+      lifecycleVersion,
+      updatedAt: dbNow,
+      ...(action === "retryNow"
+        ? { availableAt: dbNow }
+        : { state: "Cancelled" as const, completedAt: dbNow })
+    }
+  })
+/** Strictly accelerates a future stored retry without changing any budget or policy.
+ * @category operations
+ */
+export const retryNow = (
+  input: unknown,
+  expected: Parameters<typeof operatorPlan>[1],
+  dbNow: number
+) => operatorPlan(input, expected, dbNow, "retryNow")
+/** Cancels only unowned executable rows. Cancelled retention is Forever.
+ * @category operations
+ */
+export const cancel = (
+  input: unknown,
+  expected: Parameters<typeof operatorPlan>[1],
+  dbNow: number
+) => operatorPlan(input, expected, dbNow, "cancel")

@@ -1,0 +1,256 @@
+---
+title: Enqueueing & transactions
+description: Save an order and schedule its work in one PostgreSQL transaction, using Drizzle and Effect.
+---
+
+import CodeExample from "../../../components/docs/CodeExample.astro"
+import TransactionFlow from "../../../components/docs/TransactionFlow.astro"
+
+<p className="ej-lead">Save the order. Schedule the work. Commit both together.</p>
+
+A customer places an order. If the order is saved but the process stops before
+enqueueing, its confirmation is lost. Put the application write and job enqueue in
+**one PostgreSQL transaction**, so they share the same durable outcome.
+
+<TransactionFlow />
+
+## Write the request and enqueue
+
+Use Drizzle for application queries and **`PgClient.withTransaction`** for the
+transaction boundary. `PlaceOrder.enqueue` joins the active transaction of
+that exact client. No second connection, savepoint or inner commit is created by the join.
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/PlaceOrder.ts"
+  region="request"
+  role="Producer"
+/>
+
+<div className="ej-result">
+  <span>RESULT</span>
+  <div>
+
+After acknowledged COMMIT, the new order, job and payload are durable.
+Return the committed job ID to the caller; an installed worker can claim it when due.
+
+  </div>
+</div>
+
+`placeOrder` validates external input and creates a new order. Its unique
+`operationId` rejects duplicates and rolls back the whole transaction, even when
+the submitted fields match. The unique order ID also prevents a different
+operation from claiming the same order. No additional job or order is created.
+This path does not implement idempotent submission replay.
+
+For that separate application contract, `placeOrderIdempotent` checks every
+retained business field and invoice choice, then reuses the first job and receipt.
+A changed SKU or quantity raises `OrderConflict`, even when the queued payload
+matches. A changed job catalog or semantic payload under the same producer tuple
+raises `JobIntegrityConflict`. Let these errors fail the transaction.
+
+<details className="ej-setup">
+<summary>Advanced idempotent submission and retained receipt</summary>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/PlaceOrderIdempotent.ts"
+  region="request"
+  role="Advanced idempotent producer"
+/>
+
+</details>
+
+## Try replay and conflict cases
+
+Each example owns its transaction through the application use case or `pg`.
+Failures are observed **after** that owner rolls back, never recovered inside it.
+These are complete source functions; their imports come from the labelled file.
+
+<details className="ej-setup">
+<summary>Imports for the checked scenarios</summary>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/SubmissionScenarios.ts"
+  region="imports"
+  role="Checked scenario"
+/>
+
+</details>
+
+<details className="ej-setup">
+<summary>Two slots create two independent consequences</summary>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/SubmissionScenarios.ts"
+  region="two-consequences"
+  role="Checked scenario"
+/>
+
+</details>
+
+<details className="ej-setup">
+<summary>Matching replay returns AlreadyPresent and the first ID</summary>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/SubmissionScenarios.ts"
+  region="matching-replay"
+  role="Checked scenario"
+/>
+
+</details>
+
+<details className="ej-setup">
+<summary>Changed business fields raise OrderConflict</summary>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/SubmissionScenarios.ts"
+  region="business-conflict"
+  role="Checked scenario"
+/>
+
+</details>
+
+<details className="ej-setup">
+<summary>Same tuple with changed payload raises JobIntegrityConflict</summary>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/SubmissionScenarios.ts"
+  region="payload-conflict"
+  role="Checked scenario"
+/>
+
+</details>
+
+<details className="ej-setup">
+<summary>Low-level identity with a different job raises JobIntegrityConflict</summary>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/SubmissionScenarios.ts"
+  region="catalog-conflict"
+  role="Checked scenario"
+/>
+
+</details>
+
+## Set up once, then serve requests
+
+The application owns **one scoped PgClient**, its pool, finite acquisition/control/release
+timeouts and migrations. Build `ApplicationLayer` once with that client; keep the same
+PgClient service available to request handlers. Drizzle and the jobs adapter then
+observe the same client's transaction service in the same Effect Context.
+
+<details className="ej-setup">
+<summary>Show the checked composition and application schema</summary>
+
+<CodeExample
+  sourcePath="orders/packages/database/src/Database.ts"
+  region="setup"
+  role="Composition"
+/>
+
+<CodeExample
+  sourcePath="orders/packages/database/src/schema.ts"
+  region="schema"
+  role="Composition"
+/>
+
+Apply `migrationSql` from `packages/database/src/Migrations.ts` through your host
+migration tool before application startup. Migration DDL is separate from Drizzle
+application queries; imports and readiness checks never migrate storage. Keep
+receipt-to-job references protected by your application cleanup policy.
+
+This path is scoped to Effect 4.0.5, `@effect/sql-pg` 4.0.5 and the two
+[qualified Drizzle snapshots](/docs/persistence/drizzle). `db.transaction` is excluded
+from this supported route. No per-request pool or backend construction is needed.
+
+</details>
+
+## Acknowledge only what you know
+
+An enqueue result **inside** the callback is provisional. A later write can still
+fail. Return success only after the outer transaction acknowledges COMMIT.
+Keep typed errors, defects and interruption visible to the transaction owner;
+never catch an integrity conflict to commit the other writes.
+
+<div className="ej-outcome-list">
+  <div>
+    <strong>Commit acknowledged</strong>
+    <div>
+
+Return the committed result. The worker owns claiming and finalization.
+
+    </div>
+
+  </div>
+  <div>
+    <strong>Proven NotCommitted</strong>
+    <div>
+
+Retry only if the complete business operation is replay-safe.
+
+    </div>
+
+  </div>
+  <div>
+    <strong>Commit outcome Unknown</strong>
+    <div>
+
+A lost response, timeout or interruption does not prove rollback. Read the exact
+durable receipt on the primary database; keep the outcome unresolved if it cannot be
+established.
+
+    </div>
+
+  </div>
+</div>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/orders/PlaceOrderIdempotent.ts"
+  region="reconcile"
+  role="Producer"
+/>
+
+The advanced use case's receipt records the exact operation-to-job mapping. The immutable order row
+and unique business identity make matching acknowledged submission replay safe;
+this is still not a complete HTTP response replay protocol. **Receipt absence never authorizes replay of an uncertain
+mutation.** The application owns reconciliation. The queue does not rerun your
+business callback to discover whether it committed.
+
+## Commit a dependent handoff
+
+The [order tutorial](/docs/start/tutorial) adds invoice creation beside confirmation.
+Those order slots are independent. Invoice delivery is different: it needs a
+persisted invoice, so the invoice handler explicitly produces the delivery job.
+
+<CodeExample
+  sourcePath="orders/apps/worker/src/orders/jobs/CreateInvoice.ts"
+  region="handoff"
+  role="Consumer + producer"
+/>
+
+One synthetic invoice per order makes the order ID a stable `invoice.create`
+operation identity. The unique invoice/order reference and delivery tuple survive
+retries. Invoice persistence and delivery enqueue share one transaction; a failed
+invoice write rolls back the new job. No external provider call belongs inside
+this transaction. A real invoice service needs its own idempotency/reconciliation
+contract. This is application orchestration, not a built-in DAG or slot ordering.
+
+## When the job is the whole transaction
+
+Use `SendOrderConfirmation.enqueueStandalone(input)` for independent production with no
+application write that must commit beside it. It owns a bounded transaction and
+resolves after acknowledged commit. It rejects an active transaction of its
+configured client.
+
+Keep every transactional Effect awaited inside the owner callback. Do not call
+`Effect.runPromise` inside it, fork unawaited work, retain transaction Context past
+its lifetime, or independently commit a consequence of a parent transaction.
+Workers can run handlers again after uncertain outcomes: make external effects
+idempotent or reconcile them. This is not an exactly-once execution promise.
+
+<div className="ej-next">
+  <span>CONTINUE BUILDING</span>
+  <a href="/docs/execution/workers">
+    Workers & handlers <span aria-hidden="true">→</span>
+  </a>
+  <p>Install the handler and give processing an explicit lifetime.</p>
+</div>

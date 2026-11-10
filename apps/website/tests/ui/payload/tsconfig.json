@@ -1,0 +1,19 @@
+{
+  "extends": "../../../../../tsconfig.playground.json",
+  "compilerOptions": {
+    "paths": {
+      "@effect-jobs/playground-contracts/Jobs": ["./Jobs.compile.ts"],
+      "@effect-jobs/playground-contracts/*": [
+        "../../../../../packages/playground-contracts/src/*.ts"
+      ],
+      "effect-jobs/*": ["../../../../../src/*.ts"]
+    }
+  },
+  "include": [
+    "../../../src/features/jobs/payload/*.ts",
+    "../../../src/features/jobs/payload/*.tsx",
+    "./*.ts",
+    "./*.tsx",
+    "../../../../../packages/playground-contracts/tests/SyntheticCryptoFixture.test.ts"
+  ]
+}

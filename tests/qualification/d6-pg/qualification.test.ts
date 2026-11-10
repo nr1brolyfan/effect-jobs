@@ -17,13 +17,16 @@ import * as Bridge from "./PgBridge.js"
 const resourceDirectory = process.env.D6_RESOURCE_DIRECTORY
 const enabled = resourceDirectory !== undefined
 const definition = Job.make({
-  kind: "invoice.generate",
+  name: "invoice.generate",
   version: 1,
   queue: Queue.make("billing"),
   payload: Schema.Struct({ invoiceId: Schema.String }),
   encodePayload: encodeJobPayload
 })
-const producer = Producer.make({ operation: "billing.issue", slots: ["generate"] })
+const producer = Producer.make({
+  operation: "billing.issue",
+  slots: { generate: definition }
+})
 class CallerValue extends Context.Service<CallerValue, { readonly value: number }>()(
   "d6/CallerValue"
 ) {}
@@ -139,7 +142,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
                 runtimeVersion: process.versions.bun ?? process.version,
                 serverVersion,
                 driver: "pg@8.23.0",
-                effect: "4.0.0",
+                effect: "4.0.5",
                 borrows: source.counters.borrows,
                 sqlStatements: source.counters.sql.length,
                 begins: source.counters.sql.filter((s) => s === "BEGIN").length,
@@ -213,7 +216,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
           "utf8"
         )
       ).version
-    ).toBe("4.0.0")
+    ).toBe("4.0.5")
     expect(serverVersion).toMatch(/^16\.15/)
   })
 

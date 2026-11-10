@@ -66,6 +66,13 @@ READ COMMITTED is required for producer conflict comparison: the statement after
 cleanup may remove old evidence; that is conservatively an integrity conflict,
 not permission to recreate a missing row within the same business operation.
 
+## Public names and physical storage
+
+Public catalog/definition/handler metadata uses `name`, mapped explicitly to
+physical `jobs.kind`. Drizzle uses `name: text("kind").notNull()` including extra
+index access as `jobs.name`. DDL, required indexes/constraints, readiness and
+existing rows/payloads are unchanged; no migration or rewrite is needed.
+
 ## Storage and producer semantics
 
 Names are bounded, validated lowercase PostgreSQL identifiers. Defaults are

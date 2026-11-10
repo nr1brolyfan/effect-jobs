@@ -1,4 +1,91 @@
-# Alpha.1 release candidate qualification
+# Local Effect 4.0.5 candidate
+
+`0.1.0-alpha.1-effect.4.0.5.local.2` identifies local migration bytes based on
+published alpha.1/main `eb25dfa6272f0e2c807af6b3dbb57392e4c4a103`.
+It is not a published release or a publication plan. Effect peers and supported
+qualification consumers use exact `4.0.5`; the native companion is
+`@effect/sql-pg@4.0.5`. Node 24.15.0, Bun 1.4.2 and compiler pins stay unchanged. The exact
+Drizzle peer set is `1.0.0-rc.5-ab785fc || 1.0.0-rc.5-169397b`; development
+uses `ab785fc`, with an independently installed `169397b` matrix variant. Application pool/migration ownership and D1–D8 remain unchanged.
+
+Use the supplied immutable local tarball with ordinary npm installation and no
+peer bypass or overrides. README's shell fence refers to that local file.
+Run the gates below against that archive. For this candidate run
+`node scripts/check-release.mjs --metadata-only` instead of `release:check`:
+this validates inventory, metadata, imports and exact packed bytes, then records
+publication checks as NotTested without invoking npm publish, even in dry-run.
+The local version guard rejects the publication path without that flag.
+
+The issue handoff binds command exits, source tree, patch and tarball hashes to
+new evidence. Historical counts and receipts below are not results for these
+bytes. A+B source contracts require strict/exactOptional with owner-approved
+dependency `skipLibCheck:true`. C remains separately reported known upstream
+FAIL and is nonblocking; unchanged foreign audit inputs reuse their original
+hashed log/config/command. Consumer success is not C PASS.
+The qualified native route uses public `PgClient.withTransaction(body)`, preserving
+Drizzle schema/query building and inferred E/R without correcting `db.transaction`.
+Ordinary outer ownership and jobs joining that exact client/Context are covered;
+nested/options/isolation equivalence is not promised. Cloudflare,
+external services, real network/server crashes and production remain NotTested.
+
+## Local.2 dual-snapshot evidence
+
+Local.1 remains immutable, SHA256
+`40ba80678ac19ef73fbd61fd288206ebc72c8a3cdfd1b41e4af4ad83ef424f88`.
+Local.2 changes qualification metadata, tooling and documentation; production
+runtime and its native transaction owner are unchanged. Qualification checks
+actual resolved versions rather than treating the peer OR string as a pin.
+For each exact snapshot run build/types, native packed A+B including six actual
+negative diagnostics, real-PG Node/Bun explicit and ambient transaction probes,
+and schema/index generation. Root verify additionally covers core tests and
+release/JSDoc guards. Optional PG skips in root verify remain NotTested there;
+the native packed matrix supplies its own real-PG receipts.
+
+The normal combined Alchemy 2.0.0-beta.83 graph uses exact `ab785fc`, one Effect
+4.0.5 and intended sql-pg 4.0.5 / pg 8.23.0 peers. It is an install-graph result,
+not a cloud/runtime/deployment guarantee. The final handoff binds the source
+base/head/tree, full binary patch, archive and main/variant consumer lockfiles.
+
+Owner approval in UPVE-2497 thread `01a15e56-25ce-7800-aa6e-e3e246ca237f`
+extends C's nonblocking exception only to the seven demonstrated byte-identical
+upstream diagnostics for exact `ab785fc`: 3 TS2307 and 4 TS2420. C stays FAIL,
+never full strict PASS. Own A+B strict/exactOptional and negative controls remain
+required independently for both variants. Real network/server crashes, other
+snapshots, nested/options/isolation equivalence and downstream apps are NotTested.
+
+## Local playground: exact Redux declaration exception
+
+Owner approval in UPVE-2531 thread `01a16073-b6e7-7ea9-9f1e-2f0b9498e2e9`
+accepts only the six diagnosed foreign declaration errors on the frozen
+`Recharts@3.10.1 -> @reduxjs/toolkit@2.13.0` graph with TypeScript `7.0.2`.
+Recharts owns this internal Redux state; application state remains Effect Atom.
+All locations below are in `@reduxjs/toolkit/dist/index.d.ts`:
+
+| Code   | Location                          | Incompatibility                                                              |
+| ------ | --------------------------------- | ---------------------------------------------------------------------------- |
+| TS2344 | 994:146, 994:249, 994:346, 997:74 | Merged thunk `dispatch` does not satisfy the `ThunkDispatch` constraint.     |
+| TS2344 | 1690:99                           | Merged thunk `state` does not satisfy `PreventCircular`'s `never`.           |
+| TS2420 | 2064:15                           | `TaskAbortError.code: string \| undefined` does not satisfy `code?: string`. |
+
+The audited declaration SHA256 is
+`4ebd4061b84c620b21e519842bab9f1a42b3c48e17ba7742ee172492e81a518d`.
+The original Packed UI log and a normal installed one-line `import "recharts"`
+reproduction have identical diagnostics. The retained compiler configuration uses
+NodeNext, `strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`,
+`verbatimModuleSyntax`, `noEmit` and `skipLibCheck:false`. Full foreign strict
+remains **FAIL with the accepted exact-six exception**, never full strict PASS.
+
+Acceptance requires the exact diagnostic multiset and frozen dependency/compiler
+provenance. Extra, substituted, duplicated or own-code diagnostics are not covered;
+a changed graph, declaration hash, flags or diagnostic set requires new
+qualification and cannot inherit this exception automatically. Own-code strict,
+negative compiler oracles and required runtime gates remain independently required.
+No dependency patch/upgrade, suppression or compiler-option change is introduced.
+The separate exact-seven Drizzle C exception above is unchanged. Immutable raw FAIL
+logs, individual negative expectations, manifests and gate receipts remain in the
+issue handoff; recording acceptance does not rewrite historical evidence.
+
+## Historical alpha.1 release candidate qualification
 
 The `0.1.0-alpha.1` candidate starts at remote main
 `031cbcdea33e40edaad78605c683d498c86824fe`, tree

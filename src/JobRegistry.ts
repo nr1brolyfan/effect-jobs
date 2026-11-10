@@ -1,5 +1,5 @@
 /**
- * Installs handlers by queue/kind/version in an application-composed registry.
+ * Installs handlers by queue/name/version in an application-composed registry.
  */
 import { Context, Data, Effect, Layer } from "effect"
 import type {
@@ -25,7 +25,7 @@ export interface JobHandler {
 }
 
 /**
- * Typed installation failure for an already registered queue/kind/version.
+ * Typed installation failure for an already registered queue/name/version.
  *
  * @category errors
  */
@@ -33,12 +33,12 @@ export class DuplicateJobHandler extends Data.TaggedError(
   "DuplicateJobHandler"
 )<CatalogIdentity> {
   override get message(): string {
-    return `Handler already installed for ${this.queue}/${this.kind}@${this.version}; install one handler per catalog entry`
+    return `Handler already installed for ${this.queue}/${this.name}@${this.version}; install one handler per catalog entry`
   }
 }
 
 /**
- * Typed catalog validation failure for a repeated queue/kind/version.
+ * Typed catalog validation failure for a repeated queue/name/version.
  *
  * @category errors
  */
@@ -46,7 +46,7 @@ export class DuplicateJobCatalogEntry extends Data.TaggedError(
   "DuplicateJobCatalogEntry"
 )<CatalogIdentity> {
   override get message(): string {
-    return `Duplicate catalog entry ${this.queue}/${this.kind}@${this.version}; use a unique queue/kind/version`
+    return `Duplicate catalog entry ${this.queue}/${this.name}@${this.version}; use a unique queue/name/version`
   }
 }
 
@@ -56,7 +56,7 @@ export class DuplicateJobCatalogEntry extends Data.TaggedError(
  * @category models
  */
 export interface JobRegistryService {
-  /** Rejects a second handler for the same queue/kind/version. */
+  /** Rejects a second handler for the same queue/name/version. */
   readonly install: (handler: JobHandler) => Effect.Effect<void, DuplicateJobHandler>
   /** Exact catalog lookup; undefined means no handler is installed. */
   readonly find: (catalog: CatalogIdentity) => JobHandler | undefined
@@ -72,7 +72,7 @@ export class JobRegistry extends Context.Service<JobRegistry, JobRegistryService
 ) {}
 
 const key = (catalog: CatalogIdentity) =>
-  `${catalog.queue}\u0000${catalog.kind}\u0000${catalog.version}`
+  `${catalog.queue}\u0000${catalog.name}\u0000${catalog.version}`
 
 /**
  * Builds a fresh registry per Layer acquisition. Reuse the same Layer reference for
@@ -91,7 +91,7 @@ export const layer = Layer.sync(JobRegistry, () => {
         }
         const catalog = Object.freeze({
           queue: handler.catalog.queue,
-          kind: handler.catalog.kind,
+          name: handler.catalog.name,
           version: handler.catalog.version
         })
         handlers.set(catalogKey, Object.freeze({ catalog, execute: handler.execute }))
@@ -111,7 +111,7 @@ export interface CatalogEntry {
 }
 
 /**
- * Validates unique queue/kind/version tuples and freezes a copy, retaining entry types.
+ * Validates unique queue/name/version tuples and freezes a copy, retaining entry types.
  * Fails with DuplicateJobCatalogEntry; creates no global catalog or workers.
  *
  * @category operations

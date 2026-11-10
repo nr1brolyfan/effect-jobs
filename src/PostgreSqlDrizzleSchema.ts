@@ -7,6 +7,7 @@ import {
   bigint,
   check,
   customType,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -34,7 +35,7 @@ const makeJobsColumns = () => ({
   operationId: text("operation_id").notNull(),
   slot: text("slot").notNull(),
   queue: text("queue").notNull(),
-  kind: text("kind").notNull(),
+  name: text("kind").notNull(),
   version: integer("version").notNull(),
   policy: jsonb("policy").$type<JobPolicy>().notNull(),
   initialAvailableAt: bigint("initial_available_at", { mode: "number" }),
@@ -48,7 +49,10 @@ const makeJobsColumns = () => ({
   leaseExpiresAt: bigint("lease_expires_at", { mode: "number" }),
   completedAt: bigint("completed_at", { mode: "number" }),
   lastFailureCode: text("last_failure_code"),
-  cleanupAt: bigint("cleanup_at", { mode: "number" })
+  cleanupAt: bigint("cleanup_at", { mode: "number" }),
+  originalSourceJobId: text("original_source_job_id"),
+  sourceJobId: text("source_job_id"),
+  redriveKind: text("redrive_kind")
 })
 /** Actual typed required jobs columns supplied to the extraIndexes callback.
  * @category models
@@ -78,11 +82,27 @@ export const makeJobTables = (options: Options = {}) => {
     mapping.schema === "public" ? pgTable : pgSchema(mapping.schema).table
   const prefix = indexPrefix(mapping)
   const jobs = table(mapping.jobsTable, makeJobsColumns(), (j) => [
+    check(
+      `${prefix}_lineage`,
+      sql`(${j.originalSourceJobId} IS NULL AND ${j.sourceJobId} IS NULL AND ${j.redriveKind} IS NULL)
+      OR (${j.originalSourceJobId} IS NOT NULL AND ${j.redriveKind} IS NOT NULL)`
+    ),
+    check(`${prefix}_edge_kind`, sql`${j.redriveKind} IN ('Redrive','CorrectedRedrive')`),
+    check(`${prefix}_edge_id`, sql`${j.originalSourceJobId} <> ${j.id}`),
+    check(`${prefix}_edge_live`, sql`${j.sourceJobId} = ${j.originalSourceJobId}`),
+    foreignKey({
+      name: `${prefix}_source_fk`,
+      columns: [j.sourceJobId],
+      foreignColumns: [j.id]
+    }).onDelete("set null"),
+    index(`${prefix}_source`)
+      .on(j.sourceJobId)
+      .where(sql`${j.sourceJobId} IS NOT NULL`),
     unique().on(j.operation, j.operationId, j.slot),
     unique().on(j.leaseToken),
     check(
       `${prefix}_state`,
-      sql`${j.state} IN ('Pending','Active','RetryScheduled','Completed','Dead','Isolated')`
+      sql`${j.state} IN ('Pending','Active','RetryScheduled','Completed','Dead','Isolated','Cancelled')`
     ),
     check(`${prefix}_attempts`, sql`${j.attemptsMade} >= 0`),
     check(`${prefix}_stalls`, sql`${j.stalledCount} >= 0`),
@@ -97,10 +117,10 @@ export const makeJobTables = (options: Options = {}) => {
     ),
     check(
       `${prefix}_completed`,
-      sql`(${j.state} IN ('Completed','Dead')) = (${j.completedAt} IS NOT NULL)`
+      sql`(${j.state} IN ('Completed','Dead','Cancelled')) = (${j.completedAt} IS NOT NULL)`
     ),
     index(`${prefix}_due`)
-      .on(j.queue, j.kind, j.version, j.availableAt, j.id)
+      .on(j.queue, j.name, j.version, j.availableAt, j.id)
       .where(sql`${j.state} IN ('Pending','RetryScheduled')`),
     index(`${prefix}_expired`)
       .on(j.leaseExpiresAt, j.id)

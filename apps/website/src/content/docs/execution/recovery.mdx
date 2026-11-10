@@ -1,0 +1,78 @@
+---
+title: Recover work after interruption
+description: Understand database-time leases, fenced finalization and bounded recovery of unknown outcomes.
+---
+
+A worker uploads a report and disappears before recording completion. The job may
+still be `Active` even though the provider has the report. Recovery restores queue
+progress; the application's effect protocol must make a repeated invocation safe.
+
+## A lease is durable ownership
+
+Claiming a due `Pending` or `RetryScheduled` job creates a fixed, non-renewable
+lease. Owned writes compare the exact job, lease token, lease expiry and lifecycle
+version; finalization also checks its expected pre-write snapshot. Database time
+decides whether ownership remains valid.
+
+| Boundary                 | Rule                                                                    |
+| ------------------------ | ----------------------------------------------------------------------- |
+| Due job                  | `availableAt <= dbNow`                                                  |
+| Owned lease              | `leaseExpiresAt > dbNow`                                                |
+| Expired lease            | `leaseExpiresAt <= dbNow`                                               |
+| Usable execution reserve | Remaining lease is at least attempt timeout + operation response budget |
+
+At the expiry millisecond, the old owner no longer owns the job. Fencing prevents
+that stale owner from committing a lifecycle transition. It does **not** revoke
+an upload already sent to an external service or stop arbitrary external work.
+Handlers receive application context, not the lease token or finalizer.
+
+## Recover in bounded steps
+
+A finite drain performs bounded expiry recovery before claiming. Recovery clears
+ownership and increments `stalledCount`, leaving `attemptsMade` unchanged. It
+returns the job to `Pending` while the stored stall budget permits; exceeding that
+budget makes it `Dead`. Recovery is not confirmation that a previous effect failed.
+
+```text
+Pending / RetryScheduled --due claim--> Active
+Active --confirmed success-----------> Completed
+Active --confirmed safe retry--------> RetryScheduled or Dead
+Active --unknown outcome-------------> remains Active
+Active --lease expires + recovery----> Pending or Dead
+```
+
+This diagram focuses on execution and recovery. Explicit known failure can also
+finalize to `Dead` or `Isolated`; see the [full lifecycle](/docs/concepts/lifecycle).
+`OutcomeUnknown` is an attempt outcome, **not** another durable state.
+
+## Reconcile the original operation
+
+| Uncertainty                                        | Existing worker protocol                                                                             |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Claim response lost or its usable reserve consumed | Reconcile the original claim token; do not issue a replacement claim as proof                        |
+| Claim found but insufficient lease remains         | Attempt bounded release before execution; return unresolved/backoff rather than claim empty          |
+| Finalization not acknowledged                      | Reconcile the exact original finalization request                                                    |
+| Reconciliation proves `StillOwned`                 | Permit one fenced repeat of that same finalization; never rerun the handler as part of this protocol |
+| Finalization remains unresolved                    | Leave durable ownership/outcome unresolved for bounded expiry recovery                               |
+
+Release is allowed only before execution, under valid ownership. Once execution
+starts, interruption must not release the job as if no effect could have happened.
+A shutdown or timeout can therefore leave an `Active` row until its lease expires.
+
+The application separately owns **business transaction** commit knowledge. An
+uncertain enqueue commit is not a worker retry instruction: inspect the original
+application receipt using the application's reconciliation contract. Absence of a
+receipt does not authorize blindly replaying the mutation. See
+[transactions](/docs/persistence/transactions).
+
+## Investigate before manual recovery
+
+Inspect durable state/version, stored policy and authoritative application/provider
+evidence through an authorized private tool. Do not reset counters or edit lease
+columns to force execution. Where the application exposes supported operator
+commands, a redrive creates a new job with lineage and requires explicit duplicate
+effects confirmation; it does not prove the original had no effect. Active jobs
+cannot be cancelled through that operator contract.
+
+Use [troubleshooting](/docs/operations/troubleshooting) to distinguish waiting,
+store backoff, unknown outcomes and invalid artifacts before choosing an action.

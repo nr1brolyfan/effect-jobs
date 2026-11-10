@@ -26,8 +26,8 @@ writeFileSync(
       type: "module",
       dependencies: {
         "effect-jobs": `file:${archive}`,
-        effect: "4.0.0",
-        "drizzle-orm": "1.0.0-rc.5-169397b",
+        effect: "4.0.5",
+        "drizzle-orm": process.env.DRIZZLE_ORM_VERSION ?? "1.0.0-rc.5-ab785fc",
         typescript: "7.0.2",
         "@types/node": "26.4.1"
       }
@@ -43,10 +43,22 @@ writeFileSync(
   join(work, "EncryptedFixture.mts"),
   publicImports(readFileSync(join(root, "tests/core/codec/EncryptedFixture.ts"), "utf8"))
 )
+writeFileSync(
+  join(work, "ProducerBindings.mts"),
+  publicImports(readFileSync(join(root, "tests/types/producer-bindings.ts"), "utf8"))
+)
 const types = publicImports(
   readFileSync(join(root, "tests/types/api-refinements.ts"), "utf8")
 ).replace('"../core/codec/EncryptedFixture.js"', '"./EncryptedFixture.mjs"')
 writeFileSync(join(work, "Types.mts"), types)
+writeFileSync(
+  join(work, "Operators.mts"),
+  publicImports(readFileSync(join(root, "tests/types/operators.ts"), "utf8"))
+)
+writeFileSync(
+  join(work, "Repairs.mts"),
+  publicImports(readFileSync(join(root, "tests/types/repair-operators.ts"), "utf8"))
+)
 // Keep full strict upstream declaration checking for the non-Drizzle new API.
 const nonDrizzle = types
   .slice(0, types.indexOf("makeJobTables({"))
@@ -65,15 +77,18 @@ import * as Codes from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import { EnqueueResults, type PreparedJob } from "effect-jobs/JobContract"
+import { JobOperators, JobOperatorExpected } from "effect-jobs/JobOperators"
 import { JobId } from "effect-jobs/JobId"
 import * as Registry from "effect-jobs/JobRegistry"
 import { encodeJobPayload, decodeJobPayload } from "effect-jobs/JobPayloadCodec"
 import { DocumentKeys, EncryptedDocument, keys, keysLayer } from "./EncryptedFixture.mjs"
+assert.equal(typeof JobOperators.of, "function")
+assert(Schema.is(JobOperatorExpected)({ jobId: "fixture", state: "Pending", lifecycleVersion: 0 }))
 const code = Codes.define({ boundary: "a".repeat(128) }).boundary
 assert.equal(JobFailures.Retry({ code }).code.length, 128)
 assert(Result.isFailure(Codes.parse("a".repeat(129))))
 assert(Object.isFrozen(Policy.defaultPolicy.retrySchedule))
-const definition = Job.make({ queue: Queue.make("billing"), kind: "receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: EncryptedDocument }) })
+const definition = Job.make({ queue: Queue.make("billing"), name: "receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: EncryptedDocument }) })
 assert.equal(definition.version, 1)
 const input = { producer: { operation: "billing.issue", operationId: "id", slot: "receipt" }, policy: Policy.defaultPolicy,
   payload: { invoiceId: "public", document: { recipient: "PRIVATE fixture", total: 12n } } }
@@ -123,7 +138,14 @@ writeFileSync(
   JSON.stringify(
     {
       compilerOptions: { ...compilerOptions, skipLibCheck: false, noEmit: true },
-      include: ["Strict.mts", "EncryptedFixture.mts", "Runtime.mts"]
+      include: [
+        "Strict.mts",
+        "ProducerBindings.mts",
+        "EncryptedFixture.mts",
+        "Runtime.mts",
+        "Operators.mts",
+        "Repairs.mts"
+      ]
     },
     null,
     2

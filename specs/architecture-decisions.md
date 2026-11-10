@@ -98,7 +98,7 @@ the original job-ID example: the library assigns the job ID rather than requirin
 the caller to preserve it across production retries.
 
 Handlers receive `{ payload, context }`. The proposed minimal context exposes
-job ID, catalog identity (queue/kind/version), producer identity, and current
+job ID, catalog identity (queue/name/version), producer identity, and current
 attempt number. Exact field names and attempt counting semantics must be
 specified before implementation. It does not expose a database client, lease
 token, or ack/retry/complete capabilities; the worker owns lifecycle transitions.
@@ -129,23 +129,23 @@ Status: accepted by the owner on 2026-10-04. Tracked in Multica as UPVE-852.
 ### Producer identity and declaration
 
 Deduplicate by the required tuple `(operation, operationId, slot)` within one
-configured jobs storage, not separately per job kind or version. `operation`
+configured jobs storage, not separately per job name or version. `operation`
 names the business operation, `operationId` identifies its particular instance,
 and `slot` identifies one consequence. Multiple slots may produce the same job
-kind. Applications should namespace operation names.
+name. Applications should namespace operation names.
 
-Declare a producer once in an application-owned domain module and import it from
-all callers. The accepted API direction is:
+Declare a producer near its application-owned use case. Share the declaration
+only among callers that execute that same operation. The accepted API direction is:
 
 ```ts
 export const IssueInvoiceProducer = JobProducer.make({
   operation: "billing.issue-invoice",
-  slots: ["generate-pdf", "send-email"]
+  slots: { "generate-pdf": GeneratePdf, "send-email": SendInvoice }
 })
 
-const producer = IssueInvoiceProducer.identity({
+const enqueued = IssueInvoiceProducer.enqueue("generate-pdf", {
   operationId,
-  slot: "generate-pdf"
+  payload: { invoiceId }
 })
 ```
 
@@ -171,12 +171,13 @@ The owner subsequently accepted these identifier boundaries and diagnostics:
 - Tests must cover these boundaries and actionable diagnostics. These accepted
   rules do not claim that runtime validation has already been implemented.
 
-Start with `identity({ operationId, slot })`; fluent `forOperation(...).slot(...)`
-is not required for the initial implementation. Do not introduce a mutable
+Use typed bound `enqueue(slot, input)` for normal production.
+`identity({ operationId, slot })` remains structural low-level access, not proof of
+a slot-to-job binding. Fluent `forOperation(...).slot(...)` is unnecessary. Do not introduce a mutable
 builder or global registry to detect semantically similar names. Where multiple
 callers share the same production logic, use an ordinary application-domain
-function to bind producer slot, job definition, and input construction. Such
-wrappers are not mandatory for every enqueue.
+function for the shared business logic. Binding slot to job definition is already
+provided by the typed slot record; forwarding wrappers are not mandatory.
 
 ### Job IDs and enqueue results
 
@@ -194,6 +195,14 @@ This supersedes the earlier proposal requiring stable caller-supplied job IDs
 and rejecting production retries solely because a newly generated ID differs.
 An explicit caller-ID override is not approved by this decision. There is no
 mandatory generic event ID; event IDs remain domain-owned.
+
+### Typed producer bindings and policy defaults
+
+The accepted public API is specified in [api-refinements.md](api-refinements.md).
+`Job.make` uses `name`; physical PostgreSQL `kind` is unchanged. Producers bind
+slot records to jobs near the owning use case. A definitely provided complete
+`defaultPolicy` makes enqueue policy optional; explicit overrides replace it and
+matching duplicates keep the first stored policy. No exponential retry is added.
 
 ### Equality and transaction guarantees
 
@@ -237,7 +246,7 @@ commit the remaining domain writes. Results are provisional until commit.
 
 Applications supply a stable operation ID across retries, for example an
 idempotency key or durable operation/event ID. A new operation ID denotes a new
-operation even if payload or job kind matches. Sharing producer declarations
+operation even if payload or job name matches. Sharing producer declarations
 across endpoints does not deduplicate requests with different operation IDs.
 
 Retrying execution or recovering an existing job preserves its job ID; that is
@@ -570,7 +579,9 @@ The configured native adapter uses the exact application's `PgClient.transaction
 An active transaction of that SAME client is required; missing/foreign context
 fails before preparation. There is no implicit BEGIN, second connection, commit,
 savepoint or replay. Connection strings and a Drizzle `tx` object do not prove binding.
-Native Drizzle and the Effect client manager both establish the supported context.
+The qualified owner is public `PgClient.withTransaction(body)`; Drizzle retains
+schema/query building in that same Effect/Context. `db.transaction` retains an
+upstream error-type limitation and is excluded from the positive route.
 
 `PostgreSqlJobs.layerNoDeps` provides storage plus this producer service.
 `backend.withTransaction(() => definition.enqueue(input))` delegates explicit
@@ -588,8 +599,14 @@ connection/xid, concurrent isolation/deduplication, caller interruption, wrong s
 standalone failure/active rejection and synthetic response loss after durable COMMIT.
 This is not a network/server-crash guarantee.
 
-Only `PgClient@4.0.0` with native Drizzle `1.0.0-rc.5-169397b` is qualified by the
-native adapter. Its structural client type is an integration port, not a blanket
+Only `PgClient@4.0.5` with native Drizzle `1.0.0-rc.5-ab785fc` or
+`1.0.0-rc.5-169397b` is qualified by the
+native adapter within the scope of the current [release qualification](release-qualification.md).
+A+B strict/exactOptional source contracts remain required with approved dependency
+`skipLibCheck:true`. C remains separately reported known upstream FAIL and is
+nonblocking, never C PASS. Nested transactions/options/isolation are not
+automatically Drizzle-equivalent; no new savepoint/manager API is introduced.
+Its structural client type is an integration port, not a blanket
 guarantee for other drivers. The application owns pool lifetime, migrations and
 finite native acquisition/control/release timeouts. Retaining/forking transaction
 contexts past the owner's callback is unsupported; there is no invented `tx` identity proof.
@@ -630,6 +647,13 @@ Provide optional Drizzle schema declarations with configurable namespace and
 table names. The library defines required columns, constraints, and indexes;
 arbitrary per-column remapping is not required. Core does not depend on Drizzle.
 Backend and migration configuration must agree on the same storage mapping.
+
+Owner decision (2026-10-05): the optional Drizzle integration uses the same
+Effect-native `drizzle-orm` version as effect-auth, currently
+`1.0.0-rc.5-169397b`, rather than `0.45.1`. Qualify the actual schema/driver APIs,
+transaction boundary, and installed consumer with that exact version; do not
+merely widen peer metadata, force installation, or downgrade the auth consumer.
+Drizzle remains optional and outside the core dependency graph.
 
 Proposed API direction, not existing or finalized exports:
 
@@ -741,3 +765,13 @@ order, and adapter setup. Test cleanup racing with producer retries, receipt
 protection/expiry, bounded deletion, payload-parent deletion, and exclusion of
 Active/Pending/Isolated jobs. Acceptance closes the architecture decision, not
 runtime qualification, and does not authorize implementation or agent dispatch.
+
+## Bounded manual operator extension
+
+The later local playground scope adds the focused operator contract documented in
+`operator-contract.md`: strict future retry acceleration, Pending/RetryScheduled
+cancellation to Cancelled with Forever retention, and guarded Dead/valid Isolated
+redrive as a new job. Applications own private authority, immutable admission,
+receipts, lineage and the same-client transaction. Active interruption, artifact
+repair, same-ID budget reset and Cancelled cleanup remain outside this extension.
+This does not change the original extraction or grant publication/deployment.

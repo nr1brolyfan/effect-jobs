@@ -76,7 +76,7 @@ export const harness = (prepared: ReadonlyArray<PreparedJob> = []) => {
             request.supportedCatalog.some(
               (entry) =>
                 entry.queue === job.catalog.queue &&
-                entry.kind === job.catalog.kind &&
+                entry.name === job.catalog.name &&
                 entry.version === job.catalog.version
             )
           )
