@@ -1,3 +1,5 @@
+// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this qualification.
+// @effect-diagnostics unstableApiUsage:off
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import { mkdtemp, readFile, rm } from "node:fs/promises"

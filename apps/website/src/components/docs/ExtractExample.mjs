@@ -63,8 +63,11 @@ export const addedLines = (before, after) => {
     if (previous[i] === current[j]) {
       unchanged.add(j++)
       i++
-    } else if (lengths[i + 1][j] >= lengths[i][j + 1]) i++
-    else j++
+    } else if (lengths[i + 1][j] >= lengths[i][j + 1]) {
+      i++
+    } else {
+      j++
+    }
   }
   return current.flatMap((line, index) =>
     unchanged.has(index) || !line.trim() ? [] : [index + 1]

@@ -1,3 +1,5 @@
+// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this checked example.
+// @effect-diagnostics unstableApiUsage:off
 import { Context, Effect, Layer } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import * as Drizzle from "drizzle-orm/effect-postgres"

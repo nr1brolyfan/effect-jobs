@@ -1,3 +1,5 @@
+// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this qualification.
+// @effect-diagnostics unstableApiUsage:off
 // Only the exact disposable container/port owned by Qualify.mjs is used.
 import assert from "node:assert/strict"
 import { Effect, Exit, Cause } from "effect"

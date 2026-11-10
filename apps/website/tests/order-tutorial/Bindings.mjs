@@ -1,3 +1,5 @@
+// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this qualification.
+// @effect-diagnostics unstableApiUsage:off
 // Current packed API and physical V1 rows against the owned order fixture.
 import assert from "node:assert/strict"
 import { Effect, Layer, Schema } from "effect"

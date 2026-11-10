@@ -1,3 +1,5 @@
+// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this checked example.
+// @effect-diagnostics unstableApiUsage:off
 // Checked examples: run against an empty qualification database, outside a worker.
 // #region imports
 import assert from "node:assert/strict"

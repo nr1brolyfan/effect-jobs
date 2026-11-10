@@ -57,8 +57,9 @@ const inspectIntro = async (page) => {
     "a small delay is acceptable",
     "does not need to arrive at that exact moment",
     "detached in-process task"
-  ])
+  ]) {
     assert(text.includes(phrase), phrase)
+  }
   const geometry = await list.evaluate((element) => ({
     overflow: document.documentElement.scrollWidth > innerWidth,
     items: [...element.children].map((item) => {
@@ -83,7 +84,9 @@ const inspectIntro = async (page) => {
   assert.equal(geometry.followsCode, true, "problems immediately follow checked example")
   for (const [index, item] of geometry.items.entries()) {
     assert(item.proseTop >= item.headingBottom)
-    if (index) assert(item.top > geometry.items[index - 1].bottom, "separated problems")
+    if (index) {
+      assert(item.top > geometry.items[index - 1].bottom, "separated problems")
+    }
     assert.equal(item.whiteSpace, "normal")
     assert.equal(item.textWrap, "wrap")
     assert.equal(item.breaks, 0)
@@ -99,8 +102,9 @@ const inspectIntro = async (page) => {
     "not the database and external email",
     "not exactly-once",
     "external idempotency and uncertain outcomes"
-  ])
+  ]) {
     assert(article.includes(phrase), phrase)
+  }
   return geometry
 }
 const browser = await chromium.launch({ headless: true })

@@ -31,8 +31,9 @@ class JobVisual extends HTMLElement {
 
   connectedCallback() {
     const variant = this.dataset.jobVisual
-    if (variant !== "overview" && variant !== "transaction" && variant !== "handoff")
+    if (variant !== "overview" && variant !== "transaction" && variant !== "handoff") {
       return
+    }
     this.variant = variant
     this.abort = new AbortController()
     const options = { signal: this.abort.signal }
@@ -101,9 +102,12 @@ class JobVisual extends HTMLElement {
     this.querySelector("[data-action=play]")!.addEventListener(
       "click",
       () => {
-        if (this.playing) this.pause()
-        else {
-          if (this.step === this.maximum) this.step = 0
+        if (this.playing) {
+          this.pause()
+        } else {
+          if (this.step === this.maximum) {
+            this.step = 0
+          }
           this.playing = true
           this.render()
           this.schedule()
@@ -125,7 +129,9 @@ class JobVisual extends HTMLElement {
     this.motion.addEventListener(
       "change",
       () => {
-        if (this.motion?.matches) this.pause()
+        if (this.motion?.matches) {
+          this.pause()
+        }
         this.schedule()
       },
       options
@@ -324,23 +330,30 @@ class JobVisual extends HTMLElement {
     const running =
       this.playing && this.visible && !document.hidden && !this.motion?.matches
     if (!running) {
-      if (this.frame !== undefined) cancelAnimationFrame(this.frame)
+      if (this.frame !== undefined) {
+        cancelAnimationFrame(this.frame)
+      }
       this.frame = undefined
       this.previous = undefined
       return
     }
-    if (this.frame !== undefined) return
+    if (this.frame !== undefined) {
+      return
+    }
     this.frame = requestAnimationFrame((now) => this.tick(now))
   }
   private tick(now: number) {
     this.frame = undefined
-    if (this.previous !== undefined)
+    if (this.previous !== undefined) {
       this.progress += Math.min(now - this.previous, 100) / 1300
+    }
     this.previous = now
     if (this.progress >= 1) {
       this.progress = 0
       this.step++
-      if (this.step === this.maximum) this.playing = false
+      if (this.step === this.maximum) {
+        this.playing = false
+      }
       this.render()
     }
     this.drawPackets()
@@ -353,8 +366,9 @@ class JobVisual extends HTMLElement {
         this.progress === 0 ||
         connection.at !== this.step + 1 ||
         (this.variant === "transaction" && this.mode === "rollback")
-      )
+      ) {
         continue
+      }
       const point = connection.path.getPointAtLength(
         connection.path.getTotalLength() * this.progress
       )
@@ -367,4 +381,6 @@ class JobVisual extends HTMLElement {
   }
 }
 
-if (!customElements.get("job-visual")) customElements.define("job-visual", JobVisual)
+if (!customElements.get("job-visual")) {
+  customElements.define("job-visual", JobVisual)
+}

@@ -47,12 +47,25 @@ Building after installing that root copy does not update it. Refresh the copy
 after library build; the qualification guard compares every exported JS file.
 No TypeScript alias redirects `effect-jobs` to source.
 
+`bun run workspace:prepare` implements the required order: build the library,
+refresh this checkout's installed copies with a frozen force install, reapply
+the compiler/linter patches, and build the contracts' runtime exports.
+`bun run verify` runs this preparation before its type/lint/test gates, so it
+works after a fresh install and does not test a stale or absent copied `dist`.
+For individual workspace checks or `bun run test`, run `workspace:prepare` first
+after changing library source. This preparation needs no Docker or database.
+
+The root development dependency `@effect/sql-pg@4.0.5` supplies the native driver's
+real types while linting the native qualification fixtures. It does not add a
+runtime dependency or replace the packed native/Drizzle qualification, which
+still installs and checks its own isolated dependency graph. Lint must not depend
+on first running a database-backed qualification to populate local type symlinks.
+
 From a new isolated checkout, use these ordered steps (no secrets needed):
 
 ```sh
 bun install --frozen-lockfile --ignore-scripts
-bun run build
-bun install --frozen-lockfile --ignore-scripts --force
+bun run verify
 bun run playground:build
 bun run playground:check
 bun run playground:lint
@@ -60,7 +73,6 @@ bun run playground:test
 bun run format:check
 (cd tests/postgresql && bun install --frozen-lockfile --ignore-scripts)
 (cd tests/qualification/d6-pg && bun install --frozen-lockfile --ignore-scripts)
-bun run verify
 bun run playground:qualify
 ```
 
