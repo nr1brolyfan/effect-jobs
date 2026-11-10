@@ -1,5 +1,6 @@
 // Node subprocess/filesystem FFI is confined to this finite qualification runner.
 import assert from "node:assert/strict"
+import { fileURLToPath } from "node:url"
 import { createHash } from "node:crypto"
 import { execFileSync } from "node:child_process"
 import {
@@ -17,7 +18,7 @@ const root = resolve(import.meta.dirname, "../../..")
 const evidence = join(root, ".toolchain/playground")
 mkdirSync(evidence, { recursive: true })
 const work = mkdtempSync(join(evidence, "packed-"))
-const run = (name, command, args, cwd = root) => {
+const run = (name: string, command: string, args: string[], cwd = root): string => {
   try {
     const output = execFileSync(command, args, {
       cwd,
@@ -28,9 +29,10 @@ const run = (name, command, args, cwd = root) => {
     writeFileSync(join(work, `${name}.log`), output)
     return output
   } catch (error) {
+    const failure = error as { readonly stdout?: string; readonly stderr?: string }
     writeFileSync(
       join(work, `${name}.log`),
-      `${error.stdout ?? ""}\n${error.stderr ?? ""}`
+      `${failure.stdout ?? ""}\n${failure.stderr ?? ""}`
     )
     throw error
   }
@@ -41,10 +43,8 @@ assert.equal(manifest.private, false)
 assert.equal(manifest.dependencies, undefined)
 for (const subpath of Object.keys(manifest.exports)) {
   const file = subpath === "." ? "index" : subpath.slice(2)
-  const installed = join(
-    root,
-    "packages/playground-contracts/node_modules/effect-jobs/dist",
-    `${file}.js`
+  const installed = fileURLToPath(
+    import.meta.resolve(subpath === "." ? "effect-jobs" : `effect-jobs/${file}`)
   )
   assert.equal(
     readFileSync(installed, "utf8"),
@@ -54,9 +54,9 @@ for (const subpath of Object.keys(manifest.exports)) {
 }
 assert.equal(
   realpathSync(
-    join(root, "apps/playground/node_modules/@effect-jobs/playground-contracts")
+    fileURLToPath(import.meta.resolve("@effect-jobs/playground-contracts/Jobs"))
   ),
-  join(root, "packages/playground-contracts")
+  realpathSync(join(root, "packages/playground-contracts/dist/Jobs.js"))
 )
 const previousDirectory = process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY
 process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY = join(work, "artifact")
@@ -109,12 +109,7 @@ writeFileSync(
     2
   )
 )
-run(
-  "install",
-  "npm",
-  ["install", "--ignore-scripts", "--no-audit", "--no-fund"],
-  consumer
-)
+run("install", "bun", ["install", "--ignore-scripts"], consumer)
 cpSync(join(root, "packages/playground-contracts/src"), join(consumer, "src"), {
   recursive: true
 })
@@ -143,7 +138,7 @@ writeFileSync(
 )
 run("types", "node", ["node_modules/typescript/bin/tsc", "-p", "tsconfig.json"], consumer)
 writeFileSync(
-  join(consumer, "Smoke.mjs"),
+  join(consumer, "Smoke.ts"),
   `
 import assert from "node:assert/strict"
 import { createRequire } from "node:module"
@@ -173,7 +168,7 @@ console.log("packed contracts: strict types, real library codec, absent backend 
 `
 )
 for (const runtime of ["node", "bun"]) {
-  run(`${runtime}-smoke`, runtime, ["Smoke.mjs"], consumer)
+  run(`${runtime}-smoke`, runtime, ["Smoke.ts"], consumer)
 }
 run(
   "browser",
@@ -209,8 +204,7 @@ const receipt = {
   libraryVersion: manifest.version,
   tools: {
     node: process.version,
-    bun: run("bun-version", "bun", ["--version"]).trim(),
-    npm: run("npm-version", "npm", ["--version"]).trim()
+    bun: run("bun-version", "bun", ["--version"]).trim()
   },
   checks: [
     "root file dependency matches dist",

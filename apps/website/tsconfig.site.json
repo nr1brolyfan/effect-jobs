@@ -3,12 +3,14 @@
   "compilerOptions": {
     "noEmit": true,
     "skipLibCheck": true,
-    "allowArbitraryExtensions": true
+    "allowArbitraryExtensions": true,
+    "jsx": "react-jsx"
   },
   "include": [
     ".astro/types.d.ts",
     "src/content.config.ts",
-    "src/components/docs/**/*.ts"
+    "src/components/**/*.ts",
+    "src/components/**/*.tsx"
   ],
   "exclude": ["dist", "node_modules"]
 }
