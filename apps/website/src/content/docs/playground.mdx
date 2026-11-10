@@ -1,0 +1,55 @@
+---
+title: Explore the jobs playground
+description: Read synthetic jobs, inspect their lifecycle and reconcile uncertain commands.
+---
+
+The [demo](/demo) is a read-only view of synthetic jobs. The local operator
+surface at `/jobs` is a separate application with server-enforced capabilities.
+Scenarios use synthetic actors and providers; they do not send real email,
+payments or webhooks. UI fixtures are not evidence of PostgreSQL execution.
+
+## Read and inspect
+
+Use the state and kind filters to narrow the current query. Pagination reads the
+current lifecycle, not a historical snapshot: jobs can change state between
+reads. Refresh and reconnect reconcile the visible data. When a read fails,
+the interface labels retained observations as stale rather than treating them
+as current truth.
+
+Open a job to inspect its persisted policy, attempts, failure classification and
+available actions. Missing observations mean unknown. A configured lease duration
+does not prove current ownership. Synthetic entity links explain the example;
+they are not links to real customer records.
+
+## Commands and receipts
+
+The local launcher creates bounded scenarios. The server independently checks
+sandbox authority, CSRF, capabilities and budgets for every command. Operator
+actions are available only for eligible jobs; see the
+[lifecycle](/docs/concepts/lifecycle) and [recovery guide](/docs/execution/recovery)
+for durable-state semantics.
+
+An acknowledged enqueue does not establish handler success. A lost command
+response may follow a committed write. The interface retains that exact request
+identity and blocks conflicting commands while checking its receipt. Receipt
+lookup is a read: absence of a receipt never grants permission to replay the
+command. Reloading loses mount-local uncertain request state; it does not undo
+an operation or prove rollback.
+
+Reset advances the sandbox generation and hides its old observations. It does
+not cancel running jobs or rewrite the library lifecycle. Old-generation results
+must not replace the new view.
+
+## Privacy and isolation
+
+The server chooses the sandbox and keeps credentials in its protected cookie.
+Browser-supplied identifiers do not grant authority. The read-only demo has no
+mutation capability; a disabled control is not a substitute for server checks.
+
+Protected payloads remain protected at storage and transport boundaries. When a
+synthetic private-document example reveals detail plaintext, that value belongs
+to the selected detail session and is discarded when the session closes or
+changes. It is not global application state or browser storage.
+
+Continue with [your first job](/docs/start/first-job), or read the
+[operating checklist](/docs/operations/production-checklist).

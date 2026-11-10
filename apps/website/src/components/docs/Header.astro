@@ -1,7 +1,9 @@
 ---
+import * as stylex from "@stylexjs/stylex"
+import { styles } from "./ShellStyles.js"
 import Search from "virtual:starlight/components/Search"
 ---
-<div class="ej-header">
-  <a class="ej-wordmark" href="/docs" aria-label="effect-jobs documentation"><span class="ej-mark" aria-hidden="true">e<span>j</span></span><span class="ej-product">effect-jobs</span><span class="ej-header-divider" aria-hidden="true"></span><span class="ej-docs-label">Docs</span></a>
-  <div class="ej-header-tools"><Search /><a class="ej-source-link" href="https://github.com/nr1brolyfan/effect-jobs">Source <span aria-hidden="true">↗︎</span></a></div>
+<div class:list={["ej-header", stylex.attrs(styles.ejHeader).class]}>
+  <a class:list={["ej-wordmark", stylex.attrs(styles.ejWordmark).class]} href="/docs" aria-label="effect-jobs documentation"><span class:list={["ej-mark", stylex.attrs(styles.ejMark).class]} aria-hidden="true">e<span {...stylex.attrs(styles.ejMark2)}>j</span></span><span class:list={["ej-product", stylex.attrs(styles.ejHeaderDivider).class]}>effect-jobs</span><span class:list={["ej-header-divider", stylex.attrs(styles.ejHeaderDivider2).class]} aria-hidden="true"></span><span class:list={["ej-docs-label", stylex.attrs(styles.ejDocsLabel).class]}>Docs</span></a>
+  <div class:list={["ej-header-tools", stylex.attrs(styles.ejHeaderTools).class]}><Search /><a class:list={["ej-source-link", stylex.attrs(styles.ejSourceLink).class]} href="https://github.com/nr1brolyfan/effect-jobs">Source <span aria-hidden="true">↗︎</span></a></div>
 </div>
