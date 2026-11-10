@@ -24,7 +24,7 @@ Registry fetched 2026-10-12, upstream commit `08a2e9fe44c24bf6341dce2afc11bfdbe5
 | pagination | `27ae231a4b17fbdba3f20e1a713e506bacfca928d00443f896118b6e023bd035` |
 | card       | `6702c1e6c8ed3bcf1153557e7e0c9f58a87442a194137ea26977ab255760185e` |
 
-Pinned `@base-ui/react@1.9.0` (MIT, copyright 2019 Material-UI SAS) supports React/ReactDOM 17/18/19; existing React/ReactDOM 19.3.0 and StyleX 0.19.1 remain unchanged. Actual installed package/source/license/peer metadata was inspected. Bun lock records package integrity and transitive versions. Optional date-fns peers are unused; no temporal/date/icon library added. Existing Icon replaces registry lucide pagination icons. Select/Tooltip/Chart are omitted: current native select remains valid, keyboard/touch Popover fulfills exact-time details, and qualified Recharts already exists.
+Pinned `@base-ui/react@1.9.0` (MIT, copyright 2019 Material-UI SAS) supports React/ReactDOM 17/18/19; existing React/ReactDOM 19.3.0 and StyleX 0.19.1 remain unchanged. Actual installed package/source/license/peer metadata was inspected. Bun lock records package integrity and transitive versions. Optional date-fns peers are unused; no temporal/date library added. Standard icons now use named Lucide components behind the compatible Icon sizing/accessibility API; no custom SVG path registry remains. The UI slice requests an exact Lucide pin from the shared dependency owner. Select/Tooltip/Chart are omitted: current native select remains valid, keyboard/touch Popover fulfills exact-time details, and qualified Recharts already exists.
 
 ## Focused qualification
 

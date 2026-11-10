@@ -39,6 +39,8 @@ jobs:
         run: mkdir -p "$CI_EVIDENCE"
       - name: Install locked dependencies
         run: bun install --frozen-lockfile --ignore-scripts 2>&1 | tee "$CI_EVIDENCE/install.log"
+      - name: Install the pinned browser for workspace tests
+        run: bun run test:browser:install 2>&1 | tee "$CI_EVIDENCE/browser-install.log"
       - name: Verify library and workspace tests
         run: bun run verify 2>&1 | tee "$CI_EVIDENCE/verify.log"
       - name: Check workspace types and lint
@@ -53,8 +55,14 @@ jobs:
           bun run site:routes 2>&1 | tee "$CI_EVIDENCE/site-routes.log"
       - name: Check the compiled browser client
         run: |
-          apps/playground-worker/node_modules/.bin/playwright install --with-deps chromium 2>&1 | tee "$CI_EVIDENCE/browser-install.log"
           node apps/website/tests/ui/Production.mjs 2>&1 | tee "$CI_EVIDENCE/browser.log"
+          bun run playground:test:ui 2>&1 | tee "$CI_EVIDENCE/ui-lifecycle.log"
+      - name: Check public docs and interactive islands in Chromium
+        run: |
+          bun run site:models 2>&1 | tee "$CI_EVIDENCE/site-models.log"
+          bun run site:browser 2>&1 | tee "$CI_EVIDENCE/docs-browser.log"
+          bun run site:landing 2>&1 | tee "$CI_EVIDENCE/landing-browser.log"
+          bun run site:islands 2>&1 | tee "$CI_EVIDENCE/islands-browser.log"
       - name: Upload failure logs
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

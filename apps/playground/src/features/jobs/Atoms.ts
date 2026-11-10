@@ -145,55 +145,78 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     loading: Atom.make(false).pipe(Atom.keepAlive)
   }
   const registry = AtomRegistry.make()
-  const stateAtom = Atom.make((get): State => {
-    const sandbox = get(atoms.sandbox)
-    const filters = get(atoms.filters)
-    const pageNumber = get(atoms.pageNumber)
-    const pageSize = get(atoms.pageSize)
-    const displayedQuery = get(atoms.displayedQuery)
-    const cursors = get(atoms.cursors)
-    const page = get(atoms.page)
-    return {
-      sandbox,
-      filters,
-      cursor: get(atoms.cursor),
-      pageNumber,
-      pageSize,
-      page,
-      problemRows: get(atoms.problemRows),
-      stats: get(atoms.stats),
-      loading: get(atoms.loading),
-      displayedQuery,
-      resultsCurrent:
-        displayedQuery !== undefined &&
-        sameRef(displayedQuery.sandbox, sandbox.ref) &&
-        displayedQuery.pageNumber === pageNumber &&
-        displayedQuery.pageSize === pageSize &&
-        displayedQuery.filters.state === filters.state &&
-        displayedQuery.filters.name === filters.name &&
-        displayedQuery.filters.resolution === filters.resolution &&
-        displayedQuery.filters.needsAttention === filters.needsAttention,
-      pagination: {
-        total: page?.filteredTotal,
-        pageCount:
-          page === undefined || displayedQuery === undefined
-            ? undefined
-            : Math.ceil(page.filteredTotal / displayedQuery.pageSize),
-        pages: cursors.map((_, index) => index + 1),
-        current: pageNumber,
-        hasPrevious: pageNumber > 1,
-        hasNext: pageNumber < cursors.length
-      },
+  // Each view reads only its own dependencies. No projection subscribes to the
+  // compatibility stateAtom, so detail/notice/transport updates spare the list.
+  const views = {
+    query: Atom.make((get) => {
+      const sandbox = get(atoms.sandbox)
+      const filters = get(atoms.filters)
+      const pageNumber = get(atoms.pageNumber)
+      const pageSize = get(atoms.pageSize)
+      const displayedQuery = get(atoms.displayedQuery)
+      return {
+        sandbox,
+        filters,
+        cursor: get(atoms.cursor),
+        pageNumber,
+        pageSize,
+        displayedQuery,
+        resultsCurrent:
+          displayedQuery !== undefined &&
+          sameRef(displayedQuery.sandbox, sandbox.ref) &&
+          displayedQuery.pageNumber === pageNumber &&
+          displayedQuery.pageSize === pageSize &&
+          displayedQuery.filters.state === filters.state &&
+          displayedQuery.filters.name === filters.name &&
+          displayedQuery.filters.resolution === filters.resolution &&
+          displayedQuery.filters.needsAttention === filters.needsAttention
+      }
+    }),
+    list: Atom.make((get) => {
+      const page = get(atoms.page)
+      const displayedQuery = get(atoms.displayedQuery)
+      const pageNumber = get(atoms.pageNumber)
+      const cursors = get(atoms.cursors)
+      return {
+        page,
+        problemRows: get(atoms.problemRows),
+        loading: get(atoms.loading),
+        pagination: {
+          total: page?.filteredTotal,
+          pageCount:
+            page === undefined || displayedQuery === undefined
+              ? undefined
+              : Math.ceil(page.filteredTotal / displayedQuery.pageSize),
+          pages: cursors.map((_, index) => index + 1),
+          current: pageNumber,
+          hasPrevious: pageNumber > 1,
+          hasNext: pageNumber < cursors.length
+        } satisfies Pagination
+      }
+    }),
+    detail: Atom.make((get) => ({
       selected: get(atoms.selected),
       detail: get(atoms.detail),
-      connection: get(atoms.connection),
-      error: get(atoms.error),
-      detailError: get(atoms.detailError),
+      detailError: get(atoms.detailError)
+    })),
+    commands: Atom.make((get) => ({
       pending: get(atoms.pending),
       busy: get(atoms.busy),
       notice: get(atoms.notice)
-    }
-  })
+    })),
+    status: Atom.make((get) => ({
+      connection: get(atoms.connection),
+      error: get(atoms.error)
+    }))
+  }
+  const stateAtom = Atom.make((get): State => ({
+    ...get(views.query),
+    ...get(views.list),
+    ...get(views.detail),
+    ...get(views.commands),
+    ...get(views.status),
+    stats: get(atoms.stats)
+  }))
   const snapshot = () => registry.get(stateAtom)
   let listRevision = 0
   let activeReads = 0
@@ -1019,6 +1042,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     atoms,
     registry,
     stateAtom,
+    views,
     snapshot,
     reading: () => !disposed && activeReads > 0,
     refresh,

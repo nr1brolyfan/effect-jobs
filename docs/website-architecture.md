@@ -107,3 +107,50 @@ consumers in the site/test slices.
 No source moves authorize a cloud deployment, provisioning, publication or
 remote Git operation. Review is performed once on the complete integrated diff,
 after all implementation slices and their local gates.
+
+## Canonical installation and website test projects
+
+Bun 1.4.2 uses the hoisted linker in `bunfig.toml`. Keep one root library
+link: duplicate nested `effect-jobs@root:` lock entries produce incorrect
+workspace-relative links in this Bun release. A clean locked install must
+resolve every consumer to the root library, without manual node_modules aliases.
+The contracts qualification runner resolves ESM exports and checks their bytes;
+its independent packed consumer also installs with Bun.
+
+Vite is pinned to 8.3.4 throughout the tool graph, including Vitest's transitive
+Vite, through the narrow root override. Root and browser-provider resolution must
+agree; pinning only the direct development dependency leaves the older nested
+Vitest copy in the lock. No library dependency or optional peer is overridden.
+
+The shared Vitest registrar consumes `websiteProjects(playwright())` from the
+test slice: website-unit, website-e2e and website-browser. Existing workspace
+suites, exclusions, standalone Field/Theme guards, soak and PostgreSQL gates
+remain registered. The browser binaries must be installed before `verify`:
+
+```sh
+bun run test:browser:install
+bun run test:website
+bun run site:models
+bun run site:browser
+bun run site:landing
+bun run site:islands
+```
+
+The website declares its own Effect Atom, Lucide and browser/test consumers.
+Site type checking includes authored landing/docs TS and TSX with React JSX;
+workspace checking includes typed test fixtures, asset declarations and shared
+configuration. No diagnostic symlinks or alternate Astro configuration are part
+of these commands.
+
+StyleX's official transforms run in both Astro environments. Only its extraction
+hooks run during prerender, targeting the shared `Playback.*.css` asset. Client
+extraction would rename Expressive Code's CSS after prerender freezes its href.
+`inlineStylesheets: "never"` keeps extracted styles external. This environment
+adapter preserves the existing CSP and uses the official unplugin hooks.
+
+The three website projects are registered without changing their assertions.
+Combined execution reproduces a Vite/Rolldown shutdown timeout after all tests
+pass. Separate invocations, project ordering and a browser-only root config also
+reproduced the timeout; they are not retained as workarounds. Provider teardown
+qualification remains incomplete. No timeout increase, forced process exit or
+warning suppression is applied.

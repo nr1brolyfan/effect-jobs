@@ -11,6 +11,7 @@
     "@tanstack/react-table": "8.21.3",
     "effect": "4.0.5",
     "effect-jobs": "file:../..",
+    "lucide-react": "1.71.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "recharts": "3.10.1",

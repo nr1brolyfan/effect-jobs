@@ -1,5 +1,6 @@
+import { useFormAtom } from "../FormAtoms.js"
 import { Effect, Exit } from "effect"
-import { useLayoutEffect, useRef, useState } from "react"
+import { useLayoutEffect, useRef } from "react"
 import * as stylex from "@stylexjs/stylex"
 import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
 import type { Document } from "@effect-jobs/playground-contracts/SyntheticCryptoFixture"
@@ -46,10 +47,10 @@ const PayloadContent = (inputProps: {
       : inputProps.detail.payload.encryption === "None"
         ? "Encoded payload."
         : "Locked."
-  const [plaintext, setPlaintext] = useState<Document | null>(null)
-  const [status, setStatus] = useState(lockedStatus)
-  const [busy, setBusy] = useState(false)
-  const [copyBusy, setCopyBusy] = useState(false)
+  const [plaintext, setPlaintext] = useFormAtom<Document | null>(null)
+  const [status, setStatus] = useFormAtom(lockedStatus)
+  const [busy, setBusy] = useFormAtom(false)
+  const [copyBusy, setCopyBusy] = useFormAtom(false)
   const code = useRef<HTMLInputElement>(null)
   const encryption = useRef<HTMLInputElement>(null)
   const fingerprint = useRef<HTMLInputElement>(null)
@@ -111,7 +112,7 @@ const PayloadContent = (inputProps: {
     if (payload._tag !== "Available" || busy || (!synthetic && !compatible)) {
       return
     }
-    // Read local input only for this operation. No client/Atom receives these values.
+    // Read local input only for this operation. No client or shared Atom receives these values.
     const work = synthetic
       ? BrowserDocumentCrypto.unlockSyntheticDocument(
           payload.encoded,
@@ -176,7 +177,7 @@ const PayloadContent = (inputProps: {
     const revision = lifetime.current.revision
     setCopyBusy(true)
     setStatus("Copying payload…")
-    // Explicit browser gesture/Clipboard FFI; no Atom, server or storage receives JSON.
+    // Explicit browser gesture/Clipboard FFI; no shared Atom, server or storage receives JSON.
     void Effect.runPromiseExit(
       Effect.tryPromise({
         try: () =>

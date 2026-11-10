@@ -1,3 +1,4 @@
+import { useFormAtom } from "../FormAtoms.js"
 import { Effect, Exit, Schema } from "effect"
 import {
   sealSyntheticDocument,
@@ -6,7 +7,7 @@ import {
 import { useSyntheticDocumentSession } from "../payload/SyntheticDocumentSession.js"
 import * as Definitions from "@effect-jobs/playground-contracts/ScenarioPayloads"
 import * as BrowserDocumentCrypto from "../payload/BrowserDocumentCrypto.js"
-import { useLayoutEffect, useId, useRef, useState } from "react"
+import { useLayoutEffect, useId, useRef } from "react"
 import { Dialog } from "@base-ui/react/dialog"
 import * as stylex from "@stylexjs/stylex"
 import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
@@ -51,23 +52,24 @@ const RepairForm = (props: Props) => {
     detail.payload._tag === "Available" &&
     detail.payload.encryption === "SyntheticDocumentV1" &&
     BrowserDocumentCrypto.isSyntheticCatalog(detail.job.catalog)
-  const [sealing, setSealing] = useState(false)
-  const [cryptoError, setCryptoError] = useState("")
+  const [sealing, setSealing] = useFormAtom(false)
+  const [cryptoError, setCryptoError] = useFormAtom("")
   const lifetime = useRef({
     revision: 0,
     mounted: true,
     controller: null as AbortController | null
   })
-  const [action, setAction] = useState<
+  const [action, setAction] = useFormAtom<
     "redrive" | "corrected-redrive" | "manual-close" | "reconcile-applied" | null
   >(null)
-  const [reason, setReason] = useState("")
-  const [investigation, setInvestigation] = useState<Investigation["_tag"]>("Unconfirmed")
-  const [investigationReason, setInvestigationReason] = useState("")
-  const [confirmed, setConfirmed] = useState(false)
-  const [unknownConfirmed, setUnknownConfirmed] = useState(false)
-  const [editor, setEditor] = useState("")
-  const [snapshot, setSnapshot] = useState<string | null>(null)
+  const [reason, setReason] = useFormAtom("")
+  const [investigation, setInvestigation] =
+    useFormAtom<Investigation["_tag"]>("Unconfirmed")
+  const [investigationReason, setInvestigationReason] = useFormAtom("")
+  const [confirmed, setConfirmed] = useFormAtom(false)
+  const [unknownConfirmed, setUnknownConfirmed] = useFormAtom(false)
+  const [editor, setEditor] = useFormAtom("")
+  const [snapshot, setSnapshot] = useFormAtom<string | null>(null)
   const description = useId()
   const trigger = useRef<HTMLButtonElement | null>(null)
   const panel = useRef<HTMLElement | null>(null)

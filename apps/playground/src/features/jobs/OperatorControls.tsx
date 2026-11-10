@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react"
+import { useFormAtom } from "./FormAtoms.js"
+import { useEffect, useRef } from "react"
 import * as stylex from "@stylexjs/stylex"
 import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
 import type { JobOperatorAction } from "@effect-jobs/playground-contracts/Operators"
@@ -20,7 +21,7 @@ export const OperatorControls = (props: {
   readonly now: number
   readonly blocked: boolean
 }) => {
-  const [action, setAction] = useState<JobOperatorAction | undefined>(undefined)
+  const [action, setAction] = useFormAtom<JobOperatorAction | undefined>(undefined)
   const dialog = useRef<HTMLDialogElement>(null)
   const trigger = useRef<HTMLButtonElement | null>(null)
   const available = Eligibility.eligibility(props.detail, props.sandbox, props.now)

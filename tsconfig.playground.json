@@ -17,11 +17,10 @@
     "packages/playground-contracts/src/**/*.ts",
     "packages/playground-contracts/tests/**/*.ts",
     "apps/**/*.ts",
-    "apps/**/*.tsx"
+    "apps/**/*.tsx",
+    "apps/**/*.d.ts",
+    "packages/playground-contracts/qualification/**/*.ts",
+    "vitest.config.ts"
   ],
-  "exclude": [
-    "apps/website/src/content.config.ts",
-    "apps/website/src/components/docs/**",
-    "apps/website/.astro/**"
-  ]
+  "exclude": ["apps/website/src/**", "apps/website/.astro/**"]
 }
