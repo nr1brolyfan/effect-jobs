@@ -12,6 +12,7 @@ export default defineConfig({
             ...configDefaults.exclude,
             ".toolchain/**",
             ".multica/**",
+            "apps/playground-worker/tests/native/**",
             "tests/poc/**",
             "tests/benchmarks/postgresql/Support.test.mjs"
           ]

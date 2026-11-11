@@ -160,7 +160,7 @@
     "playground:check": "bun run toolchain:setup && tsc -p tsconfig.playground.json",
     "playground:lint": "oxlint --deny-warnings apps packages/playground-contracts vitest.config.ts",
     "playground:test": "vitest run packages/playground-contracts/tests apps/playground-worker/tests/repairs apps/website/tests/ui/repair apps/website/tests/ui/details/Navigation.test.ts apps/playground-worker/tests/details-integration apps/website/tests/ui/RepairAtoms.test.ts",
-    "playground:build": "bun run --filter @effect-jobs/playground-contracts build && bun run --filter @effect-jobs/playground --filter @effect-jobs/playground-worker build && bun run site:build",
+    "playground:build": "bun run --filter @effect-jobs/playground-contracts build && bun run --filter @effect-jobs/playground build && bun run site:build && bun run --cwd apps/playground-worker build",
     "playground:qualify": "node packages/playground-contracts/qualification/Run.ts",
     "playground:preview": "python3 apps/playground-worker/tests/integration/RunOwned.py --preview",
     "playground:test:primitives": "node apps/website/tests/ui/Primitives.ts",
@@ -181,7 +181,8 @@
     "site:landing": "node apps/website/src/components/landing/tests/Browser.mjs",
     "test:browser:install": "playwright install --with-deps chromium",
     "test:website:provider": "node apps/website/tests/modernization/ProviderLifecycle.ts",
-    "check:capnp-runtime": "bun run --cwd apps/playground-worker check:capnp-runtime"
+    "check:capnp-runtime": "bun run --cwd apps/playground-worker check:capnp-runtime",
+    "test:playground:native": "bun run --cwd apps/playground-worker test:native"
   },
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.5-ab785fc || 1.0.0-rc.5-169397b",
@@ -213,7 +214,8 @@
     "@vitest/browser-playwright": "4.1.11",
     "playwright": "1.56.1",
     "vite": "8.3.4",
-    "rolldown": "1.2.13"
+    "rolldown": "1.2.13",
+    "ws": "8.22.0"
   },
   "repository": {
     "type": "git",

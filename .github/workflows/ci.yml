@@ -47,8 +47,13 @@ jobs:
         run: |
           bun run playground:check 2>&1 | tee "$CI_EVIDENCE/workspace-types.log"
           bun run playground:lint 2>&1 | tee "$CI_EVIDENCE/workspace-lint.log"
+          bun run --cwd apps/playground-worker check:native 2>&1 | tee "$CI_EVIDENCE/native-types.log"
       - name: Check the local workerd serializer runtime graph
         run: bun run check:capnp-runtime 2>&1 | tee "$CI_EVIDENCE/capnp-runtime.log"
+      - name: Qualify the native application locally
+        run: |
+          docker pull postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+          bun run test:playground:native 2>&1 | tee "$CI_EVIDENCE/native.log"
       - name: Build playground and public site
         run: |
           bun run playground:build 2>&1 | tee "$CI_EVIDENCE/apps-build.log"

@@ -15,9 +15,10 @@
   },
   "scripts": {
     "check": "tsc -p tsconfig.json",
-    "build": "node build.mjs",
+    "build": "bun build/Build.ts",
     "check:native": "tsc -p tsconfig.native.json",
-    "check:capnp-runtime": "node tests/native/CapnpRuntime.ts"
+    "check:capnp-runtime": "node tests/native/CapnpRuntime.ts",
+    "test:native": "python3 tests/native/Run.py && python3 tests/native/Run.py --public"
   },
   "devDependencies": {
     "esbuild": "0.25.12",
@@ -28,6 +29,7 @@
     "@cloudflare/workers-types": "5.20261110.1",
     "@types/bun": "1.4.3",
     "@types/ws": "8.18.1",
-    "@effect/platform-bun": "4.0.5"
+    "@effect/platform-bun": "4.0.5",
+    "ws": "8.22.0"
   }
 }

@@ -1,8 +1,8 @@
 {
   "extends": "../../tsconfig.playground.json",
   "compilerOptions": {
-    "lib": ["ES2022", "ESNext.Disposable"],
+    "lib": ["ES2022", "DOM", "ESNext.Disposable"],
     "types": ["node", "bun", "@cloudflare/workers-types"]
   },
-  "include": ["alchemy.run.ts", "tests/native/**/*.ts"]
+  "include": ["alchemy.run.ts", "tests/native/**/*.ts", "build/**/*.ts"]
 }
