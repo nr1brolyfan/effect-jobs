@@ -10,7 +10,7 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node"],
+    "types": ["node", "bun"],
     "jsx": "react-jsx"
   },
   "include": [
