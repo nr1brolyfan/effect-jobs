@@ -34,8 +34,7 @@ so React's delegated events keep working. Reconnect resets the illustration.
 Geometry uses native SVG measurement; React owns SVG nodes and semantic state.
 
 The legacy `/docs/jobs` static page redirects to canonical `/docs/playground`,
-with a visible anchor for clients that ignore refresh metadata. The old
-`content/docs/Jobs.html` is retained until its integration-server/test consumers
-are updated by their owners. The existing `ExtractExample.mjs` file is a temporary
-compatibility re-export for those test consumers. New site source uses the typed
-implementation, retaining realpath confinement and marker validation.
+with a visible anchor for clients that ignore refresh metadata. Integration and
+browser consumers use the canonical built assets and alias. The obsolete HTML
+source has been removed. New site source uses the typed example extractor,
+retaining realpath confinement and marker validation.

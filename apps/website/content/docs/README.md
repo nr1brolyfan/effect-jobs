@@ -1,9 +1,10 @@
 # Documentation content boundary
 
-Website documentation is authored here. `specs/` remains the normative library
-contract. Foundation installs no Markdown renderer or hosting integration.
-The jobs guide is authored as static trusted HTML and a repository Markdown
-companion; untrusted HTML is never rendered as documentation.
+Public documentation is authored in `../../src/content/docs/` and rendered by
+Astro/Starlight. `specs/` remains the normative library contract. The files here
+retain repository-readable companions and earlier integration notes.
 
-- [Jobs guide](./Jobs.md), with `Jobs.html` served at `/docs/jobs` after serial integration.
-- [UI integration and reproducible checks](./Ui-integration.md).
+- [Canonical playground guide](../../src/content/docs/playground.mdx), served at
+  `/docs/playground`; `/docs/jobs` is a static redirect with a visible fallback link.
+- [Repository jobs companion](./Jobs.md).
+- [Earlier UI integration handoff and checks](./Ui-integration.md).

@@ -20,9 +20,10 @@ automatically retried. The UI uses a five-item page to keep the demo compact.
 - Include `apps/playground/src/styles/Jobs.css` in browser assets and serve it with
   a CSS content type; the fixture/guide HTML uses `/Jobs.css`.
 - Register `/jobs` using the app's real HTML shell, containing `<main id="jobs">`
-  and the browser asset entry. Register `/docs/jobs` as the static English page
-  `apps/website/content/docs/Jobs.html`, with HTML content type. The feature links
-  to that guide. `Jobs.md` is the repository-readable companion.
+  and the browser asset entry. Serve canonical Astro assets for the guide:
+  `/docs/jobs` redirects to `/docs/playground` with a visible fallback link.
+  `apps/website/src/content/docs/playground.mdx` is the guide source; `Jobs.md`
+  remains the repository-readable companion.
 - Provide describe/list/detail/run/reset and both exact receipt-read adapters
   using the frozen DTOs. Enforce cookie authority, origin/CSRF, budgets and strict
   Schema boundaries at the HTTP layer. No endpoint URL is guessed by this slice.
