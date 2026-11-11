@@ -28,7 +28,9 @@ synthetic HTTP input. No synthetic fixture is evidence for real PostgreSQL,
 authority, workerd, native Alchemy or hosted operation.
 
 `ProviderLifecycle.ts` runs every registered unit/browser/e2e file in complete,
-explicit partitions. Each child creates the same three configured projects,
+explicit partitions. The original complete 24-test set stays together in one
+combined host; additional adapter waves receive separate full host lifetimes.
+Each child creates the same three configured projects,
 asserts exact selected-module coverage, awaits host.close, checks active resource
 absence and zero referenced timers, and exits naturally. Each child retains the
 existing 120-second bound. The complete suite grows by adding finite partitions,

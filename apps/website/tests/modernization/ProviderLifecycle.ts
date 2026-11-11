@@ -11,9 +11,24 @@ await mkdir(evidence, { recursive: true })
 if (!process.argv.includes("--child")) {
   const directory = "apps/website/tests/modernization"
   const files = (await readdir(directory)).sort()
+  // Preserve the original complete 24-test, three-project host qualification.
+  // New adapter waves receive their own complete finite host lifetimes.
+  const originalE2e = new Set([
+    "Browser.e2e.ts",
+    "Dashboard.e2e.ts",
+    "Details.e2e.ts",
+    "Installed.e2e.ts"
+  ])
   const partitions = [
-    files.filter((file) => file.endsWith(".unit.ts") || file.endsWith(".browser.tsx")),
-    ...files.filter((file) => file.endsWith(".e2e.ts")).map((file) => [file])
+    files.filter(
+      (file) =>
+        file.endsWith(".unit.ts") ||
+        file.endsWith(".browser.tsx") ||
+        originalE2e.has(file)
+    ),
+    ...files
+      .filter((file) => file.endsWith(".e2e.ts") && !originalE2e.has(file))
+      .map((file) => [file])
   ].map((group) => group.map((file) => `${directory}/${file}`))
   const results = []
   for (const [index, partition] of partitions.entries()) {
