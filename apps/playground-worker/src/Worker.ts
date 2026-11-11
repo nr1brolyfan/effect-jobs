@@ -349,6 +349,18 @@ export default Cloudflare.Worker(
         }
         const assets = (path: string) =>
           Effect.gen(function* () {
+            if (request.method !== "GET" && request.method !== "HEAD") {
+              return HttpResponse.empty({ status: 405 })
+            }
+            const reserved = ["/jobs", "/api", "/demo"].some(
+              (prefix) =>
+                path === prefix ||
+                path === prefix + ".html" ||
+                path.startsWith(prefix + "/")
+            )
+            if (reserved && path !== "/jobs" && path !== "/demo") {
+              return HttpResponse.text("Not found", { status: 404 })
+            }
             // Static assets expose a native Fetcher rather than an Effect binding.
             const bindings = yield* Cloudflare.WorkerEnvironment
             return yield* Effect.promise(() =>

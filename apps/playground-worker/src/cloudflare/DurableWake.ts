@@ -2,7 +2,7 @@ import * as Cloudflare from "@alchemy.run/cloudflare"
 import * as Alchemy from "alchemy"
 import type { Callback } from "alchemy/Callback"
 import { RuntimeContext } from "alchemy/RuntimeContext"
-import { Effect } from "effect"
+import { Cause, Effect, Exit } from "effect"
 import { WakeAlarm, WakeUnavailable } from "./WakeCycle.js"
 
 // One callback ID owns the alarm. SQLite scheduling and PG commits are distinct;
@@ -19,14 +19,16 @@ export const make = <E>(
     const callback: Callback<null> = yield* Alchemy.makeCallback(
       name,
       () =>
-        state.blockConcurrencyWhile(() =>
-          Effect.gen(function* () {
-            yield* run(alarm).pipe(Effect.orDie)
-            // A completed bounded pass is durable application progress. Record its
-            // checkpoint with the next wake in one SQLite transaction. Prearms during
-            // the pass do not reset retries; defects never reach this checkpoint.
-            yield* state.storage
-              .transaction(
+        Effect.gen(function* () {
+          // Return Exit through the native gate so a domain failure does not reset
+          // the object before Alchemy can persist its bounded retry/parking state.
+          const result = yield* state.blockConcurrencyWhile(() =>
+            Effect.gen(function* () {
+              yield* run(alarm)
+              // Only a completed bounded pass advances durable application progress.
+              // The checkpoint and its replacement wake share a SQLite transaction;
+              // neither is atomic with a PostgreSQL commit.
+              yield* state.storage.transaction(
                 Effect.gen(function* () {
                   const at = yield* state.storage.get<number>(`${name}:wake`)
                   const completed =
@@ -44,9 +46,16 @@ export const make = <E>(
                   }
                 })
               )
-              .pipe(Effect.orDie)
-          })
-        ),
+            }).pipe(Effect.exit)
+          )
+          if (Exit.isFailure(result)) {
+            // The native host logs failures. Preserve cancellation without exposing
+            // provider SQL, credentials or arbitrary internal Causes to that sink.
+            return yield* Cause.hasInterrupts(result.cause)
+              ? Effect.interrupt
+              : Effect.fail(new WakeUnavailable())
+          }
+        }),
       { retry: { delay: "1 second", maxAttempts: 8, parkedDelay: "1 hour" } }
     )
     const set = (at: number) =>

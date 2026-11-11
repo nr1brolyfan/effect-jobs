@@ -392,6 +392,32 @@ api.test(
   }),
   { timeout: 15000 }
 )
+api.test(
+  "cancels failed native wake work without exporting its internal Cause",
+  Effect.gen(function* () {
+    const base = (yield* stack).lifecycleUrl
+    if (!base) {
+      return yield* Effect.die("Native lifecycle URL missing")
+    }
+    const address = base.replace("localhost", "127.0.0.1")
+    yield* HttpClient.get(address + "/failure/start")
+    const read = HttpClient.get(address + "/failure/attempts").pipe(
+      Effect.flatMap((response) => response.text)
+    )
+    yield* read.pipe(
+      Effect.filterOrFail(
+        (value) => value === "1",
+        () => "failure callback pending"
+      ),
+      Effect.retry({ times: 20, schedule: Schedule.spaced("50 millis") })
+    )
+    yield* HttpClient.get(address + "/failure/cancel")
+    yield* Effect.sleep("1200 millis")
+    expect(yield* read).toBe("1")
+  }),
+  { timeout: 10000 }
+)
+
 api.afterAll(
   api.destroy(Stack).pipe(
     Effect.andThen(

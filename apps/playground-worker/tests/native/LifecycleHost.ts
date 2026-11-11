@@ -40,6 +40,30 @@ class WakeProbe extends Cloudflare.DurableObject<WakeProbe>()(
     })
   })
 ) {}
+class FailureProbe extends Cloudflare.DurableObject<FailureProbe>()(
+  "FailureProbe",
+  Effect.gen(function* () {
+    const state = yield* Cloudflare.DurableObjectState
+    return Effect.gen(function* () {
+      const runtime = yield* RuntimeContext
+      const wake = yield* DurableWake.make("failure", () =>
+        Effect.gen(function* () {
+          const attempts = (yield* state.storage.get<number>("attempts")) ?? 0
+          yield* state.storage.put("attempts", attempts + 1)
+          return yield* Effect.die(new Error("native-sensitive-marker"))
+        })
+      )
+      return {
+        start: () => wake.earlier(Date.now() + 50).pipe(Effect.orDie),
+        cancel: () => wake.clear.pipe(Effect.orDie),
+        attempts: () =>
+          state.storage
+            .get<number>("attempts")
+            .pipe(Effect.provideService(RuntimeContext, runtime))
+      }
+    })
+  })
+) {}
 class ApplicationLiveProbe extends Cloudflare.DurableObject<ApplicationLiveProbe>()(
   "ApplicationLiveProbe",
   Effect.gen(function* () {
@@ -58,10 +82,22 @@ export default Cloudflare.Worker(
     const env = yield* Configuration.configuration
     const probes = yield* WakeProbe
     const lives = yield* ApplicationLiveProbe
+    const failures = yield* FailureProbe
     return {
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest
         const path = new URL(request.url, "http://local").pathname
+        if (path === "/failure/start") {
+          yield* failures.getByName("owned").start()
+          return Response.empty()
+        }
+        if (path === "/failure/cancel") {
+          yield* failures.getByName("owned").cancel()
+          return Response.empty()
+        }
+        if (path === "/failure/attempts") {
+          return Response.text(String(yield* failures.getByName("owned").attempts()))
+        }
         if (path === "/probe/socket") {
           const raw = yield* HttpRequest.toWeb(request).pipe(Effect.orDie)
           return yield* lives
