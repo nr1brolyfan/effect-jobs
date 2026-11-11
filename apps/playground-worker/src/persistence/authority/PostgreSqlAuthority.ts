@@ -1,6 +1,6 @@
 // The application supplies the exact PgClient's SqlClient service and native adapter.
 // @effect-diagnostics unstableApiUsage:off
-import { Effect, Layer, Option, Redacted, Schema } from "effect"
+import { Cause, Effect, Layer, Option, Redacted, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import { controls } from "./TransactionControls.js"
 import {
@@ -69,8 +69,13 @@ export const make = (schema: string) =>
       sql
         .unsafe<Record<string, unknown>>(text, values)
         .pipe(
-          Effect.mapError(
-            () => new CommandTransactionFailure({ commitKnowledge: "Unknown" })
+          Effect.catchCause((cause) =>
+            Effect.failCause(
+              Cause.map(
+                cause,
+                () => new CommandTransactionFailure({ commitKnowledge: "Unknown" })
+              )
+            )
           )
         )
     const described = (id: string) =>
@@ -103,8 +108,26 @@ export const make = (schema: string) =>
       })
     const publicEffect = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       effect.pipe(
-        Effect.mapError((error) =>
-          error instanceof PlaygroundError ? error : fail("unavailable")
+        Effect.catchCause((cause) =>
+          Effect.failCause(
+            Cause.fromReasons(
+              cause.reasons.map((reason): Cause.Reason<PlaygroundError> => {
+                if (Cause.isInterruptReason(reason)) {
+                  return reason
+                }
+                if (Cause.isDieReason(reason)) {
+                  return Cause.makeDieReason(new Error("Sandbox authority defect"))
+                }
+                return Cause.makeFailReason(
+                  fail(
+                    reason.error instanceof PlaygroundError
+                      ? reason.error.code
+                      : "unavailable"
+                  )
+                )
+              })
+            )
+          )
         )
       )
     const renew = (access: SandboxAccess) =>

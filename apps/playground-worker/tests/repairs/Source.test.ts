@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { Effect, Exit } from "effect"
+import { Cause, Effect, Exit, Result } from "effect"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Definitions from "../../src/scenarios/Definitions.js"
 import * as Source from "../../src/persistence/commands/RepairSource.js"
@@ -7,10 +7,10 @@ import * as Fixture from "./Fixtures.js"
 
 describe("complete immutable repair admission", () => {
   it("canonicalizes key order and finite fractional JSON", () => {
-    expect(Source.canonicalJson({ z: 1.5, a: [true, null, -0] })).toBe(
+    expect(Result.getOrThrow(Source.canonicalJson({ z: 1.5, a: [true, null, -0] }))).toBe(
       '{"a":[true,null,0],"z":1.5}'
     )
-    expect(Source.canonicalJson({ b: 2, a: 1 })).toBe(
+    expect(Source.canonicalJson({ b: 2, a: 1 })).toEqual(
       Source.canonicalJson({ a: 1, b: 2 })
     )
   })
@@ -45,9 +45,65 @@ describe("complete immutable repair admission", () => {
       hidden,
       { [Symbol("symbol")]: 1 }
     ]) {
-      expect(() => Source.canonicalJson(bad)).toThrow()
+      expect(Result.isFailure(Source.canonicalJson(bad))).toBe(true)
     }
     expect(invoked).toBe(false)
+  })
+  it("keeps recoverable validation typed and allocates traversal state per execution", async () => {
+    const hostile = new Proxy(
+      {},
+      {
+        ownKeys: () => {
+          throw new Error("foreign trap")
+        }
+      }
+    )
+    expect(Result.isFailure(Source.canonicalJson(hostile))).toBe(true)
+    for (const value of [hostile, { value: Number.NaN }, "x".repeat(131073)]) {
+      const exit = await Effect.runPromiseExit(Source.digestJson(value))
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        expect(exit.cause.reasons).toHaveLength(1)
+        const reason = exit.cause.reasons[0]!
+        expect(Cause.isFailReason(reason)).toBe(true)
+        if (Cause.isFailReason(reason)) {
+          expect(reason.error.reason).toBe("invalid-input")
+        }
+      }
+    }
+    const foreignCommand = new Proxy(Fixture.command, {
+      has: () => {
+        throw new Error("foreign command trap")
+      }
+    })
+    const commandExit = await Effect.runPromiseExit(Source.commandDigest(foreignCommand))
+    expect(Exit.isFailure(commandExit)).toBe(true)
+    if (Exit.isFailure(commandExit)) {
+      expect(commandExit.cause.reasons).toHaveLength(1)
+      const reason = commandExit.cause.reasons[0]!
+      expect(Cause.isFailReason(reason)).toBe(true)
+      if (Cause.isFailReason(reason)) {
+        expect(reason.error.reason).toBe("invalid-input")
+      }
+    }
+    const input = { value: 1 }
+    const digest = Source.digestJson(input)
+    input.value = 2
+    const expected = await Effect.runPromise(Source.digestJson({ value: 2 }))
+    expect(
+      await Effect.runPromise(Effect.all([digest, digest], { concurrency: "unbounded" }))
+    ).toEqual([expected, expected])
+    const invalidArtifact = await Effect.runPromiseExit(
+      Source.artifact({ format_version: 2 })
+    )
+    expect(Exit.isFailure(invalidArtifact)).toBe(true)
+    const bytes = new Uint8Array([1, 2])
+    const artifact = await Effect.runPromise(
+      Source.artifact({ format_version: 1, payload: bytes, projection: bytes })
+    )
+    bytes.fill(9)
+    expect(artifact.payloadBytes).toEqual(new Uint8Array([1, 2]))
+    expect(artifact.semanticProjectionBytes).toEqual(new Uint8Array([1, 2]))
   })
   it("binds every admission field and canonical replacement content", async () => {
     const baseline = await Effect.runPromise(Source.commandDigest(Fixture.command))

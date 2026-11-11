@@ -77,24 +77,28 @@ const codec: JobPayload.EncryptionCodec<
   open: (envelope) =>
     Effect.gen(function* () {
       const keys = yield* DocumentKeys
-      return yield* cryptoOperation(async () => {
-        const plaintext = await crypto.subtle.decrypt(
+      const plaintext = yield* cryptoOperation(() =>
+        crypto.subtle.decrypt(
           { name: "AES-GCM", iv: new Uint8Array(envelope.nonce), additionalData: aad },
           keys.encryption,
           new Uint8Array(envelope.ciphertext)
         )
-        const value = Schema.decodeUnknownSync(Document)(
+      )
+      const parsed = yield* Effect.try({
+        try: (): unknown =>
           JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(plaintext)),
-          { onExcessProperty: "error" }
-        )
-        const expected = hex(
-          await crypto.subtle.sign("HMAC", keys.fingerprint, canonical(value))
-        )
-        if (expected !== envelope.fingerprint) {
-          throw new JobPayload.JobEncryptionError()
-        }
-        return value
+        catch: () => new JobPayload.JobEncryptionError()
       })
+      const value = yield* Schema.decodeUnknownEffect(Document)(parsed, {
+        onExcessProperty: "error"
+      }).pipe(Effect.mapError(() => new JobPayload.JobEncryptionError()))
+      const expected = yield* cryptoOperation(async () =>
+        hex(await crypto.subtle.sign("HMAC", keys.fingerprint, canonical(value)))
+      )
+      if (expected !== envelope.fingerprint) {
+        return yield* new JobPayload.JobEncryptionError()
+      }
+      return value
     })
 }
 

@@ -31,10 +31,13 @@ const decode = <S extends Schema.Top & { readonly DecodingServices: never }>(
   schema: S,
   input: unknown
 ) =>
-  Effect.try({
-    try: () => JSON.parse(Source.canonicalJson(input, 131072)) as unknown,
-    catch: () => fail("invalid-request")
-  }).pipe(
+  Effect.suspend(() => Effect.fromResult(Source.canonicalJson(input, 131072))).pipe(
+    Effect.flatMap((text) =>
+      Effect.try({
+        try: () => JSON.parse(text) as unknown,
+        catch: () => fail("invalid-request")
+      })
+    ),
     Effect.flatMap((snapshot) =>
       Schema.decodeUnknownEffect(schema)(snapshot, { onExcessProperty: "error" })
     ),

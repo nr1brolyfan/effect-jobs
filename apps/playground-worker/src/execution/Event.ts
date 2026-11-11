@@ -7,7 +7,7 @@ import * as OperatorTransactions from "../persistence/authority/PostgreSqlOperat
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { JobWorker } from "effect-jobs/JobWorker"
 import { CommandPersistence } from "../persistence/commands/Transactions.js"
-import { Effect, Layer, Redacted } from "effect"
+import { Effect, Layer, Redacted, Schema } from "effect"
 import * as Pg from "@effect/sql-pg/PgClient"
 import { SqlClient } from "effect/sql/SqlClient"
 import * as Native from "effect-jobs/PostgreSqlNative"
@@ -45,38 +45,51 @@ export const mapping = (schema: string) => ({
   sandboxesTable: "sandboxes",
   associationsTable: "associations"
 })
-const bytes = (hex: string) => {
-  if (!/^[0-9a-f]{64}$/.test(hex)) {
-    throw new Error("Invalid synthetic key configuration")
-  }
-  return Uint8Array.from(hex.match(/../g)!, (byte) => Number.parseInt(byte, 16))
-}
+const bytes = (hex: string) =>
+  Schema.decodeUnknownEffect(
+    Schema.String.pipe(Schema.check(Schema.isPattern(/^[0-9a-f]{64}$/)))
+  )(hex).pipe(
+    Effect.mapError(() => new PlaygroundError({ code: "unavailable" })),
+    Effect.map((value) =>
+      Uint8Array.from(value.match(/../g)!, (byte) => Number.parseInt(byte, 16))
+    )
+  )
 const keys = (config: Config) =>
-  Effect.tryPromise({
-    try: async () => ({
-      encryption: await crypto.subtle.importKey(
-        "raw",
-        bytes(config.encryptionKey),
-        "AES-GCM",
-        false,
-        ["encrypt", "decrypt"]
-      ),
-      fingerprint: await crypto.subtle.importKey(
-        "raw",
-        bytes(config.fingerprintKey),
-        { name: "HMAC", hash: "SHA-256" },
-        false,
-        ["sign", "verify"]
-      ),
-      cursor: await crypto.subtle.importKey(
-        "raw",
-        bytes(config.cursorKey),
-        { name: "HMAC", hash: "SHA-256" },
-        false,
-        ["sign", "verify"]
-      )
-    }),
-    catch: () => new PlaygroundError({ code: "unavailable" })
+  Effect.gen(function* () {
+    const encryptionBytes = yield* bytes(config.encryptionKey)
+    const encryption = yield* Effect.tryPromise({
+      try: () =>
+        crypto.subtle.importKey("raw", encryptionBytes, "AES-GCM", false, [
+          "encrypt",
+          "decrypt"
+        ]),
+      catch: () => new PlaygroundError({ code: "unavailable" })
+    })
+    const fingerprintBytes = yield* bytes(config.fingerprintKey)
+    const fingerprint = yield* Effect.tryPromise({
+      try: () =>
+        crypto.subtle.importKey(
+          "raw",
+          fingerprintBytes,
+          { name: "HMAC", hash: "SHA-256" },
+          false,
+          ["sign", "verify"]
+        ),
+      catch: () => new PlaygroundError({ code: "unavailable" })
+    })
+    const cursorBytes = yield* bytes(config.cursorKey)
+    const cursor = yield* Effect.tryPromise({
+      try: () =>
+        crypto.subtle.importKey(
+          "raw",
+          cursorBytes,
+          { name: "HMAC", hash: "SHA-256" },
+          false,
+          ["sign", "verify"]
+        ),
+      catch: () => new PlaygroundError({ code: "unavailable" })
+    })
+    return { encryption, fingerprint, cursor }
   })
 
 // One native client/backend per serialized event. Scope closes before return.

@@ -30,8 +30,9 @@ const request = <S extends Schema.Top & { readonly DecodingServices: never }>(
   body?: unknown
 ) =>
   Effect.tryPromise({
-    try: (signal) =>
-      fetch(path, {
+    // Fetch and its body share one native cancellation lifetime.
+    try: async (signal) => {
+      const response = await fetch(path, {
         method,
         credentials: "same-origin",
         signal,
@@ -40,25 +41,21 @@ const request = <S extends Schema.Top & { readonly DecodingServices: never }>(
             ? { "Content-Type": "application/json", "X-Playground-CSRF": csrf() }
             : {},
         ...(body === undefined ? {} : { body: JSON.stringify(body) })
-      }),
+      })
+      const raw: unknown = await response.json()
+      return { ok: response.ok, raw }
+    },
     catch: () => new PlaygroundError({ code: "unavailable" })
   }).pipe(
     Effect.flatMap((response) =>
-      Effect.tryPromise({
-        try: () => response.json() as Promise<unknown>,
-        catch: () => new PlaygroundError({ code: "unavailable" })
-      }).pipe(
-        Effect.flatMap((raw) =>
-          response.ok
-            ? Schema.decodeUnknownEffect(schema)(raw, { onExcessProperty: "error" }).pipe(
-                Effect.mapError(() => new PlaygroundError({ code: "unavailable" }))
-              )
-            : Schema.decodeUnknownEffect(PublicError)(raw).pipe(
-                Effect.mapError(() => new PlaygroundError({ code: "unavailable" })),
-                Effect.flatMap((error) => Effect.fail(new PlaygroundError(error)))
-              )
-        )
-      )
+      response.ok
+        ? Schema.decodeUnknownEffect(schema)(response.raw, {
+            onExcessProperty: "error"
+          }).pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" })))
+        : Schema.decodeUnknownEffect(PublicError)(response.raw).pipe(
+            Effect.mapError(() => new PlaygroundError({ code: "unavailable" })),
+            Effect.flatMap((error) => Effect.fail(new PlaygroundError(error)))
+          )
     ),
     Effect.timeoutOrElse({
       duration: "8 seconds",

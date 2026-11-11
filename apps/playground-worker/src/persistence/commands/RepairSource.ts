@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect"
+import { Effect, Result, Schema } from "effect"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import {
   JobRepairReason,
@@ -20,100 +20,104 @@ const scalars = (value: string) =>
   Array.from(value).every(
     (scalar) => scalar.codePointAt(0)! < 0xd800 || scalar.codePointAt(0)! > 0xdfff
   )
-export const canonicalJson = (input: unknown, maximum = 65536): string => {
-  const seen = new Set<object>()
-  let length = 0
-  const emit = (text: string) => {
-    length += new TextEncoder().encode(text).length
-    if (length > maximum) {
-      throw new Error("JSON size exceeded")
+export const canonicalJson = (
+  input: unknown,
+  maximum = 65536
+): Result.Result<string, void> => {
+  // Scratch belongs to one synchronous validation. Only foreign object operations
+  // can throw; expected bounds/shape failures return through Result.
+  try {
+    const seen = new Set<object>()
+    let length = 0
+    const emit = (text: string): Result.Result<string, void> => {
+      length += new TextEncoder().encode(text).length
+      return length > maximum ? Result.failVoid : Result.succeed(text)
     }
-    return text
-  }
-  const quote = (text: string) => {
-    if (text.length > maximum || !scalars(text)) {
-      throw new Error("Invalid JSON string")
-    }
-    return emit(JSON.stringify(text))
-  }
-  const visit = (value: unknown, depth: number): string => {
-    if (depth > 32) {
-      throw new Error("JSON depth exceeded")
-    }
-    if (value === null) {
-      return emit("null")
-    }
-    if (typeof value === "boolean") {
-      return emit(String(value))
-    }
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return emit(JSON.stringify(value))
-    }
-    if (typeof value === "string") {
-      return quote(value)
-    }
-    if (typeof value !== "object" || value === null || seen.has(value)) {
-      throw new Error("Invalid JSON")
-    }
-    const array = Array.isArray(value)
-    if (
-      !array &&
-      Object.getPrototypeOf(value) !== Object.prototype &&
-      Object.getPrototypeOf(value) !== null
-    ) {
-      throw new Error("Invalid JSON container")
-    }
-    seen.add(value)
-    const descriptors = Object.getOwnPropertyDescriptors(value)
-    const keys = Reflect.ownKeys(descriptors)
-    for (const key of keys) {
-      if (array && key === "length") {
-        continue
-      }
-      const descriptor = descriptors[key as string]!
-      if (
-        typeof key !== "string" ||
-        !scalars(key) ||
-        !descriptor.enumerable ||
-        !("value" in descriptor)
-      ) {
-        throw new Error("Invalid JSON descriptor")
-      }
-    }
-    let result: string
-    if (array) {
-      if (keys.length !== value.length + 1) {
-        throw new Error("Invalid JSON array")
-      }
-      emit("[]")
-      const entries: string[] = []
-      for (let index = 0; index < value.length; index++) {
-        if (index > 0) {
-          emit(",")
+    const quote = (text: string): Result.Result<string, void> =>
+      text.length > maximum || !scalars(text)
+        ? Result.failVoid
+        : emit(JSON.stringify(text))
+    const visit = (value: unknown, depth: number): Result.Result<string, void> =>
+      Result.gen(function* () {
+        if (depth > 32) {
+          return yield* Result.failVoid
         }
-        const descriptor = descriptors[String(index)]
-        if (!descriptor) {
-          throw new Error("Sparse JSON array")
+        if (value === null) {
+          return yield* emit("null")
         }
-        entries.push(visit(descriptor.value, depth + 1))
-      }
-      result = `[${entries.join(",")}]`
-    } else {
-      emit("{}")
-      result = `{${(keys as string[])
-        .sort()
-        .map((key, index) => {
-          if (index > 0) {
-            emit(",")
+        if (typeof value === "boolean") {
+          return yield* emit(String(value))
+        }
+        if (typeof value === "number" && Number.isFinite(value)) {
+          return yield* emit(JSON.stringify(value))
+        }
+        if (typeof value === "string") {
+          return yield* quote(value)
+        }
+        if (typeof value !== "object" || seen.has(value)) {
+          return yield* Result.failVoid
+        }
+        const array = Array.isArray(value)
+        if (
+          !array &&
+          Object.getPrototypeOf(value) !== Object.prototype &&
+          Object.getPrototypeOf(value) !== null
+        ) {
+          return yield* Result.failVoid
+        }
+        seen.add(value)
+        const descriptors = Object.getOwnPropertyDescriptors(value)
+        const keys = Reflect.ownKeys(descriptors)
+        for (const key of keys) {
+          if (array && key === "length") {
+            continue
           }
-          return `${quote(key)}${emit(":")}${visit(descriptors[key]!.value, depth + 1)}`
-        })
-        .join(",")}}`
-    }
-    seen.delete(value)
-    return result
+          const descriptor = descriptors[key as string]!
+          if (
+            typeof key !== "string" ||
+            !scalars(key) ||
+            !descriptor.enumerable ||
+            !("value" in descriptor)
+          ) {
+            return yield* Result.failVoid
+          }
+        }
+        const entries: string[] = []
+        if (array) {
+          if (keys.length !== value.length + 1) {
+            return yield* Result.failVoid
+          }
+          yield* emit("[]")
+          for (let index = 0; index < value.length; index++) {
+            if (index > 0) {
+              yield* emit(",")
+            }
+            const descriptor = descriptors[String(index)]
+            if (!descriptor) {
+              return yield* Result.failVoid
+            }
+            entries.push(yield* visit(descriptor.value, depth + 1))
+          }
+        } else {
+          yield* emit("{}")
+          for (const [index, key] of (keys as string[]).sort().entries()) {
+            if (index > 0) {
+              yield* emit(",")
+            }
+            const name = yield* quote(key)
+            yield* emit(":")
+            const member = yield* visit(descriptors[key]!.value, depth + 1)
+            entries.push(`${name}:${member}`)
+          }
+        }
+        seen.delete(value)
+        return array ? `[${entries.join(",")}]` : `{${entries.join(",")}}`
+      })
+    return visit(input, 0)
+  } catch {
+    // Proxies and native reflection/encoding are unsafe JavaScript boundaries.
+    return Result.failVoid
   }
-  return visit(input, 0)
 }
 const sha256 = (value: string) =>
   Effect.tryPromise({
@@ -127,21 +131,24 @@ const sha256 = (value: string) =>
       ).join(""),
     catch: () => rejected("unavailable")
   })
+const canonical = (input: unknown, maximum = 65536) =>
+  Effect.suspend(() => Effect.fromResult(canonicalJson(input, maximum))).pipe(
+    Effect.mapError(() => rejected("invalid-input"))
+  )
 export const digestJson = (value: unknown) =>
-  Effect.try({
-    try: () => canonicalJson(value, 131072),
-    catch: () => rejected("invalid-input")
-  }).pipe(Effect.flatMap(sha256))
+  canonical(value, 131072).pipe(Effect.flatMap(sha256))
 export const commandDigest = (command: JobRepairCommand | JobResolutionCommand) =>
-  Effect.try({
-    try: () => {
-      if ("payload" in command) {
-        canonicalJson(command.payload)
-      }
-      return canonicalJson(command, 131072)
-    },
-    catch: () => rejected("invalid-input")
-  }).pipe(Effect.flatMap(sha256))
+  Effect.gen(function* () {
+    const payload = yield* Effect.try({
+      // The has/get traps are foreign JavaScript operations, not validation.
+      try: () => ("payload" in command ? { value: command.payload } : undefined),
+      catch: () => rejected("invalid-input")
+    })
+    if (payload !== undefined) {
+      yield* canonical(payload.value)
+    }
+    return yield* canonical(command, 131072).pipe(Effect.flatMap(sha256))
+  })
 export const producerIdentity = (command: JobRepairCommand) =>
   sha256(
     JSON.stringify([
@@ -167,22 +174,32 @@ export const definition = (row: Readonly<Record<string, unknown>>) => {
   return found ? Effect.succeed(found) : Effect.fail(rejected("unsupported-catalog"))
 }
 export const artifact = (row: Readonly<Record<string, unknown>>) =>
-  Effect.try({
-    try: () => {
-      if (
-        Number(row.format_version) !== 1 ||
-        !(row.payload instanceof Uint8Array) ||
-        !(row.projection instanceof Uint8Array)
-      ) {
-        throw new Error("Absent artifact")
-      }
-      return {
+  Effect.gen(function* () {
+    // Snapshot foreign row access before validation and buffer copying.
+    const input = yield* Effect.try({
+      try: () => ({
+        version: Number(row.format_version),
+        payload: row.payload,
+        projection: row.projection
+      }),
+      catch: () => rejected("invalid-artifact")
+    })
+    if (
+      input.version !== 1 ||
+      !(input.payload instanceof Uint8Array) ||
+      !(input.projection instanceof Uint8Array)
+    ) {
+      return yield* rejected("invalid-artifact")
+    }
+    const { payload, projection } = input
+    return yield* Effect.try({
+      try: () => ({
         formatVersion: 1 as const,
-        payloadBytes: new Uint8Array(row.payload),
-        semanticProjectionBytes: new Uint8Array(row.projection)
-      }
-    },
-    catch: () => rejected("invalid-artifact")
+        payloadBytes: new Uint8Array(payload),
+        semanticProjectionBytes: new Uint8Array(projection)
+      }),
+      catch: () => rejected("invalid-artifact")
+    })
   })
 
 export const knownFailure = (row: Readonly<Record<string, unknown>>): boolean =>
@@ -214,14 +231,23 @@ export const investigate = (
   }
 }
 
+const fieldChanges = (
+  before: Readonly<Record<string, unknown>>,
+  after: Readonly<Record<string, unknown>>,
+  keys: ReadonlyArray<string>,
+  prefix: string
+) =>
+  Effect.forEach(keys, (key) =>
+    Effect.gen(function* () {
+      const left = yield* canonical(before[key])
+      const right = yield* canonical(after[key])
+      return left === right
+        ? []
+        : [{ kind: "Changed" as const, path: `${prefix}/${key}` }]
+    })
+  ).pipe(Effect.map((changes) => changes.flat()))
 export const changedPaths = (before: Definitions.Payload, after: Definitions.Payload) =>
-  Object.keys(Definitions.Payload.fields)
-    .filter(
-      (key) =>
-        canonicalJson(before[key as keyof Definitions.Payload]) !==
-        canonicalJson(after[key as keyof Definitions.Payload])
-    )
-    .map((key) => ({ kind: "Changed" as const, path: `/${key}` }))
+  fieldChanges(before, after, Object.keys(Definitions.Payload.fields), "")
 
 // A corrected artifact can replace missing/corrupt old bytes. Invariant authority
 // comes from retained association identity; valid old bytes constrain it further.
@@ -305,24 +331,14 @@ export const replacement = (
         payload: nextSynthetic,
         changes: old
           ? [
-              ...changedPaths(old, next),
+              ...(yield* changedPaths(old, next)),
               ...(oldSynthetic
-                ? Object.keys(nextSynthetic.document)
-                    .filter(
-                      (key) =>
-                        canonicalJson(
-                          oldSynthetic.document[key as keyof typeof oldSynthetic.document]
-                        ) !==
-                        canonicalJson(
-                          nextSynthetic.document[
-                            key as keyof typeof nextSynthetic.document
-                          ]
-                        )
-                    )
-                    .map((key) => ({
-                      kind: "Changed" as const,
-                      path: `/document/${key}`
-                    }))
+                ? yield* fieldChanges(
+                    oldSynthetic.document,
+                    nextSynthetic.document,
+                    Object.keys(nextSynthetic.document),
+                    "/document"
+                  )
                 : [])
             ]
           : null
@@ -338,6 +354,6 @@ export const replacement = (
       _tag: "Plain" as const,
       definition: selected,
       payload: next,
-      changes: old ? changedPaths(old, next) : null
+      changes: old ? yield* changedPaths(old, next) : null
     }
   })
