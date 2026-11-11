@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { Pool } from "pg"
-import { createLocal } from "./Local.mjs"
+import { createLocal } from "./Local.ts"
 const root = resolve(import.meta.dirname, "../../../..")
 const evidence = resolve(root, ".multica/integration")
 const { migrations } = await import(`${evidence}/Migrations.mjs`)

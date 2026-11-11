@@ -8,7 +8,7 @@ import { Pool } from "pg"
 import { chromium, expect } from "@playwright/test"
 import { Effect } from "effect"
 import * as Fixture from "@effect-jobs/playground-contracts/SyntheticCryptoFixture"
-import { createLocal } from "./Local.mjs"
+import { createLocal } from "./Local.ts"
 
 const directory = process.env.D6_RESOURCE_DIRECTORY
 const configPath = process.env.PLAYGROUND_PRIVATE_CONFIG

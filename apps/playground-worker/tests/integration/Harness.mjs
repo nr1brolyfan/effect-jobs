@@ -5,7 +5,7 @@ import { resolve } from "node:path"
 import { Pool } from "pg"
 import { Effect } from "effect"
 import { chromium } from "@playwright/test"
-import { createLocal } from "./Local.mjs"
+import { createLocal } from "./Local.ts"
 const root = resolve(import.meta.dirname, "../../../..")
 const evidence = resolve(
   root,

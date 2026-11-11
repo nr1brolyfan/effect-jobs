@@ -6,7 +6,7 @@ import { createRequire } from "node:module"
 import { Effect } from "effect"
 import { Pool } from "pg"
 import { chromium, expect } from "@playwright/test"
-import { createLocal } from "./Local.mjs"
+import { createLocal } from "./Local.ts"
 const evidence = resolve(process.env.PLAYGROUND_EVIDENCE_DIRECTORY)
 const { migrations } = await import(`${evidence}/Migrations.mjs`)
 const { seed } = await import(`${evidence}/RefreshSeed.mjs`)

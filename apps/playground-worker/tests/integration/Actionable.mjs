@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto"
 import { Pool } from "pg"
 import { Effect } from "effect"
 import { chromium, expect } from "@playwright/test"
-import { createLocal } from "./Local.mjs"
+import { createLocal } from "./Local.ts"
 const evidence = resolve(process.env.PLAYGROUND_EVIDENCE_DIRECTORY)
 const { migrations } = await import(`${evidence}/Migrations.mjs`)
 const probe = await import(`${evidence}/ActionableProbe.mjs`)

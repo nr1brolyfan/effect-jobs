@@ -38,7 +38,7 @@ try:
     testenv = os.environ.copy()
     testenv.update(PLAYGROUND_PRIVATE_CONFIG=str(private), PLAYGROUND_EVIDENCE_DIRECTORY=str(evidence))
     with (evidence / 'runtime.log').open('w') as log:
-        process = subprocess.Popen(['node', 'apps/playground-worker/tests/integration/React.mjs'], cwd=root, env=testenv, stdout=log, stderr=log, start_new_session=True)
+        process = subprocess.Popen(['node', 'apps/playground-worker/tests/integration/React.ts'], cwd=root, env=testenv, stdout=log, stderr=log, start_new_session=True)
         try:
             exit_code = process.wait(timeout=240)
         finally:
