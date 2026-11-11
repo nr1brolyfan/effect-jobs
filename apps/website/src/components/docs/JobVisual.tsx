@@ -179,14 +179,7 @@ function Illustration(props: Props) {
           {connections.map((connection) => (
             <g key={connection.id}>
               <path
-                className={[
-                  "jv-wire",
-                  stylex.props(
-                    styles.wire,
-                    (enabled && playback.step >= connection.at) === true &&
-                      styles.wireSelected
-                  ).className
-                ]
+                className={["jv-wire", stylex.props(styles.wire).className]
                   .filter(Boolean)
                   .join(" ")}
                 data-connection={connection.id}

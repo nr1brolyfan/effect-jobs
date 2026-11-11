@@ -129,15 +129,12 @@ export const styles = stylex.create({
     pointerEvents: "none",
     zIndex: "0"
   },
-  // .jv-wire
-  wire: { fill: "none", stroke: "#646b77", strokeWidth: "1.4" },
-  // .jv-wire[data-active="true"]
-  wireSelected: { stroke: "var(--wire-color)" },
+  // Connection colors come from SVG presentation attributes in JobVisual.
+  wire: { fill: "none", strokeWidth: "1.4" },
   // .jv-packet rect
-  packet: { fill: "#131519", stroke: "var(--wire-color)", strokeWidth: "1.2" },
+  packet: { fill: "#131519", strokeWidth: "1.2" },
   // .jv-packet text
   packet2: {
-    fill: "var(--wire-color)",
     font: "10px var(--sl-font-mono)",
     textAnchor: "middle",
     dominantBaseline: "central"
