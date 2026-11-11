@@ -1,17 +1,17 @@
 import { Cause, Effect, Exit, Schema } from "effect"
 import { expect, test } from "vitest"
-import { makeOperators } from "../../../src/internal/postgresql/Operators.js"
+import { makeOperators } from "../../../src/postgresql/internal/Operators.js"
 import {
   insertOrCompareAt,
   insertOrCompare
-} from "../../../src/internal/postgresql/Producer.js"
+} from "../../../src/postgresql/internal/Producer.js"
 import { JobOperatorExpected } from "../../../src/JobOperators.js"
 import { encodeJobPayload } from "../../../src/JobPayloadCodec.js"
-import { PostgreSqlInvalidHandle } from "../../../src/PostgreSqlTransaction.js"
+import { PostgreSqlInvalidHandle } from "../../../src/postgresql/PostgreSqlTransaction.js"
 import type {
   ApplicationAdapter,
   TransactionQuery
-} from "../../../src/PostgreSqlTransaction.js"
+} from "../../../src/postgresql/PostgreSqlTransaction.js"
 import { defaultPolicy } from "../../../src/JobPolicy.js"
 import { DocumentKeys, EncryptedDocument, keys } from "../codec/EncryptedFixture.js"
 

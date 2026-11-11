@@ -7,9 +7,11 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  statSync,
   writeFileSync
 } from "node:fs"
 import { join, resolve } from "node:path"
+import { publicModules } from "../../../../scripts/SourceExports.mjs"
 // Finite source+current-packed qualification. No private env files or provider keys.
 
 const root = resolve(import.meta.dirname, "../../../..")
@@ -82,12 +84,18 @@ try {
   assert.equal(run("bun-version", "bun", ["--version"]), "1.4.2")
   run("reference", "node", ["apps/website/tests/docs-reference/Reference.ts", "--check"])
   run("snippets", "bun", ["run", "check:docs:snippets"])
-  run("build", "bun", ["run", "build"])
-  run("pack", "npm", ["pack", "--ignore-scripts", "--pack-destination", work])
-  const archive = join(
-    work,
-    readdirSync(work).find((file) => file.endsWith(".tgz"))!
-  )
+  const suppliedArchive = process.env.EFFECT_JOBS_ARCHIVE
+  if (!suppliedArchive) {
+    run("build", "bun", ["run", "build"])
+    run("pack", "npm", ["pack", "--ignore-scripts", "--pack-destination", work])
+  }
+  const archive = suppliedArchive
+    ? resolve(suppliedArchive)
+    : join(
+        work,
+        readdirSync(work).find((file) => file.endsWith(".tgz"))!
+      )
+  assert(statSync(archive).isFile(), "Qualification requires a package archive file")
   receipt.archiveSha256 = hash(readFileSync(archive))
   const consumer = join(work, "consumer")
   mkdirSync(consumer)
@@ -150,12 +158,12 @@ try {
       "drizzle-orm": [join(root, "node_modules/drizzle-orm/index.d.ts")],
       "drizzle-orm/*": [join(root, "node_modules/drizzle-orm/*/index.d.ts")],
       ...Object.fromEntries(
-        Object.keys(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).exports)
-          .filter((key) => key !== ".")
-          .map((key) => [
-            `effect-jobs/${key.slice(2)}`,
-            [join(root, `src/${key.slice(2)}.ts`)]
-          ])
+        publicModules(JSON.parse(readFileSync(join(root, "package.json"), "utf8"))).map(
+          (module) => [
+            module.subpath === "." ? "effect-jobs" : `effect-jobs/${module.name}`,
+            [join(root, module.source)]
+          ]
+        )
       )
     }
   }

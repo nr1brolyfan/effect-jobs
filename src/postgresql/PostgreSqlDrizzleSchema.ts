@@ -22,7 +22,7 @@ import type {
   IndexBuilder
 } from "drizzle-orm/pg-core"
 import { indexPrefix, tables, type TableOptions } from "./PostgreSqlSchema.js"
-import type { JobPolicy } from "./JobPolicy.js"
+import type { JobPolicy } from "../JobPolicy.js"
 
 const bytes = customType<{ data: Uint8Array; driverData: Buffer }>({
   dataType: () => "bytea",

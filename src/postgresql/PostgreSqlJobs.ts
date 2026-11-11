@@ -1,14 +1,14 @@
 /**
  * PostgreSQL storage and transaction bridge using application-owned connections.
  */
-import { JobOperators, type JobOperatorsService } from "./JobOperators.js"
-import { makeOperators } from "./internal/postgresql/Operators.js"
-import { JobIntegrityConflict } from "./JobContract.js"
+import { JobOperators, type JobOperatorsService } from "../JobOperators.js"
+import { makeOperators } from "./internal/Operators.js"
+import { JobIntegrityConflict } from "../JobContract.js"
 import { PostgreSqlFailure, PostgreSqlInvalidHandle } from "./PostgreSqlTransaction.js"
 import { Cause, Context, Effect, Layer, Schema } from "effect"
-import { JobBackendError, JobEnqueue, type JobEnqueueService } from "./JobEnqueue.js"
-import { EpochMillis } from "./JobPolicy.js"
-import type { JobsTransaction } from "./JobTransaction.js"
+import { JobBackendError, JobEnqueue, type JobEnqueueService } from "../JobEnqueue.js"
+import { EpochMillis } from "../JobPolicy.js"
+import type { JobsTransaction } from "../JobTransaction.js"
 import { PostgreSqlApplication, type PostgreSqlError } from "./PostgreSqlTransaction.js"
 import {
   PostgreSqlConfigurationError,
@@ -17,11 +17,11 @@ import {
   type TableOptions,
   type Tables
 } from "./PostgreSqlSchema.js"
-import type { JobCleanupService, JobStoreService } from "./JobStore.js"
-import { withJoinedTransaction } from "./internal/JobTransaction.js"
-import { insertOrCompare } from "./internal/postgresql/Producer.js"
-import { makeCleanup, makeStore } from "./internal/postgresql/Store.js"
-import { ready } from "./internal/postgresql/Readiness.js"
+import type { JobCleanupService, JobStoreService } from "../JobStore.js"
+import { withJoinedTransaction } from "../internal/JobTransaction.js"
+import { insertOrCompare } from "./internal/Producer.js"
+import { makeCleanup, makeStore } from "./internal/Store.js"
+import { ready } from "./internal/Readiness.js"
 
 const backendError = (error: PostgreSqlError): JobBackendError =>
   new JobBackendError({

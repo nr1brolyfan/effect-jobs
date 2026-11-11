@@ -5,6 +5,7 @@ import { createHash } from "node:crypto"
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
+import { publicModules } from "../../../scripts/SourceExports.mjs"
 const root = resolve(import.meta.dirname, "../../..")
 const archive = resolve(process.env.EFFECT_JOBS_ARCHIVE)
 const work = mkdtempSync(join(tmpdir(), "effect-jobs-public-api-"))
@@ -37,8 +38,20 @@ writeFileSync(
   ) + "\n"
 )
 run("install", "npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"])
+const sourceToPublic = new Map(
+  publicModules(JSON.parse(readFileSync(join(root, "package.json"), "utf8"))).map(
+    (module) => [
+      module.source.replace(/\.ts$/, ".js"),
+      module.subpath === "." ? "effect-jobs" : `effect-jobs/${module.name}`
+    ]
+  )
+)
 const publicImports = (code) =>
-  code.replace(/"(?:\.\.\/)+src\/([^"/]+)\.js"/g, '"effect-jobs/$1"')
+  code.replace(/"(?:\.\.\/)+(src\/[^"\n]+\.js)"/g, (_match, source) => {
+    const specifier = sourceToPublic.get(source)
+    assert(specifier, `Not a public source import: ${source}`)
+    return JSON.stringify(specifier)
+  })
 writeFileSync(
   join(work, "EncryptedFixture.mts"),
   publicImports(readFileSync(join(root, "tests/core/codec/EncryptedFixture.ts"), "utf8"))

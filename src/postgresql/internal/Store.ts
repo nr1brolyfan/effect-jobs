@@ -1,13 +1,13 @@
 import { Effect, Result, Schema } from "effect"
 import * as Lifecycle from "../../JobLifecycle.js"
 import * as Store from "../../JobStore.js"
-import * as Reconciliation from "../lifecycle/Reconciliation.js"
-import { PostgreSqlFailure } from "../../PostgreSqlTransaction.js"
+import * as Reconciliation from "../../internal/lifecycle/Reconciliation.js"
+import { PostgreSqlFailure } from "../PostgreSqlTransaction.js"
 import type {
   ApplicationAdapter,
   PostgreSqlError,
   TransactionQuery
-} from "../../PostgreSqlTransaction.js"
+} from "../PostgreSqlTransaction.js"
 import { claimArtifact, dbTime, fromResult, snapshot, writeSnapshot } from "./Rows.js"
 
 const inputError = () => new Store.JobStoreProtocolError({ reason: "invalid-input" })

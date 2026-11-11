@@ -9,13 +9,13 @@ import * as Job from "../../src/Job.js"
 import * as Queue from "../../src/JobQueue.js"
 import * as Producer from "../../src/JobProducer.js"
 import * as Policy from "../../src/JobPolicy.js"
-import * as Jobs from "../../src/PostgreSqlJobs.js"
-import * as Tables from "../../src/PostgreSqlSchema.js"
+import * as Jobs from "../../src/postgresql/PostgreSqlJobs.js"
+import * as Tables from "../../src/postgresql/PostgreSqlSchema.js"
 import {
   PostgreSqlApplication,
   PostgreSqlFailure
-} from "../../src/PostgreSqlTransaction.js"
-import type { ApplicationAdapter } from "../../src/PostgreSqlTransaction.js"
+} from "../../src/postgresql/PostgreSqlTransaction.js"
+import type { ApplicationAdapter } from "../../src/postgresql/PostgreSqlTransaction.js"
 import * as Payload from "../../src/JobPayload.js"
 import { encodeJobPayload, decodeJobPayload } from "../../src/JobPayloadCodec.js"
 import * as Registry from "../../src/JobRegistry.js"
@@ -1154,7 +1154,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
   test("explicit scoped handles expire; foreign source rejected without borrowing; store rejects joined owner", async () => {
     await clear()
     let saved:
-      | JobsTransaction<import("../../src/PostgreSqlTransaction.js").PostgreSqlError>
+      | JobsTransaction<
+          import("../../src/postgresql/PostgreSqlTransaction.js").PostgreSqlError
+        >
       | undefined
     await Effect.runPromise(
       adapter.applicationTransaction((handle) =>

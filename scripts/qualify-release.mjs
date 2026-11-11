@@ -51,7 +51,16 @@ import { createRequire } from "node:module"
 import { Effect } from "effect"
 const require = createRequire(import.meta.url)
 for (const peer of ["pg", "drizzle-orm"]) assert.throws(() => require.resolve(peer))
-assert.throws(() => require.resolve("effect-jobs/dist/internal/JobTransaction.js"), (error) => ["ERR_PACKAGE_PATH_NOT_EXPORTED", "MODULE_NOT_FOUND"].includes(error.code))
+for (const privatePath of [
+  "effect-jobs/dist/internal/JobTransaction.js",
+  "effect-jobs/postgresql/PostgreSqlJobs",
+  "effect-jobs/postgresql/internal/Store",
+  "effect-jobs/dist/postgresql/internal/Producer.js",
+  "effect-jobs/internal/postgresql/Rows"
+]) {
+  assert.throws(() => require.resolve(privatePath), (error) => ["ERR_PACKAGE_PATH_NOT_EXPORTED", "MODULE_NOT_FOUND"].includes(error.code))
+  await assert.rejects(import(privatePath), (error) => ["ERR_PACKAGE_PATH_NOT_EXPORTED", "ERR_MODULE_NOT_FOUND", "MODULE_NOT_FOUND"].includes(error.code))
+}
 const timers = { timeout: globalThis.setTimeout, interval: globalThis.setInterval }
 let started = 0
 const forbidden = () => { started++; throw new Error("import started a timer") }
@@ -60,7 +69,7 @@ globalThis.setInterval = forbidden
 try { for (const specifier of ${JSON.stringify(imports)}) await import(specifier) }
 finally { globalThis.setTimeout = timers.timeout; globalThis.setInterval = timers.interval }
 assert.equal(started, 0)
-console.log("22 public imports without optional peers: zero import timers; PASS")
+console.log("all non-Drizzle public imports without optional peers: zero import timers; private deep imports rejected; PASS")
 `
 )
 const smoke = readFileSync(

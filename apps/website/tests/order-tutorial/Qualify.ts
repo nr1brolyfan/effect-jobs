@@ -7,9 +7,11 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  statSync,
   writeFileSync
 } from "node:fs"
 import { join, resolve } from "node:path"
+import { publicModules } from "../../../../scripts/SourceExports.mjs"
 // Finite installed/source contract + owned real PG qualification of the order example.
 const root = resolve(import.meta.dirname, "../../../..")
 const sources = join(root, "apps/website/examples/docs/orders")
@@ -97,7 +99,14 @@ try {
         skipLibCheck: true,
         noEmit: true,
         paths: {
-          "effect-jobs/*": [join(root, "src/*.ts")],
+          ...Object.fromEntries(
+            publicModules(
+              JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
+            ).map((module) => [
+              module.subpath === "." ? "effect-jobs" : `effect-jobs/${module.name}`,
+              [join(root, module.source)]
+            ])
+          ),
           "drizzle-orm": [join(root, "node_modules/drizzle-orm/index.d.ts")],
           "drizzle-orm/*": [join(root, "node_modules/drizzle-orm/*/index.d.ts")]
         }
@@ -110,12 +119,18 @@ try {
     "-p",
     join(work, "tsconfig.source.json")
   ])
-  run("build", "bun", ["run", "build"])
-  run("pack", "npm", ["pack", "--ignore-scripts", "--pack-destination", work])
-  const archive = join(
-    work,
-    readdirSync(work).find((f) => f.endsWith(".tgz"))!
-  )
+  const suppliedArchive = process.env.EFFECT_JOBS_ARCHIVE
+  if (!suppliedArchive) {
+    run("build", "bun", ["run", "build"])
+    run("pack", "npm", ["pack", "--ignore-scripts", "--pack-destination", work])
+  }
+  const archive = suppliedArchive
+    ? resolve(suppliedArchive)
+    : join(
+        work,
+        readdirSync(work).find((file) => file.endsWith(".tgz"))!
+      )
+  assert(statSync(archive).isFile(), "Qualification requires a package archive file")
   receipt.archiveSha256 = hash(readFileSync(archive))
   const consumer = join(work, "consumer")
   mkdirSync(consumer)

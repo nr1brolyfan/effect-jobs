@@ -2,8 +2,8 @@ import { describe, expect, test } from "vitest"
 import { sql } from "drizzle-orm"
 import { index } from "drizzle-orm/pg-core"
 import { getTableConfig } from "drizzle-orm/pg-core"
-import { makeJobTables } from "../../src/PostgreSqlDrizzleSchema.js"
-import * as Schema from "../../src/PostgreSqlSchema.js"
+import { makeJobTables } from "../../src/postgresql/PostgreSqlDrizzleSchema.js"
+import * as Schema from "../../src/postgresql/PostgreSqlSchema.js"
 
 describe("optional fixed Drizzle declarations", () => {
   test("default public schema and configurable namespace match runtime mapping", () => {

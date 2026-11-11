@@ -7,9 +7,11 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  statSync,
   writeFileSync
 } from "node:fs"
 import { join, resolve } from "node:path"
+import { publicModules } from "../../../../scripts/SourceExports.mjs"
 // Isolated installed-artifact compile + synthetic canonical example execution.
 // Does not start Docker or reinterpret this as a real-PG qualification.
 
@@ -41,12 +43,18 @@ const sourceHashes = Object.fromEntries(
 )
 try {
   assert.equal(process.version, "v24.15.0")
-  run("build", "bun", ["run", "build"])
-  run("pack", "npm", ["pack", "--ignore-scripts", "--pack-destination", work])
-  const archive = join(
-    work,
-    readdirSync(work).find((file) => file.endsWith(".tgz"))!
-  )
+  const suppliedArchive = process.env.EFFECT_JOBS_ARCHIVE
+  if (!suppliedArchive) {
+    run("build", "bun", ["run", "build"])
+    run("pack", "npm", ["pack", "--ignore-scripts", "--pack-destination", work])
+  }
+  const archive = suppliedArchive
+    ? resolve(suppliedArchive)
+    : join(
+        work,
+        readdirSync(work).find((file) => file.endsWith(".tgz"))!
+      )
+  assert(statSync(archive).isFile(), "Qualification requires a package archive file")
   const consumer = join(work, "consumer")
   mkdirSync(consumer)
   writeFileSync(
@@ -60,6 +68,7 @@ try {
         "drizzle-orm": "1.0.0-rc.5-ab785fc",
         "@effect/sql-pg": "4.0.5",
         "@effect/platform-node": "4.0.5",
+        "@effect/platform-node-shared": "4.0.5",
         "@types/node": "26.4.1",
         typescript: "7.0.2"
       }
@@ -102,12 +111,12 @@ try {
     consumer
   )
   const sourcePaths = Object.fromEntries(
-    Object.keys(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).exports)
-      .filter((key) => key !== ".")
-      .map((key) => [
-        `effect-jobs/${key.slice(2)}`,
-        [join(root, `src/${key.slice(2)}.ts`)]
-      ])
+    publicModules(JSON.parse(readFileSync(join(root, "package.json"), "utf8"))).map(
+      (module) => [
+        module.subpath === "." ? "effect-jobs" : `effect-jobs/${module.name}`,
+        [join(root, module.source)]
+      ]
+    )
   )
   writeFileSync(
     join(consumer, "tsconfig.source.json"),

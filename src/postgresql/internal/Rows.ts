@@ -4,7 +4,7 @@ import { JobStoreProtocolError } from "../../JobStore.js"
 import type { ClaimedJob } from "../../JobStore.js"
 import { JobLineage } from "../../JobOperators.js"
 import { EpochMillis } from "../../JobPolicy.js"
-import type { TransactionQuery } from "../../PostgreSqlTransaction.js"
+import type { TransactionQuery } from "../PostgreSqlTransaction.js"
 
 /** pg int8 is text by default; accept only exact bounded decimal integer values. */
 export const integer = (value: unknown): unknown =>

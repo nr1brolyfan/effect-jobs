@@ -65,6 +65,7 @@ test("release guard still rejects actual disallowed imports", () => {
     writeFileSync(join(packageDirectory, "package.json"), JSON.stringify(manifest))
     for (const target of Object.values(manifest.exports)) {
       for (const filename of Object.values(target)) {
+        mkdirSync(resolve(packageDirectory, filename, ".."), { recursive: true })
         writeFileSync(join(packageDirectory, filename), "export {}\n")
       }
     }
@@ -73,7 +74,9 @@ test("release guard still rejects actual disallowed imports", () => {
       'import "effect-jobs/Job"',
       'export * from "not-allowed"',
       'const dynamic = import(/* gap */ "not-allowed")',
-      'export type T = import("not-allowed").T'
+      'export type T = import("not-allowed").T',
+      'import "./missing.js"',
+      'export type T = import("./missing.js").T'
     ]) {
       const filename = source.includes("type T") ? "Job.d.ts" : "Job.js"
       writeFileSync(join(packageDirectory, "dist", filename), source)
@@ -98,7 +101,12 @@ test("release guard still rejects actual disallowed imports", () => {
         timeout: 60000
       })
       assert.equal(result.status, 1)
-      assert.match(result.stderr, /Unexpected dependency (effect-jobs\/Job|not-allowed)/)
+      assert.match(
+        result.stderr,
+        source.includes("./missing.js")
+          ? /Missing relative import \.\/missing\.js/
+          : /Unexpected dependency (effect-jobs\/Job|not-allowed)/
+      )
       writeFileSync(join(packageDirectory, "dist", filename), "export {}\n")
     }
   } finally {

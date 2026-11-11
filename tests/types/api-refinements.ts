@@ -12,7 +12,7 @@ import {
   DocumentKeys,
   EncryptedDocument
 } from "../core/codec/EncryptedFixture.js"
-import { makeJobTables } from "../../src/PostgreSqlDrizzleSchema.js"
+import { makeJobTables } from "../../src/postgresql/PostgreSqlDrizzleSchema.js"
 import { index, check } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 

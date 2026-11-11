@@ -1,7 +1,7 @@
 import { expect, test } from "vitest"
 import { getTableConfig, PgDialect } from "drizzle-orm/pg-core"
-import * as Storage from "../../../src/PostgreSqlSchema.js"
-import { makeJobTables } from "../../../src/PostgreSqlDrizzleSchema.js"
+import * as Storage from "../../../src/postgresql/PostgreSqlSchema.js"
+import { makeJobTables } from "../../../src/postgresql/PostgreSqlDrizzleSchema.js"
 
 test.each([
   {},

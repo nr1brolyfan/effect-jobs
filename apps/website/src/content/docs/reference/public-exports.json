@@ -401,7 +401,7 @@
   {
     "subpath": "effect-jobs/JobPayloadCodec",
     "filename": "src/JobPayloadCodec.ts",
-    "sha256": "0c82d06eaf61e7b2ff263c5939e61881ced2fddfeb76cfb26d285be00b92dd8d",
+    "sha256": "0e250c48e553cc41ad7772b26b20471a3bee479d2c1200e629bce1eab427204e",
     "symbols": [
       {
         "name": "decodeJobPayload",
@@ -1066,8 +1066,8 @@
   },
   {
     "subpath": "effect-jobs/PostgreSqlJobs",
-    "filename": "src/PostgreSqlJobs.ts",
-    "sha256": "bc0f4d33683bd49cb203163212bb4db471f176d04ddf9915bea3d2b8747cec78",
+    "filename": "src/postgresql/PostgreSqlJobs.ts",
+    "sha256": "aa46c4e76350a1ff298896313e7cf12c01f95434a83d91d1dfca0b4620d0d3c0",
     "symbols": [
       {
         "name": "Backend",
@@ -1103,7 +1103,7 @@
   },
   {
     "subpath": "effect-jobs/PostgreSqlTransaction",
-    "filename": "src/PostgreSqlTransaction.ts",
+    "filename": "src/postgresql/PostgreSqlTransaction.ts",
     "sha256": "0a2b090b31cc04d2b8b6e054f79f7d017f0c989a8753699868bcb69b93899a32",
     "symbols": [
       {
@@ -1146,8 +1146,8 @@
   },
   {
     "subpath": "effect-jobs/PostgreSqlNative",
-    "filename": "src/PostgreSqlNative.ts",
-    "sha256": "e367e189f4d558b7937c44c7b4fa365e41eb75c7e456dd033b79319c243b50a4",
+    "filename": "src/postgresql/PostgreSqlNative.ts",
+    "sha256": "c4074d3e7824ebbb6224d61a141dbef789e154f9376da3fdb678d64f9921d7aa",
     "symbols": [
       {
         "name": "layer",
@@ -1171,7 +1171,7 @@
   },
   {
     "subpath": "effect-jobs/PostgreSqlSchema",
-    "filename": "src/PostgreSqlSchema.ts",
+    "filename": "src/postgresql/PostgreSqlSchema.ts",
     "sha256": "503db56dc69908d12a3c1d08eb06fd606786d6187a92b8c1a0c7f59238acc185",
     "symbols": [
       {
@@ -1232,8 +1232,8 @@
   },
   {
     "subpath": "effect-jobs/PostgreSqlDrizzleSchema",
-    "filename": "src/PostgreSqlDrizzleSchema.ts",
-    "sha256": "3204fbc54a9284fbd0f08941f3922f363784e7725a926b6a0b4fdbc451c8eabb",
+    "filename": "src/postgresql/PostgreSqlDrizzleSchema.ts",
+    "sha256": "b7018316dc479f0c2df889255e0c573f48dc453a1c4357db3cd878cae5885812",
     "symbols": [
       {
         "name": "JobsIndexColumns",

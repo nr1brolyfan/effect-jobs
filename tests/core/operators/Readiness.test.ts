@@ -1,10 +1,10 @@
 import { Effect, Exit } from "effect"
 import { expect, test } from "vitest"
-import { ready } from "../../../src/internal/postgresql/Readiness.js"
+import { ready } from "../../../src/postgresql/internal/Readiness.js"
 import type {
   ApplicationAdapter,
   TransactionQuery
-} from "../../../src/PostgreSqlTransaction.js"
+} from "../../../src/postgresql/PostgreSqlTransaction.js"
 
 const constraints = (): Array<Record<string, unknown>> => [
   ...[

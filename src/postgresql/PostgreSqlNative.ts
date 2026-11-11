@@ -4,7 +4,7 @@
 import { Cause, Effect, Layer, Option, Schema } from "effect"
 import type { SqlClient } from "effect/sql/SqlClient"
 import { isSqlError, type SqlError } from "effect/sql/SqlError"
-import { EpochMillis } from "./JobPolicy.js"
+import { EpochMillis } from "../JobPolicy.js"
 import { PostgreSqlConfigurationError } from "./PostgreSqlSchema.js"
 import {
   PostgreSqlApplication,

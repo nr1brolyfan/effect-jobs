@@ -9,20 +9,20 @@
   "packageManager": "bun@1.4.2",
   "exports": {
     "./PostgreSqlJobs": {
-      "types": "./dist/PostgreSqlJobs.d.ts",
-      "import": "./dist/PostgreSqlJobs.js"
+      "types": "./dist/postgresql/PostgreSqlJobs.d.ts",
+      "import": "./dist/postgresql/PostgreSqlJobs.js"
     },
     "./PostgreSqlTransaction": {
-      "types": "./dist/PostgreSqlTransaction.d.ts",
-      "import": "./dist/PostgreSqlTransaction.js"
+      "types": "./dist/postgresql/PostgreSqlTransaction.d.ts",
+      "import": "./dist/postgresql/PostgreSqlTransaction.js"
     },
     "./PostgreSqlSchema": {
-      "types": "./dist/PostgreSqlSchema.d.ts",
-      "import": "./dist/PostgreSqlSchema.js"
+      "types": "./dist/postgresql/PostgreSqlSchema.d.ts",
+      "import": "./dist/postgresql/PostgreSqlSchema.js"
     },
     "./PostgreSqlDrizzleSchema": {
-      "types": "./dist/PostgreSqlDrizzleSchema.d.ts",
-      "import": "./dist/PostgreSqlDrizzleSchema.js"
+      "types": "./dist/postgresql/PostgreSqlDrizzleSchema.d.ts",
+      "import": "./dist/postgresql/PostgreSqlDrizzleSchema.js"
     },
     "./JobWorker": {
       "types": "./dist/JobWorker.d.ts",
@@ -109,8 +109,8 @@
       "import": "./dist/JobEnqueue.js"
     },
     "./PostgreSqlNative": {
-      "types": "./dist/PostgreSqlNative.d.ts",
-      "import": "./dist/PostgreSqlNative.js"
+      "types": "./dist/postgresql/PostgreSqlNative.d.ts",
+      "import": "./dist/postgresql/PostgreSqlNative.js"
     },
     "./JobOperators": {
       "types": "./dist/JobOperators.d.ts",

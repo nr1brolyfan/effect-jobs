@@ -1,16 +1,16 @@
 import { Cause, Effect } from "effect"
 import { expect, it } from "vitest"
 import { ClaimResults } from "../../../src/JobStore.js"
-import { makeStore } from "../../../src/internal/postgresql/Store.js"
+import { makeStore } from "../../../src/postgresql/internal/Store.js"
 import {
   PostgreSqlFailure,
   PostgreSqlInvalidHandle
-} from "../../../src/PostgreSqlTransaction.js"
+} from "../../../src/postgresql/PostgreSqlTransaction.js"
 import type {
   ApplicationAdapter,
   PostgreSqlError,
   TransactionQuery
-} from "../../../src/PostgreSqlTransaction.js"
+} from "../../../src/postgresql/PostgreSqlTransaction.js"
 import { now, pending, prepared, request } from "./fixtures.js"
 
 const row = () => {
