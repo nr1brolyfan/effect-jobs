@@ -324,24 +324,32 @@ api.test(
     yield* Effect.promise(async () => {
       const actor = await issue()
       const peer = await connect(actor, address.replace("http:", "ws:") + "/probe/socket")
+      let resumed: Awaited<ReturnType<typeof connect>> | undefined
       try {
         const before = await (await fetch(address + "/probe/activation")).text()
+        await Bun.sleep(150)
+        // Quiesce only this diagnostic object's real native callback. Production
+        // keeps its five-second reconciliation; no fake clock or alarm is used.
+        expect((await fetch(address + "/probe/pause")).status).toBe(204)
         await Bun.sleep(12000)
         const afterIdle = await (await fetch(address + "/probe/activation")).text()
         expect(afterIdle).not.toBe(before)
         expect(peer.closed()).toBeUndefined()
         const previousFrames = peer.frames.length
+        resumed = await connect(actor, address.replace("http:", "ws:") + "/probe/socket")
         await waitUntil(
           async () => peer.frames.length > previousFrames,
           "native attachment sequence did not survive reconstruction"
         )
         expect(peer.frames.at(-1)!.sandbox).toEqual(actor.sandbox.ref)
       } finally {
-        if (peer.socket.readyState === WebSocket.OPEN) {
-          await new Promise<void>((resolve) => {
-            peer.socket.once("close", () => resolve())
-            peer.socket.close()
-          })
+        for (const connection of [peer, resumed]) {
+          if (connection?.socket.readyState === WebSocket.OPEN) {
+            await new Promise<void>((resolve) => {
+              connection.socket.once("close", () => resolve())
+              connection.socket.close()
+            })
+          }
         }
       }
     })

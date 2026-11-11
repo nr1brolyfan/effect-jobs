@@ -1,5 +1,6 @@
 import * as Cloudflare from "@alchemy.run/cloudflare"
 import { Clock, Effect } from "effect"
+import type { CallbackError, CallbackFactory } from "alchemy/Callback"
 import { RuntimeContext } from "alchemy/RuntimeContext"
 import * as HttpRequest from "effect/http/HttpServerRequest"
 import { HttpServerRequest } from "effect/http/HttpServerRequest"
@@ -69,9 +70,37 @@ class ApplicationLiveProbe extends Cloudflare.DurableObject<ApplicationLiveProbe
   Effect.gen(function* () {
     const initialize = yield* Live.implementation
     return Effect.gen(function* () {
-      const shape = yield* initialize
+      const runtime = yield* RuntimeContext
+      const nativeFactory = runtime.makeCallback
+      if (nativeFactory === undefined) {
+        return yield* Effect.die("Native callback factory missing")
+      }
+      const cancellation = new Map<
+        string,
+        Effect.Effect<void, CallbackError, RuntimeContext>
+      >()
+      // Capture the real handle without replacing its registration or delivery.
+      // This fixture alone can cancel maintenance to create a genuine idle window.
+      const makeCallback: CallbackFactory = (name, handler, options) =>
+        nativeFactory(name, handler, options).pipe(
+          Effect.tap((callback) =>
+            Effect.sync(() => {
+              cancellation.set(name, callback.cancel("wake"))
+            })
+          )
+        )
+      const shape = yield* initialize.pipe(
+        Effect.provideService(RuntimeContext, { ...runtime, makeCallback })
+      )
       const activation = crypto.randomUUID()
-      return { ...shape, activation: () => Effect.succeed(activation) }
+      return {
+        ...shape,
+        activation: () => Effect.succeed(activation),
+        pause: () =>
+          Effect.suspend(
+            () => cancellation.get("live") ?? Effect.die("Live callback handle missing")
+          ).pipe(Effect.provideService(RuntimeContext, runtime))
+      }
     })
   })
 ) {}
@@ -103,6 +132,10 @@ export default Cloudflare.Worker(
           return yield* lives
             .getByName("owned")
             .fetch(HttpRequest.fromWeb(new Request(env.ORIGIN + "/api/changes", raw)))
+        }
+        if (path === "/probe/pause") {
+          yield* lives.getByName("owned").pause().pipe(Effect.orDie)
+          return Response.empty()
         }
         if (path === "/probe/activation") {
           return Response.text(yield* lives.getByName("owned").activation())
