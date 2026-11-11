@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { countdown, exactTime } from "../../src/features/jobs/RetryTime.js"
+import { countdown, exactTime } from "../../../playground/src/features/jobs/RetryTime.js"
 
 describe("retry eligibility display", () => {
   it("counts down from the persisted timestamp without rounding down early", () => {

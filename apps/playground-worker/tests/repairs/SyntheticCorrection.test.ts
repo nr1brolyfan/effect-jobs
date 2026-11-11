@@ -4,8 +4,8 @@ import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Crypto from "@effect-jobs/playground-contracts/SyntheticCryptoFixture"
 import * as Definitions from "../../src/scenarios/Definitions.js"
 import * as Source from "../../src/persistence/commands/RepairSource.js"
-import * as Projection from "../../../website/src/server/read/JobDetailsProjection.js"
-import * as Diff from "../../../website/src/features/jobs/repair/PayloadDiff.js"
+import * as Projection from "../../src/server/read/JobDetailsProjection.js"
+import * as Diff from "../../../playground/src/features/jobs/repair/PayloadDiff.js"
 import * as Fixture from "./Fixtures.js"
 
 describe("authenticated synthetic document correction", () => {

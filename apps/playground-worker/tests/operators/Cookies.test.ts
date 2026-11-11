@@ -4,8 +4,8 @@ import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import * as Cookies from "@effect-jobs/playground-contracts/Cookies"
 import { Repairs } from "@effect-jobs/playground-contracts/Repairs"
 import { LocalPrivate } from "../../src/persistence/authority/PrivateMode.js"
-import { Application } from "../../../website/src/server/Services.js"
-import * as Http from "../../../website/src/server/HttpApplication.js"
+import { Application } from "../../src/server/Services.js"
+import * as Http from "../../src/server/HttpApplication.js"
 
 describe("explicit preview cookie authority", () => {
   const aliases = ["http://localhost:9911", "http://127.0.0.1:9911"]

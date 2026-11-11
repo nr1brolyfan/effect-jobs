@@ -138,7 +138,7 @@
     "lint": "bun run toolchain:setup && oxlint --deny-warnings src tests",
     "format": "oxfmt --config .oxfmtrc.json --write .",
     "format:check": "oxfmt --config .oxfmtrc.json --check .",
-    "test": "bun run toolchain:setup && vitest run --exclude 'tests/poc/**' --exclude 'apps/website/tests/ui/Field.test.mjs' --exclude 'apps/website/tests/ui/Theme.test.mjs' --exclude 'tests/benchmarks/postgresql/Support.test.mjs' && bun apps/website/tests/ui/Field.test.mjs && node --test apps/website/tests/ui/Theme.test.mjs && bun run test:soak",
+    "test": "bun run toolchain:setup && vitest run --exclude 'tests/poc/**' --exclude 'tests/benchmarks/postgresql/Support.test.mjs' && bun run test:soak",
     "check:postgresql": "tsc --project tests/postgresql/tsconfig.json --noEmit",
     "soak:postgresql": "node tests/benchmarks/postgresql/Run.mjs",
     "test:soak": "node --test tests/benchmarks/postgresql/Support.test.mjs",
@@ -158,21 +158,31 @@
     "qualify:drizzle:indexes": "node tests/qualification/drizzle-indexes/Run.mjs",
     "qualify:api:installed": "node tests/qualification/api/Run.mjs",
     "playground:check": "bun run toolchain:setup && tsc -p tsconfig.playground.json",
-    "playground:lint": "oxlint --deny-warnings apps packages/playground-contracts",
+    "playground:lint": "oxlint --deny-warnings apps packages/playground-contracts vitest.config.ts",
     "playground:test": "vitest run packages/playground-contracts/tests apps/playground-worker/tests/repairs apps/website/tests/ui/repair apps/website/tests/ui/details/Navigation.test.ts apps/playground-worker/tests/details-integration apps/website/tests/ui/RepairAtoms.test.ts",
-    "playground:build": "bun run --filter @effect-jobs/playground-contracts build && bun run --filter @effect-jobs/playground-website --filter @effect-jobs/playground-worker build",
-    "playground:qualify": "node packages/playground-contracts/qualification/Run.mjs",
+    "playground:build": "bun run --filter @effect-jobs/playground-contracts build && bun run --filter @effect-jobs/playground build && bun run site:build && bun run --cwd apps/playground-worker build",
+    "playground:qualify": "node packages/playground-contracts/qualification/Run.ts",
     "playground:preview": "python3 apps/playground-worker/tests/integration/RunOwned.py --preview",
-    "playground:test:primitives": "bun apps/website/tests/ui/Primitives.mjs",
+    "playground:test:primitives": "node apps/website/tests/ui/Primitives.ts",
+    "playground:test:ui": "node apps/playground/tests/ui/FormAtoms.browser.ts",
     "site:build": "bun run --cwd apps/website site:build",
     "site:check": "bun run --cwd apps/website site:check",
     "site:test": "bun run --cwd apps/website site:test",
-    "site:browser": "node apps/website/tests/site/Browser.mjs",
-    "qualify:docs:orders": "node apps/website/tests/order-tutorial/Qualify.mjs",
-    "qualify:docs:examples": "node apps/website/tests/docs-reference/Qualify.mjs",
-    "check:docs:reference": "node apps/website/tests/docs-reference/Reference.mjs --check",
-    "site:routes": "node apps/website/tests/site/Routes.mjs",
-    "check:docs:snippets": "node apps/website/tests/docs-reference/Snippets.mjs"
+    "site:browser": "node apps/website/tests/site/Browser.ts",
+    "qualify:docs:orders": "node apps/website/tests/order-tutorial/Qualify.ts",
+    "qualify:docs:examples": "node apps/website/tests/docs-reference/Qualify.ts",
+    "check:docs:reference": "node apps/website/tests/docs-reference/Reference.ts --check",
+    "site:routes": "node apps/website/tests/site/Routes.ts",
+    "check:docs:snippets": "vitest run --project website-unit apps/website/tests/modernization/Docs.unit.ts",
+    "playground:fixtures": "bun run --cwd apps/playground build:fixtures",
+    "test:website": "vitest run --project website-unit --project website-browser --project website-e2e",
+    "site:models": "vitest run --project workspace apps/website/tests/site-modernization/Illustrations.test.ts",
+    "site:islands": "bun apps/website/tests/site-modernization/Islands.browser.ts",
+    "site:landing": "node apps/website/src/components/landing/tests/Browser.mjs",
+    "test:browser:install": "playwright install --with-deps chromium",
+    "test:website:provider": "node apps/website/tests/modernization/ProviderLifecycle.ts",
+    "check:capnp-runtime": "bun run --cwd apps/playground-worker check:capnp-runtime",
+    "test:playground:native": "bun run --cwd apps/playground-worker test:native"
   },
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.5-ab785fc || 1.0.0-rc.5-169397b",
@@ -200,7 +210,12 @@
     "pg": "8.23.0",
     "traits": "0.5.9",
     "typescript": "7.0.2",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "@vitest/browser-playwright": "4.1.11",
+    "playwright": "1.56.1",
+    "vite": "8.3.4",
+    "rolldown": "1.2.13",
+    "ws": "8.22.0"
   },
   "repository": {
     "type": "git",
@@ -221,5 +236,19 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "overrides": {
+    "vite": "8.3.4",
+    "alchemy": "2.0.0-beta.84",
+    "@alchemy.run/cloudflare": "2.0.0-beta.84",
+    "@alchemy.run/cloudflare-runtime": "2.0.0-beta.84",
+    "@alchemy.run/domain": "2.0.0-beta.84",
+    "@alchemy.run/frontend-frameworks": "2.0.0-beta.84",
+    "@alchemy.run/sql": "2.0.0-beta.84",
+    "@effect/platform-bun": "4.0.5",
+    "@effect/platform-node": "4.0.5",
+    "@effect/platform-node-shared": "4.0.5",
+    "@effect/sql-d1": "4.0.5",
+    "@effect/sql-pg": "4.0.5"
+  }
 }

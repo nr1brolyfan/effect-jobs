@@ -6,7 +6,7 @@ import { createRequire } from "node:module"
 import { Effect } from "effect"
 import { Pool } from "pg"
 import { chromium, expect } from "@playwright/test"
-import { createLocal } from "./Local.mjs"
+import { createLocal } from "./Local.ts"
 const evidence = resolve(process.env.PLAYGROUND_EVIDENCE_DIRECTORY)
 const { migrations } = await import(`${evidence}/Migrations.mjs`)
 const { seed } = await import(`${evidence}/RefreshSeed.mjs`)
@@ -50,7 +50,7 @@ try {
   const dispatch = (path) => local.mf.dispatchFetch(local.origin + path)
   assert.equal(
     await (await dispatch("/Jobs.css")).text(),
-    readFileSync("apps/website/dist/Jobs.css", "utf8")
+    readFileSync("apps/playground/dist/Jobs.css", "utf8")
   )
   browser = await chromium.launch({
     headless: true,

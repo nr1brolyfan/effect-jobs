@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.native.json",
+  "compilerOptions": { "lib": ["ES2022", "DOM", "ESNext.Disposable"] },
+  "include": ["./**/*.ts"]
+}

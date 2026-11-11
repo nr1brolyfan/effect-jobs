@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
 import { Pool } from "pg"
 import { chromium } from "@playwright/test"
-import { createLocal } from "./Local.mjs"
+import { createLocal } from "./Local.ts"
 const { migrations } = await import(process.env.D6_RESOURCE_DIRECTORY + "/Migrations.mjs")
 const cfg = JSON.parse(readFileSync(process.env.PLAYGROUND_PRIVATE_CONFIG, "utf8"))
 const pool = new Pool({ ...cfg, connectionTimeoutMillis: 2000, statement_timeout: 5000 })

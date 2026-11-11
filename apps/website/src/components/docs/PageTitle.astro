@@ -1,6 +1,8 @@
 ---
+import * as stylex from "@stylexjs/stylex"
+import { styles } from "./ShellStyles.js"
 const { entry } = Astro.locals.starlightRoute
 const prototype = entry.id === "docs/persistence/transactions"
 ---
-<div class="ej-page-context">DOCUMENTATION <span aria-hidden="true">/</span> {prototype ? "PRODUCE" : "GUIDE"}</div>
-<h1 id="_top">{entry.data.title}</h1>
+<div class:list={["ej-page-context", stylex.attrs(styles.ejPageContext).class]}>DOCUMENTATION <span {...stylex.attrs(styles.ejPageContext2)} aria-hidden="true">/</span> {prototype ? "PRODUCE" : "GUIDE"}</div>
+<h1 {...stylex.attrs(styles.element)} id="_top">{entry.data.title}</h1>

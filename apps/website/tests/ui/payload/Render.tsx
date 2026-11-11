@@ -1,7 +1,8 @@
+import "../../../../playground/src/styles/Jobs.css"
 import { StrictMode, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { Effect } from "effect"
-import { JobPayloadPanel } from "../../../src/features/jobs/payload/JobPayloadPanel.js"
+import { JobPayloadPanel } from "../../../../playground/src/features/jobs/payload/JobPayloadPanel.js"
 import * as Crypto from "@effect-jobs/playground-contracts/SyntheticCryptoFixture"
 import type { JobDetail } from "./Jobs.compile.js"
 

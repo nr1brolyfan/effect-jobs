@@ -3,7 +3,7 @@ import { Effect, Layer } from "effect"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import { Operators } from "@effect-jobs/playground-contracts/Operators"
 import { Scenarios } from "@effect-jobs/playground-contracts/Services"
-import * as Http from "../../../website/src/server/commands/HttpCommands.js"
+import * as Http from "../../src/server/commands/HttpCommands.js"
 
 const origin = "https://playground.example"
 const command = {

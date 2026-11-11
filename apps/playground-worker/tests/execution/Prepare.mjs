@@ -22,9 +22,9 @@ const evidence = process.env.EXECUTOR_EVIDENCE ?? join(root, ".multica/executor-
 mkdirSync(evidence, { recursive: true })
 const inputPaths = [
   "apps/playground-worker/src",
-  "apps/website/src/server",
-  "apps/website/src/OriginPolicy.ts",
-  "apps/website/src/live/Protocol.ts",
+  "apps/playground-worker/src/server",
+  "apps/playground-worker/src/OriginPolicy.ts",
+  "packages/playground-contracts/src/LiveProtocol.ts",
   "apps/playground-worker/tests/execution",
   "apps/playground-worker/tests/cloudflare",
   "apps/playground-worker/tests/qualification",
@@ -116,9 +116,9 @@ try {
   // Copy actual transitive application modules with their original relative topology.
   for (const path of [
     "apps/playground-worker/src",
-    "apps/website/src/server",
-    "apps/website/src/OriginPolicy.ts",
-    "apps/website/src/live/Protocol.ts"
+    "apps/playground-worker/src/server",
+    "apps/playground-worker/src/OriginPolicy.ts",
+    "packages/playground-contracts/src/LiveProtocol.ts"
   ]) {
     cpSync(join(root, path), join(consumer, path), { recursive: true })
   }

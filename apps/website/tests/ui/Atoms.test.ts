@@ -3,9 +3,9 @@ import { Deferred, Effect, Fiber, Layer, Schema } from "effect"
 import { SandboxView } from "@effect-jobs/playground-contracts/Sandbox"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
-import { JobsClient, type Client } from "../../src/features/jobs/Adapter.js"
-import * as Atoms from "../../src/features/jobs/Atoms.js"
-import * as FixtureClient from "../../src/features/jobs/FixtureClient.js"
+import { JobsClient, type Client } from "../../../playground/src/features/jobs/Adapter.js"
+import * as Atoms from "../../../playground/src/features/jobs/Atoms.js"
+import * as FixtureClient from "../../../playground/tests/fixtures/FixtureClient.js"
 
 import { makeServer } from "./ReadsFixtures.js"
 

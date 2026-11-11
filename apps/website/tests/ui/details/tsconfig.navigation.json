@@ -1,4 +1,7 @@
 {
   "extends": "../../../../../tsconfig.playground.json",
-  "include": ["../../../src/features/jobs/details/Navigation.ts", "./Navigation.test.ts"]
+  "include": [
+    "../../../../playground/src/features/jobs/details/Navigation.ts",
+    "./Navigation.test.ts"
+  ]
 }

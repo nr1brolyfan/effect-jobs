@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { renderToStaticMarkup } from "react-dom/server"
-import { StatsChart } from "../../src/features/jobs/StatsChart.js"
+import { StatsChart } from "../../../playground/src/features/jobs/StatsChart.js"
 
 const render = (stats: Parameters<typeof StatsChart>[0]["stats"]) =>
   renderToStaticMarkup(<StatsChart stats={stats} />)

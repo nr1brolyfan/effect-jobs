@@ -1,0 +1,303 @@
+// Build/browser FFI: qualify compiled components with synthetic public data only.
+import assert from "node:assert/strict"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { resolve } from "node:path"
+import { createServer } from "node:http"
+import { createRequire } from "node:module"
+import { createHash } from "node:crypto"
+import type { Browser } from "@playwright/test"
+import type { Server } from "node:http"
+
+const require = createRequire(resolve("apps/playground-worker/package.json"))
+const { chromium, expect } =
+  require("@playwright/test") as typeof import("@playwright/test")
+const output = resolve(".multica/primitives-browser")
+await mkdir(output, { recursive: true })
+const hash = (bytes: string | Uint8Array) =>
+  createHash("sha256").update(bytes).digest("hex")
+let server: Server | undefined
+let browser: Browser | undefined
+const errors: string[] = [],
+  csp: string[] = [],
+  checks: string[] = []
+declare global {
+  interface Window {
+    primitiveCsp?: string[]
+  }
+}
+try {
+  const { buildFixture } = (await import(
+    new URL("../../../playground/tests/fixtures/BuildFixture.ts", import.meta.url).href
+  )) as typeof import("../../../playground/tests/fixtures/BuildFixture.js")
+  const { script, css } = await buildFixture(
+    resolve("apps/website/tests/ui/Primitives.render.tsx"),
+    resolve(output, "canonical")
+  )
+  assert.doesNotMatch(script.toString(), /\bstylex\.(create|defineVars)\s*\(/)
+  const inputs = {
+    "tests/ui/Primitives.render.tsx": hash(
+      await readFile(resolve("apps/website/tests/ui/Primitives.render.tsx"))
+    )
+  }
+  const axeScript = await readFile(require.resolve("axe-core/axe.min.js"))
+  server = createServer((req, res) => {
+    if (req.url === "/axe.js") {
+      res.setHeader("Content-Type", "text/javascript")
+      res.end(axeScript)
+    } else if (req.url === "/Primitives.js" || req.url === "/Jobs.css") {
+      res.setHeader(
+        "Content-Type",
+        req.url.endsWith("js") ? "text/javascript" : "text/css"
+      )
+      res.end(req.url.endsWith("js") ? script : css)
+    } else {
+      res.setHeader("Content-Type", "text/html")
+      res.setHeader(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'"
+      )
+      res.end(
+        '<!doctype html><html lang="en"><head><title>Primitives fixture</title><link rel="stylesheet" href="/Jobs.css"></head><body><main id="fixture"></main><script type="module" src="/Primitives.js"></script></body></html>'
+      )
+    }
+  })
+  await new Promise<void>((done) => server!.listen(0, "127.0.0.1", done))
+  const address = server.address()
+  assert(address && typeof address === "object")
+  browser = await chromium.launch({
+    headless: true,
+    ...(process.env.UI_CHROMIUM_PATH
+      ? { executablePath: process.env.UI_CHROMIUM_PATH }
+      : {})
+  })
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+  page.setDefaultTimeout(5000)
+  page.on("pageerror", (error) => {
+    errors.push(error.message)
+    console.error("Browser error:", error.message)
+  })
+  await page.addInitScript(() =>
+    document.addEventListener("securitypolicyviolation", (event) => {
+      window.primitiveCsp = [...(window.primitiveCsp ?? []), event.violatedDirective]
+    })
+  )
+  await page.goto(`http://127.0.0.1:${address.port}`)
+  const action = page.locator("#action")
+  await page.getByRole("button", { name: "Native action", exact: true }).click()
+  await expect(action).toHaveText("refs passed")
+  const native = page.locator("#native-button")
+  await expect(native).toHaveAttribute("type", "button")
+  await expect(native).toHaveAttribute("name", "operation")
+  await expect(native).toHaveAttribute("value", "inspect")
+  await expect(native).toHaveClass(/caller-button/)
+  await expect(page.locator("#submits")).toHaveText("0")
+  await page.getByRole("button", { name: "Submit", exact: true }).focus()
+  await page.keyboard.press("Enter")
+  await expect(page.locator("#submits")).toHaveText("1")
+  await page.getByLabel("Native input").fill("edited")
+  await page.getByRole("button", { name: "Reset", exact: true }).click()
+  await expect(page.getByLabel("Native input")).toHaveValue("original")
+  await expect(page.getByRole("button", { name: "Disabled action" })).toBeDisabled()
+  await page.getByRole("button", { name: "Disabled action" }).dispatchEvent("click")
+  await expect(page.locator("#disabled-clicks")).toHaveText("0")
+  checks.push("native Button props/type/ref, Panel ref, submit/reset/disabled semantics")
+  const all = page.getByRole("tab", { name: /All jobs\s*120/ })
+  const pending = page.getByRole("tab", { name: /Pending\s*32/ })
+  await all.focus()
+  await page.keyboard.press("ArrowRight")
+  await expect(page.getByRole("tab", { name: "Dead", exact: true })).toBeFocused()
+  await page.keyboard.press("Enter")
+  await expect(page.locator("#activations")).toHaveText("0")
+  await page.keyboard.press("ArrowRight")
+  await expect(pending).toBeFocused()
+  await expect(all).toHaveAttribute("aria-selected", "true")
+  await expect(page.locator("#activations")).toHaveText("0")
+  await page.keyboard.press("Enter")
+  await expect(pending).toHaveAttribute("aria-selected", "true")
+  await expect(page.getByRole("tabpanel", { name: /Pending/ })).toHaveText(
+    "Pending results"
+  )
+  await page.keyboard.press("ArrowRight")
+  await expect(all).toBeFocused()
+  await page.keyboard.press("Space")
+  await expect(page.locator("#activations")).toHaveText("2")
+  checks.push(
+    "manual controlled tabs: arrow focus includes discoverable disabled tab without action; Enter/Space activate, wrap, real linked panels and global count labels"
+  )
+  const list = page.getByRole("tablist", { name: "Job state", exact: true })
+  const horizontal = await list.evaluate((el) => ({
+    wrap: getComputedStyle(el).flexWrap,
+    direction: getComputedStyle(el).flexDirection
+  }))
+  assert.deepEqual(horizontal, { wrap: "wrap", direction: "row" })
+  // Constrain the existing consumer to demonstrate actual default wrapping.
+  await list.evaluate((el) => {
+    el.style.width = "180px"
+  })
+  assert(
+    await list.evaluate(
+      (el) =>
+        new Set(
+          [...el.querySelectorAll('[role="tab"]')].map(
+            (tab) => tab.getBoundingClientRect().top
+          )
+        ).size > 1
+    )
+  )
+  await list.evaluate((el) => {
+    el.style.removeProperty("width")
+  })
+  await page.getByRole("button", { name: "Toggle tabs orientation" }).click()
+  await expect(list).toHaveAttribute("aria-orientation", "vertical")
+  assert.deepEqual(
+    await list.evaluate((el) => ({
+      wrap: getComputedStyle(el).flexWrap,
+      direction: getComputedStyle(el).flexDirection,
+      align: getComputedStyle(el).alignItems
+    })),
+    { wrap: "wrap", direction: "column", align: "stretch" }
+  )
+  await all.focus()
+  await page.keyboard.press("End")
+  await expect(pending).toBeFocused()
+  await expect(all).toHaveAttribute("aria-selected", "true")
+  await page.keyboard.press("Enter")
+  await expect(pending).toHaveAttribute("aria-selected", "true")
+  await page.keyboard.press("Home")
+  await page.keyboard.press("Enter")
+  await expect(all).toHaveAttribute("aria-selected", "true")
+  await page.getByRole("button", { name: "Toggle tabs orientation" }).click()
+  checks.push(
+    "default horizontal wrapping preserved; vertical column/stretch and manual End/Home activation preserved"
+  )
+  const trigger = page.getByRole("button", { name: "Exact timestamp", exact: true })
+  await trigger.focus()
+  await page.keyboard.press("Enter")
+  await expect(page.getByRole("dialog")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Close timestamp" })).toBeFocused()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+  await trigger.click()
+  await page.getByRole("button", { name: "Close timestamp" }).click()
+  await expect(action).toHaveText("popover refs passed")
+  await expect(trigger).toBeFocused()
+  await trigger.click()
+  await page.getByRole("heading", { name: "Shared job controls" }).click()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  checks.push(
+    "Popover keyboard open, dialog naming, refs, Close/Escape restore focus, outside dismissal"
+  )
+  const nav = page.getByRole("navigation", { name: "Pagination" }).first()
+  await nav.getByRole("button", { name: "Page 2", exact: true }).focus()
+  await page.keyboard.press("Enter")
+  await expect(action).toHaveText("page 2")
+  await nav.getByRole("button", { name: "Next page", exact: true }).click()
+  await expect(nav.getByRole("button", { name: "Page 3", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page"
+  )
+  await expect(action).toHaveText("next")
+  await nav.getByRole("button", { name: "Previous page", exact: true }).click()
+  await expect(action).toHaveText("previous")
+  await nav.getByRole("button", { name: "First page", exact: true }).click()
+  await expect(action).toHaveText("first")
+  await expect(
+    nav.getByRole("button", { name: "Previous page", exact: true })
+  ).toBeDisabled()
+  await nav.getByRole("button", { name: "Page 9", exact: true }).click()
+  await expect(nav.getByRole("button", { name: "Next page", exact: true })).toBeDisabled()
+  const sparse = page.locator('[aria-label="Sparse known history"]')
+  await expect(sparse.getByRole("button", { name: "Page 2", exact: true })).toHaveCount(0)
+  await expect(sparse.locator('[aria-label="More known pages"]')).toHaveCount(0)
+  await page.getByRole("button", { name: "Toggle loading" }).click()
+  await expect(nav).toHaveAttribute("aria-busy", "true")
+  for (const button of await nav.getByRole("button").all()) {
+    await expect(button).toBeDisabled()
+  }
+  checks.push(
+    "Pagination actual known pages/current/ellipsis, native callbacks, first/previous/next bounds and loading disables every control"
+  )
+  const audit = async () => {
+    await page.addScriptTag({ url: "/axe.js" })
+    const violations = await page.evaluate(async () =>
+      (
+        await window.axe.run(document, {
+          runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] }
+        })
+      ).violations.map((violation) => ({
+        id: violation.id,
+        nodes: violation.nodes.map((node) => node.target)
+      }))
+    )
+    assert.deepEqual(violations, [])
+  }
+  await audit()
+  await page.screenshot({ path: resolve(output, "desktop.png"), fullPage: true })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await trigger.click()
+  await expect(page.getByRole("dialog")).toBeVisible()
+  await audit()
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    true
+  )
+  assert.equal(await trigger.evaluate((node) => getComputedStyle(node).fontSize), "14px")
+  await page.screenshot({ path: resolve(output, "mobile.png"), fullPage: true })
+  csp.push(...(await page.evaluate(() => window.primitiveCsp ?? [])))
+  assert.deepEqual(csp, [])
+  assert.equal(await page.locator("style").count(), 0)
+  checks.push(
+    "desktop/mobile WCAG A/AA axe passes, 390px no overflow, body14, extracted CSS, strict CSP with no runtime style tags/violations"
+  )
+  const touchContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true
+  })
+  const touch = await touchContext.newPage()
+  await touch.goto(`http://127.0.0.1:${address.port}`)
+  await touch.getByRole("button", { name: "Exact timestamp", exact: true }).tap()
+  await expect(touch.getByRole("dialog")).toBeVisible()
+  await expect(touch.getByRole("dialog")).toBeFocused()
+  const bounds = await touch
+    .getByRole("button", { name: "Exact timestamp", exact: true })
+    .boundingBox()
+  assert(bounds && bounds.height >= 44)
+  await touch.getByRole("button", { name: "Close timestamp" }).tap()
+  await expect(touch.getByRole("dialog")).toHaveCount(0)
+  await touchContext.close()
+  checks.push(
+    "real touch context: trigger/close tap, popup initial focus, minimum44px target"
+  )
+  assert.deepEqual(errors, [])
+  await writeFile(
+    resolve(output, "receipt.json"),
+    JSON.stringify(
+      {
+        result: "PASS",
+        browser: browser.version(),
+        inputs,
+        cssSha256: hash(css),
+        scriptSha256: hash(script),
+        compiler: "canonical Vite/StyleX",
+        baseUI: "1.9.0",
+        react: "19.3.0",
+        checks,
+        csp,
+        errors
+      },
+      null,
+      2
+    ) + "\n"
+  )
+  console.log(JSON.stringify({ result: "PASS", checks }, null, 2))
+} finally {
+  await browser?.close()
+  if (server) {
+    await new Promise<void>((done, reject) => {
+      server!.close((error) => (error ? reject(error) : done()))
+      server!.closeAllConnections()
+    })
+  }
+}

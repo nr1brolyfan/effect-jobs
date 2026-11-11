@@ -3,9 +3,10 @@ import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { Pool } from "pg"
+import * as Cookies from "@effect-jobs/playground-contracts/Cookies"
 import { Effect } from "effect"
 import { chromium } from "@playwright/test"
-import { createLocal } from "./Local.mjs"
+import { createLocal } from "./Local.ts"
 const root = resolve(import.meta.dirname, "../../../..")
 const evidence = resolve(
   root,
@@ -53,8 +54,21 @@ try {
     await sql(migration.sql)
   }
   cfg.connectionString = `postgres://${cfg.user}:${cfg.password}@127.0.0.1:${cfg.port}/${cfg.database}`
+  const quotaSchema = `${schema}_quota`
+  await sql(`CREATE SCHEMA "${quotaSchema}"`)
+  for (const migration of migrations(quotaSchema)) {
+    await sql(migration.sql)
+  }
+  const { qualify } = await import(`${evidence}/QuotaProbe.mjs`)
+  report.observations.nonlocalQuota = await Effect.runPromise(
+    qualify({ ...cfg, schema: quotaSchema })
+  )
+  check(
+    "production nonlocal cap100 refusal / exact persistence / unknown receipt no replay"
+  )
   local = await createLocal(cfg, { instrument: true, localPrivate: true })
   mf = local.mf
+  const cookieNames = Cookies.names(local.origin, true)
   const dispatch = (path, options = {}) => mf.dispatchFetch(local.origin + path, options)
   const post = (path, cookie, token, body) =>
     dispatch(path, {
@@ -74,13 +88,14 @@ try {
       cookies.some(
         (value) =>
           value.includes("HttpOnly") &&
-          value.includes("Secure") &&
+          !value.includes("; Secure") &&
+          value.startsWith(cookieNames.credential + "=") &&
           value.includes("SameSite=Strict")
       )
     )
     const cookie = cookies.map((value) => value.split(";")[0]).join("; ")
     const token = cookies
-      .find((value) => value.startsWith("__Host-playground-csrf="))
+      .find((value) => value.startsWith(cookieNames.csrf + "="))
       .split(";")[0]
       .split("=")[1]
     return { sandbox: await response.json(), cookie, token }
@@ -113,6 +128,19 @@ try {
     `/api/jobs?sandboxId=${who.sandbox.ref.sandboxId}&generation=${who.sandbox.ref.generation}&limit=5${extra}`
   assert.equal((await post("/api/scenarios", a.cookie, "wrong", {})).status, 400)
   assert.equal((await dispatch(query(a), { headers: { Cookie: b.cookie } })).status, 404)
+  // Issuance now admits one six-job traffic batch. Freeze its next admission
+  // while measuring the explicit command, then retain the exact +6/+1/+1 oracle.
+  const originalNextGeneration = await sql(
+    `SELECT sandbox_id,next_generation_at FROM "${schema}".sandboxes`
+  )
+  await sql(`UPDATE "${schema}".sandboxes SET next_generation_at=expires_at`)
+  const beforeCommand = (
+    await sql(
+      `SELECT (SELECT count(*) FROM "${schema}".associations WHERE sandbox_id=$1) AS jobs,(SELECT count(*) FROM "${schema}".command_receipts WHERE sandbox_id=$1) AS receipts,(SELECT count(*) FROM "${schema}".command_admission WHERE sandbox_id=$1) AS admissions`,
+      [a.sandbox.ref.sandboxId]
+    )
+  )[0]
+  assert.deepEqual(Object.values(beforeCommand).map(Number), [6, 1, 1])
   const initial = await run(a, "http-atomic")
   const replay = await run(a, "http-atomic")
   assert.deepEqual(replay.jobIds, initial.jobIds)
@@ -127,7 +155,12 @@ try {
       [a.sandbox.ref.sandboxId]
     )
   )[0]
-  assert.deepEqual(Object.values(counts).map(Number), [6, 1, 1])
+  assert.deepEqual(
+    Object.values(counts).map(
+      (value, index) => Number(value) - Number(Object.values(beforeCommand)[index])
+    ),
+    [6, 1, 1]
+  )
   check("actual HTTP guarded command / atomic jobs associations receipt / exact replay")
   const view = await describe(a)
   assert.equal(view.status, 200)
@@ -155,13 +188,25 @@ try {
       headers: { Cookie: a.cookie }
     })
   ).json()
-  assert.equal(second.items.length, 1)
+  assert.equal(second.items.length, 5)
+  assert(second.nextCursor)
+  const third = await (
+    await dispatch(query(a, `&cursor=${second.nextCursor}`), {
+      headers: { Cookie: a.cookie }
+    })
+  ).json()
+  assert.equal(third.items.length, 2)
+  assert.equal(third.nextCursor, null)
+  const pages = [...first.items, ...second.items, ...third.items]
+  assert.equal(new Set(pages.map((job) => job.jobId)).size, 12)
+  assert(initial.jobIds.every((id) => pages.some((job) => job.jobId === id)))
   assert(
     !first.items.some((job) => second.items.some((other) => other.jobId === job.jobId))
   )
   const privateJob = (
     await sql(
-      `SELECT id FROM "${schema}".jobs WHERE kind='playground.private-data-export' LIMIT 1`
+      `SELECT id FROM "${schema}".jobs WHERE kind='playground.synthetic-document-export' AND id=ANY($1)`,
+      [initial.jobIds]
     )
   )[0]
   const detail = await (
@@ -171,10 +216,17 @@ try {
     )
   ).json()
   assert.equal(detail.job.jobId, privateJob.id)
-  assert(
-    !/ciphertext|fingerprint|payload|synthetic private export/.test(
-      JSON.stringify(detail)
-    )
+  assert(!/ciphertext|fingerprint|payload|leaseToken/.test(JSON.stringify(detail.job)))
+  assert(!/synthetic private export v1|leaseToken/.test(JSON.stringify(detail)))
+  assert.equal(detail.payload._tag, "Available")
+  assert.equal(detail.payload.encryption, "SyntheticDocumentV1")
+  const [storedPayload] = await sql(
+    `SELECT payload FROM "${schema}".job_payloads WHERE job_id=$1`,
+    [privateJob.id]
+  )
+  assert.deepEqual(
+    detail.payload.encoded,
+    JSON.parse(Buffer.from(storedPayload.payload).toString("utf8"))
   )
   check(
     "real SELECT-only projection / keyset pages / private detail / no decrypt on list"
@@ -225,24 +277,36 @@ try {
   await page.getByLabel("Jobs (1–10)").fill("6")
   await page.getByRole("button", { name: "Run scenario", exact: true }).click()
   await page.getByText(/Enqueue acknowledged for/).waitFor()
-  await page.locator(".job-list button").first().waitFor()
+  await page.locator(".job-list .job-id").first().waitFor()
   await until(
     async () =>
-      (await page.locator(".job-list .state-badge").allTextContents()).some((text) =>
+      (await page.locator(".job-list .status-cell").allTextContents()).some((text) =>
         text.includes("Completed")
       ),
     "browser did not reconcile persisted completion",
     15000
   )
-  await page.locator(".job-list button").first().click()
+  await page.locator(".job-list .job-id").first().click()
+  await page
+    .getByRole("dialog", { name: "Quick job details", exact: true })
+    .locator("summary")
+    .filter({ hasText: "Identity & execution policy" })
+    .click()
   await page.getByText("Retry delay", { exact: true }).waitFor()
+  await page.getByRole("button", { name: "Close job details", exact: true }).click()
   assert.equal(
-    await page.evaluate(() => document.cookie.includes("__Host-playground=")),
+    await page.evaluate(
+      (name) => document.cookie.includes(name + "="),
+      cookieNames.credential
+    ),
     false
   )
   page.once("dialog", (dialog) => dialog.accept())
   await page.getByRole("button", { name: "Reset my sandbox" }).click()
-  await page.getByText(/New sandbox generation/).waitFor({ timeout: 10000 })
+  await page
+    .locator(".sandbox-scope")
+    .filter({ hasText: "generation 2" })
+    .waitFor({ timeout: 10000 })
   const readsBeforeDisconnect = reads
   await context.setOffline(true)
   await page.waitForTimeout(500)
@@ -301,7 +365,7 @@ try {
           )
         )[0].n === 6,
       "retry did not persist then complete",
-      20000
+      140000
     )
     const dead = await run(b, "http-dead", "terminal-failure")
     await until(
@@ -352,6 +416,12 @@ try {
   } finally {
     clearInterval(heartbeat)
   }
+  for (const row of originalNextGeneration) {
+    await sql(
+      `UPDATE "${schema}".sandboxes SET next_generation_at=$2 WHERE sandbox_id=$1`,
+      [row.sandbox_id, row.next_generation_at]
+    )
+  }
   const old = a.sandbox.ref
   const reset = await post("/api/sandbox/reset", a.cookie, a.token, {
     sandbox: old,
@@ -387,7 +457,7 @@ try {
   const { delayed } = await import(`${evidence}/Admit.mjs`)
   const credential = a.cookie
     .split("; ")
-    .find((part) => part.startsWith("__Host-playground="))
+    .find((part) => part.startsWith(cookieNames.credential + "="))
     .split("=")[1]
   const delayedId = await Effect.runPromise(delayed(cfg, credential, "delayed-native"))
   assert.equal(
@@ -419,11 +489,13 @@ try {
   const larger = []
   let mutationPage
   for (let batch = 0; batch < 12; batch++) {
-    const retained = (
-      await sql(`SELECT retained_jobs FROM "${schema}".sandboxes WHERE sandbox_id=$1`, [
-        a.sandbox.ref.sandboxId
-      ])
-    )[0].retained_jobs
+    const retained = Number(
+      (
+        await sql(`SELECT retained_jobs FROM "${schema}".sandboxes WHERE sandbox_id=$1`, [
+          a.sandbox.ref.sandboxId
+        ])
+      )[0].retained_jobs
+    )
     if (retained === 100) {
       break
     }
@@ -469,13 +541,75 @@ try {
     "bounded backlog not completed",
     25000
   )
-  const quota = await post("/api/scenarios", a.cookie, a.token, {
+  const boundarySnapshot = async () =>
+    (
+      await sql(
+        `SELECT retained_jobs::int AS retained,
+          (SELECT count(*)::int FROM "${schema}".associations WHERE sandbox_id=$1) AS jobs,
+          (SELECT count(*)::int FROM "${schema}".command_receipts WHERE sandbox_id=$1) AS receipts,
+          (SELECT count(*)::int FROM "${schema}".command_admission WHERE sandbox_id=$1) AS admissions
+          FROM "${schema}".sandboxes WHERE sandbox_id=$1`,
+        [a.sandbox.ref.sandboxId]
+      )
+    )[0]
+  const beforeBoundary = await boundarySnapshot()
+  assert.equal(beforeBoundary.retained, 100)
+  assert.equal(beforeBoundary.jobs, 100)
+  const aboveBoundaryCommand = {
     sandbox: a.sandbox.ref,
-    requestId: "quota-full",
+    requestId: "local-private-above100",
     scenario: "success",
     count: 1
+  }
+  const admitted = await post("/api/scenarios", a.cookie, a.token, aboveBoundaryCommand)
+  assert.equal(admitted.status, 200)
+  const aboveBoundary = await admitted.json()
+  assert.equal(aboveBoundary._tag, "Committed")
+  assert.equal(aboveBoundary.requestId, aboveBoundaryCommand.requestId)
+  assert.deepEqual(aboveBoundary.sandbox, a.sandbox.ref)
+  assert.equal(aboveBoundary.jobIds.length, 1)
+  assert(!larger.includes(aboveBoundary.jobIds[0]))
+  const afterBoundary = await boundarySnapshot()
+  assert.deepEqual(afterBoundary, {
+    retained: 101,
+    jobs: 101,
+    receipts: beforeBoundary.receipts + 1,
+    admissions: beforeBoundary.admissions + 1
   })
-  assert.equal(quota.status, 429)
+  const exactReceipt = await post("/api/scenarios/receipt", a.cookie, a.token, {
+    sandbox: a.sandbox.ref,
+    requestId: aboveBoundaryCommand.requestId
+  })
+  assert.equal(exactReceipt.status, 200)
+  assert.deepEqual(await exactReceipt.json(), aboveBoundary)
+  const replayBoundary = await post(
+    "/api/scenarios",
+    a.cookie,
+    a.token,
+    aboveBoundaryCommand
+  )
+  assert.equal(replayBoundary.status, 200)
+  assert.deepEqual(await replayBoundary.json(), aboveBoundary)
+  assert.deepEqual(await boundarySnapshot(), afterBoundary)
+  const [storedBoundary] = await sql(
+    `SELECT r.receipt,j.id,p.job_id FROM "${schema}".command_receipts r
+      JOIN "${schema}".associations a USING(sandbox_id,generation)
+      JOIN "${schema}".jobs j ON j.id=a.job_id
+      JOIN "${schema}".job_payloads p ON p.job_id=j.id
+      WHERE r.sandbox_id=$1 AND r.request_id=$2 AND j.id=$3`,
+    [a.sandbox.ref.sandboxId, aboveBoundaryCommand.requestId, aboveBoundary.jobIds[0]]
+  )
+  assert.deepEqual(storedBoundary.receipt.command, aboveBoundaryCommand)
+  assert.deepEqual(storedBoundary.receipt.result, aboveBoundary)
+  assert.equal(storedBoundary.id, aboveBoundary.jobIds[0])
+  assert.equal(storedBoundary.job_id, aboveBoundary.jobIds[0])
+  await until(
+    async () =>
+      (
+        await sql(`SELECT state FROM "${schema}".jobs WHERE id=$1`, aboveBoundary.jobIds)
+      )[0].state === "Completed",
+    "local-private job above100 not completed"
+  )
   const afterCost = (
     await sql(
       "SELECT sum(calls)::bigint AS calls, sum(total_exec_time)::float8 AS millis FROM pg_stat_statements WHERE dbid=(SELECT oid FROM pg_database WHERE datname=current_database())"
@@ -484,7 +618,12 @@ try {
   const afterQueues = await (await dispatch("/_integration/queues")).json()
   report.observations.backlog = {
     inserted: larger.length,
-    retainedQuota: 100,
+    workloadSize: 100,
+    localPrivateBoundary: {
+      before: beforeBoundary,
+      after: afterBoundary,
+      jobIds: aboveBoundary.jobIds
+    },
     queryCalls: Number(afterCost.calls) - Number(beforeCost.calls),
     queryMillis: afterCost.millis - beforeCost.millis,
     queueAlarmCallbacks: afterQueues.map((q, i) => q.calls - beforeQueues[i].calls),
@@ -518,7 +657,7 @@ try {
     )
   }
   check(
-    "bounded larger backlog / multiple sandboxes / retained quota / filters / measured PG and DO costs"
+    "bounded100 workload / local-private admission above100 / exact receipt and atomic increment / filters / measured PG and DO costs"
   )
   // One authorized viewer keeps all four shared queues alive; zero viewers retires all.
   await sql(`UPDATE "${schema}".sandboxes SET viewer_until=1`)

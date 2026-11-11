@@ -1,9 +1,10 @@
+import "../../../playground/src/styles/Jobs.css"
 import { Effect } from "effect"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
-import { JobsClient, type Client } from "../../src/features/jobs/Adapter.js"
-import * as FixtureClient from "../../src/features/jobs/FixtureClient.js"
-import * as Mount from "../../src/features/jobs/Mount.js"
+import { JobsClient, type Client } from "../../../playground/src/features/jobs/Adapter.js"
+import * as FixtureClient from "../../../playground/tests/fixtures/FixtureClient.js"
+import * as Mount from "../../../playground/src/features/jobs/Mount.js"
 
 // Browser-test harness only. Commands below return scripted test observations,
 // never durable execution. The production registrar must not import this module.
@@ -130,7 +131,8 @@ if (root === null) {
   throw new Error("Missing test mount")
 }
 const mounted = Mount.mount(root, client, sandbox(), {
-  poll: new URLSearchParams(window.location.search).has("poll")
+  poll: new URLSearchParams(window.location.search).has("poll"),
+  demo: window.location.pathname === "/demo"
 })
 const browserTest = {
   mode: (next: typeof mode) => {

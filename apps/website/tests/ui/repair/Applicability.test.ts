@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
 import * as Fixture from "../../../../playground-worker/tests/repairs/Fixtures.js"
-import * as Projection from "../../../src/server/read/JobDetailsProjection.js"
-import * as Eligibility from "../../../src/features/jobs/OperatorEligibility.js"
+import * as Projection from "../../../../playground-worker/src/server/read/JobDetailsProjection.js"
+import * as Eligibility from "../../../../playground/src/features/jobs/OperatorEligibility.js"
 
 const sandbox = {
   ref: Fixture.ref,

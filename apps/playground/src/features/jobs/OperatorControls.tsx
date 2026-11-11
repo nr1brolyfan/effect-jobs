@@ -1,0 +1,138 @@
+import { useFormAtom } from "./FormAtoms.js"
+import { useEffect, useRef } from "react"
+import * as stylex from "@stylexjs/stylex"
+import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
+import type { JobOperatorAction } from "@effect-jobs/playground-contracts/Operators"
+import type { SandboxView } from "@effect-jobs/playground-contracts/Sandbox"
+import { Button } from "../../ui/Primitives.js"
+import type { Runtime } from "./Runtime.js"
+import * as Eligibility from "./OperatorEligibility.js"
+import { styles } from "./OperatorControls.stylex.js"
+
+const labels = {
+  "retry-now": "Retry now",
+  cancel: "Cancel job",
+  redrive: "Redrive as new job"
+} as const
+export const OperatorControls = (props: {
+  readonly runtime: Runtime
+  readonly detail: JobDetail
+  readonly sandbox: SandboxView
+  readonly now: number
+  readonly blocked: boolean
+}) => {
+  const [action, setAction] = useFormAtom<JobOperatorAction | undefined>(undefined)
+  const dialog = useRef<HTMLDialogElement>(null)
+  const trigger = useRef<HTMLButtonElement | null>(null)
+  const available = Eligibility.eligibility(props.detail, props.sandbox, props.now)
+  const actionApplicable =
+    action === "cancel"
+      ? available.cancel.enabled
+      : action === "retry-now"
+        ? available.retryNow.enabled
+        : action === "redrive" && available.redrive.enabled
+  useEffect(() => {
+    if (action !== undefined && !actionApplicable) {
+      setAction(undefined)
+      return
+    }
+    const element = dialog.current
+    if (action !== undefined && element && !element.open) {
+      element.showModal()
+    }
+    return () => {
+      if (element?.open) {
+        element.close()
+      }
+    }
+  }, [action, actionApplicable])
+  const dismiss = () => {
+    dialog.current?.close()
+    setAction(undefined)
+    trigger.current?.focus({ preventScroll: true })
+  }
+  const confirm = () => {
+    if (action === undefined || props.blocked) {
+      return
+    }
+    const state = props.runtime.snapshot()
+    if (
+      state.detail?.job.jobId !== props.detail.job.jobId ||
+      state.detail.job.lifecycleVersion !== props.detail.job.lifecycleVersion ||
+      state.sandbox.ref.sandboxId !== props.sandbox.ref.sandboxId ||
+      state.sandbox.ref.generation !== props.sandbox.ref.generation
+    ) {
+      dismiss()
+      return
+    }
+    void props.runtime.run(
+      props.runtime.operate(action, crypto.randomUUID(), action === "redrive")
+    )
+    dismiss()
+  }
+  if (!available.retryNow.enabled && !available.cancel.enabled) {
+    return null
+  }
+  return (
+    <section {...stylex.props(styles.panel)} aria-label="Job operators">
+      <div {...stylex.props(styles.actions)}>
+        {(["retry-now", "cancel"] as const).map((value) => {
+          const entry =
+            value === "retry-now"
+              ? available.retryNow
+              : value === "cancel"
+                ? available.cancel
+                : available.redrive
+          return entry.enabled ? (
+            <Button
+              key={value}
+              disabled={props.blocked || !entry.enabled}
+              onClick={(event) => {
+                trigger.current = event.currentTarget
+                setAction(value)
+              }}
+            >
+              {labels[value]}
+            </Button>
+          ) : null
+        })}
+      </div>
+      <dialog
+        ref={dialog}
+        aria-labelledby="operator-confirm-title"
+        aria-describedby="operator-confirm-warning"
+        {...stylex.props(styles.dialog)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.stopPropagation()
+          }
+        }}
+        onCancel={(event) => {
+          event.preventDefault()
+          dismiss()
+        }}
+      >
+        <h3 id="operator-confirm-title" {...stylex.props(styles.heading)}>
+          {action === undefined ? "Confirm operator" : labels[action]}
+        </h3>
+        <p id="operator-confirm-warning" {...stylex.props(styles.warning)}>
+          {action === "redrive"
+            ? "The original may already have produced external effects, especially after a stalled or isolated attempt. This creates a new job ID with a fresh retry budget and can repeat those effects. The original remains unchanged. Confirm only after investigating its outcome."
+            : action === "cancel"
+              ? "Prevent future execution of this pending or scheduled job? Cancellation cannot undo effects that already happened. Active execution cannot be safely interrupted."
+              : "Make this future scheduled retry eligible now? The same job ID, retry budget and payload are preserved. This does not guarantee immediate execution."}
+        </p>
+        <div {...stylex.props(styles.actions)}>
+          <Button autoFocus onClick={dismiss}>
+            Keep current job
+          </Button>
+          <Button disabled={props.blocked} onClick={confirm}>
+            {action === "redrive"
+              ? "Confirm possible duplicate effects"
+              : "Confirm action"}
+          </Button>
+        </div>
+      </dialog>
+    </section>
+  )
+}

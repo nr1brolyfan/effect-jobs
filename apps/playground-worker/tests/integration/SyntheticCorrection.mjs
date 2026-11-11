@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
 import { Pool } from "pg"
 import { chromium, expect } from "@playwright/test"
-import { createLocal } from "./Local.mjs"
+import { createLocal } from "./Local.ts"
 
 const directory = process.env.D6_RESOURCE_DIRECTORY
 const cfg = JSON.parse(readFileSync(process.env.PLAYGROUND_PRIVATE_CONFIG, "utf8"))

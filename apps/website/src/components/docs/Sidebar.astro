@@ -1,4 +1,6 @@
 ---
+import * as stylex from "@stylexjs/stylex"
+import { styles } from "./ShellStyles.js"
 const groups = [
   { title: "Start", links: [["Introduction", "/docs"], ["Getting started", "/docs/start/tutorial"]] },
   { title: "Produce", links: [["Defining jobs", "/docs/start/tutorial#1-place-an-order-without-waiting-for-email"], ["Enqueueing & transactions", "/docs/persistence/transactions"]] },
@@ -8,9 +10,9 @@ const groups = [
 ]
 const current = Astro.url.pathname.replace(/\/$/, "")
 ---
-<div class="ej-nav-intro"><span class="ej-nav-dot" aria-hidden="true"></span>Durable by design</div>
-{groups.map((group) => <section class="ej-nav-group" aria-label={group.title}>
-  <h2>{group.title}</h2>
-  <ul>{group.links.map((link) => <li><a href={link[1]} aria-current={current === link[1] ? "page" : undefined}>{link[0]}</a></li>)}</ul>
+<div class:list={["ej-nav-intro", stylex.attrs(styles.ejNavIntro).class]}><span class:list={["ej-nav-dot", stylex.attrs(styles.ejNavDot).class]} aria-hidden="true"></span>Durable by design</div>
+{groups.map((group) => <section class:list={["ej-nav-group", stylex.attrs(styles.ejNavGroup).class]} aria-label={group.title}>
+  <h2 {...stylex.attrs(styles.ejNavGroup2)}>{group.title}</h2>
+  <ul {...stylex.attrs(styles.ejNavGroup3)}>{group.links.map((link) => <li {...stylex.attrs(styles.ejNavGroup4)}><a {...stylex.attrs(styles.ejNavGroup5, ((current === link[1] ? "page" : undefined) === "page") && styles.ejNavGroupSelected)} href={link[1]} aria-current={current === link[1] ? "page" : undefined}>{link[0]}</a></li>)}</ul>
 </section>)}
-<div class="ej-nav-footer"><span>Effect-native. PostgreSQL-backed.</span><a href="/docs/reference/examples">Complete checked examples <span aria-hidden="true">↗︎</span></a></div>
+<div class:list={["ej-nav-footer", stylex.attrs(styles.ejNavFooter).class]}><span>Effect-native. PostgreSQL-backed.</span><a {...stylex.attrs(styles.ejNavFooter2)} href="/docs/reference/examples">Complete checked examples <span aria-hidden="true">↗︎</span></a></div>

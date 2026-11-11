@@ -1,14 +1,14 @@
 import { SqlClient } from "effect/sql/SqlClient"
 import { relations } from "../persistence/authority/Schema.js"
 import { Effect } from "effect"
-import { Application } from "../../../website/src/server/Services.js"
-import * as Http from "../../../website/src/server/HttpApplication.js"
-import * as Upgrade from "../../../website/src/server/live/Upgrade.js"
-import * as Read from "../../../website/src/server/read/HttpRead.js"
+import { Application } from "../server/Services.js"
+import * as Http from "../server/HttpApplication.js"
+import * as Upgrade from "../server/live/Upgrade.js"
+import * as Read from "../server/read/HttpRead.js"
 import { JobsRead, PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import * as Manager from "./Manager.js"
 import type { Env } from "../Worker.js"
-import * as OriginPolicy from "../../../website/src/OriginPolicy.js"
+import * as OriginPolicy from "../OriginPolicy.js"
 
 // Public data admission waits for actual encrypted-worker completion and audited
 // known-failure repair resolution. Internal demo control can progress before this gate.

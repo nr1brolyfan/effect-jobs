@@ -7,9 +7,9 @@ import type {
   JobOperatorCommand,
   JobOperatorResult
 } from "@effect-jobs/playground-contracts/Operators"
-import { JobsClient, type Client } from "../../src/features/jobs/Adapter.js"
-import * as Atoms from "../../src/features/jobs/Atoms.js"
-import * as FixtureClient from "../../src/features/jobs/FixtureClient.js"
+import { JobsClient, type Client } from "../../../playground/src/features/jobs/Adapter.js"
+import * as Atoms from "../../../playground/src/features/jobs/Atoms.js"
+import * as FixtureClient from "../../../playground/tests/fixtures/FixtureClient.js"
 
 const sandbox = {
   ...Fixtures.sandbox,

@@ -1,16 +1,23 @@
 // @effect-diagnostics unstableApiUsage:off
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import * as HttpResponse from "effect/http/HttpServerResponse"
+import * as HttpRequest from "effect/http/HttpServerRequest"
+import {
+  setupLive,
+  controls
+} from "../../../playground-worker/tests/live/NativeLiveUnit.js"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import { Repairs } from "@effect-jobs/playground-contracts/Repairs"
-import { Application } from "../../src/server/Services.js"
+import { Application } from "../../../playground-worker/src/server/Services.js"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
-import * as OriginPolicy from "../../src/OriginPolicy.js"
-import * as Upgrade from "../../src/server/live/Upgrade.js"
-import * as Live from "../../../playground-worker/src/live/SandboxLive.js"
+import * as OriginPolicy from "../../../playground-worker/src/OriginPolicy.js"
+import * as Upgrade from "../../../playground-worker/src/server/live/Upgrade.js"
 import * as DemoHttp from "../../../playground-worker/src/demo/Http.js"
 import type { Env } from "../../../playground-worker/src/Worker.js"
+
+afterEach(() => vi.restoreAllMocks())
 
 const aliases = ["http://localhost:8787", "http://127.0.0.1:8787"]
 const policy = OriginPolicy.make({ configuredOrigin: aliases[1]!, localPreview: true })
@@ -62,7 +69,11 @@ describe("WebSocket admission", () => {
     spoofed.headers.set("X-Forwarded-Host", "localhost:8787")
     spoofed.headers.set("X-Forwarded-Proto", "http")
     const namespace = {
-      getByName: () => ({ fetch: async () => Response.json({ admitted: true }) })
+      getByName: () => ({
+        notifyCommitted: () => Effect.void,
+        fetch: () =>
+          Effect.succeed(HttpResponse.fromWeb(Response.json({ admitted: true })))
+      })
     }
     const authorize = () => Effect.succeed(Fixtures.sandbox)
     expect(
@@ -143,12 +154,15 @@ describe("WebSocket admission", () => {
           policy,
           {
             getByName: () => ({
-              fetch: async (forwarded) => {
-                routed++
-                expect(forwarded).toBe(incoming)
-                expect(new URL(forwarded.url).origin).toBe(origin)
-                return Response.json({ admitted: true })
-              }
+              notifyCommitted: () => Effect.void,
+              fetch: (forwarded) =>
+                Effect.gen(function* () {
+                  routed++
+                  expect(forwarded.source).toBe(incoming)
+                  const web = yield* HttpRequest.toWeb(forwarded).pipe(Effect.orDie)
+                  expect(new URL(web.url).origin).toBe(origin)
+                  return HttpResponse.fromWeb(Response.json({ admitted: true }))
+                })
             })
           },
           (forwarded) => {
@@ -246,9 +260,8 @@ describe("WebSocket admission", () => {
           policy,
           {
             getByName: () => ({
-              fetch: async () => {
-                throw new Error("private transport data")
-              }
+              notifyCommitted: () => Effect.void,
+              fetch: () => Effect.die(new Error("private transport data"))
             })
           },
           authorize
@@ -260,47 +273,34 @@ describe("WebSocket admission", () => {
   })
 })
 
-const state = (): Live.LiveState => ({
-  storage: {
-    get: async () => undefined,
-    put: async () => undefined,
-    getAlarm: async () => null,
-    setAlarm: async () => undefined,
-    deleteAlarm: async () => undefined
-  },
-  blockConcurrencyWhile: (callback) => callback(),
-  acceptWebSocket: () => undefined,
-  getWebSockets: () => []
-})
-
 it("DO independently repeats exact origin admission, default hosted denial, and expiry", async () => {
   for (const localPreview of [false, true]) {
-    let calls = 0
-    const Durable = Live.makeDurableObject(
-      {
-        origin: () => aliases[1]!,
-        localPreview: () => localPreview,
-        authorize: () => {
-          calls++
-          return Effect.succeed({ ...Fixtures.sandbox, expiresAt: 1 })
-        },
-        isCurrent: () => Effect.succeed(true)
-      },
-      class {
-        constructor(_ctx: Live.LiveState, _env: object) {}
-      }
-    )
-    const object = new Durable(state(), {})
-    for (const [origin, supplied] of invalid) {
-      expect((await object.fetch(request(origin, supplied))).status).toBe(400)
-    }
-    expect(calls).toBe(0)
-    for (const origin of aliases) {
-      expect((await object.fetch(request(origin, origin))).status).toBe(
-        localPreview ? 403 : 400
+    const probe = await setupLive({
+      now: 1800000000000,
+      origin: aliases[1]!,
+      localPreview,
+      expiresAt: 1,
+      viewers: false
+    })
+    const fetch = (incoming: Request) =>
+      probe.run(
+        probe.object.fetch.pipe(
+          Effect.provideService(
+            HttpRequest.HttpServerRequest,
+            HttpRequest.fromWeb(incoming)
+          )
+        )
       )
+    for (const [origin, supplied] of invalid) {
+      expect((await fetch(request(origin, supplied))).status).toBe(400)
     }
-    expect(calls).toBe(localPreview ? 2 : 0)
+    expect(controls.authorizations).toBe(0)
+    for (const origin of aliases) {
+      const incoming = request(origin, origin)
+      incoming.headers.set("Cookie", "playground-local-8787=" + "a".repeat(64))
+      expect((await fetch(incoming)).status).toBe(localPreview ? 403 : 400)
+    }
+    expect(controls.authorizations).toBe(localPreview ? 2 : 0)
   }
 })
 

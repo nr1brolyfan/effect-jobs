@@ -1,7 +1,7 @@
 import { Effect, Redacted } from "effect"
 import * as Event from "../../src/execution/Event.js"
 import * as Executor from "../../src/execution/Executor.js"
-import { Application } from "../../../website/src/server/Services.js"
+import { Application } from "../../src/server/Services.js"
 // Independent native scopes exercise actual PG locks, without the Gateway DO's serialization.
 export const issue = (config: Event.Config) =>
   Event.run(

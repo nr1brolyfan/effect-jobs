@@ -7,6 +7,7 @@ import secrets
 import signal
 import subprocess
 import time
+import sys
 
 root = pathlib.Path(__file__).resolve().parents[4]
 evidence = root / os.environ.get('PLAYGROUND_EVIDENCE_DIRECTORY', '.multica/react-qualification')
@@ -38,7 +39,7 @@ try:
     testenv = os.environ.copy()
     testenv.update(PLAYGROUND_PRIVATE_CONFIG=str(private), PLAYGROUND_EVIDENCE_DIRECTORY=str(evidence))
     with (evidence / 'runtime.log').open('w') as log:
-        process = subprocess.Popen(['node', 'apps/playground-worker/tests/integration/React.mjs'], cwd=root, env=testenv, stdout=log, stderr=log, start_new_session=True)
+        process = subprocess.Popen(['node', 'apps/playground-worker/tests/integration/NativeHostQualification.ts' if '--native-host' in sys.argv else 'apps/playground-worker/tests/integration/React.ts', *(['--combined-private'] if '--combined-private' in sys.argv else [])], cwd=root, env=testenv, stdout=log, stderr=log, start_new_session=True)
         try:
             exit_code = process.wait(timeout=240)
         finally:

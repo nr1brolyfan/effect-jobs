@@ -27,7 +27,7 @@ receipt['sourceInputs'] = {p: hashlib.sha256((root / p).read_bytes()).hexdigest(
 receipt['inputs'] = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.glob('apps/playground-worker/tests/integration/Actionable*')) if p.is_file()}
 receipt['artifacts'] = {name: hashlib.sha256((evidence / name).read_bytes()).hexdigest() for name in ['ActionableProbe.mjs', 'Migrations.mjs']}
 receipt['tools'] = {'node': subprocess.check_output(['node', '--version'], cwd=root, text=True).strip(), 'bun': subprocess.check_output(['bun', '--version'], cwd=root, text=True).strip()}
-receipt['compiledArtifacts'] = {p: hashlib.sha256((root / p).read_bytes()).hexdigest() for p in ['apps/playground-worker/dist/Worker.js', 'apps/website/dist/Client.js', 'apps/website/dist/Jobs.css']}
+receipt['compiledArtifacts'] = {p: hashlib.sha256((root / p).read_bytes()).hexdigest() for p in ['apps/playground-worker/dist/Worker.js', 'apps/playground/dist/Client.js', 'apps/playground/dist/Jobs.css']}
 docker = os.environ.get('DOCKER_BIN', 'docker')
 if docker == 'docker' and shutil.which('docker.exe'):
     result = subprocess.run([docker, 'version', '--format', '{{.Server.Version}}'], capture_output=True, text=True, timeout=10)

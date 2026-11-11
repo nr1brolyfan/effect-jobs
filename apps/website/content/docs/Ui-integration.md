@@ -1,7 +1,7 @@
 ## Jobs UI integration handoff
 
 The feature exports `mount(root, client, sandbox)` from
-`apps/website/src/features/jobs/View.ts`. It returns `{ controller, dispose }`;
+`apps/playground/src/features/jobs/View.ts`. It returns `{ controller, dispose }`;
 the browser registrar owns mounting and calls `dispose()` when leaving the page.
 Cleanup removes listeners, stops reconciliation and aborts outstanding Effects.
 The adapter is the browser `Client` port in `Adapter.ts`, backed by `JobsClient`.
@@ -13,16 +13,17 @@ automatically retried. The UI uses a five-item page to keep the demo compact.
 
 ### Exact requests to the serial registrar
 
-- In `apps/website/src/Client.ts`, import `mount` from `./features/jobs/View.js`;
+- In `apps/playground/src/Client.ts`, import `mount` from `./features/jobs/View.js`;
   on `/jobs`, invoke it with the existing page's main element, the independently
   integrated browser transport client and its server-described sandbox. Retain
   the cleanup handle. Do not import `FixtureEntry.ts` in hosted code.
-- Include `apps/website/src/styles/Jobs.css` in browser assets and serve it with
+- Include `apps/playground/src/styles/Jobs.css` in browser assets and serve it with
   a CSS content type; the fixture/guide HTML uses `/Jobs.css`.
 - Register `/jobs` using the app's real HTML shell, containing `<main id="jobs">`
-  and the browser asset entry. Register `/docs/jobs` as the static English page
-  `apps/website/content/docs/Jobs.html`, with HTML content type. The feature links
-  to that guide. `Jobs.md` is the repository-readable companion.
+  and the browser asset entry. Serve canonical Astro assets for the guide:
+  `/docs/jobs` redirects to `/docs/playground` with a visible fallback link.
+  `apps/website/src/content/docs/playground.mdx` is the guide source; `Jobs.md`
+  remains the repository-readable companion.
 - Provide describe/list/detail/run/reset and both exact receipt-read adapters
   using the frozen DTOs. Enforce cookie authority, origin/CSRF, budgets and strict
   Schema boundaries at the HTTP layer. No endpoint URL is guessed by this slice.
@@ -43,7 +44,7 @@ bun run playground:check
 bun run playground:lint
 bun run playground:build
 bun node_modules/vitest/vitest.mjs run apps/website/tests/ui/Controller.test.ts
-bunx oxfmt --config .oxfmtrc.json --check apps/website/src/features/jobs apps/website/src/styles apps/website/content/docs apps/website/tests/ui
+bunx oxfmt --config .oxfmtrc.json --check apps/playground/src/features/jobs apps/website/src/styles apps/website/content/docs apps/website/tests/ui
 node apps/website/tests/ui/Packed.mjs
 npm install --prefix .multica/browser --ignore-scripts --no-audit --no-fund --save-exact playwright@1.61.1 axe-core@4.11.1
 node .multica/browser/node_modules/playwright/cli.js install chromium

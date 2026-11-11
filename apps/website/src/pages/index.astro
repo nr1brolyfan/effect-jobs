@@ -1,4 +1,7 @@
 ---
+import * as stylex from "@stylexjs/stylex"
+import { styles } from "../components/landing/LandingStyles.js"
+import "../components/docs/JobVisual.css";
 import System from "../components/landing/System.astro";
 import "../components/landing/Landing.css";
 import "../styles/site/tokens.css";
@@ -16,158 +19,158 @@ import "../styles/site/tokens.css";
     <meta name="theme-color" content="#090b10" />
     <title>effect-jobs — Give background work a durable home</title>
   </head>
-  <body class="ej-landing">
-    <a class="skip" href="#main">Skip to content</a>
-    <header class="site-header wrap">
-      <a class="wordmark" href="/" aria-label="effect-jobs home"
-        ><span class="mark" aria-hidden="true">e<span>j</span></span
+  <body class:list={["ej-landing", stylex.attrs(styles.element7).class]}>
+    <a class:list={["skip", stylex.attrs(styles.element8).class]} href="#main">Skip to content</a>
+    <header class:list={["site-header wrap", stylex.attrs(styles.wrap).class]}>
+      <a class:list={["wordmark", stylex.attrs(styles.element9).class]} href="/" aria-label="effect-jobs home"
+        ><span class:list={["mark", stylex.attrs(styles.mark).class]} aria-hidden="true">e<span {...stylex.attrs(styles.workerPairSelected)}>j</span></span
         >effect-jobs</a
       >
-      <nav aria-label="Main navigation">
-        <a href="/docs">Documentation</a><a href="/demo"
+      <nav {...stylex.attrs(styles.element10)} aria-label="Main navigation">
+        <a {...stylex.attrs(styles.element11)} href="/docs">Documentation</a><a {...stylex.attrs(styles.element11)} href="/demo"
           >Demo <span aria-hidden="true">↗</span></a
         >
       </nav>
-      <span class="alpha">PUBLIC ALPHA</span>
+      <span class:list={["alpha", stylex.attrs(styles.alpha).class]}>PUBLIC ALPHA</span>
     </header>
     <main id="main">
-      <section class="hero wrap" aria-labelledby="promise">
-        <div class="eyebrow">
-          <span class="tiny-mark" aria-hidden="true"></span> DURABLE EXECUTION ·
+      <section class:list={["hero wrap", stylex.attrs(styles.hero).class]} aria-labelledby="promise">
+        <div class:list={["eyebrow", stylex.attrs(styles.eyebrow).class]}>
+          <span class:list={["tiny-mark", stylex.attrs(styles.tinyMark).class]} aria-hidden="true"></span> DURABLE EXECUTION ·
           NATIVE EFFECT
         </div>
-        <h1 id="promise">
-          Your request ends.<br /><span>The work goes on.</span>
+        <h1 {...stylex.attrs(styles.element12)} id="promise">
+          Your request ends.<br /><span {...stylex.attrs(styles.workerPairSelected)}>The work goes on.</span>
         </h1>
-        <p class="hero-copy">
+        <p class:list={["hero-copy", stylex.attrs(styles.heroCopy).class]}>
           Give background work a durable home. Schema-defined jobs, atomic
           PostgreSQL enqueue, and scoped workers that compose with your Effect
           application.
         </p>
-        <div class="actions">
-          <a class="primary" href="/docs/start/first-job"
+        <div class:list={["actions", stylex.attrs(styles.actions).class]}>
+          <a class:list={["primary", stylex.attrs(styles.element13).class]} href="/docs/start/first-job"
             >Build your first job <span aria-hidden="true">→</span></a
-          ><a class="secondary" href="/demo"
+          ><a class:list={["secondary", stylex.attrs(styles.element14).class]} href="/demo"
             >Explore the demo <span aria-hidden="true">↗</span></a
           >
         </div>
-        <p class="hero-note">
+        <p class:list={["hero-note", stylex.attrs(styles.heroNote).class]}>
           Your database. Your transactions. Explicit execution.
         </p>
         <System />
       </section>
-      <section class="stack-strip wrap" aria-label="Supported stack">
-        <span>BUILT TO COMPOSE</span><strong>Effect 4.0.5</strong><i
+      <section class:list={["stack-strip wrap", stylex.attrs(styles.wrap2).class]} aria-label="Supported stack">
+        <span {...stylex.attrs(styles.stackStrip)}>BUILT TO COMPOSE</span><strong {...stylex.attrs(styles.stackStrip2)}>Effect 4.0.5</strong><i {...stylex.attrs(styles.stackStrip3)}
           aria-hidden="true">/</i
-        ><strong>PostgreSQL</strong><i aria-hidden="true">/</i><strong
+        ><strong {...stylex.attrs(styles.stackStrip2)}>PostgreSQL</strong><i {...stylex.attrs(styles.stackStrip3)} aria-hidden="true">/</i><strong {...stylex.attrs(styles.stackStrip2)}
           >Node.js · Bun</strong
-        ><i aria-hidden="true">/</i><strong>Optional Drizzle</strong>
+        ><i {...stylex.attrs(styles.stackStrip3)} aria-hidden="true">/</i><strong {...stylex.attrs(styles.stackStrip2)}>Optional Drizzle</strong>
       </section>
-      <section class="atomic wrap section" aria-labelledby="atomic-title">
+      <section class:list={["atomic wrap section", stylex.attrs(styles.atomic).class]} aria-labelledby="atomic-title">
         <div>
-          <p class="eyebrow">01 / CLOSE THE GAP</p><h2 id="atomic-title">
-            The write and the work.<br /><span>One transaction.</span>
-          </h2><p>
+          <p class:list={["eyebrow", stylex.attrs(styles.eyebrow2).class]}>01 / CLOSE THE GAP</p><h2 {...stylex.attrs(styles.element15)} id="atomic-title">
+            The write and the work.<br /><span {...stylex.attrs(styles.systemSubtitle)}>One transaction.</span>
+          </h2><p {...stylex.attrs(styles.eyebrow3)}>
             A report request is only useful if its job exists too. Join
             application writes and enqueue in the same configured client
             transaction: commit together, or roll back together.
-          </p><a class="text-link" href="/docs/persistence/transactions"
+          </p><a class:list={["text-link", stylex.attrs(styles.element16).class]} href="/docs/persistence/transactions"
             >Understand atomic enqueue <span aria-hidden="true">→</span></a
           >
         </div>
-        <div class="transaction-card">
-          <div class="panel-label">
-            <span>TRANSACTION BOUNDARY</span><span class="status-dot"
+        <div class:list={["transaction-card", stylex.attrs(styles.transactionCard).class]}>
+          <div class:list={["panel-label", stylex.attrs(styles.panelLabel).class]}>
+            <span>TRANSACTION BOUNDARY</span><span class:list={["status-dot", stylex.attrs(styles.statusDot).class]}
               >same client</span
             >
-          </div><ol>
-            <li>
-              <span>01</span><div>
-                <strong>Save report request</strong><small
+          </div><ol {...stylex.attrs(styles.transactionCard2)}>
+            <li {...stylex.attrs(styles.transactionCard3)}>
+              <span {...stylex.attrs(styles.transactionCard4)}>01</span><div>
+                <strong {...stylex.attrs(styles.transactionCard5)}>Save report request</strong><small {...stylex.attrs(styles.transactionCard6)}
                   >Application-owned business data</small
                 >
               </div>
-            </li><li>
-              <span>02</span><div>
-                <strong>Enqueue report job</strong><small
+            </li><li {...stylex.attrs(styles.transactionCard3)}>
+              <span {...stylex.attrs(styles.transactionCard4)}>02</span><div>
+                <strong {...stylex.attrs(styles.transactionCard5)}>Enqueue report job</strong><small {...stylex.attrs(styles.transactionCard6)}
                   >Producer identity + encoded payload</small
                 >
               </div>
-            </li><li>
-              <span>03</span><div>
-                <strong>Commit together</strong><small
+            </li><li {...stylex.attrs(styles.transactionCard3)}>
+              <span {...stylex.attrs(styles.transactionCard4)}>03</span><div>
+                <strong {...stylex.attrs(styles.transactionCard5)}>Commit together</strong><small {...stylex.attrs(styles.transactionCard6)}
                   >Joined enqueue results are provisional until commit</small
                 >
               </div>
             </li>
-          </ol><div class="identity">
-            <span>REPEATED REQUEST?</span><p>
-              The same <code>(operation, operationId, slot)</code> and matching semantics
+          </ol><div class:list={["identity", stylex.attrs(styles.identity).class]}>
+            <span {...stylex.attrs(styles.identity2)}>REPEATED REQUEST?</span><p {...stylex.attrs(styles.eyebrow4)}>
+              The same <code {...stylex.attrs(styles.element4)}>(operation, operationId, slot)</code> and matching semantics
               find the retained job. Changed semantics produce a conflict.
-            </p><a href="/docs/persistence/deduplication"
+            </p><a {...stylex.attrs(styles.element17)} href="/docs/persistence/deduplication"
               >How deduplication works →</a
             >
           </div>
         </div>
       </section>
       <section
-        class="wrap section reliability"
+        class:list={["wrap section reliability", stylex.attrs(styles.wrap3).class]}
         aria-labelledby="reliability-title"
       >
-        <p class="eyebrow">02 / MAKE FAILURE EXPLICIT</p><div
-          class="section-heading"
+        <p class:list={["eyebrow", stylex.attrs(styles.eyebrow2).class]}>02 / MAKE FAILURE EXPLICIT</p><div
+          class:list={["section-heading", stylex.attrs(styles.sectionHeading).class]}
         >
-          <h2 id="reliability-title">
-            Reliability has<br /><span>more than one path.</span>
-          </h2><p>
+          <h2 {...stylex.attrs(styles.element15)} id="reliability-title">
+            Reliability has<br /><span {...stylex.attrs(styles.systemSubtitle)}>more than one path.</span>
+          </h2><p {...stylex.attrs(styles.eyebrow5)}>
             Retries are a policy. Ownership is a lease. An uncertain external
             outcome still needs application-level reconciliation.
           </p>
-        </div><div class="principles">
-          <article>
-            <span class="principle-icon" aria-hidden="true">↻</span><h3>
+        </div><div class:list={["principles", stylex.attrs(styles.principles).class]}>
+          <article {...stylex.attrs(styles.principles2)}>
+            <span class:list={["principle-icon", stylex.attrs(styles.principleIcon).class]} aria-hidden="true">↻</span><h3 {...stylex.attrs(styles.principles3)}>
               Retries that persist
-            </h3><p>
+            </h3><p {...stylex.attrs(styles.principles4)}>
               A confirmed retry stores the next availability using the first
               persisted policy and a bounded attempt budget.
-            </p><a href="/docs/execution/retries">Retry semantics →</a>
-          </article><article>
-            <span class="principle-icon" aria-hidden="true">⌁</span><h3>
+            </p><a {...stylex.attrs(styles.element18)} href="/docs/execution/retries">Retry semantics →</a>
+          </article><article {...stylex.attrs(styles.principles2)}>
+            <span class:list={["principle-icon", stylex.attrs(styles.principleIcon).class]} aria-hidden="true">⌁</span><h3 {...stylex.attrs(styles.principles3)}>
               Ownership that fences
-            </h3><p>
+            </h3><p {...stylex.attrs(styles.principles4)}>
               Database-time leases and exact ownership checks guard durable
               finalization. External side effects still need idempotency.
-            </p><a href="/docs/execution/recovery">Leases & recovery →</a>
-          </article><article>
-            <span class="principle-icon" aria-hidden="true">?</span><h3>
+            </p><a {...stylex.attrs(styles.element18)} href="/docs/execution/recovery">Leases & recovery →</a>
+          </article><article {...stylex.attrs(styles.principles2)}>
+            <span class:list={["principle-icon", stylex.attrs(styles.principleIcon).class]} aria-hidden="true">?</span><h3 {...stylex.attrs(styles.principles3)}>
               Unknown stays unknown
-            </h3><p>
+            </h3><p {...stylex.attrs(styles.principles4)}>
               A lost response does not prove rollback. OutcomeUnknown is an
               attempt outcome, not a durable job state or permission to replay.
-            </p><a href="/docs/concepts/lifecycle">Follow the lifecycle →</a>
+            </p><a {...stylex.attrs(styles.element18)} href="/docs/concepts/lifecycle">Follow the lifecycle →</a>
           </article>
         </div>
       </section>
-      <section class="wrap section finish">
+      <section class:list={["wrap section finish", stylex.attrs(styles.wrap4).class]}>
         <div>
-          <p class="eyebrow">SMALL CORE. EXPLICIT BOUNDARIES.</p><h2>
-            Make the next request<br /><span
+          <p class:list={["eyebrow", stylex.attrs(styles.eyebrow2).class]}>SMALL CORE. EXPLICIT BOUNDARIES.</p><h2 {...stylex.attrs(styles.element15)}>
+            Make the next request<br /><span {...stylex.attrs(styles.systemSubtitle)}
               >the start of something durable.</span
             >
-          </h2><p>
+          </h2><p {...stylex.attrs(styles.eyebrow3)}>
             Current alpha: PostgreSQL persistence, application-owned migrations
             and pools, explicit worker lifetime. Read the supported setup before
             integrating.
           </p>
-        </div><a class="primary" href="/docs/start/installation"
+        </div><a class:list={["primary", stylex.attrs(styles.element19).class]} href="/docs/start/installation"
           >Read the installation guide <span aria-hidden="true">→</span></a
         >
       </section>
     </main>
-    <footer class="wrap">
-      <a class="wordmark" href="/">effect-jobs</a><p>
+    <footer class:list={["wrap", stylex.attrs(styles.wrap5).class]}>
+      <a class:list={["wordmark", stylex.attrs(styles.element9).class]} href="/">effect-jobs</a><p {...stylex.attrs(styles.element20)}>
         Durable jobs, composed with Effect.
-      </p><a href="/docs">Documentation →</a>
+      </p><a {...stylex.attrs(styles.element21)} href="/docs">Documentation →</a>
     </footer>
   </body>
 </html>

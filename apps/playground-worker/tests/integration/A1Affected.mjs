@@ -3,7 +3,8 @@ import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { Pool } from "pg"
-import { createLocal } from "./Local.mjs"
+import * as Cookies from "@effect-jobs/playground-contracts/Cookies"
+import { createLocal } from "./Local.ts"
 const root = resolve(import.meta.dirname, "../../../..")
 const evidence = resolve(root, ".multica/integration")
 const { migrations } = await import(`${evidence}/Migrations.mjs`)
@@ -48,8 +49,9 @@ try {
     await sql(migration.sql)
   }
   cfg.connectionString = `postgres://${cfg.user}:${cfg.password}@127.0.0.1:${cfg.port}/${cfg.database}`
-  local = await createLocal(cfg, { instrument: true })
+  local = await createLocal(cfg, { instrument: true, localPrivate: true })
   mf = local.mf
+  const cookieNames = Cookies.names(local.origin, true)
   const dispatch = (path, options = {}) => mf.dispatchFetch(local.origin + path, options)
   const post = (path, cookie, token, body) =>
     dispatch(path, {
@@ -69,13 +71,14 @@ try {
       cookies.some(
         (value) =>
           value.includes("HttpOnly") &&
-          value.includes("Secure") &&
+          !value.includes("; Secure") &&
+          value.startsWith(cookieNames.credential + "=") &&
           value.includes("SameSite=Strict")
       )
     )
     const cookie = cookies.map((value) => value.split(";")[0]).join("; ")
     const token = cookies
-      .find((value) => value.startsWith("__Host-playground-csrf="))
+      .find((value) => value.startsWith(cookieNames.csrf + "="))
       .split(";")[0]
       .split("=")[1]
     return { sandbox: await response.json(), cookie, token }

@@ -31,7 +31,7 @@ def call(args, timeout=30, extra=None):
 def gate(label, args, extra=None, timeout=600):
     start = now()
     paths = [path for folder in ['src', 'packages/playground-contracts/src',
-             'apps/playground-worker/src', 'apps/website/src',
+             'apps/playground-worker/src', 'apps/playground/src', 'apps/website/src',
              'apps/playground-worker/tests/integration', 'apps/playground-worker/tests/repairs']
              for path in (root / folder).rglob('*') if path.is_file() and '__pycache__' not in path.parts]
     paths += [root / name for name in ['package.json', 'bun.lock', 'tsconfig.playground.json',
@@ -39,7 +39,7 @@ def gate(label, args, extra=None, timeout=600):
               '.oxfmtrc.json', 'apps/playground-worker/package.json', 'apps/website/package.json']]
     paths += [out / 'RepairHistorical.mjs', out / 'LegacyPopulation.mjs', out / 'RepairPg.mjs', out / 'SyntheticCorrection.mjs',
               root / 'apps/playground-worker/dist/Worker.js',
-              root / 'apps/website/dist/Client.js', root / 'apps/website/dist/Jobs.css']
+              root / 'apps/playground/dist/Client.js', root / 'apps/playground/dist/Jobs.css']
     inputs = {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
               for path in paths if path.is_file()}
     try:

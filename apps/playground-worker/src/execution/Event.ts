@@ -24,11 +24,11 @@ import * as Authority from "../persistence/authority/PostgreSqlAuthority.js"
 import * as Commands from "../persistence/commands/Persistence.js"
 import * as Executor from "./Executor.js"
 import { DocumentKeys } from "../scenarios/PrivateDocument.js"
-import * as Read from "../../../website/src/server/read/PostgreSqlRead.js"
-import * as ReadDatabase from "../../../website/src/server/read/NativeReadDatabase.js"
-import * as Cursor from "../../../website/src/server/read/CursorCodec.js"
-import * as Guarded from "../../../website/src/server/commands/GuardedScenarios.js"
-import * as Application from "../../../website/src/server/Services.js"
+import * as Read from "../server/read/PostgreSqlRead.js"
+import * as ReadDatabase from "../server/read/NativeReadDatabase.js"
+import * as Cursor from "../server/read/CursorCodec.js"
+import * as Guarded from "../server/commands/GuardedScenarios.js"
+import * as Application from "../server/Services.js"
 
 export interface Config {
   readonly localPrivate?: boolean

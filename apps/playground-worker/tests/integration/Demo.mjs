@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { Pool } from "pg"
 import { chromium } from "@playwright/test"
-import { createLocal } from "./Local.mjs"
+import { createLocal } from "./Local.ts"
 import { migrations } from "../../../../.multica/integration/Migrations.mjs"
 
 const cfg = JSON.parse(readFileSync(process.env.PLAYGROUND_PRIVATE_CONFIG, "utf8"))

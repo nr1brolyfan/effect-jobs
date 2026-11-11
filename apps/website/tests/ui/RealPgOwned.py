@@ -16,11 +16,16 @@ now = lambda: datetime.datetime.now(datetime.timezone.utc).isoformat()
 receipt = {'deadline': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=8)).isoformat(), 'owner': 'UPVE-2534', 'startedAt': now(), 'image': image, 'storage': 'tmpfs', 'status': 'FAIL'}
 cid = None
 private = evidence / ('private-' + secrets.token_hex(8) + '.json')
+native_collector = root / 'apps/playground-worker/tests/integration/NativeArtifacts.mjs'
+prior_hosts = set(evidence.glob('native-host-*'))
 try:
-    subprocess.run(['apps/playground-worker/node_modules/.bin/esbuild', 'apps/playground-worker/tests/integration/SchemaEntry.ts', '--bundle', '--platform=node', '--format=esm', '--external:effect', '--external:effect/*', '--external:effect-jobs/*', '--outfile=' + str(evidence / 'Migrations.mjs')], cwd=root, check=True, capture_output=True, timeout=60)
+    esbuild = subprocess.check_output(['node', '--input-type=module', '-e', "import { createRequire } from 'node:module'; import { resolve } from 'node:path'; console.log(createRequire(resolve('apps/playground-worker/package.json')).resolve('esbuild/bin/esbuild'))"], cwd=root, text=True, timeout=10).strip()
+    subprocess.run([esbuild, 'apps/playground-worker/tests/integration/SchemaEntry.ts', '--bundle', '--platform=node', '--format=esm', '--external:effect', '--external:effect/*', '--external:effect-jobs/*', '--outfile=' + str(evidence / 'Migrations.mjs')], cwd=root, check=True, capture_output=True, timeout=60)
     import hashlib
-    paths = ['apps/website/dist/Client.js', 'apps/website/dist/Jobs.css', 'apps/playground-worker/dist/Worker.js']
-    (evidence / 'artifact-hashes.json').write_text(json.dumps({p: hashlib.sha256((root / p).read_bytes()).hexdigest() for p in paths}, indent=2))
+    paths = ['apps/playground/dist/Client.js', 'apps/playground/dist/Jobs.css', str(evidence / 'Migrations.mjs')]
+    artifacts = {'files': {p: hashlib.sha256((root / p).read_bytes()).hexdigest() for p in paths},
+                 'nativeBuild': json.loads(subprocess.check_output(['node', str(native_collector)], cwd=root, text=True, timeout=10))}
+    (evidence / 'artifact-hashes.json').write_text(json.dumps(artifacts, indent=2))
     env = os.environ.copy()
     env.update(POSTGRES_USER='react_probe', POSTGRES_DB='react_probe', POSTGRES_PASSWORD=secrets.token_hex(32))
     cid = subprocess.check_output(['docker', 'create', '--label', 'task=UPVE-2534', '--label', 'project=52ccc13e-4995-4a3f-be37-6f4cf6bebe3e', '--label', 'deadline=' + receipt['deadline'], '--publish', '127.0.0.1::5432', '--tmpfs', '/var/lib/postgresql/data:rw', '-e', 'POSTGRES_USER', '-e', 'POSTGRES_DB', '-e', 'POSTGRES_PASSWORD', image], env=env, text=True, timeout=30).strip()
@@ -42,7 +47,7 @@ try:
     testenv = os.environ.copy()
     testenv.update(PLAYGROUND_PRIVATE_CONFIG=str(private), PLAYGROUND_EVIDENCE_DIRECTORY=str(evidence))
     with (evidence / 'runtime.log').open('w') as log:
-        process = subprocess.Popen(['node', 'apps/website/tests/ui/RealPg.mjs'], cwd=root, env=testenv, stdout=log, stderr=log, start_new_session=True)
+        process = subprocess.Popen(['node', 'apps/website/tests/ui/RealPg.ts'], cwd=root, env=testenv, stdout=log, stderr=log, start_new_session=True)
         try:
             exit_code = process.wait(timeout=360)
         finally:
@@ -72,6 +77,10 @@ try:
                     os.killpg(process.pid, signal.SIGKILL)
                     receipt['childProcessGroupAbsent'] = False
     receipt['exit'] = exit_code
+    hosts = sorted(set(evidence.glob('native-host-*')) - prior_hosts)
+    assert hosts, 'Expected actual executed native host provenance'
+    artifacts['executedNativeHosts'] = [json.loads(subprocess.check_output(['node', str(native_collector), '--host', str(host)], cwd=root, text=True, timeout=10)) for host in hosts]
+    (evidence / 'artifact-hashes.json').write_text(json.dumps(artifacts, indent=2))
     if exit_code == 0 and receipt.get('childProcessGroupAbsent') is True:
         receipt['status'] = 'PASS'
 except Exception as error:

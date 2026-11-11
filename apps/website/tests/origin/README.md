@@ -1,6 +1,6 @@
 # Explicit preview origin policy
 
-`apps/website/src/OriginPolicy.ts` is a pure finite admission policy. Its frozen
+`apps/playground-worker/src/OriginPolicy.ts` is a pure finite admission policy. Its frozen
 API is `make({ configuredOrigin: string, localPreview: boolean })`, returning
 `resolve(requestOrigin): string | undefined` and
 `matches(requestOrigin, suppliedOrigin: string | null): boolean`.

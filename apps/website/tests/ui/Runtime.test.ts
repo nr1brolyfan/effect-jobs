@@ -3,8 +3,8 @@ import { Deferred, Effect } from "effect"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import { makeServer } from "./ReadsFixtures.js"
-import * as Runtime from "../../src/features/jobs/Runtime.js"
-import * as FixtureClient from "../../src/features/jobs/FixtureClient.js"
+import * as Runtime from "../../../playground/src/features/jobs/Runtime.js"
+import * as FixtureClient from "../../../playground/tests/fixtures/FixtureClient.js"
 
 const browser = () => {
   const document = Object.assign(new EventTarget(), { visibilityState: "visible" })

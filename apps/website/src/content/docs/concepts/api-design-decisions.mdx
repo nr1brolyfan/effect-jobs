@@ -11,89 +11,99 @@ Durable state belongs to storage, not a long-lived process: the same execution
 model supports permanent workers and bounded, short-lived invocations.
 
 :::note[API version]
-This page describes the contract-first API (`JobGroup`, `JobApiBuilder` and
-slot-bound producers). Other guides in this preview still use an earlier alpha API.
+This page uses `Job.make`, slot-bound `JobProducer` declarations and the
+`JobRegistry` handler installation contract.
 :::
 
-## Contracts, groups and slots
+## Contracts, handlers and slots
 
 ### Why separate the contract from its handler?
 
 The API server needs to know what a job means, not how the worker sends email.
-`Job` therefore contains only `kind`, `version` and the payload Schema. Routing,
-policy and implementations live outside it. Putting everything in one definition
-would couple shared contracts to deployment choices and worker dependencies.
+`Job.make` declares `name`, `queue`, `version` and the payload Schema, with an
+optional complete `defaultPolicy`. Handler implementations are installed separately
+through `handlerLayer(execute, decodePayload)`. Keeping provider code outside the
+definition lets producers share contracts without importing worker dependencies.
 
-### Why `JobGroup` and `JobApi`?
+### Why a handler registry?
 
-A group is a module of contracts with a complete, typed handler installation.
-`JobApi` combines groups; its worker requires every declared group's handlers.
-A mutable registry can instead leave missing or duplicate handlers undiscovered
-until traffic arrives. Different worker deployments can assemble different catalogs.
+Each definition installs its decoder and handler in `JobRegistry` through an
+Effect Layer. Duplicate catalog registrations fail during installation; Schema
+and handler services remain explicit Layer requirements. Applications assemble
+the handlers their worker needs. This is not a compile-time proof that every
+persisted catalog identity has a handler.
 
-Group names and handler aliases are local organization, not durable job identity.
-They are **not** Kafka consumer groups or BullMQ Pro Groups: they add no independent
-subscription, execution ordering or tenant fairness.
+Catalog identity is **`(queue, name, version)`**. A registry is not a Kafka consumer
+group or BullMQ Pro Group: it adds no independent subscription, execution ordering
+or tenant fairness.
 
 ### Why producer slots, not just a job ID?
 
 An order can produce a confirmation and an invoice. Each consequence needs its own
 stable identity: **`(operation, operationId, slot)`**, within one jobs storage.
 Using only the request ID would collapse them; inventing unrelated job IDs on each
-request retry would duplicate them. Two slots may also produce the same job kind.
+request retry would duplicate them. Two slots may also produce the same job name.
 Slots describe consequences, not concurrency permits or workflow dependencies.
 
 ```ts
 const MailQueue = Queue.make("mail")
 const PriorityMailQueue = Queue.make("mail.priority")
 const Confirmation = Job.make({
-  kind: "order.confirmation",
-  payload: Schema.Struct({ orderId: Schema.String })
+  name: "order.confirmation",
+  queue: MailQueue,
+  payload: Schema.Struct({ orderId: Schema.String }),
+  defaultPolicy: Policy.defaultPolicy
 })
 
-const PlaceOrder = Producer.make("orders.place").pipe(
-  Producer.withSlot("confirmation", Confirmation, { queue: MailQueue })
-)
+const PlaceOrder = Producer.make({
+  operation: "orders.place",
+  slots: { confirmation: Confirmation }
+})
 const request = {
   operationId: "place-041",
-  slot: "confirmation",
   payload: { orderId: "041" }
 } as const
 ```
 
-### Why choose queue and policy in two places?
+### Why bind the queue and allow a policy override?
 
 They solve different problems:
 
-| Setting                        | Producer declaration                          | Enqueue                                                  |
-| ------------------------------ | --------------------------------------------- | -------------------------------------------------------- |
-| Fixed route: `{ queue }`       | One destination                               | No `queue` property allowed, even the same name          |
-| Selectable route: `{ queues }` | Closed, nonempty list                         | Explicit member name required, even for a singleton list |
-| `policy`                       | Complete default; library defaults if omitted | Optional **complete replacement**, never a partial merge |
+| Setting         | Job definition                                        | Enqueue                                                          |
+| --------------- | ----------------------------------------------------- | ---------------------------------------------------------------- |
+| `queue`         | One fixed destination, part of catalog identity       | No queue override                                                |
+| `defaultPolicy` | Optional complete policy                              | Policy required unless a complete default is definitely provided |
+| `policy`        | Resolved with `Policy.make` or `Policy.defaultPolicy` | A complete replacement, never a partial merge                    |
 
-An unrestricted queue override can silently send work somewhere no intended worker
-drains. An implicit first choice makes list order operational configuration.
-Closed choices allow deliberate routing without either surprise.
+An unrestricted queue override could send work somewhere no intended worker drains.
+Choose a different job definition and bind it explicitly when another queue is
+needed. A changed queue is a changed catalog identity, not a duplicate configuration
+override. This priority definition deliberately has no default policy:
 
 ```ts
-const RoutedOrder = Producer.make("orders.place").pipe(
-  Producer.withSlot("confirmation", Confirmation, {
-    queues: [MailQueue, PriorityMailQueue]
-  })
-)
-const priorityPolicy = yield* Policy.make({
-  retry: Retry.fixed(Duration.seconds(2)).pipe(Retry.maxFinalizedAttempts(4))
+const PriorityConfirmation = Job.make({
+  name: "order.confirmation",
+  queue: PriorityMailQueue,
+  payload: Schema.Struct({ orderId: Schema.String })
+})
+const RoutedOrder = Producer.make({
+  operation: "orders.place-priority",
+  slots: { confirmation: PriorityConfirmation }
+})
+const priorityPolicy = Policy.make({
+  retryDelay: Duration.seconds(2),
+  maxAttempts: 4
 })
 
-yield* RoutedOrder.enqueue({
+yield* RoutedOrder.enqueue("confirmation", {
   ...request,
-  queue: PriorityMailQueue.name,
   policy: priorityPolicy
 })
 ```
 
-The default belongs to the consequence; an override belongs to this production.
-Neither route nor policy changes an existing matching job.
+The default belongs to the definition; an override belongs to this production.
+Neither policy nor availability changes an existing matching job. The two
+operations above intentionally have different producer identities.
 
 ## Production and identity
 
@@ -109,7 +119,10 @@ work using that same client and active transaction—not an independently run Pr
 ```ts
 // Avoid: the order may commit, then enqueue may fail.
 yield* jobs.withTransaction(() => saveOrder)
-yield* PlaceOrder.enqueueStandalone(request)
+yield* Confirmation.enqueueStandalone({
+  ...request,
+  producer: PlaceOrder.identity({ operationId: request.operationId, slot: "confirmation" })
+})
 ```
 
 ```ts
@@ -117,7 +130,7 @@ yield* PlaceOrder.enqueueStandalone(request)
 yield* jobs.withTransaction(() =>
   Effect.gen(function* () {
     yield* saveOrder
-    return yield* PlaceOrder.enqueue(request)
+    return yield* PlaceOrder.enqueue("confirmation", request)
   })
 )
 ```
@@ -129,14 +142,14 @@ committing a consequence inside a parent that could later roll back.
 
 ### Why conflict instead of ignoring or replacing duplicates?
 
-The producer tuple locates the consequence; kind, version and canonical payload
+The producer tuple locates the consequence; queue, name, version and canonical payload
 semantics establish whether it is **the same** consequence. A matching retry returns
 `AlreadyPresent` with the first library-assigned `jobId`.
 
 ```ts
-yield* PlaceOrder.enqueue(request)
+yield* PlaceOrder.enqueue("confirmation", request)
 // Same identity, different content: JobIntegrityConflict, not an update.
-yield* PlaceOrder.enqueue({ ...request, payload: { orderId: "042" } })
+yield* PlaceOrder.enqueue("confirmation", { ...request, payload: { orderId: "042" } })
 ```
 
 Silently ignoring the second call could report success for work never scheduled;
@@ -145,7 +158,7 @@ throttle are useful for coalescing updates, but are a different contract.
 An integrity conflict must abort the business transaction; the PostgreSQL adapter
 prevents a caught conflict from committing partial domain writes.
 
-Queue, policy and availability are excluded from semantic equality: a matching
+Policy and availability are excluded from semantic equality: a matching
 duplicate keeps its **first configuration and artifact bytes**. Otherwise a
 deployment-default change could turn a harmless request retry into a conflict or
 move existing work. Re-enqueue is not a rescheduling API.
@@ -224,8 +237,8 @@ An unknown **storage write** needs a different response: reconcile the original
 claim token or exact finalization request. Do not immediately rerun a successful
 handler merely because its completion write lost a response.
 
-`finalizedAttempts` counts confirmed Complete/Retry/Dead/Isolate transitions, not
-all invocations. `nextFinalizationNumber` may repeat after unknown outcomes; it is
+`attemptsMade` counts confirmed Complete/Retry/Dead/Isolate transitions, not
+all invocations. `context.attemptNumber` is `attemptsMade + 1` and may repeat after unknown outcomes; it is
 not an idempotency key. A separate `maxStalledCount` bounds uncertain recovery.
 
 ### Why fixed leases instead of heartbeats?
@@ -245,8 +258,8 @@ if it were safely unexecuted; scoped polling first allows a finite shared grace 
 
 A retry may be due after its invocation has ended, especially in runtimes such as
 workerd. `Effect.retry` keeps its delay inside the invocation; that schedule
-disappears if the process or isolate stops. `JobRetryPolicy` describes durable retry
-rules; the worker persists the next availability, including jitter, so another
+disappears if the process or isolate stops. `JobPolicy` describes durable fixed-delay retry
+rules; the worker persists the next availability without exponential backoff or jitter, so another
 invocation or worker can continue it. The host still owns wakeups; persistence does
 not keep an invocation alive. Local retries remain useful when safe to repeat.
 
@@ -275,7 +288,7 @@ encrypt or authenticate anything.
   not a second dependency container. Each invocation has its own Scope.
 - **Separate execution and scheduling:** a bounded drain works without a permanent
   poller, letting the host choose polling or external wakeups. Per-queue concurrency
-  belongs to the worker instance, shared across its drains and groups—not every replica.
+  belongs to the worker instance, shared across its drains—not every replica.
 - **Logical queues:** names route work; they do not provide tenant authorization,
   infrastructure isolation, per-key ordering or automatic fan-out.
 - **Read-only wake hints:** `JobSchedule` observations can immediately become stale;

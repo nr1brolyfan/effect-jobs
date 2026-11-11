@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest"
 import { Deferred, Effect, Fiber } from "effect"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
-import { JobsClient, type Client } from "../../src/features/jobs/Adapter.js"
-import * as Atoms from "../../src/features/jobs/Atoms.js"
+import { JobsClient, type Client } from "../../../playground/src/features/jobs/Adapter.js"
+import * as Atoms from "../../../playground/src/features/jobs/Atoms.js"
 import { makeServer } from "./ReadsFixtures.js"
 
 const run = <A, E>(operation: Effect.Effect<A, E, JobsClient>, client: Client) =>

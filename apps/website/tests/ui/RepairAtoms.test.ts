@@ -6,9 +6,9 @@ import {
   JobRepairCommand,
   JobResolutionCommand
 } from "@effect-jobs/playground-contracts/Repairs"
-import * as Atoms from "../../src/features/jobs/Atoms.js"
-import { JobsClient, type Client } from "../../src/features/jobs/Adapter.js"
-import * as FixtureClient from "../../src/features/jobs/FixtureClient.js"
+import * as Atoms from "../../../playground/src/features/jobs/Atoms.js"
+import { JobsClient, type Client } from "../../../playground/src/features/jobs/Adapter.js"
+import * as FixtureClient from "../../../playground/tests/fixtures/FixtureClient.js"
 
 const problem = {
   rootJobId: Fixtures.detail.job.jobId,

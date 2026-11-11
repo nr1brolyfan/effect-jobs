@@ -3,8 +3,8 @@ import { Effect, Schema } from "effect"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import { JobPage, type JobFilters } from "@effect-jobs/playground-contracts/Jobs"
 import * as Queries from "../../../playground-worker/src/persistence/read/Queries.js"
-import * as Read from "../../src/server/read/PostgreSqlRead.js"
-import { CursorCodec } from "../../src/server/read/CursorCodec.js"
+import * as Read from "../../../playground-worker/src/server/read/PostgreSqlRead.js"
+import { CursorCodec } from "../../../playground-worker/src/server/read/CursorCodec.js"
 
 const mapping = {
   schema: "read_test",

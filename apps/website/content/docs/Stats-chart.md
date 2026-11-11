@@ -31,8 +31,8 @@ independent dependency graph. In the integrated worktree:
 
 ```sh
 bun apps/website/tests/ui/StatsChart.mjs
-node_modules/.bin/oxlint --deny-warnings apps/website/src/features/jobs/StatsChart.tsx apps/website/src/features/jobs/StatsChart.stylex.ts apps/website/tests/ui/StatsChart.render.tsx apps/website/tests/ui/StatsChart.mjs
-node_modules/.bin/oxfmt --config .oxfmtrc.json --check apps/website/src/features/jobs/StatsChart.tsx apps/website/src/features/jobs/StatsChart.stylex.ts apps/website/tests/ui/StatsChart.render.tsx apps/website/tests/ui/StatsChart.mjs apps/website/content/docs/Stats-chart.md
+node_modules/.bin/oxlint --deny-warnings apps/playground/src/features/jobs/StatsChart.tsx apps/playground/src/features/jobs/StatsChart.stylex.ts apps/website/tests/ui/StatsChart.render.tsx apps/website/tests/ui/StatsChart.mjs
+node_modules/.bin/oxfmt --config .oxfmtrc.json --check apps/playground/src/features/jobs/StatsChart.tsx apps/playground/src/features/jobs/StatsChart.stylex.ts apps/website/tests/ui/StatsChart.render.tsx apps/website/tests/ui/StatsChart.mjs apps/website/content/docs/Stats-chart.md
 ```
 
 For the isolated chart worktree, temporarily link its root and website

@@ -1,7 +1,8 @@
-// Synthetic presentation fixture; no backend, session or private data.
+import "../../../playground/src/styles/Jobs.css"
 import { createRoot } from "react-dom/client"
-import { DateTime } from "../../src/ui/DateTime.js"
-import * as Popover from "../../src/ui/Popover.js"
+import { DateTime } from "../../../playground/src/ui/DateTime.js"
+import * as Popover from "../../../playground/src/ui/Popover.js"
+// Synthetic presentation fixture; no backend, session or private data.
 
 const instant = Date.parse("2026-10-25T00:30:00.123Z")
 createRoot(document.getElementById("fixture")!).render(

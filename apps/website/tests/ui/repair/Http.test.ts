@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { Cause, Effect, Exit } from "effect"
 import { Repairs } from "@effect-jobs/playground-contracts/Repairs"
-import * as Http from "../../../src/server/commands/HttpRepairs.js"
-import { LiveNotifications } from "../../../src/server/live/PostCommit.js"
+import * as Http from "../../../../playground-worker/src/server/commands/HttpRepairs.js"
+import { LiveNotifications } from "../../../../playground-worker/src/server/live/PostCommit.js"
 import * as Fixture from "../../../../playground-worker/tests/repairs/Fixtures.js"
 
 const origin = "http://localhost:8799"

@@ -3,8 +3,8 @@
 This matrix describes existing server semantics at base
 `78b0cd802ac76ef2b63fdceaac57cd98778b606b`, consumed by the UI. It grants no
 new lifecycle transitions or permissions. `Applicability.test.ts` checks the
-source projection; `Applicability.browser.mjs` checks production components/CSS
-with controlled HTTP snapshots. `Applicability.real.mjs` exercises real
+source projection; `Applicability.browser.ts` checks production components/CSS
+with controlled HTTP snapshots. `Applicability.real.ts` exercises real
 producer, worker, command, encrypted payload and reconciliation paths.
 
 | Selected lifecycle     | Retry now | Cancel  | Redrive / corrected redrive | Reconcile applied / close problem |
@@ -60,7 +60,7 @@ Source evidence (paths and lines at the implementation handoff):
   DB-time `already-due` rejection at 501–508.
 - `src/internal/postgresql/Operators.ts:80`: source/version validation;
   Dead/Isolated redrive at 146, canonical source and policy checks afterward.
-- `apps/website/src/server/read/JobDetailsProjection.ts:91`: source/chain common
+- `apps/playground-worker/src/server/read/JobDetailsProjection.ts:91`: source/chain common
   refusal; plain artifact checks at 105; supported correction/encryption at 112.
 - `apps/playground-worker/src/persistence/commands/RepairPersistence.ts:90`:
   resolution version, Resolved, InProgress and current member refusal.
@@ -70,13 +70,13 @@ Source evidence (paths and lines at the implementation handoff):
 - `apps/playground-worker/src/persistence/commands/RepairSource.ts:206`:
   known-failure evidence and investigation; replacement catalog, authenticated
   synthetic envelope and immutable relations checks below.
-- `apps/website/src/server/read/PostgreSqlRead.ts:291`: projected problem,
+- `apps/playground-worker/src/server/read/PostgreSqlRead.ts:291`: projected problem,
   payload and eligibility. `apps/playground-worker/src/persistence/read/Queries.ts`
   projects implicit failures and retained chain membership.
-- `apps/website/src/features/jobs/OperatorEligibility.ts:11`: private capabilities
+- `apps/playground/src/features/jobs/OperatorEligibility.ts:11`: private capabilities
   and state/time eligibility; `repairApplicability` consumes server repair metadata.
 - `packages/playground-contracts/src/Jobs.ts:213` and
-  `apps/website/src/server/read/JobDetailsProjection.ts:134`: result has only
+  `apps/playground-worker/src/server/read/JobDetailsProjection.ts:134`: result has only
   Unavailable/not-stored. There is no stored handler result to relocate. Retained
   provider/history evidence continues in the existing overview/timeline; no dummy
   result section is rendered in the payload panel.
@@ -86,8 +86,8 @@ Qualification commands from repository root:
 ```sh
 bun run playground:test
 node apps/playground-worker/tests/integration/Build.mjs
-node apps/website/tests/ui/repair/Applicability.browser.mjs
-bun apps/website/tests/ui/repair/Browser.mjs
+node apps/website/tests/ui/repair/Applicability.browser.ts
+bun apps/website/tests/ui/repair/Browser.ts
 python3 apps/website/tests/ui/repair/ApplicabilityOwned.py
 ```
 
