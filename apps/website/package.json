@@ -16,9 +16,9 @@
     "build": "astro build",
     "site:build": "astro build",
     "site:check": "astro sync && tsc --project tsconfig.site.json --noEmit",
-    "site:test": "node --test tests/site/Foundation.mjs",
-    "site:browser": "node tests/site/Browser.mjs",
-    "site:routes": "node tests/site/Routes.mjs"
+    "site:test": "cd ../.. && node node_modules/vitest/vitest.mjs run --project website-unit apps/website/tests/modernization/Extraction.unit.ts apps/website/tests/modernization/StaticAssets.unit.ts",
+    "site:browser": "node tests/site/Browser.ts",
+    "site:routes": "node tests/site/Routes.ts"
   },
   "devDependencies": {
     "@astrojs/react": "7.1.5",

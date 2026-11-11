@@ -13,8 +13,8 @@ export default defineConfig({
             ".toolchain/**",
             ".multica/**",
             "tests/poc/**",
-            "apps/website/tests/ui/Field.test.mjs",
-            "apps/website/tests/ui/Theme.test.mjs",
+            // Remaining website .mjs files are compatibility CLIs, not test modules.
+            "apps/website/tests/**/*.mjs",
             "tests/benchmarks/postgresql/Support.test.mjs"
           ]
         }

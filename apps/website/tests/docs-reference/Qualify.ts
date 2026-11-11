@@ -80,8 +80,8 @@ let container: string | undefined
 try {
   assert.equal(process.version, "v24.15.0")
   assert.equal(run("bun-version", "bun", ["--version"]), "1.4.2")
-  run("reference", "node", ["apps/website/tests/docs-reference/Reference.mjs", "--check"])
-  run("snippets", "node", ["apps/website/tests/docs-reference/Snippets.mjs"])
+  run("reference", "node", ["apps/website/tests/docs-reference/Reference.ts", "--check"])
+  run("snippets", "bun", ["run", "check:docs:snippets"])
   run("build", "bun", ["run", "build"])
   run("pack", "npm", ["pack", "--ignore-scripts", "--pack-destination", work])
   const archive = join(

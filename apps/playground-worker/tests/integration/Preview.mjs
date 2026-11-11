@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { Pool } from "pg"
-import { createLocal } from "./Local.mjs"
+import { createLocal } from "./Local.ts"
 const root = resolve(import.meta.dirname, "../../../..")
 const { migrations } = await import(`${root}/.multica/integration/Migrations.mjs`)
 const cfg = JSON.parse(readFileSync(process.env.PLAYGROUND_PRIVATE_CONFIG, "utf8"))

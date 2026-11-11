@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { createLocal } from "../integration/Local.mjs"
+import { createLocal } from "../integration/Local.ts"
 // Synthetic non-routable configuration. Denied routes must not acquire a PG client.
 const cfg = {
   connectionString: "postgres://fixture:fixture@127.0.0.1:1/fixture",
