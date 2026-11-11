@@ -1,4 +1,5 @@
 import { Context, Effect, Layer } from "effect"
+import type * as Cloudflare from "@alchemy.run/cloudflare"
 import type { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 
 export class LiveNotifications extends Context.Service<
@@ -8,9 +9,12 @@ export class LiveNotifications extends Context.Service<
   }
 >()("playground/LiveNotifications") {}
 
-export interface LiveNamespace {
-  getByName(name: string): { notifyCommitted(sandbox: SandboxRef): Promise<void> }
-}
+export type LiveNamespace = Pick<
+  Cloudflare.DurableObject<{
+    readonly notifyCommitted: (sandbox: SandboxRef) => Effect.Effect<void>
+  }>,
+  "getByName"
+>
 export const objectName = (sandbox: SandboxRef) =>
   JSON.stringify([sandbox.sandboxId, sandbox.generation])
 // Call ONLY after acknowledged outer commit or read-only receipt reconciliation.
@@ -18,8 +22,8 @@ export const objectName = (sandbox: SandboxRef) =>
 export const layer = (namespace: LiveNamespace) =>
   Layer.succeed(LiveNotifications, {
     committed: (sandbox) =>
-      Effect.tryPromise({
-        try: () => namespace.getByName(objectName(sandbox)).notifyCommitted(sandbox),
-        catch: () => undefined
-      }).pipe(Effect.timeout("1 second"), Effect.ignore)
+      namespace
+        .getByName(objectName(sandbox))
+        .notifyCommitted(sandbox)
+        .pipe(Effect.timeout("1 second"), Effect.ignore)
   })

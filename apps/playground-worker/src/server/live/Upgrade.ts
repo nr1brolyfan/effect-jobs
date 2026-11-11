@@ -1,12 +1,22 @@
+// @effect-diagnostics unstableApiUsage:off
 import { Cause, Effect, Schema } from "effect"
 import { SandboxView } from "@effect-jobs/playground-contracts/Sandbox"
 import type { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
+import * as HttpRequest from "effect/http/HttpServerRequest"
+import * as HttpResponse from "effect/http/HttpServerResponse"
+import * as HttpBody from "effect/http/HttpBody"
+import type { LiveNamespace } from "./PostCommit.js"
 import { objectName } from "./PostCommit.js"
 import * as OriginPolicy from "../../OriginPolicy.js"
 
-export interface UpgradeNamespace {
-  getByName(name: string): { fetch(request: Request): Promise<Response> }
-}
+export type UpgradeNamespace = LiveNamespace
+
+// Preserve the native upgrade response when crossing the existing Fetch-domain
+// boundary; converting a 101 as an ordinary response discards its socket.
+export const response = (value: Response) =>
+  value.status === 101
+    ? HttpResponse.setBody(HttpResponse.empty({ status: 101 }), HttpBody.raw(value))
+    : HttpResponse.fromWeb(value)
 
 // Public GET route. Origin is required because browser WebSockets carry cookies.
 // Authority must consume the HttpOnly cookie; no client-selected sandbox routing.
@@ -34,10 +44,10 @@ export const upgrade = (
       Schema.decodeUnknownEffect(SandboxView)(view, { onExcessProperty: "error" })
     ),
     Effect.flatMap((view) =>
-      Effect.tryPromise({
-        try: () => namespace.getByName(objectName(view.ref)).fetch(request),
-        catch: () => undefined
-      })
+      namespace
+        .getByName(objectName(view.ref))
+        .fetch(HttpRequest.fromWeb(request))
+        .pipe(Effect.map(HttpResponse.toWeb))
     ),
     Effect.catchCause((cause) =>
       Cause.hasInterrupts(cause)
