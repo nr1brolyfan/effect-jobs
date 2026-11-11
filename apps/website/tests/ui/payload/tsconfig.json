@@ -10,6 +10,8 @@
     }
   },
   "include": [
+    "../../../../playground/src/Assets.d.ts",
+    "../../modernization/Details.e2e.ts",
     "../../../../playground/src/features/jobs/payload/*.ts",
     "../../../../playground/src/features/jobs/payload/*.tsx",
     "./*.ts",
