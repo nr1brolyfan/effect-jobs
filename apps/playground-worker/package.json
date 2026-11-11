@@ -18,7 +18,7 @@
     "build": "bun build/Build.ts",
     "check:native": "tsc -p tsconfig.native.json",
     "check:capnp-runtime": "node tests/native/CapnpRuntime.ts",
-    "test:native": "python3 tests/native/Run.py && python3 tests/native/Run.py --public"
+    "test:native": "python3 tests/native/Run.py && python3 tests/native/Run.py --public && python3 tests/native/Run.py --observation && python3 tests/native/Run.py --concurrency"
   },
   "devDependencies": {
     "esbuild": "0.25.12",
