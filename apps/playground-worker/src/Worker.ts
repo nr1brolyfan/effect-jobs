@@ -283,8 +283,7 @@ export class DemoGenerator extends Cloudflare.DurableObject<DemoGenerator>()(
   })
 ) {}
 
-export default Cloudflare.Worker(
-  "Worker",
+export const [properties, implementation] = [
   Effect.gen(function* () {
     const origin = yield* Config.String("ORIGIN")
     const preview = yield* Config.String("LOCAL_PREVIEW").pipe(
@@ -420,4 +419,6 @@ export default Cloudflare.Worker(
       })
     }
   })
-)
+] as const
+
+export default Cloudflare.Worker("Worker", properties, implementation)
