@@ -9,10 +9,10 @@ const evidence = resolve(
   process.env.PLAYGROUND_EVIDENCE_DIRECTORY ?? ".multica/integration"
 )
 mkdirSync(evidence, { recursive: true })
-const run = (label, args) => {
+const run = (label: string, args: ReadonlyArray<string>) => {
   const at = new Date().toISOString()
   try {
-    const output = execFileSync(args[0], args.slice(1), {
+    const output = execFileSync(args[0]!, args.slice(1), {
       cwd: root,
       timeout: 600000,
       encoding: "utf8",
@@ -21,9 +21,10 @@ const run = (label, args) => {
     writeFileSync(`${evidence}/${label}.log`, output)
     return { label, at, exit: 0, output }
   } catch (error) {
+    const failure = error as { readonly stdout?: string; readonly stderr?: string }
     writeFileSync(
       `${evidence}/${label}.log`,
-      String(error.stdout ?? "") + String(error.stderr ?? "")
+      String(failure.stdout ?? "") + String(failure.stderr ?? "")
     )
     throw new Error(`${label} failed`)
   }
@@ -40,18 +41,8 @@ const commands = [
   run("apps-build", ["bun", "run", "playground:build"]),
   run("apps-types", ["bun", "run", "playground:check"])
 ]
-run("test-worker-bundle", [
-  "apps/playground-worker/node_modules/.bin/esbuild",
-  "apps/playground-worker/tests/integration/TestWorker.ts",
-  "--bundle",
-  "--platform=node",
-  "--format=esm",
-  "--external:cloudflare:*",
-  "--external:node:*",
-  `--outfile=${evidence}/TestWorker.js`
-])
 run("fixture-bundle", [
-  "apps/playground-worker/node_modules/.bin/esbuild",
+  "node_modules/.bin/esbuild",
   "apps/playground-worker/tests/integration/Admit.ts",
   "--bundle",
   "--platform=node",
@@ -60,7 +51,7 @@ run("fixture-bundle", [
   `--outfile=${evidence}/Admit.mjs`
 ])
 run("migration-bundle", [
-  "apps/playground-worker/node_modules/.bin/esbuild",
+  "node_modules/.bin/esbuild",
   "apps/playground-worker/tests/integration/SchemaEntry.ts",
   "--bundle",
   "--platform=node",
@@ -72,7 +63,7 @@ run("migration-bundle", [
 ])
 for (const name of ["OperatorProbe", "NativeDrizzleOperators"]) {
   run(`${name}-bundle`, [
-    "apps/playground-worker/node_modules/.bin/esbuild",
+    "node_modules/.bin/esbuild",
     `apps/playground-worker/tests/integration/${name}.ts`,
     "--bundle",
     "--platform=node",
@@ -99,23 +90,35 @@ for (const path of inventory.filter(
     throw new Error("Packed byte mismatch")
   }
 }
-const hash = (path) => createHash("sha256").update(readFileSync(path)).digest("hex")
+const hash = (path: string) =>
+  createHash("sha256").update(readFileSync(path)).digest("hex")
+const pointer = JSON.parse(
+  readFileSync(`${root}/apps/playground-worker/dist/native.json`, "utf8")
+) as { directory: string }
+const nativeManifest = resolve(pointer.directory, "manifest.json")
 const receipt = {
   at: new Date().toISOString(),
-  commands: commands.map(({ label, at, exit }) => ({ label, at, exit })),
+  commands: commands.map((command) => ({
+    label: command.label,
+    at: command.at,
+    exit: command.exit
+  })),
   archive: packed,
   archiveSha256: hash(packed),
-  workerSha256: hash(`${root}/apps/playground-worker/dist/Worker.js`),
-  testWorkerSha256: hash(`${evidence}/TestWorker.js`),
+  nativeManifestSha256: hash(nativeManifest),
+  nativeManifest,
+  testHostSourceSha256: hash(
+    `${root}/apps/playground-worker/tests/integration/TestWorker.ts`
+  ),
   operatorProbeSha256: hash(`${evidence}/OperatorProbe.mjs`),
   nativeDrizzleOperatorsSha256: hash(`${evidence}/NativeDrizzleOperators.mjs`),
   fixtureSha256: hash(`${evidence}/Admit.mjs`),
   migrationSha256: hash(`${evidence}/Migrations.mjs`),
-  workerd: execFileSync(
+  nativeHostRuntime: execFileSync(
     "node",
     [
       "-e",
-      "console.log(require('./apps/playground-worker/node_modules/miniflare/package.json').version)"
+      "console.log(require('@alchemy.run/cloudflare-runtime/package.json').version)"
     ],
     { cwd: root, encoding: "utf8" }
   ).trim(),

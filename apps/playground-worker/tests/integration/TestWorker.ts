@@ -1,128 +1,77 @@
-// Test-only observation wrapper. Production Worker has no diagnostic HTTP routes.
-import Worker, {
-  Communications,
-  Media,
-  Commerce,
-  Private,
-  Gateway,
-  SandboxLive,
-  type Env
-} from "../../src/Worker.js"
-import type { LiveState } from "../../src/live/SandboxLive.js"
-export { Gateway, SandboxLive }
-export class CommunicationsProbe extends Communications {
-  calls = 0
-  activations = 0
-  constructor(
-    private readonly testState: LiveState,
-    env: Env
-  ) {
-    super(testState, env)
-  }
-  async alarm(): Promise<void> {
-    this.calls++
-    await super.alarm()
-  }
-  async activate(): Promise<void> {
-    this.activations++
-    await super.activate()
-  }
-  async inspect(): Promise<{ calls: number; activations: number; alarm: number | null }> {
-    return {
-      calls: this.calls,
-      activations: this.activations,
-      alarm: await this.testState.storage.getAlarm()
-    }
-  }
+// @effect-diagnostics anyUnknownInErrorContext:off
+// Standalone test-host FFI: Core's upstream error channel is any.
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import * as Core from "alchemy/Test/Core"
+import { Effect, Exit, Scope } from "effect"
+import { createInterface } from "node:readline"
+import Stack from "../../alchemy.run.js"
+
+const scope = Scope.makeUnsafe("sequential")
+const options = {
+  providers: Cloudflare.providers(),
+  dev: true,
+  stage: process.env.NATIVE_HOST_STAGE!,
+  sidecar: { omitEnv: ["CLOUDFLARE_"] }
 }
-export class MediaProbe extends Media {
-  calls = 0
-  activations = 0
-  constructor(
-    private readonly testState: LiveState,
-    env: Env
-  ) {
-    super(testState, env)
-  }
-  async alarm(): Promise<void> {
-    this.calls++
-    await super.alarm()
-  }
-  async activate(): Promise<void> {
-    this.activations++
-    await super.activate()
-  }
-  async inspect(): Promise<{ calls: number; activations: number; alarm: number | null }> {
-    return {
-      calls: this.calls,
-      activations: this.activations,
-      alarm: await this.testState.storage.getAlarm()
-    }
-  }
+const sidecar = Core.makeSidecarHandle(options)
+const controller = new AbortController()
+let stop!: () => void
+const stopped = new Promise<void>((done) => {
+  stop = done
+})
+const requestStop = () => {
+  controller.abort()
+  stop()
 }
-export class CommerceProbe extends Commerce {
-  calls = 0
-  activations = 0
-  constructor(
-    private readonly testState: LiveState,
-    env: Env
-  ) {
-    super(testState, env)
+const input = createInterface({ input: process.stdin })
+input.on("line", requestStop)
+input.on("close", requestStop)
+process.on("SIGTERM", requestStop)
+process.on("SIGINT", requestStop)
+try {
+  const output = await Effect.runPromise(
+    Core.toEffect(Core.makeDeploy(options, scope)(Stack), options, scope, sidecar),
+    { signal: controller.signal }
+  )
+  const origin = process.env.ORIGIN!
+  if (!output.url || new URL(output.url).port !== new URL(origin).port) {
+    throw new Error("Native output does not match the reserved loopback port")
   }
-  async alarm(): Promise<void> {
-    this.calls++
-    await super.alarm()
-  }
-  async activate(): Promise<void> {
-    this.activations++
-    await super.activate()
-  }
-  async inspect(): Promise<{ calls: number; activations: number; alarm: number | null }> {
-    return {
-      calls: this.calls,
-      activations: this.activations,
-      alarm: await this.testState.storage.getAlarm()
+  let ready = false
+  for (let attempt = 0; attempt < 50 && !controller.signal.aborted; attempt++) {
+    try {
+      const response = await fetch(origin, { signal: AbortSignal.timeout(1000) })
+      if (response.status === 200) {
+        ready = true
+        break
+      }
+    } catch {
+      /* Workerd is not listening yet. */
     }
+    await new Promise((done) => setTimeout(done, 100))
   }
-}
-export class PrivateProbe extends Private {
-  calls = 0
-  activations = 0
-  constructor(
-    private readonly testState: LiveState,
-    env: Env
-  ) {
-    super(testState, env)
+  if (!ready) {
+    throw new Error("Native HTTP readiness failed")
   }
-  async alarm(): Promise<void> {
-    this.calls++
-    await super.alarm()
-  }
-  async activate(): Promise<void> {
-    this.activations++
-    await super.activate()
-  }
-  async inspect(): Promise<{ calls: number; activations: number; alarm: number | null }> {
-    return {
-      calls: this.calls,
-      activations: this.activations,
-      alarm: await this.testState.storage.getAlarm()
+  console.log("NATIVE_HOST_READY " + origin)
+  await stopped
+} finally {
+  try {
+    await Core.run(Core.destroy(options, Stack, { scope }), options, scope, sidecar)
+  } finally {
+    try {
+      await Effect.runPromise(Scope.close(scope, Exit.void))
+    } finally {
+      try {
+        if (sidecar) {
+          await Effect.runPromise(sidecar.close)
+        }
+      } finally {
+        input.close()
+        process.stdin.pause()
+        process.off("SIGTERM", requestStop)
+        process.off("SIGINT", requestStop)
+      }
     }
-  }
-}
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    if (new URL(request.url).pathname === "/_integration/queues") {
-      const queues = [env.COMMUNICATIONS, env.MEDIA, env.COMMERCE, env.PRIVATE]
-      const result = await Promise.all(
-        queues.map((namespace) =>
-          (
-            namespace.getByName("shared") as unknown as { inspect(): Promise<unknown> }
-          ).inspect()
-        )
-      )
-      return Response.json(result)
-    }
-    return Worker.fetch(request, env)
   }
 }

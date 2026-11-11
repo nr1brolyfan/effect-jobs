@@ -9,6 +9,7 @@ import { chromium, expect, type Browser, type Page } from "@playwright/test"
 import { Schema } from "effect"
 import { JobPage } from "@effect-jobs/playground-contracts/Jobs"
 import { ScenarioResult } from "@effect-jobs/playground-contracts/Scenarios"
+import * as Cookies from "@effect-jobs/playground-contracts/Cookies"
 import { SandboxView } from "@effect-jobs/playground-contracts/Sandbox"
 // Real PG/workerd/Chromium boundary; lifecycle observations come only from API/DB.
 
@@ -55,6 +56,12 @@ const errors: string[] = []
 const cspErrors: string[] = []
 const network: Array<{ path: string; status: number }> = []
 const websocketEvents: string[] = []
+const liveFrames: Array<{
+  kind?: unknown
+  reason?: unknown
+  code?: unknown
+  sequence?: unknown
+}> = []
 const until = async (test: () => Promise<boolean>, label: string, timeout = 30000) => {
   const deadline = Date.now() + timeout
   while (!(await test())) {
@@ -125,7 +132,27 @@ try {
     sockets++
     websocketEvents.push("opened")
     socket.on("close", () => websocketEvents.push("closed"))
-    socket.on("framereceived", () => frames++)
+    socket.on("framereceived", (event) => {
+      frames++
+      if (typeof event.payload === "string") {
+        try {
+          const signal = JSON.parse(event.payload) as {
+            kind?: unknown
+            reason?: unknown
+            code?: unknown
+            sequence?: unknown
+          }
+          liveFrames.push({
+            kind: signal.kind,
+            reason: signal.reason,
+            code: signal.code,
+            sequence: signal.sequence
+          })
+        } catch {
+          /* Only protocol metadata enters qualification diagnostics. */
+        }
+      }
+    })
   })
   activePage.on("response", (response) => {
     const path = new URL(response.url()).pathname
@@ -140,6 +167,12 @@ try {
   })
   const connected = () =>
     activePage.locator('.connection-status[data-connection="connected"]').waitFor()
+  // The native generator publishes through durable callbacks after HTTP startup.
+  // Await application readiness before exercising browser hydration oracles.
+  await until(
+    async () => (await dispatch("/api/demo")).status === 200,
+    "native demo readiness"
+  )
   const firstPageResponse = activePage.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/api/demo/jobs" && response.status() === 200
@@ -400,30 +433,35 @@ try {
   await activePage.goto(local.origin + "/jobs")
   await connected()
   const cookie = (await context.cookies()).find(
-    (value) => value.name === "__Host-playground"
+    (value) => value.name === Cookies.names(local!.origin, true).credential
   )
-  assert(cookie?.httpOnly && cookie.secure && cookie.sameSite === "Strict")
+  assert(cookie?.httpOnly && !cookie.secure && cookie.sameSite === "Strict")
   const csrf = (await context.cookies()).find(
-    (value) => value.name === "__Host-playground-csrf"
+    (value) => value.name === Cookies.names(local!.origin, true).csrf
   )
   assert(csrf)
   assert(
-    !(await activePage.evaluate(() => document.cookie.includes("__Host-playground=")))
+    !(await activePage.evaluate(
+      (name) => document.cookie.includes(name + "="),
+      Cookies.names(local.origin, true).credential
+    ))
   )
   const privateView = Schema.decodeUnknownSync(SandboxView)(
-    await activePage.evaluate(async () =>
-      (
-        await fetch("/api/sandbox", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Playground-CSRF": document.cookie
-              .split("; ")
-              .find((p) => p.startsWith("__Host-playground-csrf="))!
-              .split("=")[1]!
-          }
-        })
-      ).json()
+    await activePage.evaluate(
+      async (csrfName) =>
+        (
+          await fetch("/api/sandbox", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Playground-CSRF": document.cookie
+                .split("; ")
+                .find((p) => p.startsWith(csrfName + "="))!
+                .split("=")[1]!
+            }
+          })
+        ).json(),
+      Cookies.names(local.origin, true).csrf
     )
   )
   const denied = await dispatch(
@@ -506,7 +544,7 @@ try {
   await activePage.getByRole("button", { name: "Recover session", exact: true }).click()
   await connected()
   const renewedCookie = (await context.cookies()).find(
-    (value) => value.name === "__Host-playground"
+    (value) => value.name === Cookies.names(local!.origin, true).credential
   )
   assert(renewedCookie)
   assert.notEqual(renewedCookie.value, cookie.value)
@@ -580,6 +618,7 @@ try {
           checks,
           network,
           websocketEvents,
+          liveFrames,
           cspErrorCount: cspErrors.length,
           connection: await page.locator(".connection-status").allTextContents(),
           headings: await page.getByRole("heading").allTextContents(),
