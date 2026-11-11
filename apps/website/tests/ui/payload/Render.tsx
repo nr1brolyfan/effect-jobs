@@ -1,3 +1,4 @@
+import "../../../../playground/src/styles/Jobs.css"
 import { StrictMode, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { Effect } from "effect"

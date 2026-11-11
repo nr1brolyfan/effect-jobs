@@ -98,7 +98,7 @@ checks do not claim PG execution, DOM/focus/scroll, workerd or real-browser beha
 ## Integration C handoff and finite PG reproduction
 
 C owns Dashboard/Pagination wiring and the integrated browser harness. Its synthetic
-`Ux.mjs` list response must include `filteredTotal: filtered.length` before cursor
+`Ux.ts` list response must include `filteredTotal: filtered.length` before cursor
 slicing. Keep numbered controls from `pages`; show live `pageCount` independently.
 Do not invent controls from the total. Preserve focus using operation guards.
 

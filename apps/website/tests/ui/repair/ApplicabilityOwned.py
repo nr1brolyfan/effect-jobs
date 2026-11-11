@@ -28,7 +28,7 @@ try:
     with os.fdopen(os.open(private,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w') as f: json.dump(cfg,f)
     env=os.environ.copy();env['PLAYGROUND_PRIVATE_CONFIG']=str(private)
     with (out/'run.log').open('w') as log:
-        result=subprocess.run(['node','apps/website/tests/ui/repair/Applicability.real.mjs'],env=env,stdout=log,stderr=log,timeout=300)
+        result=subprocess.run(['node','apps/website/tests/ui/repair/Applicability.real.ts'],env=env,stdout=log,stderr=log,timeout=300)
     receipt['exit']=result.returncode
     if result.returncode==0: receipt['status']='PASS'
 finally:

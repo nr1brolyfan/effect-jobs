@@ -1,5 +1,4 @@
-// Browser-test FFI: synthetic reads exercise the actual Dashboard/Runtime wiring.
-// No HTTP/PG fixture qualification, credentials, or mutations are claimed here.
+import "../../../../playground/src/styles/Jobs.css"
 import { useEffect, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { JobDetailsDrawer } from "../../../../playground/src/features/jobs/details/JobDetailsDrawer.js"
@@ -7,6 +6,8 @@ import { Effect } from "effect"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import * as FixtureClient from "../../../../playground/tests/fixtures/FixtureClient.js"
 import * as Mount from "../../../../playground/src/features/jobs/Mount.js"
+// Browser-test FFI: synthetic reads exercise the actual Dashboard/Runtime wiring.
+// No HTTP/PG fixture qualification, credentials, or mutations are claimed here.
 
 let releases: Array<() => void> = []
 let hold = true

@@ -68,7 +68,7 @@ bun install --frozen-lockfile --ignore-scripts --force
 bun run --filter @effect-jobs/playground-contracts build
 bunx --no-install tsc -p apps/website/tests/ui/details/tsconfig.navigation.json
 bunx --no-install vitest run apps/website/tests/ui/details/Navigation.test.ts
-bun apps/website/tests/ui/details/Details.browser.mjs
+bunx --no-install vitest run --project website-e2e apps/website/tests/modernization/Details.e2e.ts
 bunx --no-install oxlint --deny-warnings apps/playground/src/features/jobs/details apps/website/tests/ui/details
 bunx --no-install oxfmt --config .oxfmtrc.json --check apps/playground/src/features/jobs/details apps/website/tests/ui/details
 ```

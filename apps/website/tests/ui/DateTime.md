@@ -65,28 +65,26 @@ Run from the repository root with isolated, lockfile-pinned dependencies:
 
 ```sh
 node_modules/.bin/vitest run apps/website/tests/ui/DateTimeFormat.test.ts apps/website/tests/ui/RetryTime.test.ts
-bun apps/website/tests/ui/DateTime.compile.mjs
-node_modules/.bin/oxlint --deny-warnings apps/playground/src/ui/DateTime.tsx apps/playground/src/ui/DateTime.stylex.ts apps/playground/src/ui/DateTimeFormat.ts apps/website/tests/ui/DateTimeFormat.test.ts apps/website/tests/ui/DateTime.compile.mjs
-node_modules/.bin/oxfmt --config .oxfmtrc.json --check apps/playground/src/ui/DateTime.tsx apps/playground/src/ui/DateTime.stylex.ts apps/playground/src/ui/DateTimeFormat.ts apps/website/tests/ui/DateTimeFormat.test.ts apps/website/tests/ui/DateTime.compile.mjs apps/website/tests/ui/DateTime.md
+bun apps/website/tests/ui/DateTime.browser.ts
+node_modules/.bin/oxlint --deny-warnings apps/playground/src/ui/DateTime.tsx apps/playground/src/ui/DateTime.stylex.ts apps/playground/src/ui/DateTimeFormat.ts apps/website/tests/ui/DateTimeFormat.test.ts apps/website/tests/ui/DateTime.browser.ts
+node_modules/.bin/oxfmt --config .oxfmtrc.json --check apps/playground/src/ui/DateTime.tsx apps/playground/src/ui/DateTime.stylex.ts apps/playground/src/ui/DateTimeFormat.ts apps/website/tests/ui/DateTimeFormat.test.ts apps/website/tests/ui/DateTime.browser.ts apps/website/tests/ui/DateTime.md
 ```
 
 The formatter suite covers absence, zero, invalid numbers, seconds, millisecond
 preservation, locale/zone injection, date rollover, DST spring gap and repeated
 fall hours in Europe/Warsaw. Existing retry tests guard countdown and equality
-wording. DateTime.compile.mjs transpiles actual modules and extracts production
-StyleX with runtimeInjection false, checks focus/coarse-pointer CSS and emits
-source/CSS hashes. It does not render Popover or claim full build/CSP qualification.
-
-`bun apps/website/tests/ui/DateTime.browser.mjs --before` compiles the actual
-modules from frozen base `68f19504df18825e7e8db2769d06e18122484887` using
-`git show`, without accessing the running preview. The same harness without
-`--before` compiles current sources. It reuses the existing Primitives browser
-compiler and pinned Chromium dependency, with runtime StyleX injection disabled.
+wording. `DateTime.browser.ts` builds the actual fixture through the shared
+canonical Vite/StyleX compiler with runtime injection disabled. It checks CSS
+extraction, then renders DateTime and the real Base UI Popover under strict CSP.
 The synthetic fixture contains constrained table/detail/session/retry values,
 null/undefined/invalid/zero, and an unrelated default Popover with Close.
 
-Screenshots and receipts land under `.multica/datetime-browser/before` and
-`after`. Desktop and 390px emulated touch exercise Enter/Space, Escape and focus
+Run `node apps/website/tests/ui/DateTime.browser.ts` against current source.
+Historical `--before` screenshots are archived evidence from frozen base
+`68f19504df18825e7e8db2769d06e18122484887`; current qualification does not rebuild
+that superseded source or maintain a second compiler.
+
+Screenshots and receipts land under `.multica/datetime-browser/after`. Desktop and 390px emulated touch exercise Enter/Space, Escape and focus
 return, Tab traversal, outside click/tap, exact Europe/Warsaw and UTC milliseconds,
 semantic `datetime`, normal weight, zero inset, matching date/local left edges,
 44px touch target, viewport bounds and strict CSP. Keyboard tests wait for Base
@@ -96,7 +94,7 @@ This is synthetic component evidence, not real backend or physical-device testin
 Run `bun apps/website/tests/ui/Primitives.mjs` to verify default Popover behavior
 and existing shared controls. Build contracts before the full production website:
 `bun run --filter @effect-jobs/playground-contracts build`, then
-`bun apps/playground/build.ts`. Integrated Dashboard locations and real runtime/axe
+`bun run playground:build`. Integrated Dashboard locations and real runtime/axe
 qualification remain the integration stream's responsibility; this slice does
 not repeat the previous completed review or backend matrix.
 

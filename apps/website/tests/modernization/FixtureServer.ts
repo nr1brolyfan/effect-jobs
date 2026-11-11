@@ -13,7 +13,7 @@ const requireWorker = createRequire(
 
 // Vite's compiler runs in an awaited child, so its compiler services cannot
 // outlive a Vitest worker. The parent owns output cleanup on every exit path.
-const buildFixture = async (entry: string) => {
+export const buildFixture = async (entry: string) => {
   await mkdir(resolve(process.cwd(), ".multica"), { recursive: true })
   const directory = await mkdtemp(resolve(process.cwd(), ".multica/typed-fixture-"))
   try {

@@ -27,9 +27,9 @@ Library peers and runtime dependencies remain unchanged.
 
 Recharts 3.10.1 independently defaults Pie.rootTabIndex to zero even when
 PieChart.accessibilityLayer is false. The chart author sets rootTabIndex to -1
-for the decorative aria-hidden plot. The original Browser.mjs now passes its
+for the decorative aria-hidden plot. The original Browser.ts now passes its
 unchanged accessibility oracle with zero WCAG2/2.1 A/AA violations. The additional
-StatsChart.browser.mjs checks bidirectional Tab exclusion, desktop/mobile/narrow
+StatsChart.browser.ts checks bidirectional Tab exclusion, desktop/mobile/narrow
 SVG, pointer tooltip, palette, six-state textual equivalent and motion preferences.
 
 ## Reproduction commands
@@ -41,12 +41,12 @@ bun run check
 bun run playground:check
 bun run check:postgresql
 bun run test
-bun apps/website/tests/ui/StatsChart.mjs
+bunx --no-install vitest run --project website-unit apps/website/tests/modernization/StatsChart.unit.ts
 node apps/website/tests/ui/Production.mjs
-node apps/website/tests/ui/Browser.mjs
-node apps/website/tests/ui/StatsChart.browser.mjs
-node apps/website/tests/ui/Focus.mjs
-node apps/website/tests/ui/Reconciliation.mjs
+node apps/website/tests/ui/Browser.ts
+node apps/website/tests/ui/StatsChart.browser.ts
+bunx --no-install vitest run --project website-e2e apps/website/tests/modernization/Browser.e2e.ts
+node apps/website/tests/ui/Reconciliation.ts
 python3 apps/playground-worker/tests/integration/ReactRunOwned.py
 ```
 
@@ -107,12 +107,12 @@ The third attempt passed those gates plus real detail reads, database availableA
 byte-value comparison, exact Europe/Warsaw local formatting, a ticking countdown,
 and Eligible now wording. The latter uses a temporary local browser-clock change
 only; persisted lifecycle and API snapshots remain authoritative. It then failed
-focus restoration after Escape. A separate deterministic Focus.mjs reproduction
+focus restoration after Escape. A separate deterministic Browser.e2e.ts reproduction
 also failed with an unchanged selected row. Closing details changed the table's
 selection-dependent cell render functions; the synchronous close callback focused
 an old button before React replaced it. Focus was lost when that button unmounted.
 The dashboard now restores focus in useLayoutEffect after the React commit.
-Focus.mjs passes Escape, Close details, and the fallback to Jobs list after the
+Browser.e2e.ts passes Escape, Close details, and the fallback to Jobs list after the
 selected job leaves the page. Live reads can also reorder or evict the selected
 row, so the real oracle now locates that exact job instead of assuming the first
 row. The final focus source and oracle still require real PG reproduction in a
@@ -132,9 +132,9 @@ the node/workerd/Chromium process group was absent. No services were retained.
 
 ## Evidence limits
 
-Original Browser.mjs covers StrictMode lifetime/unmount cleanup, keyboard/mobile
+Original Browser.ts covers StrictMode lifetime/unmount cleanup, keyboard/mobile
 behavior, selection/filter/cursor semantics, stale reads and generation revocation.
-Reconciliation.mjs covers hidden-page behavior, focus after unchanged reads,
+Reconciliation.ts covers hidden-page behavior, focus after unchanged reads,
 overlap prevention, expiry and disposal. Their synthetic observations do not
 substitute for real backend evidence. The completed real dashboard gate is
 separate from those fixtures. The previous 475 unit PASS

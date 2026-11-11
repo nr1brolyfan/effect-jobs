@@ -1,0 +1,331 @@
+[
+  {
+    "legacy": "apps/website/tests/docs-reference/DrizzlePrototype.mjs",
+    "replacement": "apps/website/tests/docs-reference/DrizzlePrototype.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "2ac4f4ae70240dfbbb94c1373bae9d78ac0279aec636d5470e13648b1204c796",
+    "baselineAssertionCalls": 3
+  },
+  {
+    "legacy": "apps/website/tests/docs-reference/DrizzlePrototypePostgreSql.mjs",
+    "replacement": "apps/website/tests/docs-reference/DrizzlePrototypePostgreSql.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "a1bc540fcd02a27b0ef4f4435308668ebdc4475c5999f9793aba075da653aaaa",
+    "baselineAssertionCalls": 22
+  },
+  {
+    "legacy": "apps/website/tests/docs-reference/DrizzlePrototypeRuntime.mjs",
+    "replacement": "apps/website/tests/docs-reference/DrizzlePrototypeRuntime.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "ac6439f1d8881167b4b878b6c5cd234ac47faa25eae048e7814d5e609e2e7b0b",
+    "baselineAssertionCalls": 16
+  },
+  {
+    "legacy": "apps/website/tests/docs-reference/PostgreSqlRuntime.mjs",
+    "replacement": "apps/website/tests/docs-reference/PostgreSqlRuntime.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "0d30504dc2fbaabd673b2b88b7fa3be038deab43f1ccdfe4e88ded5bc7d4cceb",
+    "baselineAssertionCalls": 28
+  },
+  {
+    "legacy": "apps/website/tests/docs-reference/Qualify.mjs",
+    "replacement": "apps/website/tests/docs-reference/Qualify.ts",
+    "disposition": "temporary shared-registrar compatibility CLI",
+    "baselineSha256": "f1548b0da582f6cf5d20976d7f7f957c977b34064c90407be00053e47a0488cc",
+    "baselineAssertionCalls": 7
+  },
+  {
+    "legacy": "apps/website/tests/docs-reference/Reference.mjs",
+    "replacement": "apps/website/tests/docs-reference/Reference.ts",
+    "disposition": "temporary shared-registrar compatibility CLI",
+    "baselineSha256": "f192ba9e64b33361c15081d3ea1405ee4f08b64045aad26fc77694e01d9502f3",
+    "baselineAssertionCalls": 0
+  },
+  {
+    "legacy": "apps/website/tests/docs-reference/Runtime.mjs",
+    "replacement": "apps/website/tests/docs-reference/Runtime.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "10c255994d6b67d030a00f5063091b447b31c37d9969afffd1c4322f3da0dd1a",
+    "baselineAssertionCalls": 16
+  },
+  {
+    "legacy": "apps/website/tests/docs-reference/Snippets.mjs",
+    "replacement": "apps/website/tests/docs-reference/Snippets.ts",
+    "disposition": "temporary shared-registrar compatibility CLI",
+    "baselineSha256": "0b998bd6af11cc5cc068c17454c1da344f542a5e08a35ac941314a224455f8ff",
+    "baselineAssertionCalls": 0
+  },
+  {
+    "legacy": "apps/website/tests/order-tutorial/Bindings.mjs",
+    "replacement": "apps/website/tests/order-tutorial/Bindings.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "675142c804dd1e6b5f6c23887377a1dfee0624ee0993ac06d403c0af7ca031ab",
+    "baselineAssertionCalls": 20
+  },
+  {
+    "legacy": "apps/website/tests/order-tutorial/Content.mjs",
+    "replacement": "apps/website/tests/order-tutorial/Content.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "c8a047a1e843a01eed86fa8750c298efa120be8e0a8595e8f92694a61f11efe4",
+    "baselineAssertionCalls": 6
+  },
+  {
+    "legacy": "apps/website/tests/order-tutorial/Corrections.mjs",
+    "replacement": "apps/website/tests/order-tutorial/Corrections.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "a737bb6692cd1407a53c87644c1c9cbfb61121e16890e8e95c735199816110f2",
+    "baselineAssertionCalls": 73
+  },
+  {
+    "legacy": "apps/website/tests/order-tutorial/PostgreSql.mjs",
+    "replacement": "apps/website/tests/order-tutorial/PostgreSql.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "3fd230e815893467917b0088a7c80c88eed2b6a96b869b3e3f446f548787692a",
+    "baselineAssertionCalls": 62
+  },
+  {
+    "legacy": "apps/website/tests/order-tutorial/Qualify.mjs",
+    "replacement": "apps/website/tests/order-tutorial/Qualify.ts",
+    "disposition": "temporary shared-registrar compatibility CLI",
+    "baselineSha256": "3fffc87c404a2aaf362796551c6097bafcf3be077bc601536aaea9722b2cacb1",
+    "baselineAssertionCalls": 7
+  },
+  {
+    "legacy": "apps/website/tests/site/ApiDesign.mjs",
+    "replacement": "apps/website/tests/site/ApiDesign.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "78fc0673ac9d27f04d477fb778455b623ead81833b543789202ab599631cc48d",
+    "baselineAssertionCalls": 13
+  },
+  {
+    "legacy": "apps/website/tests/site/Browser.mjs",
+    "replacement": "apps/website/tests/site/Browser.ts",
+    "disposition": "temporary shared-registrar compatibility CLI",
+    "baselineSha256": "a949596c5321660715229b9ecb4c827f559ff784058cc3d95614273d7f9edb94",
+    "baselineAssertionCalls": 57
+  },
+  {
+    "legacy": "apps/website/tests/site/Foundation.mjs",
+    "replacement": "apps/website/tests/modernization/Extraction.unit.ts",
+    "disposition": "temporary shared-registrar compatibility CLI",
+    "baselineSha256": "d81cff1098dc3bf9a056a1889f1c1eb38c94a3bc46c054417c9c6ee22e39ff44",
+    "baselineAssertionCalls": 30
+  },
+  {
+    "legacy": "apps/website/tests/site/JobVisuals.mjs",
+    "replacement": "apps/website/tests/site/JobVisuals.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "94ed41ad208f451227fc3c5a294778db756fd96f6d1da62087ea858b4b2e8ca7",
+    "baselineAssertionCalls": 61
+  },
+  {
+    "legacy": "apps/website/tests/site/Routes.mjs",
+    "replacement": "apps/website/tests/site/Routes.ts",
+    "disposition": "temporary shared-registrar compatibility CLI",
+    "baselineSha256": "bc773f5c2a47edd6e2d9f6dcddd6d381cae4a31e71318f6fe472e620919e8321",
+    "baselineAssertionCalls": 6
+  },
+  {
+    "legacy": "apps/website/tests/ui/AcknowledgementFocus.mjs",
+    "replacement": "apps/website/tests/ui/AcknowledgementFocus.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "f4ff8d004881d19a09fed5b3202e01adeb60757de953af0d51415b7cee254846",
+    "baselineAssertionCalls": 27
+  },
+  {
+    "legacy": "apps/website/tests/ui/Browser.mjs",
+    "replacement": "apps/website/tests/ui/Browser.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "c230fcd78c056f23b907841caff5563a31ecc3567c43f498c9bb841a99ea0ff3",
+    "baselineAssertionCalls": 0
+  },
+  {
+    "legacy": "apps/website/tests/ui/DashboardRefresh.mjs",
+    "replacement": "apps/website/tests/ui/DashboardRefresh.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "39a7fb0d05ba7001ca6e9f3bbcb9cddd2295901c5abb422d6c0cdfddf2da1f14",
+    "baselineAssertionCalls": 36
+  },
+  {
+    "legacy": "apps/website/tests/ui/DateTime.browser.mjs",
+    "replacement": "apps/website/tests/ui/DateTime.browser.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "cd38aafd9726a39f3031d120b9688c40ddeef6f2685e1a2090af85590a2cc212",
+    "baselineAssertionCalls": 46
+  },
+  {
+    "legacy": "apps/website/tests/ui/DateTime.compile.mjs",
+    "replacement": "apps/website/tests/ui/DateTime.browser.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "dee4724d33d3251c9fb16d9768bc1eff98836bc89c193110c5bda5b5becb540d",
+    "baselineAssertionCalls": 6
+  },
+  {
+    "legacy": "apps/website/tests/ui/Declutter.browser.mjs",
+    "replacement": "apps/website/tests/ui/Declutter.browser.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "b0b2c8cf6e1f5cde0edfe2cd00854809007dc2aa031b11d24ef60f0683ce34fc",
+    "baselineAssertionCalls": 75
+  },
+  {
+    "legacy": "apps/website/tests/ui/DetailsIntegration.mjs",
+    "replacement": "apps/website/tests/ui/DetailsIntegration.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "5c8fcc0f5205f9e17bf4174bed4f03236204d5a0ea9e4eeb0c2d16d707f0bb97",
+    "baselineAssertionCalls": 32
+  },
+  {
+    "legacy": "apps/website/tests/ui/Field.test.mjs",
+    "replacement": "apps/website/tests/modernization/Field.browser.tsx",
+    "disposition": "temporary shared-registrar compatibility CLI",
+    "baselineSha256": "0c149191d461563ea012936ceab7e69a837ec08e177fa2cf12e43fd6ffcb19c7",
+    "baselineAssertionCalls": 0
+  },
+  {
+    "legacy": "apps/website/tests/ui/Focus.mjs",
+    "replacement": "apps/website/tests/modernization/Browser.e2e.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "4a4d48796558b06ccceb34c701b6d86abe123a75fa66ffeddff51e0bcbf91ee2",
+    "baselineAssertionCalls": 9
+  },
+  {
+    "legacy": "apps/website/tests/ui/OperatorReappearance.browser.mjs",
+    "replacement": "apps/website/tests/ui/OperatorReappearance.browser.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "9794293c61cc009a9d2842968742882f5e3e8708b3ca35ccbe27d7122b4c5d88",
+    "baselineAssertionCalls": 18
+  },
+  {
+    "legacy": "apps/website/tests/ui/Packed.mjs",
+    "replacement": "apps/website/tests/ui/Packed.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "a8be6f25928a7c982e44090e0ebbafc57b7d6082bc9d2063c29b9cff98fb69ae",
+    "baselineAssertionCalls": 0
+  },
+  {
+    "legacy": "apps/website/tests/ui/PreviewSession.mjs",
+    "replacement": "apps/website/tests/ui/PreviewSession.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "25e186bab79202c092a8f597f3de87b59f28a049f42f3d8e49c542a935589317",
+    "baselineAssertionCalls": 7
+  },
+  {
+    "legacy": "apps/website/tests/ui/Primitives.mjs",
+    "replacement": "apps/website/tests/ui/Primitives.ts",
+    "disposition": "temporary shared-registrar compatibility CLI",
+    "baselineSha256": "4d67dbb3bb1e7d7e14c871e59e54e6e826252c8b620b158b67b481e77589136c",
+    "baselineAssertionCalls": 0
+  },
+  {
+    "legacy": "apps/website/tests/ui/Production.mjs",
+    "replacement": "apps/website/tests/ui/Production.ts",
+    "disposition": "temporary shared-registrar compatibility CLI",
+    "baselineSha256": "bba019595f4e8129922381e1d29da8e7f6cbcd468e11209bd344cb04474c691b",
+    "baselineAssertionCalls": 5
+  },
+  {
+    "legacy": "apps/website/tests/ui/RealPg.mjs",
+    "replacement": "apps/website/tests/ui/RealPg.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "47a85dea0464e6f71b7f6d5e5ac3284c9ca600587885eeff48d87149530b8247",
+    "baselineAssertionCalls": 31
+  },
+  {
+    "legacy": "apps/website/tests/ui/Reconciliation.mjs",
+    "replacement": "apps/website/tests/ui/Reconciliation.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "4722dbd55abf7a44a0706bb11a25200137b199a6f936b16f88631a488dd280b1",
+    "baselineAssertionCalls": 0
+  },
+  {
+    "legacy": "apps/website/tests/ui/ShellPayload.mjs",
+    "replacement": "apps/website/tests/ui/ShellPayload.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "94210188125157e5c91dd5f352b55d5cf3f06e16cfef0dc4fd621f2453b76bfc",
+    "baselineAssertionCalls": 30
+  },
+  {
+    "legacy": "apps/website/tests/ui/StatsChart.browser.mjs",
+    "replacement": "apps/website/tests/ui/StatsChart.browser.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "e0ac90674bbd570ff869b7fb25ae4944e09245f4824b9152b2961f028a8f95e2",
+    "baselineAssertionCalls": 17
+  },
+  {
+    "legacy": "apps/website/tests/ui/StatsChart.mjs",
+    "replacement": "apps/website/tests/ui/StatsChart.render.tsx",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "9d9539dd694aa1f8b5f7fd7c9b787bf861388239f0ecb618f681ad488d51a557",
+    "baselineAssertionCalls": 1
+  },
+  {
+    "legacy": "apps/website/tests/ui/Theme.test.mjs",
+    "replacement": "apps/website/tests/modernization/Theme.unit.ts",
+    "disposition": "temporary shared-registrar compatibility CLI",
+    "baselineSha256": "915aaf46fb4042043a8537229c4bfa506ee98ab0184a75e77c98a42d151a1aac",
+    "baselineAssertionCalls": 4
+  },
+  {
+    "legacy": "apps/website/tests/ui/Ux.mjs",
+    "replacement": "apps/website/tests/ui/Ux.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "b665753fb13da598959a61e7d6111860a5a2b3ac8dfac1aa6475fabb9265bef7",
+    "baselineAssertionCalls": 57
+  },
+  {
+    "legacy": "apps/website/tests/ui/details/Details.browser.mjs",
+    "replacement": "apps/website/tests/modernization/Details.e2e.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "2da9ce3a188949ddc1fafc32eb2b05fb1985e992e30ea8014e2a287975d3e5bf",
+    "baselineAssertionCalls": 32
+  },
+  {
+    "legacy": "apps/website/tests/ui/details/Focus.browser.mjs",
+    "replacement": "apps/website/tests/ui/details/Focus.browser.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "0200410b766ad8bdbce8734a67ec0f53b44286ddc2f6cb7a0d4bd78f1e4a345d",
+    "baselineAssertionCalls": 23
+  },
+  {
+    "legacy": "apps/website/tests/ui/payload/Browser.mjs",
+    "replacement": "apps/website/tests/ui/payload/Browser.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "51b05da4c76fbebdb36ca5f7a2429f1c4800538a9cbc9874b318733b9fb8dc3f",
+    "baselineAssertionCalls": 59
+  },
+  {
+    "legacy": "apps/website/tests/ui/payload/Qualify.mjs",
+    "replacement": "apps/website/tests/ui/payload/Qualify.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "fe10b3d614b229c22242f7fd745993eb572670c8a03bffbef5f695979cf0cd8c",
+    "baselineAssertionCalls": 0
+  },
+  {
+    "legacy": "apps/website/tests/ui/repair/Applicability.browser.mjs",
+    "replacement": "apps/website/tests/ui/repair/Applicability.browser.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "8f688933da5074489b0d3458d33db0cb49602b5701f8857677d6833b331b4798",
+    "baselineAssertionCalls": 21
+  },
+  {
+    "legacy": "apps/website/tests/ui/repair/Applicability.real.mjs",
+    "replacement": "apps/website/tests/ui/repair/Applicability.real.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "78448833b0410b357b3f9fd40d841f5d28363d2dfce2d939748d17ca22f23afb",
+    "baselineAssertionCalls": 26
+  },
+  {
+    "legacy": "apps/website/tests/ui/repair/Browser.mjs",
+    "replacement": "apps/website/tests/ui/repair/Browser.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "eb98ba0acfbbe60992660ecadc633c830da8e842a207c53caae4288287e59f89",
+    "baselineAssertionCalls": 29
+  },
+  {
+    "legacy": "apps/website/tests/ui/repair/Composition.mjs",
+    "replacement": "apps/website/tests/ui/repair/Composition.ts",
+    "disposition": "removed; authored typed replacement",
+    "baselineSha256": "3bcb0e09bdf460e6ddd3450a58874da155237574a872d9775c47ecaac1ab453e",
+    "baselineAssertionCalls": 30
+  }
+]

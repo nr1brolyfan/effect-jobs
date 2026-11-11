@@ -1,3 +1,4 @@
+import "../../../../playground/src/styles/Jobs.css"
 import { useState } from "react"
 import { createRoot } from "react-dom/client"
 import { JobRepairPanel } from "../../../../playground/src/features/jobs/repair/JobRepairPanel.js"
@@ -5,7 +6,7 @@ import type {
   JobRepairCommand,
   JobResolutionCommand
 } from "@effect-jobs/playground-contracts/Repairs"
-import * as Fixture from "../../../../playground-worker/tests/repairs/Fixtures.js"
+import * as Fixture from "./Fixture.js"
 
 const commands: (JobRepairCommand | JobResolutionCommand)[] = []
 let receipts = 0

@@ -43,9 +43,9 @@ node_modules/.bin/vitest run --cache=false --exclude 'tests/poc/**' --exclude 'a
 bun apps/website/tests/ui/Field.test.mjs
 node --test apps/website/tests/ui/Theme.test.mjs
 bun run playground:test:primitives
-bun apps/website/tests/ui/DateTime.compile.mjs
-node apps/website/tests/ui/Ux.mjs
-bun apps/website/tests/ui/StatsChart.mjs
+bun apps/website/tests/ui/DateTime.browser.ts
+node apps/website/tests/ui/Ux.ts
+bun apps/website/tests/ui/StatsChart.render.tsx
 node apps/website/tests/ui/Production.mjs
 bun run check:postgresql
 bun run test:release-imports
@@ -59,9 +59,9 @@ That archive was removed after retaining its built artifacts and screenshot
 receipts. The corrected invocation tests current sources only; 499 PASS and
 50 skipped PG tests, which remain NotTested.
 
-The historical Browser.mjs/Focus.mjs five-row fixture assumptions are not reused
-as evidence for this twenty-row UI. Ux.mjs qualifies the new production HTTP
-behavior; UxRuntime.mjs reproduces original real-PG retry, focus, eviction,
+The historical Browser.ts/Browser.e2e.ts five-row fixture assumptions are not reused
+as evidence for this twenty-row UI. Ux.ts qualifies the new production HTTP
+behavior; UxRuntime.ts reproduces original real-PG retry, focus, eviction,
 reconnect, rotation, private reset and expiry contracts with current controls.
 Existing historical reports are preserved, rather than declared valid for a
 changed UI bundle. Original Runtime/Atoms/Reads tests cover lifetime/races/WS
@@ -93,7 +93,7 @@ It never rewrites job lifecycle timestamps or substitutes simulated success.
 
 ## Browser and design evidence
 
-Ux.mjs serves the actual production bundle under self-only CSP with synthetic
+Ux.ts serves the actual production bundle under self-only CSP with synthetic
 65-job HTTP responses. A lockfile-pinned ws8.21.0 fixture, resolved through
 the existing Miniflare test dependency, provides admission-ready signals; this
 avoids unrelated missing-socket reconnect noise during deliberate HTTP delays.
@@ -110,7 +110,7 @@ These are automated Chromium observations, not physical-device claims.
 
 Before screenshots came from an archived exact base built with local pinned
 dependencies, served the same synthetic dataset and date in Europe/Warsaw.
-No source-preview cache or private data was used. `Ux.mjs --before` requires
+No source-preview cache or private data was used. `Ux.ts --before` requires
 recreating that base archive under `.multica/ux-base`, with local dependency
 resolution, and building its website first. The archive is disposable; preserve
 its receipt/artifact hashes and screenshots before removal. Keep generated

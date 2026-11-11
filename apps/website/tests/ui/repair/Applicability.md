@@ -3,8 +3,8 @@
 This matrix describes existing server semantics at base
 `78b0cd802ac76ef2b63fdceaac57cd98778b606b`, consumed by the UI. It grants no
 new lifecycle transitions or permissions. `Applicability.test.ts` checks the
-source projection; `Applicability.browser.mjs` checks production components/CSS
-with controlled HTTP snapshots. `Applicability.real.mjs` exercises real
+source projection; `Applicability.browser.ts` checks production components/CSS
+with controlled HTTP snapshots. `Applicability.real.ts` exercises real
 producer, worker, command, encrypted payload and reconciliation paths.
 
 | Selected lifecycle     | Retry now | Cancel  | Redrive / corrected redrive | Reconcile applied / close problem |
@@ -86,8 +86,8 @@ Qualification commands from repository root:
 ```sh
 bun run playground:test
 node apps/playground-worker/tests/integration/Build.mjs
-node apps/website/tests/ui/repair/Applicability.browser.mjs
-bun apps/website/tests/ui/repair/Browser.mjs
+node apps/website/tests/ui/repair/Applicability.browser.ts
+bun apps/website/tests/ui/repair/Browser.ts
 python3 apps/website/tests/ui/repair/ApplicabilityOwned.py
 ```
 
