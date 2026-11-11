@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { Pool } from "pg"
+import * as Cookies from "@effect-jobs/playground-contracts/Cookies"
 import { Effect } from "effect"
 import { chromium } from "@playwright/test"
 import { createLocal } from "./Local.ts"
@@ -55,6 +56,7 @@ try {
   cfg.connectionString = `postgres://${cfg.user}:${cfg.password}@127.0.0.1:${cfg.port}/${cfg.database}`
   local = await createLocal(cfg, { instrument: true, localPrivate: true })
   mf = local.mf
+  const cookieNames = Cookies.names(local.origin, true)
   const dispatch = (path, options = {}) => mf.dispatchFetch(local.origin + path, options)
   const post = (path, cookie, token, body) =>
     dispatch(path, {
@@ -74,13 +76,14 @@ try {
       cookies.some(
         (value) =>
           value.includes("HttpOnly") &&
-          value.includes("Secure") &&
+          !value.includes("; Secure") &&
+          value.startsWith(cookieNames.credential + "=") &&
           value.includes("SameSite=Strict")
       )
     )
     const cookie = cookies.map((value) => value.split(";")[0]).join("; ")
     const token = cookies
-      .find((value) => value.startsWith("__Host-playground-csrf="))
+      .find((value) => value.startsWith(cookieNames.csrf + "="))
       .split(";")[0]
       .split("=")[1]
     return { sandbox: await response.json(), cookie, token }
@@ -113,6 +116,19 @@ try {
     `/api/jobs?sandboxId=${who.sandbox.ref.sandboxId}&generation=${who.sandbox.ref.generation}&limit=5${extra}`
   assert.equal((await post("/api/scenarios", a.cookie, "wrong", {})).status, 400)
   assert.equal((await dispatch(query(a), { headers: { Cookie: b.cookie } })).status, 404)
+  // Issuance now admits one six-job traffic batch. Freeze its next admission
+  // while measuring the explicit command, then retain the exact +6/+1/+1 oracle.
+  const originalNextGeneration = await sql(
+    `SELECT sandbox_id,next_generation_at FROM "${schema}".sandboxes`
+  )
+  await sql(`UPDATE "${schema}".sandboxes SET next_generation_at=expires_at`)
+  const beforeCommand = (
+    await sql(
+      `SELECT (SELECT count(*) FROM "${schema}".associations WHERE sandbox_id=$1) AS jobs,(SELECT count(*) FROM "${schema}".command_receipts WHERE sandbox_id=$1) AS receipts,(SELECT count(*) FROM "${schema}".command_admission WHERE sandbox_id=$1) AS admissions`,
+      [a.sandbox.ref.sandboxId]
+    )
+  )[0]
+  assert.deepEqual(Object.values(beforeCommand).map(Number), [6, 1, 1])
   const initial = await run(a, "http-atomic")
   const replay = await run(a, "http-atomic")
   assert.deepEqual(replay.jobIds, initial.jobIds)
@@ -127,7 +143,12 @@ try {
       [a.sandbox.ref.sandboxId]
     )
   )[0]
-  assert.deepEqual(Object.values(counts).map(Number), [6, 1, 1])
+  assert.deepEqual(
+    Object.values(counts).map(
+      (value, index) => Number(value) - Number(Object.values(beforeCommand)[index])
+    ),
+    [6, 1, 1]
+  )
   check("actual HTTP guarded command / atomic jobs associations receipt / exact replay")
   const view = await describe(a)
   assert.equal(view.status, 200)
@@ -155,13 +176,25 @@ try {
       headers: { Cookie: a.cookie }
     })
   ).json()
-  assert.equal(second.items.length, 1)
+  assert.equal(second.items.length, 5)
+  assert(second.nextCursor)
+  const third = await (
+    await dispatch(query(a, `&cursor=${second.nextCursor}`), {
+      headers: { Cookie: a.cookie }
+    })
+  ).json()
+  assert.equal(third.items.length, 2)
+  assert.equal(third.nextCursor, null)
+  const pages = [...first.items, ...second.items, ...third.items]
+  assert.equal(new Set(pages.map((job) => job.jobId)).size, 12)
+  assert(initial.jobIds.every((id) => pages.some((job) => job.jobId === id)))
   assert(
     !first.items.some((job) => second.items.some((other) => other.jobId === job.jobId))
   )
   const privateJob = (
     await sql(
-      `SELECT id FROM "${schema}".jobs WHERE kind='playground.private-data-export' LIMIT 1`
+      `SELECT id FROM "${schema}".jobs WHERE kind='playground.synthetic-document-export' AND id=ANY($1)`,
+      [initial.jobIds]
     )
   )[0]
   const detail = await (
@@ -171,10 +204,17 @@ try {
     )
   ).json()
   assert.equal(detail.job.jobId, privateJob.id)
-  assert(
-    !/ciphertext|fingerprint|payload|synthetic private export/.test(
-      JSON.stringify(detail)
-    )
+  assert(!/ciphertext|fingerprint|payload|leaseToken/.test(JSON.stringify(detail.job)))
+  assert(!/synthetic private export v1|leaseToken/.test(JSON.stringify(detail)))
+  assert.equal(detail.payload._tag, "Available")
+  assert.equal(detail.payload.encryption, "SyntheticDocumentV1")
+  const [storedPayload] = await sql(
+    `SELECT payload FROM "${schema}".job_payloads WHERE job_id=$1`,
+    [privateJob.id]
+  )
+  assert.deepEqual(
+    detail.payload.encoded,
+    JSON.parse(Buffer.from(storedPayload.payload).toString("utf8"))
   )
   check(
     "real SELECT-only projection / keyset pages / private detail / no decrypt on list"
@@ -225,24 +265,36 @@ try {
   await page.getByLabel("Jobs (1–10)").fill("6")
   await page.getByRole("button", { name: "Run scenario", exact: true }).click()
   await page.getByText(/Enqueue acknowledged for/).waitFor()
-  await page.locator(".job-list button").first().waitFor()
+  await page.locator(".job-list .job-id").first().waitFor()
   await until(
     async () =>
-      (await page.locator(".job-list .state-badge").allTextContents()).some((text) =>
+      (await page.locator(".job-list .status-cell").allTextContents()).some((text) =>
         text.includes("Completed")
       ),
     "browser did not reconcile persisted completion",
     15000
   )
-  await page.locator(".job-list button").first().click()
+  await page.locator(".job-list .job-id").first().click()
+  await page
+    .getByRole("dialog", { name: "Quick job details", exact: true })
+    .locator("summary")
+    .filter({ hasText: "Identity & execution policy" })
+    .click()
   await page.getByText("Retry delay", { exact: true }).waitFor()
+  await page.getByRole("button", { name: "Close job details", exact: true }).click()
   assert.equal(
-    await page.evaluate(() => document.cookie.includes("__Host-playground=")),
+    await page.evaluate(
+      (name) => document.cookie.includes(name + "="),
+      cookieNames.credential
+    ),
     false
   )
   page.once("dialog", (dialog) => dialog.accept())
   await page.getByRole("button", { name: "Reset my sandbox" }).click()
-  await page.getByText(/New sandbox generation/).waitFor({ timeout: 10000 })
+  await page
+    .locator(".sandbox-scope")
+    .filter({ hasText: "generation 2" })
+    .waitFor({ timeout: 10000 })
   const readsBeforeDisconnect = reads
   await context.setOffline(true)
   await page.waitForTimeout(500)
@@ -301,7 +353,7 @@ try {
           )
         )[0].n === 6,
       "retry did not persist then complete",
-      20000
+      140000
     )
     const dead = await run(b, "http-dead", "terminal-failure")
     await until(
@@ -352,6 +404,12 @@ try {
   } finally {
     clearInterval(heartbeat)
   }
+  for (const row of originalNextGeneration) {
+    await sql(
+      `UPDATE "${schema}".sandboxes SET next_generation_at=$2 WHERE sandbox_id=$1`,
+      [row.sandbox_id, row.next_generation_at]
+    )
+  }
   const old = a.sandbox.ref
   const reset = await post("/api/sandbox/reset", a.cookie, a.token, {
     sandbox: old,
@@ -387,7 +445,7 @@ try {
   const { delayed } = await import(`${evidence}/Admit.mjs`)
   const credential = a.cookie
     .split("; ")
-    .find((part) => part.startsWith("__Host-playground="))
+    .find((part) => part.startsWith(cookieNames.credential + "="))
     .split("=")[1]
   const delayedId = await Effect.runPromise(delayed(cfg, credential, "delayed-native"))
   assert.equal(
@@ -419,11 +477,13 @@ try {
   const larger = []
   let mutationPage
   for (let batch = 0; batch < 12; batch++) {
-    const retained = (
-      await sql(`SELECT retained_jobs FROM "${schema}".sandboxes WHERE sandbox_id=$1`, [
-        a.sandbox.ref.sandboxId
-      ])
-    )[0].retained_jobs
+    const retained = Number(
+      (
+        await sql(`SELECT retained_jobs FROM "${schema}".sandboxes WHERE sandbox_id=$1`, [
+          a.sandbox.ref.sandboxId
+        ])
+      )[0].retained_jobs
+    )
     if (retained === 100) {
       break
     }

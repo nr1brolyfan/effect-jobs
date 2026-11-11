@@ -4,7 +4,11 @@ import * as Cloudflare from "@alchemy.run/cloudflare"
 import * as Core from "alchemy/Test/Core"
 import { Effect, Exit, Scope } from "effect"
 import { createInterface } from "node:readline"
-import Stack from "../../alchemy.run.js"
+import ProductionStack from "../../alchemy.run.js"
+import ObservationStack from "../native/ObservationStack.js"
+
+const Stack =
+  process.env.NATIVE_HOST_OBSERVE === "true" ? ObservationStack : ProductionStack
 
 const scope = Scope.makeUnsafe("sequential")
 const options = {

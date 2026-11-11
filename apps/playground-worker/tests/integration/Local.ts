@@ -87,11 +87,6 @@ export const createLocal = async (
   cfg: LocalConfiguration,
   options: LocalOptions = {}
 ) => {
-  if (options.instrument) {
-    throw new Error(
-      "Native queue diagnostics are not wired; legacy Promise probes cannot run"
-    )
-  }
   if (options.https === true) {
     throw new Error(
       "Native local providers require explicit HTTP preview; hosted HTTPS remains a separate contract"
@@ -125,6 +120,7 @@ export const createLocal = async (
     CURSOR_KEY: cfg.cursorKey,
     DEMO_ROTATION_MS: String(options.demoRotationMillis ?? 86400000),
     ASSET_DIRECTORY: manifest.assets,
+    NATIVE_HOST_OBSERVE: String(options.instrument === true),
     NATIVE_HOST_STAGE: "host_" + randomBytes(8).toString("hex")
   }
   const log = createWriteStream(resolve(directory, "host.log"))
