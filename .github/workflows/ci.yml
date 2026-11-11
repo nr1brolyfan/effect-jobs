@@ -47,6 +47,8 @@ jobs:
         run: |
           bun run playground:check 2>&1 | tee "$CI_EVIDENCE/workspace-types.log"
           bun run playground:lint 2>&1 | tee "$CI_EVIDENCE/workspace-lint.log"
+      - name: Check the local workerd serializer runtime graph
+        run: bun run check:capnp-runtime 2>&1 | tee "$CI_EVIDENCE/capnp-runtime.log"
       - name: Build playground and public site
         run: |
           bun run playground:build 2>&1 | tee "$CI_EVIDENCE/apps-build.log"

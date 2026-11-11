@@ -7,17 +7,27 @@
     "effect": "4.0.5",
     "effect-jobs": "file:../..",
     "@effect-jobs/playground-contracts": "workspace:*",
-    "@effect/sql-pg": "4.0.5"
+    "@effect/sql-pg": "4.0.5",
+    "alchemy": "2.0.0-beta.84",
+    "@alchemy.run/cloudflare": "2.0.0-beta.84",
+    "@alchemy.run/cloudflare-runtime": "2.0.0-beta.84",
+    "@alchemy.run/domain": "2.0.0-beta.84"
   },
   "scripts": {
     "check": "tsc -p tsconfig.json",
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "check:native": "tsc -p tsconfig.native.json",
+    "check:capnp-runtime": "node tests/native/CapnpRuntime.ts"
   },
   "devDependencies": {
     "esbuild": "0.25.12",
     "miniflare": "5.20261006.1-alpha",
     "pg": "8.23.0",
-    "@types/pg": "8.15.5",
-    "@playwright/test": "1.56.1"
+    "@types/pg": "8.20.0",
+    "@playwright/test": "1.56.1",
+    "@cloudflare/workers-types": "5.20261110.1",
+    "@types/bun": "1.4.3",
+    "@types/ws": "8.18.1",
+    "@effect/platform-bun": "4.0.5"
   }
 }

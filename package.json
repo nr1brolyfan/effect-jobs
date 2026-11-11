@@ -180,7 +180,8 @@
     "site:islands": "bun apps/website/tests/site-modernization/Islands.browser.ts",
     "site:landing": "node apps/website/src/components/landing/tests/Browser.mjs",
     "test:browser:install": "playwright install --with-deps chromium",
-    "test:website:provider": "node apps/website/tests/modernization/ProviderLifecycle.ts"
+    "test:website:provider": "node apps/website/tests/modernization/ProviderLifecycle.ts",
+    "check:capnp-runtime": "bun run --cwd apps/playground-worker check:capnp-runtime"
   },
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.5-ab785fc || 1.0.0-rc.5-169397b",
@@ -211,7 +212,8 @@
     "vitest": "4.1.11",
     "@vitest/browser-playwright": "4.1.11",
     "playwright": "1.56.1",
-    "vite": "8.3.4"
+    "vite": "8.3.4",
+    "rolldown": "1.2.13"
   },
   "repository": {
     "type": "git",
@@ -234,6 +236,17 @@
     "packages/*"
   ],
   "overrides": {
-    "vite": "8.3.4"
+    "vite": "8.3.4",
+    "alchemy": "2.0.0-beta.84",
+    "@alchemy.run/cloudflare": "2.0.0-beta.84",
+    "@alchemy.run/cloudflare-runtime": "2.0.0-beta.84",
+    "@alchemy.run/domain": "2.0.0-beta.84",
+    "@alchemy.run/frontend-frameworks": "2.0.0-beta.84",
+    "@alchemy.run/sql": "2.0.0-beta.84",
+    "@effect/platform-bun": "4.0.5",
+    "@effect/platform-node": "4.0.5",
+    "@effect/platform-node-shared": "4.0.5",
+    "@effect/sql-d1": "4.0.5",
+    "@effect/sql-pg": "4.0.5"
   }
 }

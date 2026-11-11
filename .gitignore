@@ -13,3 +13,6 @@ __pycache__/
 
 # Astro generated content types and cache
 apps/website/.astro/
+
+# Local Alchemy state, bundles, logs and sidecar locks
+.alchemy/
