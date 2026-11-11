@@ -54,7 +54,7 @@ try {
     )
     assert.equal(
       prior.baseline.clientSha256,
-      hash(readFileSync(`${baselineRoot}/apps/playground/dist/Client.js`))
+      hash(readFileSync(`${baselineRoot}/apps/website/dist/Client.js`))
     )
     report.baseline = prior.baseline
     report.checks.push(
@@ -97,7 +97,7 @@ try {
       workerSha256: hash(
         readFileSync(`${baselineRoot}/apps/playground-worker/dist/Worker.js`)
       ),
-      clientSha256: hash(readFileSync(`${baselineRoot}/apps/playground/dist/Client.js`)),
+      clientSha256: hash(readFileSync(`${baselineRoot}/apps/website/dist/Client.js`)),
       twoHexFieldsAnd123Rejected: true
     }
     report.checks.push(

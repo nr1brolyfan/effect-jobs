@@ -2,6 +2,7 @@ import { build } from "esbuild"
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs"
 import { createHash } from "node:crypto"
 import { resolve } from "node:path"
+import { collectNativeBuild } from "./NativeArtifacts.mjs"
 const directory = resolve(process.env.D6_RESOURCE_DIRECTORY)
 mkdirSync(directory, { recursive: true })
 for (const name of ["RepairPg", "RepairHistorical", "SchemaEntry"]) {
@@ -15,7 +16,6 @@ for (const name of ["RepairPg", "RepairHistorical", "SchemaEntry"]) {
   })
 }
 const paths = [
-  "apps/playground-worker/dist/Worker.js",
   "apps/playground/dist/Client.js",
   "apps/playground/dist/Jobs.css",
   ...["RepairPg", "RepairHistorical", "Migrations"].map(
@@ -25,12 +25,15 @@ const paths = [
 writeFileSync(
   `${directory}/artifacts.json`,
   JSON.stringify(
-    Object.fromEntries(
-      paths.map((path) => [
-        path,
-        createHash("sha256").update(readFileSync(path)).digest("hex")
-      ])
-    ),
+    {
+      nativeBuild: collectNativeBuild(process.cwd()),
+      files: Object.fromEntries(
+        paths.map((path) => [
+          path,
+          createHash("sha256").update(readFileSync(path)).digest("hex")
+        ])
+      )
+    },
     null,
     2
   )
