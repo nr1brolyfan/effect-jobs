@@ -1,7 +1,7 @@
 import type * as Workers from "@cloudflare/workers-types"
 import * as Cloudflare from "@alchemy.run/cloudflare"
 import { RuntimeContext } from "alchemy/RuntimeContext"
-import { Clock, Config, Effect, Schema } from "effect"
+import { Clock, Config, Effect, Scheduler, Schema } from "effect"
 import { HttpServerRequest } from "effect/http/HttpServerRequest"
 import * as HttpRequest from "effect/http/HttpServerRequest"
 import * as HttpResponse from "effect/http/HttpServerResponse"
@@ -159,73 +159,83 @@ export class Gateway extends Cloudflare.DurableObject<Gateway>()(
         const request = yield* HttpRequest.toWeb(yield* HttpServerRequest).pipe(
           Effect.orDie
         )
-        const response = yield* state.blockConcurrencyWhile(() =>
-          Effect.gen(function* () {
-            const minute = Math.floor((yield* Clock.currentTimeMillis) / 60000)
-            const previous = yield* state.storage.get<{
-              minute: number
-              total: number
-              counts: Record<string, number>
-            }>("rates")
-            const budget =
-              previous?.minute === minute ? previous : { minute, total: 0, counts: {} }
-            const admit = (key: string) => {
-              if (
-                budget.total >= 600 ||
-                (budget.counts[key] ?? 0) >=
-                  (key === "issue" ? 5 : key === "request" ? 600 : 120) ||
-                (budget.counts[key] === undefined &&
-                  Object.keys(budget.counts).length >= 256)
-              ) {
-                return false
+        const response = yield* state
+          .blockConcurrencyWhile(() =>
+            Effect.gen(function* () {
+              const minute = Math.floor((yield* Clock.currentTimeMillis) / 60000)
+              const previous = yield* state.storage.get<{
+                minute: number
+                total: number
+                counts: Record<string, number>
+              }>("rates")
+              const budget =
+                previous?.minute === minute ? previous : { minute, total: 0, counts: {} }
+              const admit = (key: string) => {
+                if (
+                  budget.total >= 600 ||
+                  (budget.counts[key] ?? 0) >=
+                    (key === "issue" ? 5 : key === "request" ? 600 : 120) ||
+                  (budget.counts[key] === undefined &&
+                    Object.keys(budget.counts).length >= 256)
+                ) {
+                  return false
+                }
+                budget.total++
+                budget.counts[key] = (budget.counts[key] ?? 0) + 1
+                return true
               }
-              budget.total++
-              budget.counts[key] = (budget.counts[key] ?? 0) + 1
-              return true
-            }
-            if (!admit("request")) {
-              yield* state.storage.put("rates", budget)
-              return Http.response({ code: "limit-reached" }, 429)
-            }
-            const originConfig = {
-              configuredOrigin: env.ORIGIN,
-              localPreview: env.LOCAL_PREVIEW === "true"
-            }
-            const policy = OriginPolicy.make(originConfig)
-            if (policy.resolve(new URL(request.url).origin) === undefined) {
-              yield* state.storage.put("rates", budget)
-              return Http.response({ code: "invalid-request" }, 400)
-            }
-            if (
-              !new URL(request.url).pathname.startsWith("/api/demo") &&
-              env.LOCAL_PRIVATE !== "true"
-            ) {
-              return Http.response({ code: "not-found" }, 404)
-            }
-            const operation = new URL(request.url).pathname.startsWith("/api/demo")
-              ? DemoHttp.handle(request, env)
-              : new URL(request.url).pathname === "/api/changes"
-                ? Effect.gen(function* () {
-                    const app = yield* Application
-                    return yield* Upgrade.upgrade(request, policy, env.LIVE, (req) =>
-                      Http.authenticate(req, originConfig).pipe(
-                        Effect.provideService(Application, app),
-                        Effect.map((access) => access.sandbox)
+              if (!admit("request")) {
+                yield* state.storage.put("rates", budget)
+                return Http.response({ code: "limit-reached" }, 429)
+              }
+              const originConfig = {
+                configuredOrigin: env.ORIGIN,
+                localPreview: env.LOCAL_PREVIEW === "true"
+              }
+              const policy = OriginPolicy.make(originConfig)
+              if (policy.resolve(new URL(request.url).origin) === undefined) {
+                yield* state.storage.put("rates", budget)
+                return Http.response({ code: "invalid-request" }, 400)
+              }
+              if (
+                !new URL(request.url).pathname.startsWith("/api/demo") &&
+                env.LOCAL_PRIVATE !== "true"
+              ) {
+                return Http.response({ code: "not-found" }, 404)
+              }
+              const operation = new URL(request.url).pathname.startsWith("/api/demo")
+                ? DemoHttp.handle(request, env)
+                : new URL(request.url).pathname === "/api/changes"
+                  ? Effect.gen(function* () {
+                      const app = yield* Application
+                      return yield* Upgrade.upgrade(request, policy, env.LIVE, (req) =>
+                        Http.authenticate(req, originConfig).pipe(
+                          Effect.provideService(Application, app),
+                          Effect.map((access) => access.sandbox)
+                        )
                       )
-                    )
-                  })
-                : Http.handle(request, env.ORIGIN, admit, originConfig.localPreview)
-            const response = yield* safe(
-              Event.run(
-                Configuration.database(env),
-                kick,
-                operation.pipe(Effect.provide(PostCommit.layer(env.LIVE)))
+                    })
+                  : Http.handle(request, env.ORIGIN, admit, originConfig.localPreview)
+              const response = yield* safe(
+                Event.run(
+                  Configuration.database(env),
+                  kick,
+                  operation.pipe(Effect.provide(PostCommit.layer(env.LIVE)))
+                )
               )
+              yield* state.storage.put("rates", budget)
+              return response
+            })
+          )
+          .pipe(
+            // A native input gate can hold timer events from another invocation.
+            // Keep Effect's bounded yields on microtasks while this gate is held;
+            // admission/rate state and per-call PG Scope stay serialized as before.
+            Effect.provideService(
+              Scheduler.Scheduler,
+              new Scheduler.MixedScheduler("sync")
             )
-            yield* state.storage.put("rates", budget)
-            return response
-          })
-        )
+          )
         return Upgrade.response(response)
       })
     })

@@ -50,7 +50,7 @@ try:
     source_paths = [*root.glob("apps/playground-worker/src/**/*.ts"), *cwd.glob("*.ts"), cwd / "tsconfig.json", pathlib.Path(__file__).resolve(), root / "bun.lock"]
     source_inputs = {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in source_paths}
     with (evidence / "application.log").open("w") as log:
-        test = "./Observation.test.ts" if "--observation" in sys.argv else "./Public.test.ts" if "--public" in sys.argv else "./Application.test.ts"
+        test = "./Concurrency.test.ts" if "--concurrency" in sys.argv else "./Observation.test.ts" if "--observation" in sys.argv else "./Public.test.ts" if "--public" in sys.argv else "./Application.test.ts"
         child = subprocess.Popen(["bun", "test", test], cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         try: code = child.wait(timeout=240)
         except subprocess.TimeoutExpired:
