@@ -1,5 +1,5 @@
 // This website snapshot predates the contract-first library. For snippet checks:
-// API_DESIGN_SOURCE_ROOT=/path/to/current/effect-jobs node tests/site/ApiDesign.mjs
+// API_DESIGN_SOURCE_ROOT=/path/to/current/effect-jobs node apps/website/tests/site/ApiDesign.ts
 // No provider calls or database mutations are executed.
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
@@ -48,10 +48,9 @@ import * as Job from "effect-jobs/Job"
 import * as Producer from "effect-jobs/JobProducer"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Policy from "effect-jobs/JobPolicy"
-import * as Retry from "effect-jobs/JobRetryPolicy"
 import * as FailureCode from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
-import type { Service } from "effect-jobs/PostgreSqlJobs"
+import type { Backend } from "effect-jobs/PostgreSqlJobs"
 const Codes = FailureCode.define({
   ProviderBusy: "provider_busy",
   InvalidRecipient: "invalid_recipient",
@@ -60,7 +59,7 @@ const Codes = FailureCode.define({
 })
 `
 const application = `
-declare const jobs: Service
+declare const jobs: Backend
 declare const saveOrder: Effect.Effect<void>
 declare const send: Effect.Effect<void,
   { readonly _tag: "ProviderBusy" } | { readonly _tag: "InvalidRecipient" } |
@@ -71,13 +70,13 @@ const directory = mkdtempSync("/tmp/opencode/jobs-api-design-")
 try {
   writeFileSync(join(directory, "package.json"), '{"type":"module"}\n')
   const program = `${imports}\n${application}\nEffect.gen(function* () {\n${snippets.join("\n\n")}\n
-    // Fixed routes cannot be overridden; selectable routes require a choice.
+    // Queues are fixed; definitions without defaults require a complete policy.
     // @ts-expect-error Fixed routing forbids any queue property.
-    yield* PlaceOrder.enqueue({ ...request, queue: MailQueue.name })
-    // @ts-expect-error A closed routing choice must be explicit.
-    yield* RoutedOrder.enqueue(request)
+    yield* PlaceOrder.enqueue("confirmation", { ...request, queue: MailQueue.name })
+    // @ts-expect-error This definition has no default policy.
+    yield* RoutedOrder.enqueue("confirmation", request)
     // @ts-expect-error An undeclared slot cannot borrow a valid payload.
-    yield* PlaceOrder.enqueue({ ...request, slot: "missing" })
+    yield* PlaceOrder.enqueue("missing", request)
   })\n`
   writeFileSync(join(directory, "Snippets.ts"), program)
   writeFileSync(
@@ -114,7 +113,7 @@ try {
     { stdio: "inherit" }
   )
   console.log(
-    "PASS: all seven displayed fragments and three negative routing/slot controls typecheck"
+    "PASS: all seven displayed fragments and three negative queue/policy/slot controls typecheck"
   )
 } finally {
   rmSync(directory, { recursive: true, force: true })

@@ -30,14 +30,14 @@
   {
     "legacy": "apps/website/tests/docs-reference/Qualify.mjs",
     "replacement": "apps/website/tests/docs-reference/Qualify.ts",
-    "disposition": "temporary shared-registrar compatibility CLI",
+    "disposition": "removed; typed registrar replacement",
     "baselineSha256": "f1548b0da582f6cf5d20976d7f7f957c977b34064c90407be00053e47a0488cc",
     "baselineAssertionCalls": 7
   },
   {
     "legacy": "apps/website/tests/docs-reference/Reference.mjs",
     "replacement": "apps/website/tests/docs-reference/Reference.ts",
-    "disposition": "temporary shared-registrar compatibility CLI",
+    "disposition": "removed; typed registrar replacement",
     "baselineSha256": "f192ba9e64b33361c15081d3ea1405ee4f08b64045aad26fc77694e01d9502f3",
     "baselineAssertionCalls": 0
   },
@@ -51,7 +51,7 @@
   {
     "legacy": "apps/website/tests/docs-reference/Snippets.mjs",
     "replacement": "apps/website/tests/docs-reference/Snippets.ts",
-    "disposition": "temporary shared-registrar compatibility CLI",
+    "disposition": "removed; typed registrar replacement",
     "baselineSha256": "0b998bd6af11cc5cc068c17454c1da344f542a5e08a35ac941314a224455f8ff",
     "baselineAssertionCalls": 0
   },
@@ -86,7 +86,7 @@
   {
     "legacy": "apps/website/tests/order-tutorial/Qualify.mjs",
     "replacement": "apps/website/tests/order-tutorial/Qualify.ts",
-    "disposition": "temporary shared-registrar compatibility CLI",
+    "disposition": "removed; typed registrar replacement",
     "baselineSha256": "3fffc87c404a2aaf362796551c6097bafcf3be077bc601536aaea9722b2cacb1",
     "baselineAssertionCalls": 7
   },
@@ -100,14 +100,14 @@
   {
     "legacy": "apps/website/tests/site/Browser.mjs",
     "replacement": "apps/website/tests/site/Browser.ts",
-    "disposition": "temporary shared-registrar compatibility CLI",
+    "disposition": "removed; typed registrar replacement",
     "baselineSha256": "a949596c5321660715229b9ecb4c827f559ff784058cc3d95614273d7f9edb94",
     "baselineAssertionCalls": 57
   },
   {
     "legacy": "apps/website/tests/site/Foundation.mjs",
     "replacement": "apps/website/tests/modernization/Extraction.unit.ts",
-    "disposition": "temporary shared-registrar compatibility CLI",
+    "disposition": "removed; typed registrar replacement",
     "baselineSha256": "d81cff1098dc3bf9a056a1889f1c1eb38c94a3bc46c054417c9c6ee22e39ff44",
     "baselineAssertionCalls": 30
   },
@@ -121,7 +121,7 @@
   {
     "legacy": "apps/website/tests/site/Routes.mjs",
     "replacement": "apps/website/tests/site/Routes.ts",
-    "disposition": "temporary shared-registrar compatibility CLI",
+    "disposition": "removed; typed registrar replacement",
     "baselineSha256": "bc773f5c2a47edd6e2d9f6dcddd6d381cae4a31e71318f6fe472e620919e8321",
     "baselineAssertionCalls": 6
   },
@@ -177,7 +177,7 @@
   {
     "legacy": "apps/website/tests/ui/Field.test.mjs",
     "replacement": "apps/website/tests/modernization/Field.browser.tsx",
-    "disposition": "temporary shared-registrar compatibility CLI",
+    "disposition": "removed; typed registrar replacement",
     "baselineSha256": "0c149191d461563ea012936ceab7e69a837ec08e177fa2cf12e43fd6ffcb19c7",
     "baselineAssertionCalls": 0
   },
@@ -212,14 +212,14 @@
   {
     "legacy": "apps/website/tests/ui/Primitives.mjs",
     "replacement": "apps/website/tests/ui/Primitives.ts",
-    "disposition": "temporary shared-registrar compatibility CLI",
+    "disposition": "removed; typed registrar replacement",
     "baselineSha256": "4d67dbb3bb1e7d7e14c871e59e54e6e826252c8b620b158b67b481e77589136c",
     "baselineAssertionCalls": 0
   },
   {
     "legacy": "apps/website/tests/ui/Production.mjs",
     "replacement": "apps/website/tests/ui/Production.ts",
-    "disposition": "temporary shared-registrar compatibility CLI",
+    "disposition": "removed; typed registrar replacement",
     "baselineSha256": "bba019595f4e8129922381e1d29da8e7f6cbcd468e11209bd344cb04474c691b",
     "baselineAssertionCalls": 5
   },
@@ -261,7 +261,7 @@
   {
     "legacy": "apps/website/tests/ui/Theme.test.mjs",
     "replacement": "apps/website/tests/modernization/Theme.unit.ts",
-    "disposition": "temporary shared-registrar compatibility CLI",
+    "disposition": "removed; typed registrar replacement",
     "baselineSha256": "915aaf46fb4042043a8537229c4bfa506ee98ab0184a75e77c98a42d151a1aac",
     "baselineAssertionCalls": 4
   },

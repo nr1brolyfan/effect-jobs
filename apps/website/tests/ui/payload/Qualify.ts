@@ -128,7 +128,7 @@ const commands: Array<readonly [string, readonly [string, ...string[]], string]>
   ["diff-check", ["git", "diff", "--check"], "working diff"],
   [
     "browser",
-    ["bun", "apps/website/tests/ui/payload/Browser.mjs"],
+    ["bun", "apps/website/tests/ui/payload/Browser.ts"],
     "isolated compiled real component; no PG/workerd/recorded fixture seed"
   ]
 ]

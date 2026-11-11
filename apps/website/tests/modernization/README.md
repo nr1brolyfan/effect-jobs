@@ -47,10 +47,10 @@ part of the proof.
 ## Legacy migration and oracle map
 
 `LegacyMigration.json` enumerates all 47 original entrypoints, their baseline
-hashes and authored replacements. Thirty-six old files are removed after moving
-their useful assertions; eleven compatibility CLIs remain solely for existing
-root/app manifest and CI invocations owned by foundation. Local/React worker
-compatibility CLIs additionally preserve excluded worker registrars. A filename
+hashes and authored replacements. All 47 old files are removed after moving their useful assertions and
+replacing shared registrar invocations with typed entrypoints. The two Local/React
+worker delegates and unused website helper are also removed. DemoUnlock retains
+its independent historical baselineRoot reference. A filename
 change alone does not qualify a migration: strict authored types, canonical
 builds and runtime/negative controls remain separate gates.
 
@@ -100,13 +100,13 @@ smoke. It must never describe the full strict gate as PASS.
 ## Source-owner dependencies
 
 Guide consumers now use canonical built assets and the /docs/jobs alias.
-The site source owner removes the obsolete Jobs.html source after verifying the
-zero-code-consumer inventory; tests do not delete that source. Shared manifests,
-locks, scripts, CI and registrars remain with foundation. Compatibility CLI
-replacements are explicit handoff requests, not test-owner configuration edits.
+The site source owner removed obsolete Jobs.html after verifying the
+zero-code-consumer inventory. Shared manifests,
+locks, scripts, CI and registrars remain with foundation. Foundation delivered typed registrar replacements before delegate removal.
+Its temporary website **/*.mjs exclusion remains foundation-owned.
 
-The historical API-design page is compiled against current source with its
-original negative callers. Obsolete APIs or unused expect-error directives are
+The API-design page compiles all seven snippets against current source, with
+negative callers for queue overrides, missing policy and undeclared slots. Obsolete APIs or unused expect-error directives are
 real failures requiring the page/scaffold owner to reconcile the contract;
 qualification must not accept those errors as a new exception.
 
