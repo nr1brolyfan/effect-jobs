@@ -54,6 +54,18 @@ try {
     await sql(migration.sql)
   }
   cfg.connectionString = `postgres://${cfg.user}:${cfg.password}@127.0.0.1:${cfg.port}/${cfg.database}`
+  const quotaSchema = `${schema}_quota`
+  await sql(`CREATE SCHEMA "${quotaSchema}"`)
+  for (const migration of migrations(quotaSchema)) {
+    await sql(migration.sql)
+  }
+  const { qualify } = await import(`${evidence}/QuotaProbe.mjs`)
+  report.observations.nonlocalQuota = await Effect.runPromise(
+    qualify({ ...cfg, schema: quotaSchema })
+  )
+  check(
+    "production nonlocal cap100 refusal / exact persistence / unknown receipt no replay"
+  )
   local = await createLocal(cfg, { instrument: true, localPrivate: true })
   mf = local.mf
   const cookieNames = Cookies.names(local.origin, true)
@@ -529,13 +541,75 @@ try {
     "bounded backlog not completed",
     25000
   )
-  const quota = await post("/api/scenarios", a.cookie, a.token, {
+  const boundarySnapshot = async () =>
+    (
+      await sql(
+        `SELECT retained_jobs::int AS retained,
+          (SELECT count(*)::int FROM "${schema}".associations WHERE sandbox_id=$1) AS jobs,
+          (SELECT count(*)::int FROM "${schema}".command_receipts WHERE sandbox_id=$1) AS receipts,
+          (SELECT count(*)::int FROM "${schema}".command_admission WHERE sandbox_id=$1) AS admissions
+          FROM "${schema}".sandboxes WHERE sandbox_id=$1`,
+        [a.sandbox.ref.sandboxId]
+      )
+    )[0]
+  const beforeBoundary = await boundarySnapshot()
+  assert.equal(beforeBoundary.retained, 100)
+  assert.equal(beforeBoundary.jobs, 100)
+  const aboveBoundaryCommand = {
     sandbox: a.sandbox.ref,
-    requestId: "quota-full",
+    requestId: "local-private-above100",
     scenario: "success",
     count: 1
+  }
+  const admitted = await post("/api/scenarios", a.cookie, a.token, aboveBoundaryCommand)
+  assert.equal(admitted.status, 200)
+  const aboveBoundary = await admitted.json()
+  assert.equal(aboveBoundary._tag, "Committed")
+  assert.equal(aboveBoundary.requestId, aboveBoundaryCommand.requestId)
+  assert.deepEqual(aboveBoundary.sandbox, a.sandbox.ref)
+  assert.equal(aboveBoundary.jobIds.length, 1)
+  assert(!larger.includes(aboveBoundary.jobIds[0]))
+  const afterBoundary = await boundarySnapshot()
+  assert.deepEqual(afterBoundary, {
+    retained: 101,
+    jobs: 101,
+    receipts: beforeBoundary.receipts + 1,
+    admissions: beforeBoundary.admissions + 1
   })
-  assert.equal(quota.status, 429)
+  const exactReceipt = await post("/api/scenarios/receipt", a.cookie, a.token, {
+    sandbox: a.sandbox.ref,
+    requestId: aboveBoundaryCommand.requestId
+  })
+  assert.equal(exactReceipt.status, 200)
+  assert.deepEqual(await exactReceipt.json(), aboveBoundary)
+  const replayBoundary = await post(
+    "/api/scenarios",
+    a.cookie,
+    a.token,
+    aboveBoundaryCommand
+  )
+  assert.equal(replayBoundary.status, 200)
+  assert.deepEqual(await replayBoundary.json(), aboveBoundary)
+  assert.deepEqual(await boundarySnapshot(), afterBoundary)
+  const [storedBoundary] = await sql(
+    `SELECT r.receipt,j.id,p.job_id FROM "${schema}".command_receipts r
+      JOIN "${schema}".associations a USING(sandbox_id,generation)
+      JOIN "${schema}".jobs j ON j.id=a.job_id
+      JOIN "${schema}".job_payloads p ON p.job_id=j.id
+      WHERE r.sandbox_id=$1 AND r.request_id=$2 AND j.id=$3`,
+    [a.sandbox.ref.sandboxId, aboveBoundaryCommand.requestId, aboveBoundary.jobIds[0]]
+  )
+  assert.deepEqual(storedBoundary.receipt.command, aboveBoundaryCommand)
+  assert.deepEqual(storedBoundary.receipt.result, aboveBoundary)
+  assert.equal(storedBoundary.id, aboveBoundary.jobIds[0])
+  assert.equal(storedBoundary.job_id, aboveBoundary.jobIds[0])
+  await until(
+    async () =>
+      (
+        await sql(`SELECT state FROM "${schema}".jobs WHERE id=$1`, aboveBoundary.jobIds)
+      )[0].state === "Completed",
+    "local-private job above100 not completed"
+  )
   const afterCost = (
     await sql(
       "SELECT sum(calls)::bigint AS calls, sum(total_exec_time)::float8 AS millis FROM pg_stat_statements WHERE dbid=(SELECT oid FROM pg_database WHERE datname=current_database())"
@@ -544,7 +618,12 @@ try {
   const afterQueues = await (await dispatch("/_integration/queues")).json()
   report.observations.backlog = {
     inserted: larger.length,
-    retainedQuota: 100,
+    workloadSize: 100,
+    localPrivateBoundary: {
+      before: beforeBoundary,
+      after: afterBoundary,
+      jobIds: aboveBoundary.jobIds
+    },
     queryCalls: Number(afterCost.calls) - Number(beforeCost.calls),
     queryMillis: afterCost.millis - beforeCost.millis,
     queueAlarmCallbacks: afterQueues.map((q, i) => q.calls - beforeQueues[i].calls),
@@ -578,7 +657,7 @@ try {
     )
   }
   check(
-    "bounded larger backlog / multiple sandboxes / retained quota / filters / measured PG and DO costs"
+    "bounded100 workload / local-private admission above100 / exact receipt and atomic increment / filters / measured PG and DO costs"
   )
   // One authorized viewer keeps all four shared queues alive; zero viewers retires all.
   await sql(`UPDATE "${schema}".sandboxes SET viewer_until=1`)

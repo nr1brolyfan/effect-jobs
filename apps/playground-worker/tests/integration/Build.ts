@@ -61,7 +61,7 @@ run("migration-bundle", [
   "--external:effect-jobs/*",
   `--outfile=${evidence}/Migrations.mjs`
 ])
-for (const name of ["OperatorProbe", "NativeDrizzleOperators"]) {
+for (const name of ["OperatorProbe", "NativeDrizzleOperators", "QuotaProbe"]) {
   run(`${name}-bundle`, [
     "node_modules/.bin/esbuild",
     `apps/playground-worker/tests/integration/${name}.ts`,
@@ -113,6 +113,7 @@ const receipt = {
   operatorProbeSha256: hash(`${evidence}/OperatorProbe.mjs`),
   nativeDrizzleOperatorsSha256: hash(`${evidence}/NativeDrizzleOperators.mjs`),
   fixtureSha256: hash(`${evidence}/Admit.mjs`),
+  quotaProbeSha256: hash(`${evidence}/QuotaProbe.mjs`),
   migrationSha256: hash(`${evidence}/Migrations.mjs`),
   nativeHostRuntime: execFileSync(
     "node",
