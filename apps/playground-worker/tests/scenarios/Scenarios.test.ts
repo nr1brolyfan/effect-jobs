@@ -1,3 +1,4 @@
+import { definitions, runPromiseExit, runPromise } from "./Setup.js"
 import { Cause, Effect, Exit, Layer, Result, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Codec from "effect-jobs/JobPayloadCodec"
@@ -62,7 +63,7 @@ describe("deterministic application planning", () => {
   ] as const)(
     "maps frozen command %s to reproducible %s outcomes",
     async (scenario, expected) => {
-      const planned = await Effect.runPromise(
+      const planned = await runPromise(
         Plan.plan({ ...command, scenario }, sandbox.ref, 123)
       )
       expect(
@@ -74,38 +75,34 @@ describe("deterministic application planning", () => {
     }
   )
   it("keeps internal traffic producer identities separate from matching manual request IDs", async () => {
-    const manual = await Effect.runPromise(Plan.plan(command, sandbox.ref, 0))
-    const internal = await Effect.runPromise(
+    const manual = await runPromise(Plan.plan(command, sandbox.ref, 0))
+    const internal = await runPromise(
       Plan.plan(command, sandbox.ref, 0, undefined, "private-traffic-v1")
     )
     expect(internal[0]!.producer.operationId).not.toBe(manual[0]!.producer.operationId)
     expect(internal[0]!.payload).toEqual(manual[0]!.payload)
   })
   it("replays a seed/version/request and spans six kinds, four queues and six slots", async () => {
-    const first = await Effect.runPromise(jobs())
-    expect(await Effect.runPromise(jobs())).toEqual(first)
+    const first = await runPromise(jobs())
+    expect(await runPromise(jobs())).toEqual(first)
     expect(first.map((job) => job.workload)).toEqual(Definitions.Workload.literals)
     expect(
-      new Set(Definitions.definitions.map((definition) => definition.queue.name)).size
+      new Set(definitions.definitions.map((definition) => definition.queue.name)).size
     ).toBe(4)
     expect(new Set(first.map((job) => job.producer.slot)).size).toBe(6)
-    expect(
-      (await Effect.runPromise(Plan.plan(command, sandbox.ref, 1)))[0]?.workload
-    ).toBe("image-processing")
-    const batch = await Effect.runPromise(
-      Plan.plan({ ...command, count: 10 }, sandbox.ref, 0)
+    expect((await runPromise(Plan.plan(command, sandbox.ref, 1)))[0]?.workload).toBe(
+      "image-processing"
     )
+    const batch = await runPromise(Plan.plan({ ...command, count: 10 }, sandbox.ref, 0))
     expect(new Set(batch.map((job) => JSON.stringify(job.producer))).size).toBe(10)
   })
 
   it("namespaces sandbox/generation/request without arbitrary caller producer IDs", async () => {
-    const first = await Effect.runPromise(jobs())
+    const first = await runPromise(jobs())
     const nextRef = { ...sandbox.ref, generation: 2 }
-    const next = await Effect.runPromise(
-      Plan.plan({ ...command, sandbox: nextRef }, nextRef, 0)
-    )
+    const next = await runPromise(Plan.plan({ ...command, sandbox: nextRef }, nextRef, 0))
     expect(next[0]?.producer).not.toEqual(first[0]?.producer)
-    const other = await Effect.runPromise(
+    const other = await runPromise(
       Plan.plan({ ...command, requestId: "other" }, sandbox.ref, 0)
     )
     expect(other[0]?.producer).not.toEqual(first[0]?.producer)
@@ -115,7 +112,7 @@ describe("deterministic application planning", () => {
       { ...command, sandbox: nextRef }
     ]) {
       expect(
-        await Effect.runPromise(Effect.flip(Plan.plan(input, sandbox.ref, 0)))
+        await runPromise(Effect.flip(Plan.plan(input, sandbox.ref, 0)))
       ).toBeInstanceOf(Plan.InvalidScenario)
     }
   })
@@ -156,7 +153,7 @@ describe("fake provider ledger", () => {
   it.each(Definitions.Workload.literals)(
     "idempotently accepts %s without real provider calls",
     async (workload) => {
-      await Effect.runPromise(
+      await runPromise(
         Effect.gen(function* () {
           const provider = yield* FakeProvider
           const job = (yield* jobs())[0]!
@@ -187,7 +184,7 @@ describe("fake provider ledger", () => {
   )
 
   it("confirms rejection before retry and records acceptance before response loss/recovery", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const provider = yield* FakeProvider
         const job = (yield* jobs())[0]!
@@ -205,7 +202,7 @@ describe("fake provider ledger", () => {
         const lost = {
           ...input,
           producer: Effect.runSync(
-            Definitions.Producer.identity({
+            definitions.Producer.identity({
               slot: input.producer.slot,
               operationId: "lost"
             })
@@ -236,14 +233,14 @@ describe("fake provider ledger", () => {
   })
 
   it("runs independent identities concurrently, caps storage, and rejects overflow before effects", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const provider = yield* FakeProvider
         const job = (yield* jobs())[0]!
         const inputs = Array.from({ length: 100 }, (_, index) => ({
           sandbox: job.payload.sandbox,
           producer: Effect.runSync(
-            Definitions.Producer.identity({
+            definitions.Producer.identity({
               slot: job.producer.slot,
               operationId: `independent-${index}`
             })
@@ -257,7 +254,7 @@ describe("fake provider ledger", () => {
         const overflow = {
           ...inputs[0]!,
           producer: Effect.runSync(
-            Definitions.Producer.identity({
+            definitions.Producer.identity({
               slot: job.producer.slot,
               operationId: "overflow"
             })
@@ -285,19 +282,19 @@ describe("encrypted consumer payload and installed handlers", () => {
           inspect: () => Effect.succeed(undefined)
         })
       )
-      const payload = (await Effect.runPromise(jobs()))[0]!.payload
+      const payload = (await runPromise(jobs()))[0]!.payload
       const producer = Effect.runSync(
-        Definitions.Producer.identity({
+        definitions.Producer.identity({
           operationId: "mixed",
           slot: "welcome-email"
         })
       )
-      const result = await Effect.runPromiseExit(
+      const result = await runPromiseExit(
         Handlers.execute("welcome-email")({
           payload,
           context: {
             jobId,
-            catalog: Definitions.WelcomeEmail.catalog,
+            catalog: definitions.WelcomeEmail.catalog,
             producer,
             attemptNumber: 1
           }
@@ -313,25 +310,25 @@ describe("encrypted consumer payload and installed handlers", () => {
     }
   )
   it("rejects a private document under fresh keys and mismatched tenant before provider acceptance", async () => {
-    const payload = await Effect.runPromise(
+    const payload = await runPromise(
       Effect.map(jobs(), (planned) => Plan.exportPayload(planned[3]!.payload))
     )
-    const artifact = await Effect.runPromise(
-      Codec.encodeJobPayload(Definitions.ExportPayload, payload).pipe(
+    const artifact = await runPromise(
+      Codec.encodeJobPayload(definitions.ExportPayload, payload).pipe(
         Effect.provide(PrivateDocument.keysLayer)
       )
     )
-    const failure = await Effect.runPromise(
-      Effect.flip(Codec.decodeJobPayload(Definitions.ExportPayload, artifact)).pipe(
+    const failure = await runPromise(
+      Effect.flip(Codec.decodeJobPayload(definitions.ExportPayload, artifact)).pipe(
         Effect.provide(PrivateDocument.keysLayer)
       )
     )
     expect(failure._tag).toBe("JobPayloadCodecError")
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const provider = yield* FakeProvider
         const producer = Effect.runSync(
-          Definitions.Producer.identity({
+          definitions.Producer.identity({
             operationId: "wrong-tenant",
             slot: "private-data-export"
           })
@@ -341,7 +338,7 @@ describe("encrypted consumer payload and installed handlers", () => {
             payload: { ...payload, tenant: "demo-tenant-a" },
             context: {
               jobId,
-              catalog: Definitions.PrivateDataExport.catalog,
+              catalog: definitions.PrivateDataExport.catalog,
               producer,
               attemptNumber: 1
             }
@@ -363,17 +360,17 @@ describe("encrypted consumer payload and installed handlers", () => {
         PrivateDocument.keysLayer,
         Registry.layer
       )
-      await Effect.runPromise(
+      await runPromise(
         Effect.gen(function* () {
           const registry = yield* Registry.JobRegistry
           const provider = yield* FakeProvider
           const job = (yield* jobs())[0]!
           const payload = { ...job.payload, behavior }
           const encoded = yield* Codec.encodeJobPayload(Definitions.Payload, payload)
-          const handler = registry.find(Definitions.WelcomeEmail.catalog)!
+          const handler = registry.find(definitions.WelcomeEmail.catalog)!
           const context = {
             jobId,
-            catalog: Definitions.WelcomeEmail.catalog,
+            catalog: definitions.WelcomeEmail.catalog,
             producer: job.producer,
             attemptNumber: 1
           }
@@ -425,11 +422,11 @@ describe("encrypted consumer payload and installed handlers", () => {
   )
 
   it("encrypts typed private data with stable semantic equality and detects tampering", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const payload = Plan.exportPayload((yield* jobs())[3]!.payload)
-        const one = yield* Codec.encodeJobPayload(Definitions.ExportPayload, payload)
-        const two = yield* Codec.encodeJobPayload(Definitions.ExportPayload, payload)
+        const one = yield* Codec.encodeJobPayload(definitions.ExportPayload, payload)
+        const two = yield* Codec.encodeJobPayload(definitions.ExportPayload, payload)
         expect(one.payloadBytes).not.toEqual(two.payloadBytes)
         expect(one.semanticProjectionBytes).toEqual(two.semanticProjectionBytes)
         expect(new TextDecoder().decode(one.payloadBytes)).not.toContain(
@@ -438,10 +435,10 @@ describe("encrypted consumer payload and installed handlers", () => {
         expect(new TextDecoder().decode(one.semanticProjectionBytes)).not.toContain(
           payload.document.note
         )
-        expect(yield* Codec.decodeJobPayload(Definitions.ExportPayload, one)).toEqual(
+        expect(yield* Codec.decodeJobPayload(definitions.ExportPayload, one)).toEqual(
           payload
         )
-        const changed = yield* Codec.encodeJobPayload(Definitions.ExportPayload, {
+        const changed = yield* Codec.encodeJobPayload(definitions.ExportPayload, {
           ...payload,
           document: { ...payload.document, note: "changed synthetic document" }
         })
@@ -453,7 +450,7 @@ describe("encrypted consumer payload and installed handlers", () => {
           payloadBytes: new TextEncoder().encode(JSON.stringify(wire))
         }
         const failure = yield* Effect.flip(
-          Codec.decodeJobPayload(Definitions.ExportPayload, tampered)
+          Codec.decodeJobPayload(definitions.ExportPayload, tampered)
         )
         expect(failure._tag).toBe("JobPayloadCodecError")
         expect(JSON.stringify(failure)).not.toContain(payload.document.note)
@@ -494,7 +491,7 @@ describe("encrypted consumer payload and installed handlers", () => {
           )
       })
     )
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const planned = (yield* jobs())[3]!
         expect((yield* Plan.enqueue(planned))._tag).toBe("Inserted")
@@ -508,10 +505,10 @@ describe("encrypted consumer payload and installed handlers", () => {
           ))._tag
         ).toBe("JobIntegrityConflict")
         const prepared = [...stored.values()][0]!
-        expect(prepared.catalog).toEqual(Definitions.SyntheticDocumentExport.catalog)
+        expect(prepared.catalog).toEqual(definitions.SyntheticDocumentExport.catalog)
         expect(
           yield* Codec.decodeJobPayload(
-            Definitions.SyntheticExportPayload,
+            definitions.SyntheticExportPayload,
             prepared.encoded
           )
         ).toEqual(Plan.exportPayload(planned.payload))
@@ -528,16 +525,16 @@ describe("encrypted consumer payload and installed handlers", () => {
       Registry.layer
     )
     const installed = Handlers.layerNoDeps.pipe(Layer.provideMerge(dependencies))
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const registry = yield* Registry.JobRegistry
         const planned = yield* jobs()
-        for (let index = 0; index < Definitions.definitions.length; index++) {
-          const definition = Definitions.definitions[index]!
+        for (let index = 0; index < definitions.definitions.length; index++) {
+          const definition = definitions.definitions[index]!
           const job = planned[index % planned.length]!
           const encoded =
-            definition === Definitions.SyntheticDocumentExport
-              ? yield* Codec.encodeJobPayload(Definitions.SyntheticExportPayload, {
+            definition === definitions.SyntheticDocumentExport
+              ? yield* Codec.encodeJobPayload(definitions.SyntheticExportPayload, {
                   ...job.payload,
                   document: {
                     subject: job.payload.actor,
@@ -545,9 +542,9 @@ describe("encrypted consumer payload and installed handlers", () => {
                     note: "Synthetic fixture"
                   }
                 })
-              : definition === Definitions.PrivateDataExport
+              : definition === definitions.PrivateDataExport
                 ? yield* Codec.encodeJobPayload(
-                    Definitions.ExportPayload,
+                    definitions.ExportPayload,
                     Plan.exportPayload(job.payload)
                   )
                 : yield* Codec.encodeJobPayload(Definitions.Payload, job.payload)
@@ -555,9 +552,9 @@ describe("encrypted consumer payload and installed handlers", () => {
             jobId,
             catalog: definition.catalog,
             producer:
-              definition === Definitions.SyntheticDocumentExport
+              definition === definitions.SyntheticDocumentExport
                 ? Effect.runSync(
-                    Definitions.Producer.identity({
+                    definitions.Producer.identity({
                       slot: job.producer.slot,
                       operationId: "synthetic-document-fixture"
                     })
@@ -576,11 +573,11 @@ describe("encrypted consumer payload and installed handlers", () => {
             behavior
           })
           const failure = yield* Effect.flip(
-            registry.find(Definitions.WelcomeEmail.catalog)!.execute(encoded, {
+            registry.find(definitions.WelcomeEmail.catalog)!.execute(encoded, {
               jobId,
-              catalog: Definitions.WelcomeEmail.catalog,
+              catalog: definitions.WelcomeEmail.catalog,
               producer: Effect.runSync(
-                Definitions.Producer.identity({
+                definitions.Producer.identity({
                   slot: job.producer.slot,
                   operationId: behavior
                 })

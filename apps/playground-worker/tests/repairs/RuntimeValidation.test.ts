@@ -64,24 +64,21 @@ describe("private document validation composes outside the crypto adapter", () =
   it("roundtrips and rejects a mismatched fingerprint without defects", async () => {
     await Effect.runPromise(
       Effect.gen(function* () {
+        const encryptedDocument = yield* Documents.EncryptedDocument
         const document = {
           subject: "demo-customer" as const,
           tenant: "demo-tenant-a" as const,
           note: "Synthetic example"
         }
-        const sealed = yield* Schema.encodeEffect(Documents.EncryptedDocument)(document)
-        expect(yield* Schema.decodeEffect(Documents.EncryptedDocument)(sealed)).toEqual(
-          document
-        )
+        const sealed = yield* Schema.encodeEffect(encryptedDocument)(document)
+        expect(yield* Schema.decodeEffect(encryptedDocument)(sealed)).toEqual(document)
         const mismatch = {
           ...sealed,
           fingerprint:
             sealed.fingerprint === "0".repeat(64) ? "1".repeat(64) : "0".repeat(64)
         }
         for (const input of [mismatch, { ...sealed, ciphertext: [0] }]) {
-          const exit = yield* Effect.exit(
-            Schema.decodeEffect(Documents.EncryptedDocument)(input)
-          )
+          const exit = yield* Effect.exit(Schema.decodeEffect(encryptedDocument)(input))
           expect(Exit.isFailure(exit)).toBe(true)
           if (Exit.isFailure(exit)) {
             expect(exit.cause.reasons.map((reason) => reason._tag)).toEqual(["Fail"])
@@ -97,6 +94,7 @@ describe("private document validation composes outside the crypto adapter", () =
     async (kind) => {
       await Effect.runPromise(
         Effect.gen(function* () {
+          const encryptedDocument = yield* Documents.EncryptedDocument
           const keys = yield* Documents.DocumentKeys
           const bytes = new TextEncoder().encode(
             kind === "invalid-json" ? "{" : JSON.stringify({ subject: "wrong" })
@@ -114,7 +112,7 @@ describe("private document validation composes outside the crypto adapter", () =
             )
           )
           const exit = yield* Effect.exit(
-            Schema.decodeEffect(Documents.EncryptedDocument)({
+            Schema.decodeEffect(encryptedDocument)({
               nonce: Array.from(nonce),
               ciphertext: Array.from(new Uint8Array(ciphertext)),
               fingerprint: "0".repeat(64)

@@ -5,6 +5,9 @@ import * as Codec from "../../../../playground-worker/src/server/read/CursorCode
 import * as Read from "../../../../playground-worker/src/server/read/PostgreSqlRead.js"
 import * as Fixture from "../../../../playground-worker/tests/repairs/Fixtures.js"
 
+import * as Definitions from "../../../../playground-worker/src/scenarios/Definitions.js"
+import { definitions } from "../../../../playground-worker/tests/scenarios/Setup.js"
+
 const access = {
   sandbox: {
     ref: Fixture.ref,
@@ -59,6 +62,7 @@ const make = async () => {
   ]
   const service = await Effect.runPromise(
     Read.make(mapping).pipe(
+      Effect.provideService(Definitions.Definitions, definitions),
       Effect.provideService(Codec.CursorCodec, codec),
       Effect.provideService(Read.ReadDatabase, {
         execute: (query) =>

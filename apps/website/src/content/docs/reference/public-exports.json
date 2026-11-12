@@ -8,13 +8,13 @@
   {
     "subpath": "effect-jobs/Job",
     "filename": "src/Job.ts",
-    "sha256": "2b59afacc943ba75a4fe35de617ff507aeba7811abc89aa1c4fd72c28840ec5e",
+    "sha256": "9d5b4a287d7cc0595ba38692191b3aaadbc551d2cf56f1f5d5c1483bd7121a4c",
     "symbols": [
       {
         "name": "InvalidJobDefinition",
         "kind": "value + type",
         "category": "errors",
-        "description": "Thrown synchronously for an invalid catalog identity or payload Schema."
+        "description": "Typed construction failure for invalid catalog identity, payload Schema or default policy."
       },
       {
         "name": "JobDefinition",
@@ -26,7 +26,7 @@
         "name": "make",
         "kind": "value",
         "category": "constructors",
-        "description": "Creates a frozen definition; throws InvalidJobDefinition for invalid declarations.\nOmitted version is exactly 1; the standard payload encoder is the default.\nAn explicit encoder overrides it. Enqueue requires the Schema's encoding\nservices; handler installation captures decoding and execution services."
+        "description": "Creates a frozen definition lazily; invalid declarations fail with InvalidJobDefinition.\nEach execution snapshots configuration and creates an independently owned definition.\nOmitted version is exactly 1; the standard payload encoder is the default.\nAn explicit encoder overrides it. Enqueue requires the Schema's encoding\nservices; handler installation captures decoding and execution services."
       }
     ]
   },
@@ -58,7 +58,7 @@
   {
     "subpath": "effect-jobs/JobProducer",
     "filename": "src/JobProducer.ts",
-    "sha256": "02d39df2c1320e3a0c944ba58557d1c0997b77960527ecc8ce40e5bf8d18bf5b",
+    "sha256": "b0466c437017bfa44d3a49ea782e919e0cd8712abd5cc812c4f780764b3a4f15",
     "symbols": [
       {
         "name": "BoundEnqueueInput",
@@ -82,14 +82,14 @@
         "name": "make",
         "kind": "value",
         "category": "constructors",
-        "description": "Declares nonempty slot bindings near the owning business operation.\nBound enqueue selects the contract and joins the existing transaction; it never\nbegins, commits or replays one. identity remains useful for lower-level calls."
+        "description": "Lazily validates and snapshots nonempty slot bindings near the owning business operation.\nEach execution creates fresh immutable configuration and reports JobDeclarationError in E.\nBound enqueue selects the contract and joins the existing transaction; it never\nbegins, commits or replays one. identity remains useful for lower-level calls."
       }
     ]
   },
   {
     "subpath": "effect-jobs/JobIdentity",
     "filename": "src/JobIdentity.ts",
-    "sha256": "536f90006b8898dec80464191efe3b12fab3f29a64e90681a0ab40468b0a649f",
+    "sha256": "0b1f8912183ac6298618ffc95e9adf0d21187dae2a3312438854f6cdb09225f8",
     "symbols": [
       {
         "name": "CatalogIdentity",
@@ -107,7 +107,7 @@
         "name": "JobDeclarationError",
         "kind": "value + type",
         "category": "errors",
-        "description": "Synchronous declaration failure with an actionable field/name constraint."
+        "description": "Declaration validation failure with an actionable field/name constraint."
       },
       {
         "name": "JobName",
@@ -167,7 +167,7 @@
         "name": "validateProducerDeclaration",
         "kind": "value",
         "category": "operations",
-        "description": "Validates operation and nonempty unique slots synchronously; throws\nJobDeclarationError. Called by JobProducer.make before returning configuration."
+        "description": "Validates operation and nonempty unique slots synchronously; throws\nJobDeclarationError. The lazy producer factory shares its pure classifier."
       }
     ]
   },
@@ -364,13 +364,13 @@
   {
     "subpath": "effect-jobs/JobPayload",
     "filename": "src/JobPayload.ts",
-    "sha256": "52d7f10eb19fc3dcd747a2275e0b02aa57bc4ffdb35411b581255afbb1213fcc",
+    "sha256": "fcedc58f13877a29da2729191a08131d9d9cee504cdbc30a3aeea46dab39634b",
     "symbols": [
       {
         "name": "encrypted",
         "kind": "value",
         "category": "schemas",
-        "description": "Bind a decoded domain Schema to an app-owned encrypted JSON envelope.\nDomain encoding/validation precedes seal; open precedes domain decoding/validation.\nMultiple independent fields, structs, arrays, optionals and unions are supported.\nEncrypted-within-encrypted and recursive domain schemas fail at construction.\nAll encrypted fields are opened before the handler; this is not selective access.\nMalformed envelopes/domain data follow the existing bounded artifact decode path.\nDefects and interruption are not converted to codec failures. No remote key retry\ncontract is added; configured keys must be validated before worker startup."
+        "description": "Bind a decoded domain Schema to an app-owned encrypted JSON envelope.\nDomain encoding/validation precedes seal; open precedes domain decoding/validation.\nMultiple independent fields, structs, arrays, optionals and unions are supported.\nSetup is lazy and fails with InvalidEncryptedSchema in the Effect error channel.\nEach execution snapshots schema, envelope and codec methods into a fresh Schema.\nEncrypted-within-encrypted and recursive domain schemas fail during setup.\nAll encrypted fields are opened before the handler; this is not selective access.\nMalformed envelopes/domain data follow the existing bounded artifact decode path.\nDefects and interruption are not converted to codec failures. No remote key retry\ncontract is added; configured keys must be validated before worker startup."
       },
       {
         "name": "EncryptionCodec",
@@ -708,7 +708,7 @@
   {
     "subpath": "effect-jobs/JobWorkerRuntime",
     "filename": "src/JobWorkerRuntime.ts",
-    "sha256": "34f0194fa4c29f889d9f95c09335e69ee12656e430b9b8a1f4d25a07b614cc64",
+    "sha256": "8d8274439962ae5d9a482a8179e64672f1272f46d01015faccac6f08a4405650",
     "symbols": [
       {
         "name": "drain",

@@ -11,13 +11,11 @@ import * as PollingJobWorker from "effect-jobs/PollingJobWorker"
 import { JobFailures } from "effect-jobs/JobFailure"
 import { Database, generatedReports } from "./DrizzleReportRequest.js"
 import {
-  GenerateReport,
   ReportHandlerLayer,
   ReportsQueue,
   type ReportPayload,
   ReportHandoff,
-  DeliverReport,
-  GeneratedReport,
+  ReportDefinitions,
   ReportPolicy,
   DeliveryHandlerLayer,
   ReportDelivery,
@@ -31,6 +29,7 @@ import * as NodeReportFiles from "./NodeReportFiles.js"
 // #region handoff
 export const recordGeneratedReport = (generatedJobId: string, payload: ReportPayload) =>
   Effect.gen(function* () {
+    const { GeneratedReport } = yield* ReportDefinitions
     const db = yield* Database
     const backend = yield* PostgreSqlJobs.PostgreSqlJobs
     yield* backend.withTransaction(() =>
@@ -67,12 +66,14 @@ export const recordGeneratedReport = (generatedJobId: string, payload: ReportPay
 const ReportHandoffLayer = Layer.effect(
   ReportHandoff,
   Effect.gen(function* () {
+    const definitions = yield* ReportDefinitions
     const client = yield* PgClient.PgClient
     const db = yield* Database
     const backend = yield* PostgreSqlJobs.PostgreSqlJobs
     return ReportHandoff.of({
       record: (jobId, payload) =>
         recordGeneratedReport(jobId, payload).pipe(
+          Effect.provideService(ReportDefinitions, definitions),
           Effect.provideService(PgClient.PgClient, client),
           Effect.provideService(Database, db),
           Effect.provideService(PostgreSqlJobs.PostgreSqlJobs, backend)
@@ -99,16 +100,20 @@ const localDeliveryLayer = (directory: string) =>
 
 // #region worker
 export const makeWorkerLayer = (backend: PostgreSqlJobs.Backend, directory: string) =>
-  JobWorker.layer(backend.store, {
-    catalog: [GenerateReport, DeliverReport],
-    operationResponseBudgetMillis: 100
-  }).pipe(
-    Layer.provide(ReportHandlerLayer),
-    Layer.provide(DeliveryHandlerLayer),
-    Layer.provide(ReportHandoffLayer),
-    Layer.provide(localDeliveryLayer(directory)),
-    Layer.provide(JobRegistry.layer),
-    Layer.provide(NodeReportFiles.layer(directory))
+  Layer.unwrap(
+    Effect.map(ReportDefinitions, (definitions) =>
+      JobWorker.layer(backend.store, {
+        catalog: [definitions.GenerateReport, definitions.DeliverReport],
+        operationResponseBudgetMillis: 100
+      }).pipe(
+        Layer.provide(ReportHandlerLayer),
+        Layer.provide(DeliveryHandlerLayer),
+        Layer.provide(ReportHandoffLayer),
+        Layer.provide(localDeliveryLayer(directory)),
+        Layer.provide(JobRegistry.layer),
+        Layer.provide(NodeReportFiles.layer(directory))
+      )
+    )
   )
 
 export const reportConsumer = JobConsumer.make(ReportsQueue, {

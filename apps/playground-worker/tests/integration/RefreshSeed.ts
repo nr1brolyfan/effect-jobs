@@ -1,3 +1,4 @@
+import { definitions as eventDefinitions } from "../scenarios/Setup.js"
 // Qualification-only fixture. Public enqueue owns jobs/payloads; app SQL owns associations.
 // @effect-diagnostics unstableApiUsage:off
 import { Effect } from "effect"
@@ -55,5 +56,6 @@ export const seed = (
           return ids.sort()
         })
       )
-    })
+    }),
+    eventDefinitions
   )

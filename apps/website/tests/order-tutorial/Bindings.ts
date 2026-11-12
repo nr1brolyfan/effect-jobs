@@ -25,25 +25,25 @@ import {
 export const qualifyBindings = (pg: SqlClient) =>
   Effect.gen(function* () {
     const queue = Queue.make("binding-fixture")
-    const definition = Job.make({
+    const definition = yield* Job.make({
       name: "invoice.binding",
       queue,
       payload: Schema.String,
       defaultPolicy: Policy.defaultPolicy
     })
-    const nextDefault = Job.make({
+    const nextDefault = yield* Job.make({
       name: definition.name,
       queue,
       payload: Schema.String,
       defaultPolicy: Policy.make({ maxAttempts: 5 })
     })
-    const otherQueue = Job.make({
+    const otherQueue = yield* Job.make({
       name: definition.name,
       queue: Queue.make("binding-other"),
       payload: Schema.String,
       defaultPolicy: Policy.defaultPolicy
     })
-    const producer = Producer.make({
+    const producer = yield* Producer.make({
       operation: "binding.operation",
       slots: { invoice: definition, copy: definition, other: otherQueue }
     })
@@ -96,9 +96,7 @@ export const qualifyBindings = (pg: SqlClient) =>
     assert.equal(handled, 1)
     const duplicate = yield* pg.withTransaction(
       nextDefault.enqueue({
-        producer: Effect.runSync(
-          producer.identity({ operationId: "old", slot: "invoice" })
-        ),
+        producer: yield* producer.identity({ operationId: "old", slot: "invoice" }),
         payload: "pre-existing"
       })
     )
@@ -118,9 +116,7 @@ export const qualifyBindings = (pg: SqlClient) =>
     assert.equal(stored.state, "Completed")
     // New defaults, full overrides and first policy/availability all survive replay.
     const freshInput = {
-      producer: Effect.runSync(
-        producer.identity({ operationId: "new", slot: "invoice" })
-      ),
+      producer: yield* producer.identity({ operationId: "new", slot: "invoice" }),
       payload: "fresh",
       availableAt: 200
     }
@@ -142,9 +138,7 @@ export const qualifyBindings = (pg: SqlClient) =>
     const override = yield* pg.withTransaction(
       nextDefault.enqueue({
         ...freshInput,
-        producer: Effect.runSync(
-          producer.identity({ operationId: "override", slot: "invoice" })
-        ),
+        producer: yield* producer.identity({ operationId: "override", slot: "invoice" }),
         policy: Policy.make({ maxAttempts: 1 })
       })
     )
@@ -171,7 +165,7 @@ export const qualifyBindings = (pg: SqlClient) =>
     // The same tuple in another queue is a conflict, not a separate namespace.
     for (const changed of [
       otherQueue,
-      Job.make({
+      yield* Job.make({
         name: "invoice.other",
         queue,
         payload: Schema.String,
@@ -181,9 +175,10 @@ export const qualifyBindings = (pg: SqlClient) =>
       const exit = yield* pg
         .withTransaction(
           changed.enqueue({
-            producer: Effect.runSync(
-              producer.identity({ operationId: "concurrent", slot: "copy" })
-            ),
+            producer: yield* producer.identity({
+              operationId: "concurrent",
+              slot: "copy"
+            }),
             payload: "recipient"
           })
         )

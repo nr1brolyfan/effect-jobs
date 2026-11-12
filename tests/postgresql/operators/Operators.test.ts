@@ -318,19 +318,21 @@ describe.skipIf(!configPath)(
         lifecycleVersion: 0
       })
       let decoded = false
-      const payload = Payload.encrypted({
-        schema: Document,
-        codec: {
-          ...DocumentEncryption,
-          open: (value) =>
-            Effect.gen(function* () {
-              yield* Effect.sleep("10 millis")
-              const document = yield* DocumentEncryption.open(value)
-              decoded = true
-              return document
-            })
-        }
-      })
+      const payload = Effect.runSync(
+        Payload.encrypted({
+          schema: Document,
+          codec: {
+            ...DocumentEncryption,
+            open: (value) =>
+              Effect.gen(function* () {
+                yield* Effect.sleep("10 millis")
+                const document = yield* DocumentEncryption.open(value)
+                decoded = true
+                return document
+              })
+          }
+        })
+      )
       const sampled = makeOperators(
         {
           ...adapter,

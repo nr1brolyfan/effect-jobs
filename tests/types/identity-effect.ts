@@ -8,12 +8,16 @@ import {
   type ProducerIdentity,
   validateOperationId
 } from "../../src/JobIdentity.js"
-const job = Job.make({
-  name: "typed.identity",
-  queue: Queue.make("types"),
-  payload: Schema.String
-})
-const producer = Producer.make({ operation: "typed.operation", slots: { run: job } })
+const job = Effect.runSync(
+  Job.make({
+    name: "typed.identity",
+    queue: Queue.make("types"),
+    payload: Schema.String
+  })
+)
+const producer = Effect.runSync(
+  Producer.make({ operation: "typed.operation", slots: { run: job } })
+)
 const identity = producer.identity({ operationId: "request", slot: "run" })
 const exact: Effect.Effect<
   ProducerIdentity<"typed.operation", "run">,

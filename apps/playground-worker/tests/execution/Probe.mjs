@@ -36,6 +36,7 @@ import { WakeAlarm } from "../../src/cloudflare/WakeCycle.js"
 export const probe = (url, schema, alarm, checks = []) =>
   Effect.scoped(
     Effect.gen(function* () {
+      const definitions = yield* Definitions.Definitions
       const client = yield* Pg.make({
         url: Redacted.make(url),
         minConnections: 0,
@@ -291,8 +292,8 @@ export const probe = (url, schema, alarm, checks = []) =>
       )
       const recovering = yield* produce("recover")
       const old = yield* backend.store.claim({
-        queue: Definitions.WelcomeEmail.queue.name,
-        supportedCatalog: [Definitions.WelcomeEmail.catalog],
+        queue: definitions.WelcomeEmail.queue.name,
+        supportedCatalog: [definitions.WelcomeEmail.catalog],
         leaseToken: crypto.randomUUID()
       })
       assert.equal(old._tag, "Claimed")
@@ -464,5 +465,5 @@ export const probe = (url, schema, alarm, checks = []) =>
       )
       checks.push("real SQL interruption and reusable scoped client; DB-time expiry")
       return { status: "PASS", checks, hosted: "NotTested", scheduledAlarm: "NotTested" }
-    }).pipe(Effect.provide(Documents.keysLayer))
+    }).pipe(Effect.provide(Documents.keysLayer), Effect.provide(Definitions.layer))
   ).pipe(Effect.provide(Reactivity.layer), Effect.timeout("50 seconds"))

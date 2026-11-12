@@ -7,6 +7,7 @@ import { HttpServerRequest } from "effect/http/HttpServerRequest"
 import * as Response from "effect/http/HttpServerResponse"
 // @effect-diagnostics unstableApiUsage:off
 import { SqlClient } from "effect/sql/SqlClient"
+import * as Definitions from "../../src/scenarios/Definitions.js"
 import * as Configuration from "../../src/cloudflare/Configuration.js"
 import * as Event from "../../src/execution/Event.js"
 import * as Live from "../../src/live/SandboxLive.js"
@@ -68,7 +69,7 @@ class FailureProbe extends Cloudflare.DurableObject<FailureProbe>()(
 class ApplicationLiveProbe extends Cloudflare.DurableObject<ApplicationLiveProbe>()(
   "ApplicationLiveProbe",
   Effect.gen(function* () {
-    const initialize = yield* Live.implementation
+    const initialize = yield* Live.implementation.pipe(Effect.orDie)
     return Effect.gen(function* () {
       const runtime = yield* RuntimeContext
       const nativeFactory = runtime.makeCallback
@@ -108,6 +109,7 @@ export default Cloudflare.Worker(
   "LifecycleHost",
   { main: import.meta.url, dev: { port: 0 } },
   Effect.gen(function* () {
+    const definitions = yield* Definitions.make.pipe(Effect.orDie)
     const env = yield* Configuration.configuration
     const probes = yield* WakeProbe
     const lives = yield* ApplicationLiveProbe
@@ -160,7 +162,8 @@ export default Cloudflare.Worker(
             if (path === "/defect") {
               return yield* Effect.die("synthetic lifecycle defect")
             }
-          }).pipe(Effect.timeout("150 millis"))
+          }).pipe(Effect.timeout("150 millis")),
+          definitions
         ).pipe(
           Effect.matchCause({
             onFailure: () => "closed-failure",

@@ -101,7 +101,7 @@ const code = Codes.define({ boundary: "a".repeat(128) }).boundary
 assert.equal(JobFailures.Retry({ code }).code.length, 128)
 assert(Result.isFailure(Codes.parse("a".repeat(129))))
 assert(Object.isFrozen(Policy.defaultPolicy.retrySchedule))
-const definition = Job.make({ queue: Queue.make("billing"), name: "receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: EncryptedDocument }) })
+const definition = Effect.runSync(Job.make({ queue: Queue.make("billing"), name: "receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: EncryptedDocument }) }))
 assert.equal(definition.version, 1)
 const input = { producer: { operation: "billing.issue", operationId: "id", slot: "receipt" }, policy: Policy.defaultPolicy,
   payload: { invoiceId: "public", document: { recipient: "PRIVATE fixture", total: 12n } } }

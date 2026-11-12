@@ -7,6 +7,11 @@ import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
 import * as PostgreSqlNative from "effect-jobs/PostgreSqlNative"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 
+import { OrderJobsLayer } from "#orders/contracts/jobs"
+import { InvoiceDeliveryJobsLayer } from "#orders/contracts/invoice-delivery"
+import { ApiDefinitionsLayer } from "#api/orders/Definitions"
+import { WorkerDefinitionsLayer } from "#worker/orders/Definitions"
+
 export class Database extends Context.Service<
   Database,
   Effect.Success<ReturnType<typeof Drizzle.makeWithDefaults>>
@@ -31,7 +36,12 @@ const JobsLayer = Layer.unwrap(
     )
   })
 )
-export const ApplicationLayer = Layer.mergeAll(DatabaseLayer, JobsLayer)
+export const ApplicationLayer = Layer.mergeAll(
+  DatabaseLayer,
+  JobsLayer,
+  ApiDefinitionsLayer,
+  WorkerDefinitionsLayer
+).pipe(Layer.provideMerge(Layer.mergeAll(OrderJobsLayer, InvoiceDeliveryJobsLayer)))
 // Supply ONE application-owned scoped PgClient Layer with provideMerge.
 // The same client remains available to application transaction owners.
 // #endregion setup

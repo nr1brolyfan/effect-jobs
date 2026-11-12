@@ -12,16 +12,18 @@ import { PostgreSqlApplication } from "../../../dist/postgresql/PostgreSqlTransa
 export const mapping = Tables.tables({ schema: "crash_fixture" })
 export const migration = Tables.migration(mapping)
 export const queue = Queue.make("crash.delivery")
-export const definition = Job.make({
-  name: "delivery.send",
-  queue,
-  payload: Schema.Struct({ consequenceId: Schema.String }),
-  defaultPolicy: Policy.make({
-    leaseDuration: Duration.seconds(12),
-    attemptTimeout: Duration.seconds(10),
-    maxStalledCount: 1
+export const definition = Effect.runSync(
+  Job.make({
+    name: "delivery.send",
+    queue,
+    payload: Schema.Struct({ consequenceId: Schema.String }),
+    defaultPolicy: Policy.make({
+      leaseDuration: Duration.seconds(12),
+      attemptTimeout: Duration.seconds(10),
+      maxStalledCount: 1
+    })
   })
-})
+)
 
 export const makeBackend = async (connection) => {
   const runtime = ManagedRuntime.make(

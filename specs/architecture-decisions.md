@@ -138,18 +138,24 @@ Declare a producer near its application-owned use case. Share the declaration
 only among callers that execute that same operation. The accepted API direction is:
 
 ```ts
-export const IssueInvoiceProducer = JobProducer.make({
-  operation: "billing.issue-invoice",
-  slots: { "generate-pdf": GeneratePdf, "send-email": SendInvoice }
+const DefinitionsProgram = Effect.gen(function* () {
+  const IssueInvoiceProducer = yield* JobProducer.make({
+    operation: "billing.issue-invoice",
+    slots: { "generate-pdf": GeneratePdf, "send-email": SendInvoice }
+  })
+  return { IssueInvoiceProducer }
 })
-
-const enqueued = IssueInvoiceProducer.enqueue("generate-pdf", {
+// GeneratePdf and SendInvoice come from the same application setup graph.
+// Build it once at application initialization, then use its producer:
+const enqueued = definitions.IssueInvoiceProducer.enqueue("generate-pdf", {
   operationId,
   payload: { invoiceId }
 })
 ```
 
-The factory is immutable configuration, not a service or running producer.
+The factory returns a lazy Effect producing immutable configuration, with
+`JobDeclarationError` in E and no constructor services. An application may expose
+that configuration through its own shared definitions service and Layer.
 `operation` retains its literal type; `slot` is inferred as the union of declared
 literals. `operationId` is a bounded opaque string; application-branded strings
 are accepted without requiring an additional library brand. Validate external
@@ -161,8 +167,8 @@ The owner subsequently accepted these identifier boundaries and diagnostics:
   no NUL, and is compared exactly without trimming, case folding or normalization.
 - `operation` and each `slot` are 1–128 ASCII characters matching
   `^[a-z][a-z0-9.-]*$`. The simple regular expression is accepted.
-- Invalid declaration names fail immediately when creating the producer, not
-  later during enqueue. Ordinary TypeScript string types do not validate this
+- Invalid declaration names fail in the typed channel when the producer setup
+  Effect executes, before it exposes configuration for enqueue. Ordinary TypeScript string types do not validate this
   grammar; inferred slot unions still reject undeclared slots statically.
 - Configuration errors identify the exact field (including a slot index), the
   invalid declaration name, and the expected length/format so callers can fix it.
@@ -172,8 +178,10 @@ The owner subsequently accepted these identifier boundaries and diagnostics:
   rules do not claim that runtime validation has already been implemented.
 
 Use typed bound `enqueue(slot, input)` for normal production.
-`identity({ operationId, slot })` remains structural low-level access, not proof of
-a slot-to-job binding. Fluent `forOperation(...).slot(...)` is unnecessary. Do not introduce a mutable
+`identity({ operationId, slot })` returns an Effect with
+`InvalidOperationId | JobDeclarationError`, retaining literal operation and slot
+types. It validates one input snapshot at each execution and remains structural
+low-level access, not proof of a slot-to-job binding. Fluent `forOperation(...).slot(...)` is unnecessary. Do not introduce a mutable
 builder or global registry to detect semantically similar names. Where multiple
 callers share the same production logic, use an ordinary application-domain
 function for the shared business logic. Binding slot to job definition is already

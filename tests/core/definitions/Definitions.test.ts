@@ -32,17 +32,21 @@ const encoded: EncodedJobPayload = {
   semanticProjectionBytes: new Uint8Array([2])
 }
 const encode: JobPayloadEncoder = () => Effect.succeed(encoded)
-const job = Job.make({
-  queue,
-  name: "invoice.generate",
-  version: 1,
-  payload: Schema.Struct({ amount: Schema.Finite }),
-  encodePayload: encode
-})
-const producer = JobProducer.make({
-  operation: "billing.issue",
-  slots: { pdf: job, email: job }
-})
+const job = Effect.runSync(
+  Job.make({
+    queue,
+    name: "invoice.generate",
+    version: 1,
+    payload: Schema.Struct({ amount: Schema.Finite }),
+    encodePayload: encode
+  })
+)
+const producer = Effect.runSync(
+  JobProducer.make({
+    operation: "billing.issue",
+    slots: { pdf: job, email: job }
+  })
+)
 const identity = Effect.runSync(
   producer.identity({ operationId: "operation", slot: "pdf" })
 )
@@ -59,7 +63,7 @@ describe("immutable declarations", () => {
   it("copies and freezes slots without freezing or retaining caller configuration", () => {
     const slots = { pdf: job, email: job }
     const options = { operation: "billing.issue", slots }
-    const declaration = JobProducer.make(options)
+    const declaration = Effect.runSync(JobProducer.make(options))
     slots.pdf = { ...job }
     options.operation = "changed"
     expect(declaration.operation).toBe("billing.issue")
@@ -71,9 +75,11 @@ describe("immutable declarations", () => {
         Effect.runSync(declaration.identity({ operationId: "op", slot: "pdf" }))
       )
     ).toBe(true)
-    expect(() =>
-      Effect.runSync(declaration.identity({ operationId: "op", slot: "sms" } as never))
-    ).toThrow(JobDeclarationError)
+    expect(
+      Effect.runSync(
+        Effect.flip(declaration.identity({ operationId: "op", slot: "sms" } as never))
+      )
+    ).toBeInstanceOf(JobDeclarationError)
   })
 
   it.each([
@@ -81,19 +87,18 @@ describe("immutable declarations", () => {
     { operation: "ok", slots: {} },
     { operation: "ok", slots: { pdf: null } },
     { operation: "ok", slots: { Bad: job } }
-  ])("validates declarations synchronously: %j", (options) => {
-    expect(() => JobProducer.make(options as never)).toThrow(JobDeclarationError)
+  ])("validates declarations in the typed channel: %j", (options) => {
+    expect(
+      Effect.runSync(Effect.flip(JobProducer.make(options as never)))
+    ).toBeInstanceOf(JobDeclarationError)
   })
 
   it.each(["", "secret\u0000value", "\ud800", "x".repeat(257)])(
     "rejects private operation IDs without echo",
     (operationId) => {
-      let caught: unknown
-      try {
-        Effect.runSync(producer.identity({ operationId, slot: "pdf" }))
-      } catch (error) {
-        caught = error
-      }
+      const caught = Effect.runSync(
+        Effect.flip(producer.identity({ operationId, slot: "pdf" }))
+      )
       expect(caught).toBeInstanceOf(InvalidOperationId)
       expect(JSON.stringify(caught)).not.toContain("secret")
       expect(caught).not.toHaveProperty("operationId")
@@ -107,24 +112,32 @@ describe("immutable declarations", () => {
     ).toBe(" Opé ")
     expect(() => JobQueue.make("Bad")).toThrow(JobQueue.InvalidJobQueue)
     expect(() => JobQueue.make("x".repeat(65))).toThrow(JobQueue.InvalidJobQueue)
-    expect(() =>
-      Job.make({
-        queue,
-        name: "Bad",
-        version: 1,
-        payload: Schema.String,
-        encodePayload: encode
-      })
-    ).toThrow(Job.InvalidJobDefinition)
-    expect(() =>
-      Job.make({
-        queue,
-        name: "ok",
-        version: 0,
-        payload: Schema.String,
-        encodePayload: encode
-      })
-    ).toThrow(Job.InvalidJobDefinition)
+    expect(
+      Effect.runSync(
+        Effect.flip(
+          Job.make({
+            queue,
+            name: "Bad",
+            version: 1,
+            payload: Schema.String,
+            encodePayload: encode
+          })
+        )
+      )
+    ).toBeInstanceOf(Job.InvalidJobDefinition)
+    expect(
+      Effect.runSync(
+        Effect.flip(
+          Job.make({
+            queue,
+            name: "ok",
+            version: 0,
+            payload: Schema.String,
+            encodePayload: encode
+          })
+        )
+      )
+    ).toBeInstanceOf(Job.InvalidJobDefinition)
     expect(Object.isFrozen(queue)).toBe(true)
     expect(Object.isFrozen(job)).toBe(true)
     expect(Object.isFrozen(job.catalog)).toBe(true)
@@ -143,19 +156,21 @@ describe("explicit transaction enqueue", () => {
       availableAt: 12,
       payload: "value"
     }
-    const definition = Job.make({
-      queue,
-      name: "snapshot",
-      version: 1,
-      payload: Schema.String,
-      encodePayload: () =>
-        Effect.sync(() => {
-          mutable.producer.operationId = "changed"
-          mutable.policy.retrySchedule.delayMillis = 99
-          mutable.availableAt = 99
-          return encoded
-        })
-    })
+    const definition = Effect.runSync(
+      Job.make({
+        queue,
+        name: "snapshot",
+        version: 1,
+        payload: Schema.String,
+        encodePayload: () =>
+          Effect.sync(() => {
+            mutable.producer.operationId = "changed"
+            mutable.policy.retrySchedule.delayMillis = 99
+            mutable.availableAt = 99
+            return encoded
+          })
+      })
+    )
     let prepared: PreparedJob | undefined
     await Effect.runPromise(
       withJoinedTransaction(
@@ -216,16 +231,18 @@ describe("explicit transaction enqueue", () => {
 
   it("rejects invalid bounded metadata before encoding or insertion", async () => {
     let calls = 0
-    const definition = Job.make({
-      queue,
-      name: "test",
-      version: 1,
-      payload: Schema.String,
-      encodePayload: () => {
-        calls++
-        return Effect.succeed(encoded)
-      }
-    })
+    const definition = Effect.runSync(
+      Job.make({
+        queue,
+        name: "test",
+        version: 1,
+        payload: Schema.String,
+        encodePayload: () => {
+          calls++
+          return Effect.succeed(encoded)
+        }
+      })
+    )
     for (const [invalid, field] of [
       [
         {
@@ -261,14 +278,16 @@ describe("explicit transaction enqueue", () => {
 
   it("preserves codec and backend failures without insertion/reclassification", async () => {
     let inserts = 0
-    const definition = Job.make({
-      queue,
-      name: "test",
-      version: 1,
-      payload: Schema.String,
-      encodePayload: () =>
-        Effect.fail(new JobPayloadCodecError({ reason: "invalid-schema" }))
-    })
+    const definition = Effect.runSync(
+      Job.make({
+        queue,
+        name: "test",
+        version: 1,
+        payload: Schema.String,
+        encodePayload: () =>
+          Effect.fail(new JobPayloadCodecError({ reason: "invalid-schema" }))
+      })
+    )
     const error = await Effect.runPromise(
       failure(
         withJoinedTransaction(
@@ -361,13 +380,15 @@ describe("local registry and Layer dependencies", () => {
         }),
         Effect.mapError(() => new JobPayloadCodecError({ reason: "invalid-schema" }))
       )
-    const definition = Job.make({
-      queue,
-      name: "services",
-      version: 1,
-      payload: schema,
-      encodePayload: serviceEncode
-    })
+    const definition = Effect.runSync(
+      Job.make({
+        queue,
+        name: "services",
+        version: 1,
+        payload: schema,
+        encodePayload: serviceEncode
+      })
+    )
     await Effect.runPromise(
       withJoinedTransaction(
         () => Effect.succeed(EnqueueResults.Inserted({ jobId })),
@@ -575,23 +596,27 @@ describe("local registry and Layer dependencies", () => {
   })
 
   it("rejects duplicate catalog entries, while preserving different versions", async () => {
-    const second = Job.make({
-      queue,
-      name: job.name,
-      version: 2,
-      payload: job.payload,
-      encodePayload: encode
-    })
+    const second = Effect.runSync(
+      Job.make({
+        queue,
+        name: job.name,
+        version: 2,
+        payload: job.payload,
+        encodePayload: encode
+      })
+    )
     const entries = await Effect.runPromise(JobRegistry.catalog(job, second))
     expect(entries).toEqual([job, second])
     expect(Object.isFrozen(entries)).toBe(true)
-    const duplicate = Job.make({
-      queue: JobQueue.make("billing"),
-      name: job.name,
-      version: 1,
-      payload: job.payload,
-      encodePayload: encode
-    })
+    const duplicate = Effect.runSync(
+      Job.make({
+        queue: JobQueue.make("billing"),
+        name: job.name,
+        version: 1,
+        payload: job.payload,
+        encodePayload: encode
+      })
+    )
     expect(
       await Effect.runPromise(failure(JobRegistry.catalog(job, duplicate)))
     ).toMatchObject({

@@ -5,14 +5,21 @@ import * as Producer from "../../src/JobProducer.js"
 import * as Queue from "../../src/JobQueue.js"
 import { validateOperationId } from "../../src/JobIdentity.js"
 import { JobEnqueue } from "../../src/JobEnqueue.js"
-import { enqueueReport } from "../../apps/website/examples/docs/ReportWorkflow.js"
+import {
+  enqueueReport,
+  ReportDefinitionsLayer
+} from "../../apps/website/examples/docs/ReportWorkflow.js"
 
-const job = Job.make({
-  name: "identity.test",
-  queue: Queue.make("identity"),
-  payload: Schema.String
-})
-const producer = Producer.make({ operation: "identity.test", slots: { run: job } })
+const job = Effect.runSync(
+  Job.make({
+    name: "identity.test",
+    queue: Queue.make("identity"),
+    payload: Schema.String
+  })
+)
+const producer = Effect.runSync(
+  Producer.make({ operation: "identity.test", slots: { run: job } })
+)
 
 describe("lazy typed identity", () => {
   it("returns a typed validation failure without throwing or dying", () => {
@@ -86,7 +93,8 @@ describe("lazy typed identity", () => {
               enqueue: () => Effect.die("unexpected backend call"),
               enqueueStandalone: () => Effect.die("unexpected backend call")
             })
-          )
+          ),
+          Effect.provide(ReportDefinitionsLayer)
         )
       )
     ).toMatchObject({ _tag: "InvalidJobInput", field: "producer" })

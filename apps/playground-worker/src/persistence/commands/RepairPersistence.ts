@@ -112,6 +112,7 @@ export const refuseProblem = (
 
 const makeService = (transactions: typeof RepairTransactions.Service) =>
   Effect.gen(function* () {
+    const setup = yield* Definitions.Definitions
     const backend = yield* PostgreSqlJobs
     const keys = yield* DocumentKeys
     const run = (
@@ -230,6 +231,8 @@ const makeService = (transactions: typeof RepairTransactions.Service) =>
                 const producer = yield* Source.producerIdentity(command)
                 let changes: ReadonlyArray<{ kind: string; path: string }> | null = null
                 const produced = yield* Effect.gen(function* () {
+                  const definitions = yield* Definitions.Definitions
+
                   if (command.action === "corrected-redrive") {
                     const prepared = yield* Source.replacement(
                       source,
@@ -240,7 +243,7 @@ const makeService = (transactions: typeof RepairTransactions.Service) =>
                     yield* tx.assertCurrent
                     if (prepared._tag === "Synthetic") {
                       return yield* backend.operators.correctedRedrive(
-                        Definitions.SyntheticDocumentExport,
+                        definitions.SyntheticDocumentExport,
                         { expected, producer, payload: prepared.payload }
                       )
                     }
@@ -259,7 +262,7 @@ const makeService = (transactions: typeof RepairTransactions.Service) =>
                   yield* tx.assertCurrent
                   return yield* backend.operators
                     .redrive<
-                      typeof Definitions.Payload | typeof Definitions.ExportPayload
+                      typeof Definitions.Payload | Definitions.Setup["ExportPayload"]
                     >(definition, { expected, producer })
                     .pipe(Effect.provideService(DocumentKeys, keys))
                 })
@@ -324,7 +327,10 @@ const makeService = (transactions: typeof RepairTransactions.Service) =>
               return result
             })
           )
-          .pipe(Effect.catchCause(recover(command)))
+          .pipe(
+            Effect.catchCause(recover(command)),
+            Effect.provideService(Definitions.Definitions, setup)
+          )
       })
     return Repairs.of({
       execute: (access, input) =>

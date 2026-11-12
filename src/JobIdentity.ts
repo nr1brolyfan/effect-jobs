@@ -1,23 +1,10 @@
 /**
  * Validates catalog and producer identities without normalizing operation IDs.
  */
-import { Data, Effect, Schema } from "effect"
+import { Data, Effect, Result, Schema } from "effect"
 
-/**
- * ASCII declaration-name grammar shared by queue, name, operation and slot Schemas.
- *
- * @category constants
- */
-export const nameFormat = "^[a-z][a-z0-9.-]*$"
-const namePattern = /^[a-z][a-z0-9.-]*$/u
-const name = (maximum: number) =>
-  Schema.String.pipe(
-    Schema.check(
-      Schema.isMinLength(1),
-      Schema.isMaxLength(maximum),
-      Schema.isPattern(namePattern)
-    )
-  )
+import { declaration, name } from "./internal/ProducerDeclaration.js"
+export { JobDeclarationError, nameFormat } from "./internal/ProducerDeclaration.js"
 
 /**
  * Queue-name Schema: 1–64 ASCII characters matching nameFormat.
@@ -164,19 +151,8 @@ export interface ProducerIdentity<
 }
 
 /**
- * Synchronous declaration failure with an actionable field/name constraint.
- *
- * @category errors
- */
-export class JobDeclarationError extends Data.TaggedError("JobDeclarationError")<{
-  readonly field: "operation" | "slots" | `slots[${number}]`
-  readonly value?: string
-  readonly expected: string
-}> {}
-
-/**
  * Validates operation and nonempty unique slots synchronously; throws
- * JobDeclarationError. Called by JobProducer.make before returning configuration.
+ * JobDeclarationError. The lazy producer factory shares its pure classifier.
  *
  * @category operations
  */
@@ -184,32 +160,8 @@ export const validateProducerDeclaration = (input: {
   readonly operation: string
   readonly slots: ReadonlyArray<string>
 }): void => {
-  const expected = `1–128 ASCII characters matching ${nameFormat}`
-  if (!Schema.is(OperationName)(input.operation)) {
-    throw new JobDeclarationError({
-      field: "operation",
-      value: input.operation,
-      expected
-    })
+  const result = declaration(input)
+  if (Result.isFailure(result)) {
+    throw result.failure
   }
-  if (input.slots.length === 0) {
-    throw new JobDeclarationError({
-      field: "slots",
-      expected: "at least one unique slot"
-    })
-  }
-  const seen = new Set<string>()
-  input.slots.forEach((slot, index) => {
-    if (!Schema.is(SlotName)(slot)) {
-      throw new JobDeclarationError({ field: `slots[${index}]`, value: slot, expected })
-    }
-    if (seen.has(slot)) {
-      throw new JobDeclarationError({
-        field: `slots[${index}]`,
-        value: slot,
-        expected: "unique declared slot"
-      })
-    }
-    seen.add(slot)
-  })
 }

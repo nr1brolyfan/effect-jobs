@@ -3,10 +3,9 @@
 import { Effect, Schema } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import { eq } from "drizzle-orm"
-import * as JobProducer from "effect-jobs/JobProducer"
 import { Database } from "#database/Database"
 import { orders, orderReceipts } from "#database/schema"
-import { SendOrderConfirmation, CreateOrderInvoice } from "#orders/contracts/jobs"
+import { ApiDefinitions } from "#api/orders/Definitions"
 
 import {
   OrderSubmission,
@@ -15,13 +14,11 @@ import {
 } from "#api/orders/OrderSubmission"
 
 // #region operation
-export const PlaceOrderWithInvoice = JobProducer.make({
-  operation: "order.place",
-  slots: {
-    "send-confirmation": SendOrderConfirmation,
-    "create-invoice": CreateOrderInvoice
-  }
-})
+// Built once by ApiDefinitionsLayer from the shared OrderJobs service.
+export const PlaceOrderWithInvoiceDefinition = Effect.map(
+  ApiDefinitions,
+  (definitions) => definitions.PlaceOrderWithInvoice
+)
 // #endregion operation
 
 // #region request
@@ -32,6 +29,7 @@ export const placeOrderWithInvoice = (externalInput: unknown) =>
       onExcessProperty: "error"
     })
 
+    const { PlaceOrderWithInvoice } = yield* ApiDefinitions
     const db = yield* Database
     const pg = yield* PgClient.PgClient
 

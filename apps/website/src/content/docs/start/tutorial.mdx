@@ -54,6 +54,11 @@ commit without waiting for email; a worker makes the external call separately.
 This makes the database writes atomic, not the database and external email.
 Delivery is not exactly-once: external idempotency and uncertain outcomes still matter.
 
+The checked application builds job and producer definitions with lazy Effects at
+startup. `OrderJobsLayer` supplies one shared job graph, and the application setup
+builds producer services from those exact definitions. Requests and handler Layers
+read the resulting services instead of constructing jobs for each enqueue.
+
 For local runs, the mail adapter records messages in PostgreSQL instead of
 sending real emails. You do not need a provider account or credentials.
 

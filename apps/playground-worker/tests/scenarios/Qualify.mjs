@@ -184,21 +184,22 @@ const require = createRequire(import.meta.url)
 assert.throws(() => require.resolve("drizzle-orm"))
 assert.throws(() => require.resolve("pg"))
 await Effect.runPromise(Effect.gen(function* () {
+  const definitions = yield* Definitions.Definitions
   const plans = yield* Plan.plan({ sandbox: sandbox.ref, requestId: "packed-smoke", scenario: "unknown-outcome", count: 6 }, sandbox.ref, 0)
   const job = plans[3]
   const payload = Plan.exportPayload(job.payload)
-  const one = yield* Codec.encodeJobPayload(Definitions.ExportPayload, payload)
-  const two = yield* Codec.encodeJobPayload(Definitions.ExportPayload, payload)
+  const one = yield* Codec.encodeJobPayload(definitions.ExportPayload, payload)
+  const two = yield* Codec.encodeJobPayload(definitions.ExportPayload, payload)
   assert.notDeepEqual(one.payloadBytes, two.payloadBytes)
   assert.deepEqual(one.semanticProjectionBytes, two.semanticProjectionBytes)
-  assert.deepEqual(yield* Codec.decodeJobPayload(Definitions.ExportPayload, one), payload)
+  assert.deepEqual(yield* Codec.decodeJobPayload(definitions.ExportPayload, one), payload)
   const provider = yield* FakeProvider
   const command = { sandbox: payload.sandbox, producer: job.producer, workload: job.workload, behavior: payload.behavior, semanticProjection: one.semanticProjectionBytes }
   assert.equal((yield* Effect.flip(provider.execute(command)))._tag, "ResponseLost")
   assert.equal((yield* provider.inspect(command)).effects, 1)
   yield* provider.execute({ ...command, semanticProjection: two.semanticProjectionBytes })
   assert.equal((yield* provider.inspect(command)).effects, 1)
-}).pipe(Effect.provide(PrivateDocument.keysLayer), Effect.provide(Provider.layer)))
+}).pipe(Effect.provide(PrivateDocument.keysLayer), Effect.provide(Provider.layer), Effect.provide(Definitions.layer)))
 console.log("packed scenarios: encrypted typed payload and idempotent response-loss reconciliation PASS")
 `
   )

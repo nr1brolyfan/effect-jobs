@@ -1,3 +1,5 @@
+import * as Definitions from "../../src/scenarios/Definitions.js"
+import { definitions as eventDefinitions } from "../scenarios/Setup.js"
 // Qualification FFI: exact historical source produces receipts/state; fresh config only.
 import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
@@ -101,7 +103,8 @@ try {
           Effect.gen(function* () {
             yield* client.unsafe(Qualification.migrationCommand(descriptors[5]!.sql))
             yield* Migrations.backfillSyntheticTenants(schema).pipe(
-              Effect.provideService(SqlClient, client)
+              Effect.provideService(SqlClient, client),
+              Effect.provideService(Definitions.Definitions, eventDefinitions)
             )
           })
         )

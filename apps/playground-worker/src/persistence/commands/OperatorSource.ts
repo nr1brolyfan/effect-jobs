@@ -54,6 +54,8 @@ export const producerIdentity = (command: JobOperatorCommand) =>
 // library redrive. This adds the application's scoped payload/invariant checks.
 export const validate = (row: Readonly<Record<string, unknown>>, current: SandboxRef) =>
   Effect.gen(function* () {
+    const definitions = yield* Definitions.Definitions
+
     const catalog = yield* Schema.decodeUnknownEffect(CatalogIdentity)({
       queue: row.queue,
       name: row.kind,
@@ -61,7 +63,7 @@ export const validate = (row: Readonly<Record<string, unknown>>, current: Sandbo
     }).pipe(
       Effect.mapError(() => new OperatorSourceRejected({ reason: "unsupported-catalog" }))
     )
-    const definition = Definitions.definitions.find(
+    const definition = definitions.definitions.find(
       (candidate) =>
         candidate.catalog.queue === catalog.queue &&
         candidate.catalog.name === catalog.name &&
@@ -84,13 +86,13 @@ export const validate = (row: Readonly<Record<string, unknown>>, current: Sandbo
       payload.sandbox.sandboxId === current.sandboxId &&
       payload.sandbox.generation === current.generation
     if (
-      definition === Definitions.PrivateDataExport ||
-      definition === Definitions.SyntheticDocumentExport
+      definition === definitions.PrivateDataExport ||
+      definition === definitions.SyntheticDocumentExport
     ) {
       const payload = yield* Codec.decodeJobPayload(
-        definition === Definitions.SyntheticDocumentExport
-          ? Definitions.SyntheticExportPayload
-          : Definitions.ExportPayload,
+        definition === definitions.SyntheticDocumentExport
+          ? definitions.SyntheticExportPayload
+          : definitions.ExportPayload,
         encoded
       ).pipe(Effect.mapError(invalid))
       if (

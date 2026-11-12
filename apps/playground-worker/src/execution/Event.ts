@@ -1,3 +1,4 @@
+import * as Definitions from "../scenarios/Definitions.js"
 import * as Repairs from "../persistence/commands/RepairPersistence.js"
 import * as RepairTransactions from "../persistence/authority/PostgreSqlRepairTransactions.js"
 import { Operators as OperatorService } from "@effect-jobs/playground-contracts/Operators"
@@ -107,7 +108,9 @@ export const run = <A, E>(
     | JobWorker
     | Repairs.SyntheticRepairs
     | JobsRead
-  >
+    | Definitions.Definitions
+  >,
+  definitions: Definitions.Setup
 ) =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -132,6 +135,7 @@ export const run = <A, E>(
       const stable = yield* keys(config)
       const authority = (yield* Authority.make(config.schema).pipe(
         Effect.provideService(SqlClient, client),
+        Effect.provideService(Definitions.Definitions, definitions),
         Effect.provideService(JobEnqueue, backend.producer),
         Effect.provideService(DocumentKeys, stable)
       )).authority
@@ -187,7 +191,12 @@ export const run = <A, E>(
         Layer.provide(Layer.mergeAll(activeAuthority, read, guarded, operators, repairs))
       )
       return yield* operation.pipe(
-        Effect.provide(Layer.mergeAll(app, worker, commands, syntheticRepairs, read)),
+        Effect.provide(
+          Layer.mergeAll(app, worker, commands, syntheticRepairs, read).pipe(
+            Layer.provide(Layer.succeed(Definitions.Definitions, definitions))
+          )
+        ),
+        Effect.provideService(Definitions.Definitions, definitions),
         Effect.provideService(SqlClient, client),
         Effect.provideService(Backend.PostgreSqlJobs, backend),
         Effect.provideService(DocumentKeys, stable)

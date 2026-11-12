@@ -133,13 +133,15 @@ it("keeps telemetry capture invocation-local for reused and concurrent Effects",
 })
 
 const queue = Queue.make("permit-regression")
-const job = Job.make({
-  queue,
-  name: "neutral",
-  version: 1,
-  payload: Schema.String,
-  encodePayload: Codec.encodeJobPayload
-})
+const job = Effect.runSync(
+  Job.make({
+    queue,
+    name: "neutral",
+    version: 1,
+    payload: Schema.String,
+    encodePayload: Codec.encodeJobPayload
+  })
+)
 const consumer = (concurrency: number) =>
   Effect.runSync(
     Consumer.make(queue, {

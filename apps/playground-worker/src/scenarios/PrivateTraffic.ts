@@ -1,3 +1,4 @@
+import * as Definitions from "./Definitions.js"
 // @effect-diagnostics unstableApiUsage:off
 import { Duration, Effect } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
@@ -27,6 +28,8 @@ export const profile = (sequence: number) => starterScenarios[sequence % starter
 // Only enqueue creates lifecycle state. Receipts, quota and associations commit together.
 export const make = (schema: string) =>
   Effect.gen(function* () {
+    const definitions = yield* Definitions.Definitions
+
     const sql = yield* SqlClient
     const local = yield* Mode.LocalPrivate
     const retainedMaximum = Mode.retainedMaximum(local)
@@ -81,16 +84,20 @@ export const make = (schema: string) =>
               seed + index,
               scenario === "delayed-success" ? now + interactionMillis : now,
               "private-traffic-v1"
-            ).pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" })))
+            )
+              .pipe(Effect.provideService(Definitions.Definitions, definitions))
+              .pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" })))
             const planned = {
               ...job!,
               policy: Policy.make({ retryDelay: Duration.millis(interactionMillis) })
             }
-            const enqueue = Plan.enqueue(planned).pipe(
-              Effect.provideService(JobEnqueue, producer),
-              Effect.provideService(DocumentKeys, keys),
-              Effect.mapError(() => new PlaygroundError({ code: "unavailable" }))
-            )
+            const enqueue = Plan.enqueue(planned)
+              .pipe(Effect.provideService(Definitions.Definitions, definitions))
+              .pipe(
+                Effect.provideService(JobEnqueue, producer),
+                Effect.provideService(DocumentKeys, keys),
+                Effect.mapError(() => new PlaygroundError({ code: "unavailable" }))
+              )
             const produced = yield* enqueue
             if (scenario === "deduplication") {
               const duplicate = yield* enqueue

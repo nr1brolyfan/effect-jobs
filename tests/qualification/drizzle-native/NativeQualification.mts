@@ -57,17 +57,21 @@ const receipts = pgSchema(schema).table("receipts", {
   id: text("id").primaryKey(),
   jobId: text("job_id").notNull()
 })
-const definition = Job.make({
-  name: "invoice.generate",
-  version: 1,
-  queue: Queue.make("billing"),
-  payload: Schema.Struct({ invoiceId: Schema.String }),
-  encodePayload: encodeJobPayload
-})
-const producer = Producer.make({
-  operation: "billing.native",
-  slots: { generate: definition }
-})
+const definition = Effect.runSync(
+  Job.make({
+    name: "invoice.generate",
+    version: 1,
+    queue: Queue.make("billing"),
+    payload: Schema.Struct({ invoiceId: Schema.String }),
+    encodePayload: encodeJobPayload
+  })
+)
+const producer = Effect.runSync(
+  Producer.make({
+    operation: "billing.native",
+    slots: { generate: definition }
+  })
+)
 const input = (id: string, value = id) => ({
   producer: Effect.runSync(producer.identity({ operationId: id, slot: "generate" })),
   payload: { invoiceId: value },

@@ -29,24 +29,26 @@ const base = {
   queue: Queue.make("billing"),
   payload: Schema.String
 } as const
-const omitted = Job.make(base)
+const omitted = Effect.runSync(Job.make(base))
 export const one: 1 = omitted.version
 export const catalogOne: 1 = omitted.catalog.version
-export const two: 2 = Job.make({ ...base, version: 2 }).version
+export const two: 2 = Effect.runSync(Job.make({ ...base, version: 2 })).version
 const optional: typeof base & { readonly version?: 2 } = base
 const explicitOptional: typeof base & { readonly version: 2 | undefined } = {
   ...base,
   version: undefined
 }
-export const optionalUnion: 1 | 2 = Job.make(explicitOptional).version
-export const undefinedOne: 1 = Job.make({ ...base, version: undefined }).version
-export const union: 1 | 2 = Job.make(optional).version
+export const optionalUnion: 1 | 2 = Effect.runSync(Job.make(explicitOptional)).version
+export const undefinedOne: 1 = Effect.runSync(
+  Job.make({ ...base, version: undefined })
+).version
+export const union: 1 | 2 = Effect.runSync(Job.make(optional)).version
 // @ts-expect-error Optional input cannot promise runtime version 2.
-const unsound: 2 = Job.make(optional).version
+const unsound: 2 = Effect.runSync(Job.make(optional)).version
 void unsound
 // @ts-expect-error Default policy cannot be mutated through public types.
 Policy.defaultPolicy.retrySchedule.delayMillis = 9
-const job = Job.make({ ...base, payload: EncryptedDocument })
+const job = Effect.runSync(Job.make({ ...base, payload: EncryptedDocument }))
 const input = {
   producer: { operation: "billing.issue", operationId: "id", slot: "receipt" },
   policy: Policy.defaultPolicy,

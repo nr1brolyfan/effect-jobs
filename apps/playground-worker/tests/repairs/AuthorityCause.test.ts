@@ -1,3 +1,4 @@
+import { runPromise } from "../scenarios/Setup.js"
 // @effect-diagnostics unstableApiUsage:off
 // Exercise pinned native SQL transactions with a deterministic, finite driver.
 import { describe, expect, it } from "vitest"
@@ -66,7 +67,7 @@ const access = { sandbox: Fixtures.sandbox }
 
 describe("authority preserves bounded native failure reasons", () => {
   it("preserves expected domain codes together with rollback defects", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const db = yield* fixture(undefined, true)
         const result = yield* Effect.exit(
@@ -94,7 +95,7 @@ describe("authority preserves bounded native failure reasons", () => {
   })
 
   it.each(operations)("preserves successful %s without replay", async (operation) => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const db = yield* fixture()
         const value = yield* operation === "issue"
@@ -130,7 +131,7 @@ describe("authority preserves bounded native failure reasons", () => {
     ] as const)(
       `${operation} retains %s structure and bounded diagnostics`,
       async (_name, make, tags) => {
-        await Effect.runPromise(
+        await runPromise(
           Effect.gen(function* () {
             const original = make()
             const db = yield* fixture(original)
@@ -173,7 +174,7 @@ describe("authority preserves bounded native failure reasons", () => {
   it.each(["issue", "describe"] as const)(
     "%s retains native rollback Die and HTTP exports only unavailable",
     async (operation) => {
-      await Effect.runPromise(
+      await runPromise(
         Effect.gen(function* () {
           const db = yield* fixture(Cause.fail(sqlFailure()), true)
           const execute = () =>

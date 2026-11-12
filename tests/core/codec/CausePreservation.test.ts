@@ -45,26 +45,28 @@ const assertMixed = (exit: Exit.Exit<unknown, unknown>, kind: ReleaseKind) => {
 
 for (const kind of ["defect", "interrupt"] as const) {
   const encrypted = (direction: "open" | "seal") =>
-    Payload.encrypted({
-      schema: Schema.String,
-      codec: {
-        envelope: Envelope,
-        open: () =>
-          direction === "open"
-            ? failureWithRelease(
-                Object.assign(new Payload.JobEncryptionError(), { providerDetail }),
-                kind
-              )
-            : Effect.succeed("fixture"),
-        seal: () =>
-          direction === "seal"
-            ? failureWithRelease(
-                Object.assign(new Payload.JobEncryptionError(), { providerDetail }),
-                kind
-              )
-            : Effect.succeed(envelope)
-      }
-    })
+    Effect.runSync(
+      Payload.encrypted({
+        schema: Schema.String,
+        codec: {
+          envelope: Envelope,
+          open: () =>
+            direction === "open"
+              ? failureWithRelease(
+                  Object.assign(new Payload.JobEncryptionError(), { providerDetail }),
+                  kind
+                )
+              : Effect.succeed("fixture"),
+          seal: () =>
+            direction === "seal"
+              ? failureWithRelease(
+                  Object.assign(new Payload.JobEncryptionError(), { providerDetail }),
+                  kind
+                )
+              : Effect.succeed(envelope)
+        }
+      })
+    )
 
   const standard = (direction: "decode" | "encode") =>
     Schema.String.pipe(
@@ -102,11 +104,13 @@ for (const kind of ["defect", "interrupt"] as const) {
     assert(Cause.isFailReason(cause.reasons[0]!))
     assert(cause.reasons[0].error instanceof JobPayloadCodecError)
 
-    const definition = Job.make({
-      queue: Queue.make("mixed-codec"),
-      name: "receipt",
-      payload: schema
-    })
+    const definition = Effect.runSync(
+      Job.make({
+        queue: Queue.make("mixed-codec"),
+        name: "receipt",
+        payload: schema
+      })
+    )
     const store = harness([
       {
         catalog: definition.catalog,

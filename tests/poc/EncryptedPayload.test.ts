@@ -293,13 +293,15 @@ const UnmarkedPayload = Schema.Struct({
   invoiceId: Schema.String,
   document: native({ schema: Document, codec: ReceiptCodec }, false)
 })
-const definition = Job.make({
-  queue: Queue.make("poc"),
-  name: "encrypted.document",
-  version: 1,
-  payload: UnmarkedPayload,
-  encodePayload: Codec.encodeJobPayload
-})
+const definition = Effect.runSync(
+  Job.make({
+    queue: Queue.make("poc"),
+    name: "encrypted.document",
+    version: 1,
+    payload: UnmarkedPayload,
+    encodePayload: Codec.encodeJobPayload
+  })
+)
 const artifact = (wire: unknown): EncodedJobPayload => {
   const json = canonicalText(wire, 65_536, "payload-too-large")
   return {

@@ -1,4 +1,4 @@
-import { Context, Duration, Effect, Schema } from "effect"
+import { Context, Duration, Effect, Layer, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
 import * as JobQueue from "effect-jobs/JobQueue"
 import * as JobProducer from "effect-jobs/JobProducer"
@@ -23,17 +23,36 @@ export const ReportPayload = Schema.Struct({
   ).pipe(Schema.check(Schema.isMaxLength(100)))
 })
 
-export const GenerateReport = Job.make({
-  queue: ReportsQueue,
-  name: "report.generate", // Work type used to select the installed handler.
-  payload: ReportPayload // Omitted version is exactly 1.
-})
+export const reportDefinitions = Effect.gen(function* () {
+  const GenerateReport = yield* Job.make({
+    queue: ReportsQueue,
+    name: "report.generate", // Work type used to select the installed handler.
+    payload: ReportPayload // Omitted version is exactly 1.
+  })
 
-// The business operation that produces work, distinct from the job kind.
-export const RequestReport = JobProducer.make({
-  operation: "report.request",
-  slots: { generate: GenerateReport } // Named consequence within each request; not a workflow edge.
+  // The business operation that produces work, distinct from the job kind.
+  const RequestReport = yield* JobProducer.make({
+    operation: "report.request",
+    slots: { generate: GenerateReport } // Named consequence within each request; not a workflow edge.
+  })
+
+  const DeliverReport = yield* Job.make({
+    queue: ReportsQueue,
+    name: "report.deliver",
+    payload: ReportPayload
+  })
+  const GeneratedReport = yield* JobProducer.make({
+    operation: "report.generated",
+    slots: { deliver: DeliverReport }
+  })
+
+  return { GenerateReport, RequestReport, DeliverReport, GeneratedReport }
 })
+export class ReportDefinitions extends Context.Service<
+  ReportDefinitions,
+  Effect.Success<typeof reportDefinitions>
+>()("docs/ReportDefinitions") {}
+export const ReportDefinitionsLayer = Layer.effect(ReportDefinitions, reportDefinitions)
 
 export const ReportPolicy = JobPolicy.make({
   maxAttempts: 3, // Finalized attempts including the first (1–100); not all invocations.
@@ -45,10 +64,13 @@ export const ReportPolicy = JobPolicy.make({
 
 // #region enqueue
 export const enqueueReport = (operationId: string, payload: ReportPayload) =>
-  RequestReport.enqueue("generate", {
-    operationId,
-    payload,
-    policy: ReportPolicy
+  Effect.gen(function* () {
+    const { RequestReport } = yield* ReportDefinitions
+    return yield* RequestReport.enqueue("generate", {
+      operationId,
+      payload,
+      policy: ReportPolicy
+    })
   })
 // Requires JobEnqueue and the configured client's active transaction.
 // operationId: exact opaque request ID, 1–256 UTF-8 bytes; reuse on safe business retries.
@@ -99,32 +121,29 @@ export class ReportHandoff extends Context.Service<
 >()("docs/ReportHandoff") {}
 
 // #region handler
-export const ReportHandlerLayer = GenerateReport.handlerLayer(
-  Effect.fn("Reports.generate")(function* (input) {
-    const storage = yield* ReportStorage
-    const handoff = yield* ReportHandoff
-    // Stable artifact key + immutable report input make retrying this write safe.
-    // The application must prevent reuse of reportId for a different report.
-    yield* storage
-      .put(input.payload.reportId, renderReport(input.payload))
-      .pipe(Effect.mapError(() => JobFailures.Retry({ code: Codes.storageUnavailable })))
-    yield* handoff.record(input.context.jobId, input.payload)
-  }),
-  JobPayloadCodec.decodeJobPayload
+export const ReportHandlerLayer = Layer.unwrap(
+  Effect.map(ReportDefinitions, (definitions) =>
+    definitions.GenerateReport.handlerLayer(
+      Effect.fn("Reports.generate")(function* (input) {
+        const storage = yield* ReportStorage
+        const handoff = yield* ReportHandoff
+        // Stable artifact key + immutable report input make retrying this write safe.
+        // The application must prevent reuse of reportId for a different report.
+        yield* storage
+          .put(input.payload.reportId, renderReport(input.payload))
+          .pipe(
+            Effect.mapError(() => JobFailures.Retry({ code: Codes.storageUnavailable }))
+          )
+        yield* handoff.record(input.context.jobId, input.payload)
+      }),
+      JobPayloadCodec.decodeJobPayload
+    )
+  )
 )
 // Captures ReportStorage and ReportHandoff when installed; importing this file starts no work.
 // #endregion handler
 
 // #region delivery
-export const DeliverReport = Job.make({
-  queue: ReportsQueue,
-  name: "report.deliver",
-  payload: ReportPayload
-})
-export const GeneratedReport = JobProducer.make({
-  operation: "report.generated",
-  slots: { deliver: DeliverReport }
-})
 
 export class DeliveryBusy extends Schema.TaggedError<DeliveryBusy>()(
   "DeliveryBusy",
@@ -149,18 +168,23 @@ export const DeliveryCodes = FailureCode.define({
   handoff: "report_handoff_failed",
   conflict: "report_handoff_conflict"
 })
-export const DeliveryHandlerLayer = DeliverReport.handlerLayer(
-  Effect.fn("Reports.deliver")(function* (input) {
-    const delivery = yield* ReportDelivery
-    yield* delivery.send(input.payload).pipe(
-      Effect.catchTags({
-        DeliveryBusy: () => Effect.fail(JobFailures.Retry({ code: DeliveryCodes.busy })),
-        DeliveryUncertain: () =>
-          Effect.fail(JobFailures.OutcomeUnknown({ code: DeliveryCodes.uncertain }))
-      })
+export const DeliveryHandlerLayer = Layer.unwrap(
+  Effect.map(ReportDefinitions, (definitions) =>
+    definitions.DeliverReport.handlerLayer(
+      Effect.fn("Reports.deliver")(function* (input) {
+        const delivery = yield* ReportDelivery
+        yield* delivery.send(input.payload).pipe(
+          Effect.catchTags({
+            DeliveryBusy: () =>
+              Effect.fail(JobFailures.Retry({ code: DeliveryCodes.busy })),
+            DeliveryUncertain: () =>
+              Effect.fail(JobFailures.OutcomeUnknown({ code: DeliveryCodes.uncertain }))
+          })
+        )
+      }),
+      JobPayloadCodec.decodeJobPayload
     )
-  }),
-  JobPayloadCodec.decodeJobPayload
+  )
 )
 // Retry requires a replay-safe destination. OutcomeUnknown preserves uncertainty;
 // bounded lease recovery may invoke the handler again, so the destination still

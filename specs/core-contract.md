@@ -96,8 +96,9 @@ Normal bound enqueue retains its `InvalidJobInput` boundary.
 void` validates names, nonempty slots and uniqueness synchronously. It throws
 `JobDeclarationError` containing `field` (`operation`, `slots`, or `slots[index]`),
 the invalid declaration `value` where applicable, and actionable `expected` text.
-The producer unit **must call this before returning its immutable declaration**;
-there is no producer implementation here. It must preserve inferred operation and
+The producer factory shares the pure declaration classifier and reports
+`JobDeclarationError` in its lazy Effect before exposing immutable configuration.
+The standalone synchronous validator retains its own existing utility contract. It must preserve inferred operation and
 slot literals, reject undeclared slots, and snapshot/freeze its slot record.
 The validator takes the record keys; `JobProducer.make` accepts bindings to jobs,
 not an array of names. Bound enqueue derives the identity and enforces the

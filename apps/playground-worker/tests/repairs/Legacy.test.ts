@@ -1,3 +1,4 @@
+import { runPromise } from "../scenarios/Setup.js"
 import { describe, expect, it } from "vitest"
 import { Effect, Layer, Schema } from "effect"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
@@ -85,7 +86,7 @@ const make = (stored: StoredOperatorReceipt | null = null) =>
 
 describe("legacy operator redrive admission", () => {
   it("refuses a new bypass before core/artifact execution", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const app = yield* make()
         const result = yield* app.service.execute(access, command)
@@ -114,7 +115,7 @@ describe("legacy operator redrive admission", () => {
         observedAt: 1000
       }
     })
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const app = yield* make(stored)
         expect(yield* app.service.execute(access, command)).toEqual(stored.result)

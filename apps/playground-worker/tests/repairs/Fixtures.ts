@@ -1,3 +1,4 @@
+import { definitions } from "../scenarios/Setup.js"
 import { Schema } from "effect"
 import { JobId } from "effect-jobs/JobId"
 import * as Policy from "effect-jobs/JobPolicy"
@@ -49,7 +50,7 @@ export const detail = Schema.decodeUnknownSync(JobDetail)({
   sandbox: ref,
   job: {
     jobId: sourceId,
-    catalog: Definitions.WelcomeEmail.catalog,
+    catalog: definitions.WelcomeEmail.catalog,
     state: "Dead",
     availableAt: 100,
     updatedAt: 900,
@@ -70,7 +71,7 @@ export const detail = Schema.decodeUnknownSync(JobDetail)({
   payload: {
     _tag: "Available",
     formatVersion: 1,
-    catalog: Definitions.WelcomeEmail.catalog,
+    catalog: definitions.WelcomeEmail.catalog,
     encoded: payload,
     validation: "Valid",
     encryption: "None"

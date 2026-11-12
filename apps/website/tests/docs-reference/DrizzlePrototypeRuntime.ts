@@ -12,6 +12,7 @@ import {
   requestReport,
   readReceipt
 } from "../../examples/docs/DrizzleReportRequest.js"
+import { ReportDefinitionsLayer } from "../../examples/docs/ReportWorkflow.js"
 // Native SQL APIs are intentionally pinned to Effect 4.0.5 by this qualification.
 // @effect-diagnostics unstableApiUsage:off
 // Real Drizzle builders and canonical Effects with a recording SQL boundary.
@@ -66,6 +67,7 @@ for (const failureAt of [undefined, "request", "enqueue", "receipt", "commit"]) 
         Effect.provideService(Database, db)
       )
     }).pipe(
+      Effect.provide(ReportDefinitionsLayer),
       // Deliberately partial recording SQL FFI: only unsafe and withTransaction are used.
       // It proves query/order/error behavior, never native PG capability or atomicity.
       Effect.provideService(PgClient.PgClient, client as unknown as PgClient.PgClient),

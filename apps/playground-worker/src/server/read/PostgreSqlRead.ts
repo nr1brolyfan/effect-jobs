@@ -17,6 +17,7 @@ import {
 import type { SandboxAccess, SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import { JobsRead, PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import * as Queries from "../../persistence/read/Queries.js"
+import * as Definitions from "../../scenarios/Definitions.js"
 import * as Projection from "./JobDetailsProjection.js"
 import { CursorCodec } from "./CursorCodec.js"
 
@@ -99,6 +100,7 @@ const unavailableCause = <E>(cause: Cause.Cause<E>) =>
   Effect.failCause(Cause.map(cause, () => new PlaygroundError({ code: "unavailable" })))
 export const make = (mapping: Queries.Mapping) =>
   Effect.gen(function* () {
+    const definitions = yield* Definitions.Definitions
     const database = yield* ReadDatabase
     const cursor = yield* CursorCodec
     const queries = Queries.make(mapping)
@@ -283,7 +285,7 @@ export const make = (mapping: Queries.Mapping) =>
         ) {
           return yield* unavailable()
         }
-        const payload = yield* Projection.payload(row.detail, row)
+        const payload = yield* Projection.payload(row.detail, row, definitions)
         const problem = row.problem?.problem ?? null
         const projected = {
           ...row.detail,
@@ -296,7 +298,7 @@ export const make = (mapping: Queries.Mapping) =>
             : null,
           history: yield* historyPage(request, row.history, 50),
           related: yield* relatedPage(request, row.related, 50),
-          eligibility: Projection.eligibility(row.detail, problem, payload)
+          eligibility: Projection.eligibility(row.detail, problem, payload, definitions)
         }
         return yield* Schema.decodeUnknownEffect(JobDetail)(projected, strict).pipe(
           Effect.mapError(unavailable)

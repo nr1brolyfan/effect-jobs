@@ -1,3 +1,4 @@
+import { runPromise } from "../scenarios/Setup.js"
 // @effect-diagnostics unstableApiUsage:off
 import { expect, it } from "vitest"
 import { Cause, Effect, Exit, Layer, Stream } from "effect"
@@ -128,7 +129,7 @@ it.each(["now", "associate", "saveReceipt", "audit"] as const)(
   "%s preserves success and maps SQL failure to Unknown without committing the body",
   async (port) => {
     for (const fail of [false, true]) {
-      await Effect.runPromise(
+      await runPromise(
         Effect.gen(function* () {
           const db = yield* fixture
           const planned = (yield* Plan.plan(scenario, Fixture.ref, 0))[0]!

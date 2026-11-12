@@ -1,3 +1,4 @@
+import { definitions as eventDefinitions } from "../scenarios/Setup.js"
 import { Effect, Redacted } from "effect"
 import * as Event from "../../src/execution/Event.js"
 import * as Executor from "../../src/execution/Executor.js"
@@ -10,7 +11,8 @@ export const issue = (config: Event.Config) =>
     Effect.gen(function* () {
       const app = yield* Application
       return yield* app.issue()
-    })
+    }),
+    eventDefinitions
   )
 
 export const describe = (config: Event.Config, credential: string) =>
@@ -20,7 +22,8 @@ export const describe = (config: Event.Config, credential: string) =>
     Effect.gen(function* () {
       const app = yield* Application
       return yield* app.describe(yield* app.authenticate(Redacted.make(credential)))
-    })
+    }),
+    eventDefinitions
   )
 
 export const reset = (
@@ -34,11 +37,12 @@ export const reset = (
     Effect.gen(function* () {
       const app = yield* Application
       return yield* app.reset(yield* app.authenticate(Redacted.make(credential)), command)
-    })
+    }),
+    eventDefinitions
   )
 
 export const generate = (config: Event.Config) =>
-  Event.run(config, Effect.void, Executor.generate(config.schema))
+  Event.run(config, Effect.void, Executor.generate(config.schema), eventDefinitions)
 
 export const scenario = (
   config: Event.Config,
@@ -51,7 +55,8 @@ export const scenario = (
     Effect.gen(function* () {
       const app = yield* Application
       return yield* app.run(yield* app.authenticate(Redacted.make(credential)), command)
-    })
+    }),
+    eventDefinitions
   ).pipe(
     Effect.catchTag("PlaygroundError", (error) => Effect.succeed({ code: error.code }))
   )
@@ -70,5 +75,6 @@ export const operator = (
         yield* app.authenticate(Redacted.make(credential)),
         command
       )
-    })
+    }),
+    eventDefinitions
   )

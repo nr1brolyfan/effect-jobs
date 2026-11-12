@@ -74,11 +74,13 @@ describe("schema-bound local encrypted fields", () => {
     )
     expect(changed.semanticProjectionBytes).not.toEqual(a.semanticProjectionBytes)
     let calls = 0
-    const definition = Job.make({
-      queue: Queue.make("billing"),
-      name: "receipt",
-      payload: schema
-    })
+    const definition = Effect.runSync(
+      Job.make({
+        queue: Queue.make("billing"),
+        name: "receipt",
+        payload: schema
+      })
+    )
     const RegistryLayer = Registry.layer
     const HandlerLayer = definition
       .handlerLayer(
@@ -143,7 +145,9 @@ describe("schema-bound local encrypted fields", () => {
   })
 
   it("supports independent services, nesting, optional/array/union branches and annotation rebuilding", async () => {
-    const personal = Payload.encrypted({ schema: Document, codec: PersonalEncryption })
+    const personal = Effect.runSync(
+      Payload.encrypted({ schema: Document, codec: PersonalEncryption })
+    )
     const item = Schema.Union([
       Schema.Struct({ tag: Schema.Literal("private"), value: EncryptedDocument }),
       Schema.Struct({ tag: Schema.Literal("public"), value: Schema.String })
@@ -179,30 +183,38 @@ describe("schema-bound local encrypted fields", () => {
       )
     )
     expect(text(optional.semanticProjectionBytes)).toContain("/optional")
-    expect(() =>
-      Payload.encrypted({
-        schema: Schema.Struct({ nested: EncryptedDocument.annotate({ title: "copy" }) }),
-        codec: {
-          envelope: Envelope,
-          seal: () => Effect.die("unused"),
-          open: () => Effect.die("unused")
-        }
-      })
-    ).toThrow(Payload.InvalidEncryptedSchema)
+    expect(
+      Effect.runSync(
+        Effect.flip(
+          Payload.encrypted({
+            schema: Schema.Struct({
+              nested: EncryptedDocument.annotate({ title: "copy" })
+            }),
+            codec: {
+              envelope: Envelope,
+              seal: () => Effect.die("unused"),
+              open: () => Effect.die("unused")
+            }
+          })
+        )
+      )
+    ).toBeInstanceOf(Payload.InvalidEncryptedSchema)
   })
 
   it("validates domain before seal, enforces final bytes and preserves arbitrary defects/interruption", async () => {
     let seals = 0
-    const bound = Payload.encrypted({
-      schema: Document,
-      codec: {
-        ...DocumentEncryption,
-        seal: (value) => {
-          seals++
-          return DocumentEncryption.seal(value)
+    const bound = Effect.runSync(
+      Payload.encrypted({
+        schema: Document,
+        codec: {
+          ...DocumentEncryption,
+          seal: (value) => {
+            seals++
+            return DocumentEncryption.seal(value)
+          }
         }
-      }
-    })
+      })
+    )
     await run(
       Effect.flip(
         encodeJobPayload(bound, { recipient: "x", total: "invalid" as unknown as bigint })
@@ -219,10 +231,12 @@ describe("schema-bound local encrypted fields", () => {
     )
     expect(error.reason).toBe("payload-too-large")
     for (const open of [() => Effect.die("fixture defect"), () => Effect.interrupt]) {
-      const fail = Payload.encrypted({
-        schema: Document,
-        codec: { ...DocumentEncryption, open }
-      })
+      const fail = Effect.runSync(
+        Payload.encrypted({
+          schema: Document,
+          codec: { ...DocumentEncryption, open }
+        })
+      )
       const encoded = await run(encodeJobPayload(fail, document))
       const exit = await Effect.runPromiseExit(
         decodeJobPayload(fail, encoded).pipe(Effect.provide(configured))
@@ -254,11 +268,13 @@ it("actual worker isolates invalid opened artifacts before the handler under exi
       import("effect/testing"),
       import("../../../src/JobPolicy.js")
     ])
-  const definition = Job.make({
-    queue: Queue.make("encrypted-worker"),
-    name: "receipt",
-    payload: schema
-  })
+  const definition = Effect.runSync(
+    Job.make({
+      queue: Queue.make("encrypted-worker"),
+      name: "receipt",
+      payload: schema
+    })
+  )
   const good = await run(encodeJobPayload(schema, value))
   const wire = JSON.parse(text(good.payloadBytes)) as {
     invoiceId: string

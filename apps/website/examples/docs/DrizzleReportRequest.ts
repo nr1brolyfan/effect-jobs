@@ -10,7 +10,7 @@ import * as PostgreSqlNative from "effect-jobs/PostgreSqlNative"
 import * as PostgreSqlDrizzleSchema from "effect-jobs/PostgreSqlDrizzleSchema"
 import { OperationId } from "effect-jobs/JobIdentity"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
-import { enqueueReport, ReportPayload } from "./ReportWorkflow.js"
+import { enqueueReport, ReportPayload, ReportDefinitionsLayer } from "./ReportWorkflow.js"
 
 // #region schema
 const jobTables = PostgreSqlDrizzleSchema.makeJobTables({})
@@ -62,7 +62,11 @@ const ReportJobsLayer = Layer.unwrap(
     )
   })
 )
-export const ReportsLayer = Layer.mergeAll(DatabaseLayer, ReportJobsLayer)
+export const ReportsLayer = Layer.mergeAll(
+  DatabaseLayer,
+  ReportJobsLayer,
+  ReportDefinitionsLayer
+)
 // ProvideMerge the same scoped PgClient Layer to ReportsLayer at composition;
 // keep its PgClient output for requestReport. Close the app Scope at shutdown.
 // #endregion setup

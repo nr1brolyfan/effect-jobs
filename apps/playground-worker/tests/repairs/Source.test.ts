@@ -1,3 +1,4 @@
+import { definitions, runPromiseExit, runPromise } from "../scenarios/Setup.js"
 import { describe, expect, it } from "vitest"
 import { Cause, Effect, Exit, Result } from "effect"
 import * as Codec from "effect-jobs/JobPayloadCodec"
@@ -60,7 +61,7 @@ describe("complete immutable repair admission", () => {
     )
     expect(Result.isFailure(Source.canonicalJson(hostile))).toBe(true)
     for (const value of [hostile, { value: Number.NaN }, "x".repeat(131073)]) {
-      const exit = await Effect.runPromiseExit(Source.digestJson(value))
+      const exit = await runPromiseExit(Source.digestJson(value))
       expect(Exit.isFailure(exit)).toBe(true)
       if (Exit.isFailure(exit)) {
         expect(exit.cause.reasons).toHaveLength(1)
@@ -76,7 +77,7 @@ describe("complete immutable repair admission", () => {
         throw new Error("foreign command trap")
       }
     })
-    const commandExit = await Effect.runPromiseExit(Source.commandDigest(foreignCommand))
+    const commandExit = await runPromiseExit(Source.commandDigest(foreignCommand))
     expect(Exit.isFailure(commandExit)).toBe(true)
     if (Exit.isFailure(commandExit)) {
       expect(commandExit.cause.reasons).toHaveLength(1)
@@ -89,16 +90,14 @@ describe("complete immutable repair admission", () => {
     const input = { value: 1 }
     const digest = Source.digestJson(input)
     input.value = 2
-    const expected = await Effect.runPromise(Source.digestJson({ value: 2 }))
+    const expected = await runPromise(Source.digestJson({ value: 2 }))
     expect(
-      await Effect.runPromise(Effect.all([digest, digest], { concurrency: "unbounded" }))
+      await runPromise(Effect.all([digest, digest], { concurrency: "unbounded" }))
     ).toEqual([expected, expected])
-    const invalidArtifact = await Effect.runPromiseExit(
-      Source.artifact({ format_version: 2 })
-    )
+    const invalidArtifact = await runPromiseExit(Source.artifact({ format_version: 2 }))
     expect(Exit.isFailure(invalidArtifact)).toBe(true)
     const bytes = new Uint8Array([1, 2])
-    const artifact = await Effect.runPromise(
+    const artifact = await runPromise(
       Source.artifact({ format_version: 1, payload: bytes, projection: bytes })
     )
     bytes.fill(9)
@@ -106,7 +105,7 @@ describe("complete immutable repair admission", () => {
     expect(artifact.semanticProjectionBytes).toEqual(new Uint8Array([1, 2]))
   })
   it("binds every admission field and canonical replacement content", async () => {
-    const baseline = await Effect.runPromise(Source.commandDigest(Fixture.command))
+    const baseline = await runPromise(Source.commandDigest(Fixture.command))
     expect(baseline).toMatch(/^[a-f0-9]{64}$/u)
     for (const delta of [
       { reason: "Other reason" },
@@ -118,10 +117,10 @@ describe("complete immutable repair admission", () => {
       { payload: { ...Fixture.payload, behavior: "retry-then-success" } }
     ]) {
       expect(
-        await Effect.runPromise(Source.digestJson({ ...Fixture.command, ...delta }))
+        await runPromise(Source.digestJson({ ...Fixture.command, ...delta }))
       ).not.toBe(baseline)
     }
-    const identity = await Effect.runPromise(Source.producerIdentity(Fixture.command))
+    const identity = await runPromise(Source.producerIdentity(Fixture.command))
     expect(identity.operation).toBe("playground.repair")
     expect(identity.slot).toBe("replacement")
     expect(identity.operationId).toHaveLength(64)
@@ -141,12 +140,12 @@ describe("server source authority and validation", () => {
       expect(Source.knownFailure(row)).toBe(false)
       expect(
         Exit.isFailure(
-          await Effect.runPromise(Effect.exit(Source.investigate(row, Fixture.command)))
+          await runPromise(Effect.exit(Source.investigate(row, Fixture.command)))
         )
       ).toBe(true)
     }
     expect(
-      await Effect.runPromise(
+      await runPromise(
         Source.investigate(
           { ...Fixture.sourceRow, state: "Isolated" },
           {
@@ -159,7 +158,7 @@ describe("server source authority and validation", () => {
     ).toBe("Unknown")
   })
   it("validates replacement, fixed scope and invariants and recomputes paths", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const encoded = yield* Codec.encodeJobPayload(
           Definitions.Payload,
@@ -221,9 +220,9 @@ describe("server source authority and validation", () => {
               Source.replacement(
                 {
                   ...row,
-                  queue: Definitions.PrivateDataExport.catalog.queue,
-                  kind: Definitions.PrivateDataExport.catalog.name,
-                  version: Definitions.PrivateDataExport.catalog.version
+                  queue: definitions.PrivateDataExport.catalog.queue,
+                  kind: definitions.PrivateDataExport.catalog.name,
+                  version: definitions.PrivateDataExport.catalog.version
                 },
                 Fixture.ref,
                 Fixture.payload

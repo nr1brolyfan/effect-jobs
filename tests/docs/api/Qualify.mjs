@@ -146,8 +146,11 @@ import * as Payload from "./JobPayload.ts"
 import * as Codec from "./JobPayloadCodec.ts"
 import { ClaimResults, ClaimReconciliations, FinalizationResults, FinalizationReconciliations } from "effect-jobs/JobStore"
 import type { JobStoreService } from "effect-jobs/JobStore"
-assert.equal(Definition.definition.queue.name, "billing")
-assert.equal(Producer.producer.identity({ operationId: "request-123", slot: "delivery" }).operationId, "request-123")
+const definitionSetup = await Effect.runPromise(Definition.setup)
+assert.equal(definitionSetup.definition.queue.name, "billing")
+const producerSetup = await Effect.runPromise(Producer.setup)
+assert.equal(producerSetup.producer.slots.delivery, producerSetup.definition)
+assert.equal((await Effect.runPromise(producerSetup.producer.identity({ operationId: "request-123", slot: "delivery" }))).operationId, "request-123")
 assert.equal(Policy.policy.retrySchedule.delayMillis, 5000)
 assert.equal(Policy.policy.completedRetention._tag, "Duration")
 assert(Storage.ddl.includes('CREATE TABLE "app_jobs"."jobs"'))
@@ -166,7 +169,8 @@ const store: JobStoreService = {
   recoverExpired: () => Effect.succeed(0)
 }
 assert.equal(claims, 0)
-assert.deepEqual(await Effect.runPromise(Runtime.runOnce(store)), { _tag: "Idle", claimed: 0, recovered: 0 })
+const runtimeSetup = await Effect.runPromise(Runtime.setup)
+assert.deepEqual(await Effect.runPromise(runtimeSetup.runOnce(store)), { _tag: "Idle", claimed: 0, recovered: 0 })
 assert.equal(claims, 1)
 console.log("JSDoc constructor/codec/finite empty-store drain examples PASS")
 `
@@ -183,11 +187,11 @@ assert.deepEqual(examples.map(({ name }) => name).sort(), [
   "PostgreSqlSchema.ts"
 ])
 const exportedNames = {
-  Job: "definition",
-  JobProducer: "producer",
+  Job: "setup",
+  JobProducer: "setup",
   JobConsumer: "plan",
   JobPolicy: "policy",
-  JobWorkerRuntime: "runOnce",
+  JobWorkerRuntime: "setup",
   PostgreSqlSchema: "ddl",
   JobPayload: "protectedValue",
   JobPayloadCodec: "roundTrip",

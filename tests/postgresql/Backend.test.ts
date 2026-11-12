@@ -31,17 +31,21 @@ import * as App from "../qualification/d6-pg/ApplicationTransactions.js"
 import * as Adapter from "./Adapter.js"
 
 const directory = process.env.D6_RESOURCE_DIRECTORY
-const definition = Job.make({
-  name: "invoice.generate",
-  version: 1,
-  queue: Queue.make("billing"),
-  payload: Schema.Struct({ invoiceId: Schema.String }),
-  encodePayload: encodeJobPayload
-})
-const producer = Producer.make({
-  operation: "billing.issue",
-  slots: { generate: definition }
-})
+const definition = Effect.runSync(
+  Job.make({
+    name: "invoice.generate",
+    version: 1,
+    queue: Queue.make("billing"),
+    payload: Schema.Struct({ invoiceId: Schema.String }),
+    encodePayload: encodeJobPayload
+  })
+)
+const producer = Effect.runSync(
+  Producer.make({
+    operation: "billing.issue",
+    slots: { generate: definition }
+  })
+)
 const policy = Policy.make({
   completedRetention: Duration.millis(1),
   deadRetention: Duration.millis(1)
@@ -483,17 +487,19 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
   })
   test("protected semantic fingerprints exclude encryption randomness without overwriting stored bytes", async () => {
     await clear()
-    const protectedDefinition = Job.make({
-      name: "invoice.private",
-      version: 1,
-      queue: definition.queue,
-      payload: Schema.Struct({
-        secret: Payload.protected(
-          Schema.Struct({ envelope: Schema.String, fingerprint: Schema.String })
-        )
-      }),
-      encodePayload: encodeJobPayload
-    })
+    const protectedDefinition = Effect.runSync(
+      Job.make({
+        name: "invoice.private",
+        version: 1,
+        queue: definition.queue,
+        payload: Schema.Struct({
+          secret: Payload.protected(
+            Schema.Struct({ envelope: Schema.String, fingerprint: Schema.String })
+          )
+        }),
+        encodePayload: encodeJobPayload
+      })
+    )
     const produce = (envelope: string, fingerprint: string) =>
       Effect.runPromise(
         backend.withTransaction((tx) =>

@@ -1,3 +1,5 @@
+import * as Definitions from "../../src/scenarios/Definitions.js"
+import { definitions as eventDefinitions } from "../scenarios/Setup.js"
 // Qualification FFI: new owned config only; no resource acquisition on import.
 import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
@@ -67,7 +69,9 @@ export const prepareRecorded = async () => {
   const config: Event.Config = { ...cfg, connectionString: url, localPrivate: true }
   const run = <A, E>(body: Parameters<typeof Event.run<A, E>>[2]) =>
     Effect.runPromise(
-      Event.run(config, Effect.void, body).pipe(Effect.timeout("30 seconds"))
+      Event.run(config, Effect.void, body, eventDefinitions).pipe(
+        Effect.timeout("30 seconds")
+      )
     )
   report.stage = "fresh mapped app migrations"
   await Effect.runPromise(
@@ -86,7 +90,8 @@ export const prepareRecorded = async () => {
               yield* client.unsafe(Qualification.migrationCommand(migration.sql))
             }
             yield* Migrations.backfillSyntheticTenants(cfg.schema).pipe(
-              Effect.provideService(SqlClient, client)
+              Effect.provideService(SqlClient, client),
+              Effect.provideService(Definitions.Definitions, eventDefinitions)
             )
           })
         )
@@ -138,7 +143,8 @@ export const drainRecorded = () => {
           () => import("../../src/execution/RepairReconciliation.js")
         )
         yield* Reconcile.run(cfg.schema, { limit: 50 })
-      })
+      }),
+      eventDefinitions
     ).pipe(Effect.timeout("30 seconds"))
   )
 }

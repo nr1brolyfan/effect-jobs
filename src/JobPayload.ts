@@ -1,7 +1,16 @@
 /**
  * Marks already-protected payload subtrees for semantic comparison; performs no encryption.
  */
-import { Cause, Data, Effect, Schema, SchemaAST, SchemaGetter, SchemaIssue } from "effect"
+import {
+  Cause,
+  Data,
+  Effect,
+  Result,
+  Schema,
+  SchemaAST,
+  SchemaGetter,
+  SchemaIssue
+} from "effect"
 import { hasEncryption, registerEncryption } from "./internal/codec/EncryptedBoundary.js"
 
 /**
@@ -72,42 +81,99 @@ export class InvalidEncryptedSchema extends Data.TaggedError("InvalidEncryptedSc
   readonly reason: "nested-encryption" | "recursive-schema" | "invalid-envelope"
 }> {}
 
+// These contiguous AST walks have no services or asynchronous work. Their Result
+// failures are lifted once by the lazy setup boundary below.
 const inspectDomain = (
   ast: SchemaAST.AST,
   ancestors = new Set<SchemaAST.AST>()
-): void => {
-  if (hasEncryption(ast) || ast.annotations?.effectJobsProtectedPayload) {
-    throw new InvalidEncryptedSchema({ reason: "nested-encryption" })
-  }
-  if (ancestors.has(ast) || SchemaAST.isSuspend(ast)) {
-    throw new InvalidEncryptedSchema({ reason: "recursive-schema" })
-  }
-  ancestors.add(ast)
-  if (SchemaAST.isObjects(ast)) {
-    ast.propertySignatures.forEach((p) => inspectDomain(p.type, ancestors))
-    ast.indexSignatures.forEach((p) => {
-      inspectDomain(p.parameter, ancestors)
-      inspectDomain(p.type, ancestors)
-    })
-  }
-  if (SchemaAST.isArrays(ast)) {
-    ast.elements.forEach((p) => inspectDomain(p, ancestors))
-    ast.rest.forEach((p) => inspectDomain(p, ancestors))
-  }
-  if (SchemaAST.isUnion(ast)) {
-    ast.types.forEach((p) => inspectDomain(p, ancestors))
-  }
-  if (SchemaAST.isDeclaration(ast)) {
-    ast.typeParameters.forEach((p) => inspectDomain(p, ancestors))
-  }
-  ast.encoding?.forEach((link) => inspectDomain(link.to, ancestors))
-  ancestors.delete(ast)
-}
+): Result.Result<void, InvalidEncryptedSchema> =>
+  Result.gen(function* () {
+    if (hasEncryption(ast) || ast.annotations?.effectJobsProtectedPayload) {
+      return yield* Result.fail(
+        new InvalidEncryptedSchema({ reason: "nested-encryption" })
+      )
+    }
+    if (ancestors.has(ast) || SchemaAST.isSuspend(ast)) {
+      return yield* Result.fail(
+        new InvalidEncryptedSchema({ reason: "recursive-schema" })
+      )
+    }
+    ancestors.add(ast)
+    if (SchemaAST.isObjects(ast)) {
+      for (const property of ast.propertySignatures) {
+        yield* inspectDomain(property.type, ancestors)
+      }
+      for (const index of ast.indexSignatures) {
+        yield* inspectDomain(index.parameter, ancestors)
+        yield* inspectDomain(index.type, ancestors)
+      }
+    }
+    if (SchemaAST.isArrays(ast)) {
+      for (const element of ast.elements) {
+        yield* inspectDomain(element, ancestors)
+      }
+      for (const rest of ast.rest) {
+        yield* inspectDomain(rest, ancestors)
+      }
+    }
+    if (SchemaAST.isUnion(ast)) {
+      for (const type of ast.types) {
+        yield* inspectDomain(type, ancestors)
+      }
+    }
+    if (SchemaAST.isDeclaration(ast)) {
+      for (const parameter of ast.typeParameters) {
+        yield* inspectDomain(parameter, ancestors)
+      }
+    }
+    for (const link of ast.encoding ?? []) {
+      yield* inspectDomain(link.to, ancestors)
+    }
+    ancestors.delete(ast)
+  })
+
+const inspectEnvelope = (
+  ast: SchemaAST.AST
+): Result.Result<void, InvalidEncryptedSchema> =>
+  Result.gen(function* () {
+    if (ast.encoding !== undefined || SchemaAST.isDeclaration(ast)) {
+      return yield* Result.fail(
+        new InvalidEncryptedSchema({ reason: "invalid-envelope" })
+      )
+    }
+    if (SchemaAST.isObjects(ast)) {
+      if (ast.indexSignatures.length > 0) {
+        return yield* Result.fail(
+          new InvalidEncryptedSchema({ reason: "invalid-envelope" })
+        )
+      }
+      for (const property of ast.propertySignatures) {
+        yield* inspectEnvelope(property.type)
+      }
+    }
+    if (SchemaAST.isArrays(ast)) {
+      if (ast.elements.length !== 0 || ast.rest.length !== 1) {
+        return yield* Result.fail(
+          new InvalidEncryptedSchema({ reason: "invalid-envelope" })
+        )
+      }
+      for (const rest of ast.rest) {
+        yield* inspectEnvelope(rest)
+      }
+    }
+    if (SchemaAST.isUnion(ast)) {
+      for (const type of ast.types) {
+        yield* inspectEnvelope(type)
+      }
+    }
+  })
 
 /** Bind a decoded domain Schema to an app-owned encrypted JSON envelope.
  * Domain encoding/validation precedes seal; open precedes domain decoding/validation.
  * Multiple independent fields, structs, arrays, optionals and unions are supported.
- * Encrypted-within-encrypted and recursive domain schemas fail at construction.
+ * Setup is lazy and fails with InvalidEncryptedSchema in the Effect error channel.
+ * Each execution snapshots schema, envelope and codec methods into a fresh Schema.
+ * Encrypted-within-encrypted and recursive domain schemas fail during setup.
  * All encrypted fields are opened before the handler; this is not selective access.
  * Malformed envelopes/domain data follow the existing bounded artifact decode path.
  * Defects and interruption are not converted to codec failures. No remote key retry
@@ -122,67 +188,65 @@ export const encrypted = <
 >(options: {
   readonly schema: S
   readonly codec: EncryptionCodec<S["Encoded"], Envelope, RE, RD>
-}): Schema.Codec<
-  S["Type"],
-  Envelope["Encoded"],
-  S["DecodingServices"] | RD,
-  S["EncodingServices"] | RE
-> => {
-  const { schema, codec } = options
-  inspectDomain(schema.ast)
-  inspectDomain(codec.envelope.ast)
-  const inspectEnvelope = (ast: SchemaAST.AST): void => {
-    if (ast.encoding !== undefined || SchemaAST.isDeclaration(ast)) {
-      throw new InvalidEncryptedSchema({ reason: "invalid-envelope" })
-    }
-    if (SchemaAST.isObjects(ast)) {
-      if (ast.indexSignatures.length > 0) {
-        throw new InvalidEncryptedSchema({ reason: "invalid-envelope" })
-      }
-      ast.propertySignatures.forEach((p) => inspectEnvelope(p.type))
-    }
-    if (SchemaAST.isArrays(ast)) {
-      if (ast.elements.length !== 0 || ast.rest.length !== 1) {
-        throw new InvalidEncryptedSchema({ reason: "invalid-envelope" })
-      }
-      ast.rest.forEach(inspectEnvelope)
-    }
-    if (SchemaAST.isUnion(ast)) {
-      ast.types.forEach(inspectEnvelope)
-    }
-  }
-  inspectEnvelope(codec.envelope.ast)
-  const envelopeAst = codec.envelope.ast
-  if (
-    !SchemaAST.isObjects(envelopeAst) ||
-    envelopeAst.encoding !== undefined ||
-    !envelopeAst.propertySignatures.some(
-      (p) => p.name === "fingerprint" && p.type.context?.isOptional !== true
+}): Effect.Effect<
+  Schema.Codec<
+    S["Type"],
+    Envelope["Encoded"],
+    S["DecodingServices"] | RD,
+    S["EncodingServices"] | RE
+  >,
+  InvalidEncryptedSchema
+> =>
+  Effect.suspend(() => {
+    const { schema, codec } = options
+    const { envelope, seal, open } = codec
+    return Effect.fromResult(
+      Result.gen(function* () {
+        yield* inspectDomain(schema.ast)
+        yield* inspectDomain(envelope.ast)
+        yield* inspectEnvelope(envelope.ast)
+        const envelopeAst = envelope.ast
+        if (
+          !SchemaAST.isObjects(envelopeAst) ||
+          envelopeAst.encoding !== undefined ||
+          !envelopeAst.propertySignatures.some(
+            (p) => p.name === "fingerprint" && p.type.context?.isOptional !== true
+          )
+        ) {
+          return yield* Result.fail(
+            new InvalidEncryptedSchema({ reason: "invalid-envelope" })
+          )
+        }
+        // No typed provider details are retained in Schema issues. Defects/interruption
+        // remain in the complete Cause; pinned Effect.mapError drops mixed reasons.
+        const issue = () =>
+          new SchemaIssue.Forbidden({ message: "payload encryption failed" })
+        const result = protectedPayload(envelope).pipe(
+          Schema.decodeTo(schema, {
+            decode: SchemaGetter.transformEffect((value) =>
+              open
+                .call(codec, value)
+                .pipe(
+                  Effect.catchCause((cause) => Effect.failCause(Cause.map(cause, issue)))
+                )
+            ),
+            encode: SchemaGetter.transformEffect((value) =>
+              seal
+                .call(codec, value)
+                .pipe(
+                  Effect.catchCause((cause) => Effect.failCause(Cause.map(cause, issue)))
+                )
+            )
+          })
+        )
+        const link = result.ast.encoding?.at(-1)
+        if (link === undefined) {
+          return yield* Result.fail(
+            new InvalidEncryptedSchema({ reason: "invalid-envelope" })
+          )
+        }
+        registerEncryption(link)
+        return result
+      })
     )
-  ) {
-    throw new InvalidEncryptedSchema({ reason: "invalid-envelope" })
-  }
-  // No typed provider details are retained in Schema issues. Defects/interruption
-  // remain in the complete Cause; pinned Effect.mapError drops mixed reasons.
-  const issue = () => new SchemaIssue.Forbidden({ message: "payload encryption failed" })
-  const result = protectedPayload(codec.envelope).pipe(
-    Schema.decodeTo(schema, {
-      decode: SchemaGetter.transformEffect((value) =>
-        codec
-          .open(value)
-          .pipe(Effect.catchCause((cause) => Effect.failCause(Cause.map(cause, issue))))
-      ),
-      encode: SchemaGetter.transformEffect((value) =>
-        codec
-          .seal(value)
-          .pipe(Effect.catchCause((cause) => Effect.failCause(Cause.map(cause, issue))))
-      )
-    })
-  )
-  const link = result.ast.encoding?.at(-1)
-  if (link === undefined) {
-    throw new InvalidEncryptedSchema({ reason: "invalid-envelope" })
-  }
-  registerEncryption(link)
-  return result
-}
+  })

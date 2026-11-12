@@ -35,19 +35,23 @@ describe("bound production and defaults", () => {
       ...Policy.defaultPolicy,
       retrySchedule: { ...Policy.defaultPolicy.retrySchedule }
     }
-    const job = Job.make({
-      name: "invoice.send",
-      queue,
-      payload: Schema.String,
-      defaultPolicy: mutable
-    })
+    const job = Effect.runSync(
+      Job.make({
+        name: "invoice.send",
+        queue,
+        payload: Schema.String,
+        defaultPolicy: mutable
+      })
+    )
     mutable.retrySchedule.delayMillis = 17
     expect(Object.isFrozen(mutable)).toBe(false)
     expect(Object.isFrozen(mutable.retrySchedule)).toBe(false)
     expect(job.defaultPolicy?.retrySchedule.delayMillis).toBe(5000)
     expect(Object.isFrozen(job.defaultPolicy)).toBe(true)
     const bindings = { delivery: job, copy: job }
-    const producer = Producer.make({ operation: identity.operation, slots: bindings })
+    const producer = Effect.runSync(
+      Producer.make({ operation: identity.operation, slots: bindings })
+    )
     bindings.delivery = { ...job }
     expect(producer.slots.delivery).toBe(job)
     expect(Object.isFrozen(producer.slots)).toBe(true)
@@ -76,22 +80,28 @@ describe("bound production and defaults", () => {
     expect(seen.every((p) => p.catalog.name === "invoice.send")).toBe(true)
   })
   it("keeps different queues and the same contract under several slots", async () => {
-    const first = Job.make({
-      name: "invoice.send",
-      queue,
-      payload: Schema.String,
-      defaultPolicy: Policy.defaultPolicy
-    })
-    const second = Job.make({
-      name: "confirmation.send",
-      queue: Queue.make("mail"),
-      payload: Schema.Int,
-      defaultPolicy: Policy.defaultPolicy
-    })
-    const producer = Producer.make({
-      operation: "order.place",
-      slots: { invoice: first, copy: first, confirmation: second }
-    })
+    const first = Effect.runSync(
+      Job.make({
+        name: "invoice.send",
+        queue,
+        payload: Schema.String,
+        defaultPolicy: Policy.defaultPolicy
+      })
+    )
+    const second = Effect.runSync(
+      Job.make({
+        name: "confirmation.send",
+        queue: Queue.make("mail"),
+        payload: Schema.Int,
+        defaultPolicy: Policy.defaultPolicy
+      })
+    )
+    const producer = Effect.runSync(
+      Producer.make({
+        operation: "order.place",
+        slots: { invoice: first, copy: first, confirmation: second }
+      })
+    )
     const seen: Array<PreparedJob> = []
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -102,21 +112,31 @@ describe("bound production and defaults", () => {
     expect(seen.map((p) => p.catalog.queue)).toEqual(["billing", "mail"])
   })
   it("rejects invalid declarations and dynamic missing/invalid policies at their boundaries", async () => {
-    expect(() =>
-      Job.make({
-        name: "invoice.send",
-        queue,
-        payload: Schema.String,
-        defaultPolicy: {} as never
-      })
-    ).toThrow(Job.InvalidJobDefinition)
-    expect(() => Producer.make({ operation: "order.place", slots: {} })).toThrow(
-      JobDeclarationError
+    expect(
+      Effect.runSync(
+        Effect.flip(
+          Job.make({
+            name: "invoice.send",
+            queue,
+            payload: Schema.String,
+            defaultPolicy: {} as never
+          })
+        )
+      )
+    ).toBeInstanceOf(Job.InvalidJobDefinition)
+    expect(
+      Effect.runSync(Effect.flip(Producer.make({ operation: "order.place", slots: {} })))
+    ).toBeInstanceOf(JobDeclarationError)
+    expect(
+      Effect.runSync(
+        Effect.flip(
+          Producer.make({ operation: "order.place", slots: { delivery: null } } as never)
+        )
+      )
+    ).toBeInstanceOf(JobDeclarationError)
+    const job = Effect.runSync(
+      Job.make({ name: "invoice.send", queue, payload: Schema.String })
     )
-    expect(() =>
-      Producer.make({ operation: "order.place", slots: { delivery: null } } as never)
-    ).toThrow(JobDeclarationError)
-    const job = Job.make({ name: "invoice.send", queue, payload: Schema.String })
     const seen: Array<PreparedJob> = []
     const failure = await Effect.runPromise(
       Effect.flip(job.enqueue(input as never)).pipe(
@@ -124,7 +144,9 @@ describe("bound production and defaults", () => {
       )
     )
     expect(failure).toMatchObject({ _tag: "InvalidJobInput", field: "policy" })
-    const producer = Producer.make({ operation: "order.place", slots: { delivery: job } })
+    const producer = Effect.runSync(
+      Producer.make({ operation: "order.place", slots: { delivery: job } })
+    )
     for (const args of [
       ["unknown", { operationId: "one", payload: "input", policy: Policy.defaultPolicy }],
       ["delivery", { operationId: "", payload: "input", policy: Policy.defaultPolicy }]

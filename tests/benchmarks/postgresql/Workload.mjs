@@ -182,11 +182,13 @@ try {
   )
   const definitions = queues.flatMap((queue) =>
     Array.from({ length: options.kindsPerQueue }, (_, k) =>
-      Job.make({
-        name: `soak.kind${k}`,
-        queue,
-        payload: Schema.Struct({ data: Schema.String })
-      })
+      Effect.runSync(
+        Job.make({
+          name: `soak.kind${k}`,
+          queue,
+          payload: Schema.Struct({ data: Schema.String })
+        })
+      )
     )
   )
   const churnPolicy = Policy.make({

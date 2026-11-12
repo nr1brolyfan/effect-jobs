@@ -164,15 +164,20 @@ export const producerIdentity = (command: JobRepairCommand) =>
     )
   )
 
-export const definition = (row: Readonly<Record<string, unknown>>) => {
-  const found = Definitions.definitions.find(
-    (candidate) =>
-      candidate.catalog.queue === row.queue &&
-      candidate.catalog.name === row.kind &&
-      candidate.catalog.version === Number(row.version)
-  )
-  return found ? Effect.succeed(found) : Effect.fail(rejected("unsupported-catalog"))
-}
+export const definition = (row: Readonly<Record<string, unknown>>) =>
+  Effect.gen(function* () {
+    const definitions = yield* Definitions.Definitions
+    const found = definitions.definitions.find(
+      (candidate) =>
+        candidate.catalog.queue === row.queue &&
+        candidate.catalog.name === row.kind &&
+        candidate.catalog.version === Number(row.version)
+    )
+    if (!found) {
+      return yield* rejected("unsupported-catalog")
+    }
+    return found
+  })
 export const artifact = (row: Readonly<Record<string, unknown>>) =>
   Effect.gen(function* () {
     // Snapshot foreign row access before validation and buffer copying.
@@ -257,14 +262,16 @@ export const replacement = (
   input: unknown
 ) =>
   Effect.gen(function* () {
+    const definitions = yield* Definitions.Definitions
+
     const selected = yield* definition(row)
-    const synthetic = selected === Definitions.SyntheticDocumentExport
+    const synthetic = selected === definitions.SyntheticDocumentExport
     if ("document" in selected.payload.fields && !synthetic) {
       return yield* rejected("encrypted-correction-unavailable")
     }
     // Decode/authenticate the encoded envelope, never accept a plaintext document.
     const nextSynthetic = synthetic
-      ? yield* Schema.decodeUnknownEffect(Definitions.SyntheticExportPayload)(input, {
+      ? yield* Schema.decodeUnknownEffect(definitions.SyntheticExportPayload)(input, {
           onExcessProperty: "error"
         }).pipe(Effect.mapError(() => rejected("invalid-payload")))
       : null
@@ -297,7 +304,7 @@ export const replacement = (
     const oldSynthetic = synthetic
       ? yield* artifact(row).pipe(
           Effect.flatMap((bytes) =>
-            Codec.decodeJobPayload(Definitions.SyntheticExportPayload, bytes)
+            Codec.decodeJobPayload(definitions.SyntheticExportPayload, bytes)
           ),
           Effect.catchTags({ RepairSourceRejected: () => Effect.succeed(null) }),
           Effect.catchTags({ JobPayloadCodecError: () => Effect.succeed(null) })

@@ -187,7 +187,7 @@ import { Effect, Schema } from "effect"
 import { TestClock } from "effect/testing"
 import { encodeJobPayload, decodeJobPayload } from "effect-jobs/JobPayloadCodec"
 import { JobDetail, JobPage } from "./dist/Jobs.js"
-import { ScenarioJob } from "./dist/Definitions.js"
+import { ScenarioDefinitions, ScenarioDefinitionsLayer } from "./dist/Definitions.js"
 import { JobsRead, Changes } from "./dist/Services.js"
 import * as Fixtures from "./dist/Fixtures.js"
 import * as MockLayer from "./dist/MockLayer.js"
@@ -196,6 +196,8 @@ assert.throws(() => require.resolve("drizzle-orm"))
 assert.throws(() => require.resolve("pg"))
 assert(Schema.is(JobDetail)(Fixtures.detail))
 assert(Schema.is(JobPage)(Fixtures.page))
+const { ScenarioJob, ScenarioProducer } = await Effect.runPromise(ScenarioDefinitions.pipe(Effect.provide(ScenarioDefinitionsLayer)))
+assert.equal(ScenarioProducer.slots.execute, ScenarioJob)
 const payload = Schema.decodeUnknownSync(ScenarioJob.payload)({ sandbox: Fixtures.sandbox.ref, scenario: "success", sequence: 1 })
 const encoded = await Effect.runPromise(encodeJobPayload(ScenarioJob.payload, payload))
 assert.deepEqual(await Effect.runPromise(decodeJobPayload(ScenarioJob.payload, encoded)), payload)
