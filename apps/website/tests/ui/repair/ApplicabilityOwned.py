@@ -31,13 +31,31 @@ try:
         result=subprocess.run(['node','apps/website/tests/ui/repair/Applicability.real.ts'],env=env,stdout=log,stderr=log,timeout=300)
     receipt['exit']=result.returncode
     if result.returncode==0: receipt['status']='PASS'
+except Exception:
+    # Keep diagnostics bounded: provider exceptions may contain private config.
+    receipt['executionFailed']=True
 finally:
+    cleanup={'exit':None,'absentVerified':False}
     if cid:
-        result=subprocess.run([docker,'rm','--force',cid],capture_output=True,text=True,timeout=30)
-        absent=subprocess.run([docker,'inspect',cid],capture_output=True,text=True,timeout=10)
-        receipt['cleanup']={'exit':result.returncode,'absentVerified':absent.returncode!=0 and 'no such object' in absent.stderr.lower()}
-    private.unlink(missing_ok=True)
-    receipt['privateConfigRemoved']=not private.exists()
+        try:
+            result=subprocess.run([docker,'rm','--force',cid],capture_output=True,text=True,timeout=30)
+            cleanup['exit']=result.returncode
+        except Exception:
+            cleanup['removeFailed']=True
+        # Verify absence independently, even when removal raised or timed out.
+        try:
+            absent=subprocess.run([docker,'inspect',cid],capture_output=True,text=True,timeout=10)
+            cleanup['absentVerified']=absent.returncode!=0 and 'no such object' in absent.stderr.lower()
+        except Exception:
+            cleanup['inspectFailed']=True
+    receipt['cleanup']=cleanup
+    try:
+        private.unlink(missing_ok=True)
+        receipt['privateConfigRemoved']=not private.exists()
+    except Exception:
+        receipt['privateConfigRemoved']=False
+    cleanup_ok=(not cid or (cleanup['exit']==0 and cleanup['absentVerified'])) and receipt['privateConfigRemoved']
+    receipt['status']='PASS' if receipt.get('exit')==0 and not receipt.get('executionFailed') and cleanup_ok else 'FAIL'
     (out/'owned-resource.json').write_text(json.dumps(receipt,indent=2))
     print(json.dumps(receipt))
     if receipt['status']!='PASS': raise SystemExit(1)

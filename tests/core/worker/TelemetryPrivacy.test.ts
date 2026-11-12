@@ -14,13 +14,15 @@ import { FinalizationResults } from "../../../src/JobStore.js"
 import { harness, policy } from "./Harness.js"
 
 const queue = Queue.make("review-probe")
-const job = Job.make({
-  queue,
-  name: "probe",
-  version: 1,
-  payload: Schema.Struct({ value: Schema.String }),
-  encodePayload: Codec.encodeJobPayload
-})
+const job = Effect.runSync(
+  Job.make({
+    queue,
+    name: "probe",
+    version: 1,
+    payload: Schema.Struct({ value: Schema.String }),
+    encodePayload: Codec.encodeJobPayload
+  })
+)
 const consumer = Effect.runSync(
   Consumer.make(queue, {
     localConcurrency: 1,

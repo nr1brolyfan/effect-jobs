@@ -1,6 +1,6 @@
 import { Effect } from "effect"
-import { PostgreSqlFailure } from "../../PostgreSqlTransaction.js"
-import type { ApplicationAdapter } from "../../PostgreSqlTransaction.js"
+import { PostgreSqlFailure } from "../PostgreSqlTransaction.js"
+import type { ApplicationAdapter } from "../PostgreSqlTransaction.js"
 
 const operatorChecks = {
   state:

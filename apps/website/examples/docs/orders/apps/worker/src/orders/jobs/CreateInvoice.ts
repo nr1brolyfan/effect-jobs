@@ -1,15 +1,16 @@
 // Native SQL APIs are intentionally pinned to Effect 4.0.5 by this checked example.
 // @effect-diagnostics unstableApiUsage:off
-import { Effect } from "effect"
+import { Effect, Layer } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import { eq } from "drizzle-orm"
-import * as JobProducer from "effect-jobs/JobProducer"
 import * as JobPayloadCodec from "effect-jobs/JobPayloadCodec"
 import * as FailureCode from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
 import { Database } from "#database/Database"
 import { invoices, orders } from "#database/schema"
-import { CreateOrderInvoice, SendInvoice } from "#orders/contracts/jobs"
+import { OrderJobs } from "#orders/contracts/jobs"
+
+import { WorkerDefinitions } from "#worker/orders/Definitions"
 
 const Codes = FailureCode.define({
   missing: "invoice_order_missing",
@@ -18,13 +19,9 @@ const Codes = FailureCode.define({
 })
 
 // #region handoff
-export const InvoiceCreated = JobProducer.make({
-  operation: "invoice.create",
-  slots: { "send-invoice": SendInvoice }
-})
-
 export const createInvoice = (orderId: string) =>
   Effect.gen(function* () {
+    const { InvoiceCreated } = yield* WorkerDefinitions
     const db = yield* Database
     const pg = yield* PgClient.PgClient
 
@@ -66,25 +63,31 @@ export const createInvoice = (orderId: string) =>
   })
 // #endregion handoff
 
-export const InvoiceHandlerLayer = CreateOrderInvoice.handlerLayer(
-  Effect.fn("Orders.createInvoice")(function* (input) {
-    // SQL control/commit failures are conservatively uncertain, never safe-retried.
-    yield* createInvoice(input.payload.orderId).pipe(
-      Effect.catchTags({
-        EffectDrizzleQueryError: () =>
-          Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.handoff })),
-        JobsTransactionClosed: () =>
-          Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.handoff })),
-        InvalidJobInput: () => Effect.fail(JobFailures.Isolate({ code: Codes.conflict })),
-        JobPayloadCodecError: () =>
-          Effect.fail(JobFailures.Isolate({ code: Codes.conflict })),
-        SqlError: () => Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.handoff })),
-        JobBackendError: () =>
-          Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.handoff })),
-        JobIntegrityConflict: () =>
-          Effect.fail(JobFailures.Isolate({ code: Codes.conflict }))
-      })
+export const InvoiceHandlerLayer = Layer.unwrap(
+  Effect.map(OrderJobs, (jobs) =>
+    jobs.CreateOrderInvoice.handlerLayer(
+      Effect.fn("Orders.createInvoice")(function* (input) {
+        // SQL control/commit failures are conservatively uncertain, never safe-retried.
+        yield* createInvoice(input.payload.orderId).pipe(
+          Effect.catchTags({
+            EffectDrizzleQueryError: () =>
+              Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.handoff })),
+            JobsTransactionClosed: () =>
+              Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.handoff })),
+            InvalidJobInput: () =>
+              Effect.fail(JobFailures.Isolate({ code: Codes.conflict })),
+            JobPayloadCodecError: () =>
+              Effect.fail(JobFailures.Isolate({ code: Codes.conflict })),
+            SqlError: () =>
+              Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.handoff })),
+            JobBackendError: () =>
+              Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.handoff })),
+            JobIntegrityConflict: () =>
+              Effect.fail(JobFailures.Isolate({ code: Codes.conflict }))
+          })
+        )
+      }),
+      JobPayloadCodec.decodeJobPayload
     )
-  }),
-  JobPayloadCodec.decodeJobPayload
+  )
 )

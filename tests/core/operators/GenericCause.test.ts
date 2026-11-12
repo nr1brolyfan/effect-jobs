@@ -1,16 +1,16 @@
 import { Cause, Context, Effect, Exit, Schema } from "effect"
 import { afterEach, expect, test, vi } from "vitest"
-import * as Jobs from "../../../src/PostgreSqlJobs.js"
-import * as Operators from "../../../src/internal/postgresql/Operators.js"
+import * as Jobs from "../../../src/postgresql/PostgreSqlJobs.js"
+import * as Operators from "../../../src/postgresql/internal/Operators.js"
 import {
   PostgreSqlApplication,
   PostgreSqlFailure,
   PostgreSqlInvalidHandle
-} from "../../../src/PostgreSqlTransaction.js"
+} from "../../../src/postgresql/PostgreSqlTransaction.js"
 import type {
   ApplicationAdapter,
   PostgreSqlError
-} from "../../../src/PostgreSqlTransaction.js"
+} from "../../../src/postgresql/PostgreSqlTransaction.js"
 import {
   JobOperatorExpected,
   JobOperatorRejected,

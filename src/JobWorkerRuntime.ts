@@ -29,7 +29,8 @@ export type { DrainResult } from "./internal/worker/Results.js"
  * import type { JobStoreService } from "effect-jobs/JobStore"
  *
  * const queue = Queue.make("billing")
- * const definition = Job.make({
+ * const setup = Effect.gen(function* () {
+ * const definition = yield* Job.make({
  *   queue, name: "invoice.generate", version: 1,
  *   payload: Schema.Struct({ invoiceId: Schema.String }),
  *   encodePayload: Codec.encodeJobPayload
@@ -45,6 +46,8 @@ export type { DrainResult } from "./internal/worker/Results.js"
  *     localConcurrency: 2, claimLimitPerRun: 20, recoveryLimitPerRun: 10
  *   }).pipe(Effect.flatMap(Runtime.drain), Effect.provide(WorkerLayer))
  * }
+ * return { definition, runOnce }
+ * })
  * ```
  *
  * @category operations

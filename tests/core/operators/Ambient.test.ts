@@ -1,14 +1,14 @@
 import { Cause, Effect, Exit, Schema } from "effect"
 import { expect, test } from "vitest"
-import { makeOperators } from "../../../src/internal/postgresql/Operators.js"
+import { makeOperators } from "../../../src/postgresql/internal/Operators.js"
 import {
   PostgreSqlFailure,
   PostgreSqlInvalidHandle
-} from "../../../src/PostgreSqlTransaction.js"
+} from "../../../src/postgresql/PostgreSqlTransaction.js"
 import type {
   ApplicationAdapter,
   TransactionQuery
-} from "../../../src/PostgreSqlTransaction.js"
+} from "../../../src/postgresql/PostgreSqlTransaction.js"
 import { JobOperatorExpected } from "../../../src/JobOperators.js"
 import * as Policy from "../../../src/JobPolicy.js"
 import { encodeJobPayload } from "../../../src/JobPayloadCodec.js"

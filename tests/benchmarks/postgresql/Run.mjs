@@ -92,10 +92,9 @@ if (!options.run) {
             ])
           ),
           runtimeHashes: Object.fromEntries(
-            ["JobPolicy", "PostgreSqlNative", "internal/postgresql/Store"].map((name) => [
-              name,
-              hash(join(root, `dist/${name}.js`))
-            ])
+            ["JobPolicy", "postgresql/PostgreSqlNative", "postgresql/internal/Store"].map(
+              (name) => [name, hash(join(root, `dist/${name}.js`))]
+            )
           ),
           dependencyLockSha256: hash(
             fileURLToPath(new URL("package-lock.json", import.meta.url))

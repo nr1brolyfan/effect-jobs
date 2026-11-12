@@ -118,7 +118,9 @@ export const PersonalEncryption: Payload.EncryptionCodec<
   seal: (value) => Effect.flatMap(PersonalKeys, (ring) => seal(ring, value)),
   open: (value) => Effect.flatMap(PersonalKeys, (ring) => open(ring, value))
 }
-export const EncryptedDocument = Payload.encrypted({
-  schema: Document,
-  codec: DocumentEncryption
-})
+export const EncryptedDocument = Effect.runSync(
+  Payload.encrypted({
+    schema: Document,
+    codec: DocumentEncryption
+  })
+)

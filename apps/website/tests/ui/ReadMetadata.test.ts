@@ -6,6 +6,9 @@ import * as Queries from "../../../playground-worker/src/persistence/read/Querie
 import * as Read from "../../../playground-worker/src/server/read/PostgreSqlRead.js"
 import { CursorCodec } from "../../../playground-worker/src/server/read/CursorCodec.js"
 
+import * as Definitions from "../../../playground-worker/src/scenarios/Definitions.js"
+import { definitions } from "../../../playground-worker/tests/scenarios/Setup.js"
+
 const mapping = {
   schema: "read_test",
   jobsTable: "jobs",
@@ -36,9 +39,10 @@ const read = (rows: unknown, filters: JobFilters = {}, cursor?: string) =>
         }
       )
     }).pipe(
+      Effect.provideService(Definitions.Definitions, definitions),
       Effect.provideService(Read.ReadDatabase, { execute: () => Effect.succeed(rows) }),
       Effect.provideService(CursorCodec, codec),
-      Effect.catchTag("PlaygroundError", (error) => Effect.succeed(error.code))
+      Effect.catchTags({ PlaygroundError: (error) => Effect.succeed(error.code) })
     )
   )
 

@@ -7,12 +7,12 @@ import * as Registry from "effect-jobs/JobRegistry"
 import * as Consumer from "effect-jobs/JobConsumer"
 import * as Files from "../../examples/docs/NodeReportFiles.js"
 import {
-  GenerateReport,
+  ReportDefinitions,
+  reportDefinitions,
   ReportPayload,
   ReportHandlerLayer,
   ReportStorage,
   ReportHandoff,
-  DeliverReport,
   DeliveryHandlerLayer,
   ReportDelivery,
   DeliveryBusy,
@@ -21,6 +21,10 @@ import {
   renderReport,
   ReportsQueue
 } from "../../examples/docs/ReportWorkflow.js"
+
+const definitions = await Effect.runPromise(reportDefinitions)
+const { GenerateReport, DeliverReport } = definitions
+const DefinitionsLayer = Layer.succeed(ReportDefinitions, definitions)
 
 const payload = {
   reportId: "report-1",
@@ -79,6 +83,7 @@ try {
     Effect.provide(
       ReportHandlerLayer.pipe(
         Layer.provideMerge(Registry.layer),
+        Layer.provide(DefinitionsLayer),
         Layer.provide(HandoffLayer),
         Layer.provide(Files.layer(directory))
       )
@@ -99,6 +104,7 @@ try {
       Effect.provide(
         ReportHandlerLayer.pipe(
           Layer.provideMerge(Registry.layer),
+          Layer.provide(DefinitionsLayer),
           Layer.provide(HandoffLayer),
           Layer.provide(
             Layer.succeed(
@@ -145,6 +151,7 @@ try {
         Effect.provide(
           DeliveryHandlerLayer.pipe(
             Layer.provideMerge(Registry.layer),
+            Layer.provide(DefinitionsLayer),
             Layer.provide(
               Layer.succeed(
                 ReportDelivery,

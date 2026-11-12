@@ -28,13 +28,15 @@ import { JobId } from "effect-jobs/JobId"
 
 const sentinel = "PRIVATE_INSTALLED_PAYLOAD"
 const queue = Queue.make("installed")
-const definition = Job.make({
-  queue,
-  name: "neutral",
-  version: 1,
-  payload: Schema.Struct({ value: Schema.String }),
-  encodePayload: Codec.encodeJobPayload
-})
+const definition = Effect.runSync(
+  Job.make({
+    queue,
+    name: "neutral",
+    version: 1,
+    payload: Schema.Struct({ value: Schema.String }),
+    encodePayload: Codec.encodeJobPayload
+  })
+)
 const consumer = Effect.runSync(
   Consumer.make(queue, {
     localConcurrency: 1,
@@ -84,12 +86,16 @@ await Effect.runPromise(
         )
       )
       const ownership = Result.getOrThrow(Lifecycle.ownershipOf(snapshot))
+      const producer = yield* Producer.make({
+        operation: "installed.produce",
+        slots: { run: definition }
+      })
       const prepared = {
         catalog: definition.catalog,
-        producer: Producer.make({
-          operation: "installed.produce",
-          slots: { run: definition }
-        }).identity({ operationId: "PRIVATE_INSTALLED_OPERATION", slot: "run" }),
+        producer: yield* producer.identity({
+          operationId: "PRIVATE_INSTALLED_OPERATION",
+          slot: "run"
+        }),
         policy,
         encoded
       }

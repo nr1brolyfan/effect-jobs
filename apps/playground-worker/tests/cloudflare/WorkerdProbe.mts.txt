@@ -27,50 +27,64 @@ import * as WakeCycle from "../../src/cloudflare/WakeCycle.js"
 declare const Response: typeof import("@cloudflare/workers-types").Response
 
 const queue = Queue.make("cloudflare-probe")
-const definition = Job.make({
-  queue,
-  name: "synthetic",
-  payload: Schema.String,
-  encodePayload: Codec.encodeJobPayload
-})
-
-const producer = Producer.make({ operation: "cloudflare.probe", slots: { synthetic: definition } })
-const nativeProbe = Effect.scoped(
-  Effect.gen(function* () {
-    // Zero eager connections and no SQL: this synthetic URL is never connected.
-    const client = yield* PgClient.make({
-      url: Redacted.make("postgres://synthetic:synthetic@127.0.0.1:1/synthetic"),
-      minConnections: 0,
-      maxConnections: 2,
-      prepare: false,
-      connectTimeout: "1 second",
-      idleTimeout: "1 second"
-    })
-    const adapter = Native.make({ client, operationTimeoutMillis: 1_000 })
-    const backend = yield* Backend.make({ operationResponseBudgetMillis: 100 }).pipe(
-      Effect.provideService(PostgreSqlApplication, adapter)
-    )
-    const result = yield* definition
-      .enqueue({
-        producer: producer.identity({ operationId: "synthetic-1", slot: "synthetic" }),
-        payload: "synthetic",
-        policy: Policy.make()
-      })
-      .pipe(Effect.provideService(JobEnqueue, backend.producer), Effect.result)
-    return result._tag === "Failure" && result.failure._tag === "JobBackendError"
-      ? {
-          noActive: result.failure.reason,
-          commitKnowledge: result.failure.commitKnowledge
-        }
-      : { noActive: "unexpected" }
+const setup = Effect.gen(function* () {
+  const definition = yield* Job.make({
+    queue,
+    name: "synthetic",
+    payload: Schema.String,
+    encodePayload: Codec.encodeJobPayload
   })
-).pipe(Effect.provide(Reactivity.layer), Effect.timeout("3 seconds"))
+
+  const producer = yield* Producer.make({
+    operation: "cloudflare.probe",
+    slots: { synthetic: definition }
+  })
+  return { definition, producer }
+})
+const nativeProbe = (definitions: Effect.Success<typeof setup>) =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { definition, producer } = definitions
+      // Zero eager connections and no SQL: this synthetic URL is never connected.
+      const client = yield* PgClient.make({
+        url: Redacted.make("postgres://synthetic:synthetic@127.0.0.1:1/synthetic"),
+        minConnections: 0,
+        maxConnections: 2,
+        prepare: false,
+        connectTimeout: "1 second",
+        idleTimeout: "1 second"
+      })
+      const adapter = Native.make({ client, operationTimeoutMillis: 1_000 })
+      const backend = yield* Backend.make({ operationResponseBudgetMillis: 100 }).pipe(
+        Effect.provideService(PostgreSqlApplication, adapter)
+      )
+      const result = yield* definition
+        .enqueue({
+          producer: yield* producer.identity({
+            operationId: "synthetic-1",
+            slot: "synthetic"
+          }),
+          payload: "synthetic",
+          policy: Policy.make()
+        })
+        .pipe(Effect.provideService(JobEnqueue, backend.producer), Effect.result)
+      return result._tag === "Failure" && result.failure._tag === "JobBackendError"
+        ? {
+            noActive: result.failure.reason,
+            commitKnowledge: result.failure.commitKnowledge
+          }
+        : { noActive: "unexpected" }
+    })
+  ).pipe(Effect.provide(Reactivity.layer), Effect.timeout("3 seconds"))
 
 export class Probe extends DurableObject {
+  readonly definitions = Effect.runPromise(setup)
   async fetch(request: WorkerRequest) {
     return this.ctx.blockConcurrencyWhile(async () => {
+      const definitions = await this.definitions
+      const { definition } = definitions
       if (new URL(request.url).pathname === "/native") {
-        return Response.json(await Effect.runPromise(nativeProbe))
+        return Response.json(await Effect.runPromise(nativeProbe(definitions)))
       }
       const unexpected = () => Effect.die("Unexpected mock operation")
       const store: JobStoreService = {

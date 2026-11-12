@@ -1,4 +1,4 @@
-import { Schema } from "effect"
+import { Effect, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import {
   CatalogIdentity,
@@ -14,7 +14,7 @@ describe("identity boundaries", () => {
   it.each(["x", "x".repeat(256), "é".repeat(128), "😀".repeat(64), " é ", "é", "é"])(
     "accepts exact scalar strings without normalization",
     (operationId) => {
-      expect(() => validateOperationId(operationId)).not.toThrow()
+      expect(Effect.runSync(validateOperationId(operationId))).toBeUndefined()
       expect(Schema.decodeSync(OperationId)(operationId)).toBe(operationId)
     }
   )
@@ -26,12 +26,7 @@ describe("identity boundaries", () => {
     ["\udfff", "unicode-scalars", undefined],
     ["secret\u0000", "no-nul", undefined]
   ] as const)("rejects malformed IDs without echoing them", (value, rule, byteLength) => {
-    let failure: unknown
-    try {
-      validateOperationId(value)
-    } catch (error) {
-      failure = error
-    }
+    const failure = Effect.runSync(Effect.flip(validateOperationId(value)))
     expect(failure).toBeInstanceOf(InvalidOperationId)
     expect(failure).toMatchObject({ rule })
     expect((failure as InvalidOperationId).byteLength).toBe(byteLength)

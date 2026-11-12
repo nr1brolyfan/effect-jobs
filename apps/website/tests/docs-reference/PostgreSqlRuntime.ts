@@ -8,8 +8,7 @@ import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import { migrationSql } from "../../examples/docs/Migrations.js"
 import {
-  GenerateReport,
-  RequestReport,
+  ReportDefinitions,
   ReportPolicy,
   enqueueReport,
   renderReport
@@ -44,6 +43,7 @@ try {
         yield* client.unsafe(statement)
       }
       return yield* Effect.gen(function* () {
+        const { GenerateReport, RequestReport } = yield* ReportDefinitions
         const backend = yield* PostgreSqlJobs
         yield* backend.ready
         const missing = yield* enqueueReport("missing", payload).pipe(
@@ -104,7 +104,7 @@ try {
         const activeStandalone = yield* client
           .withTransaction(
             GenerateReport.enqueueStandalone({
-              producer: RequestReport.identity({
+              producer: yield* RequestReport.identity({
                 operationId: "standalone",
                 slot: "generate"
               }),

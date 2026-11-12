@@ -85,17 +85,21 @@ export const parseReplacement = (
   // JSON/Schema FFI can throw. Do not expose the exception or parse inputs.
   try {
     const parsed: unknown = JSON.parse(text)
-    const check = (value: unknown, level: number) => {
+    const check = (value: unknown, level: number): boolean => {
       if (level > 32) {
-        throw new Error("Depth")
+        return false
       }
       if (value && typeof value === "object") {
-        for (const item of Object.values(value)) {
-          check(item, level + 1)
-        }
+        return Object.values(value).every((item) => check(item, level + 1))
+      }
+      return true
+    }
+    if (!check(parsed, 0)) {
+      return {
+        valid: false as const,
+        rule: "schema-invalid: check required payload fields; document subject demo-customer, tenant demo-tenant-a/b, note up to 256 characters"
       }
     }
-    check(parsed, 0)
     const syntheticPayload = synthetic
       ? Schema.decodeUnknownSync(Definitions.SyntheticReadablePayload)(parsed, {
           onExcessProperty: "error"

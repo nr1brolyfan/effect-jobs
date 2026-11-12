@@ -1,3 +1,4 @@
+import * as Definitions from "./scenarios/Definitions.js"
 import type * as Workers from "@cloudflare/workers-types"
 import * as Cloudflare from "@alchemy.run/cloudflare"
 import { RuntimeContext } from "alchemy/RuntimeContext"
@@ -43,6 +44,8 @@ const safe = <E, R>(effect: Effect.Effect<Response, E, R>) =>
 
 const queue = (name: Executor.QueueName) =>
   Effect.gen(function* () {
+    const definitions = yield* Definitions.make.pipe(Effect.orDie)
+
     const state = yield* Cloudflare.DurableObjectState
     const env = yield* Configuration.configuration
     const live = yield* SandboxLive
@@ -98,7 +101,8 @@ const queue = (name: Executor.QueueName) =>
               Effect.provideService(Executor.ExecutionHints, {
                 reconcile: reconcile.pipe(Effect.provideService(RuntimeContext, runtime))
               })
-            )
+            ),
+            definitions
           )
         })
       )
@@ -149,6 +153,8 @@ const queueKick = Effect.gen(function* () {
 export class Gateway extends Cloudflare.DurableObject<Gateway>()(
   "Gateway",
   Effect.gen(function* () {
+    const definitions = yield* Definitions.make.pipe(Effect.orDie)
+
     const state = yield* Cloudflare.DurableObjectState
     const configuration = yield* Configuration.configuration
     const LIVE = yield* SandboxLive
@@ -220,7 +226,8 @@ export class Gateway extends Cloudflare.DurableObject<Gateway>()(
                 Event.run(
                   Configuration.database(env),
                   kick,
-                  operation.pipe(Effect.provide(PostCommit.layer(env.LIVE)))
+                  operation.pipe(Effect.provide(PostCommit.layer(env.LIVE))),
+                  definitions
                 )
               )
               yield* state.storage.put("rates", budget)
@@ -245,6 +252,8 @@ export class Gateway extends Cloudflare.DurableObject<Gateway>()(
 export class DemoGenerator extends Cloudflare.DurableObject<DemoGenerator>()(
   "DemoGenerator",
   Effect.gen(function* () {
+    const definitions = yield* Definitions.make.pipe(Effect.orDie)
+
     const env = yield* Configuration.configuration
     const kick = yield* queueKick
     return Effect.gen(function* () {
@@ -273,7 +282,8 @@ export class DemoGenerator extends Cloudflare.DurableObject<DemoGenerator>()(
                 yield* RepairShowcase.run(env.SCHEMA, sandbox)
               }
               return result
-            })
+            }),
+            definitions
           )
           yield* kick
           yield* alarm.set(

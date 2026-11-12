@@ -1,3 +1,4 @@
+import { definitions as eventDefinitions } from "../scenarios/Setup.js"
 // Test-only real admission/enqueue qualification; no HTTP capability or quota engine.
 // @effect-diagnostics unstableApiUsage:off
 import assert from "node:assert/strict"
@@ -133,5 +134,6 @@ export const qualify = (config: Event.Config) =>
         replay: "no writes",
         persistedJobIds: persisted.map((row) => row.id)
       }
-    })
+    }),
+    eventDefinitions
   )

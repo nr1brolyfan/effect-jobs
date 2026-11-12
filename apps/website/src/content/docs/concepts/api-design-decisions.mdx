@@ -24,6 +24,9 @@ The API server needs to know what a job means, not how the worker sends email.
 optional complete `defaultPolicy`. Handler implementations are installed separately
 through `handlerLayer(execute, decodePayload)`. Keeping provider code outside the
 definition lets producers share contracts without importing worker dependencies.
+Constructors return lazy Effects with typed configuration failures. Yield setup once
+at application initialization and share the resulting definitions with producers,
+handlers and the worker catalog; encoding and decoding services remain on later operations.
 
 ### Why a handler registry?
 
@@ -48,14 +51,14 @@ Slots describe consequences, not concurrency permits or workflow dependencies.
 ```ts
 const MailQueue = Queue.make("mail")
 const PriorityMailQueue = Queue.make("mail.priority")
-const Confirmation = Job.make({
+const Confirmation = yield* Job.make({
   name: "order.confirmation",
   queue: MailQueue,
   payload: Schema.Struct({ orderId: Schema.String }),
   defaultPolicy: Policy.defaultPolicy
 })
 
-const PlaceOrder = Producer.make({
+const PlaceOrder = yield* Producer.make({
   operation: "orders.place",
   slots: { confirmation: Confirmation }
 })
@@ -81,12 +84,12 @@ needed. A changed queue is a changed catalog identity, not a duplicate configura
 override. This priority definition deliberately has no default policy:
 
 ```ts
-const PriorityConfirmation = Job.make({
+const PriorityConfirmation = yield* Job.make({
   name: "order.confirmation",
   queue: PriorityMailQueue,
   payload: Schema.Struct({ orderId: Schema.String })
 })
-const RoutedOrder = Producer.make({
+const RoutedOrder = yield* Producer.make({
   operation: "orders.place-priority",
   slots: { confirmation: PriorityConfirmation }
 })
@@ -121,7 +124,7 @@ work using that same client and active transaction—not an independently run Pr
 yield* jobs.withTransaction(() => saveOrder)
 yield* Confirmation.enqueueStandalone({
   ...request,
-  producer: PlaceOrder.identity({ operationId: request.operationId, slot: "confirmation" })
+  producer: yield* PlaceOrder.identity({ operationId: request.operationId, slot: "confirmation" })
 })
 ```
 

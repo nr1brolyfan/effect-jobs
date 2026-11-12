@@ -1,7 +1,7 @@
 /**
  * Encodes and validates bounded canonical payloads and protected semantic projections.
  */
-import { Cause, Effect, Schema, SchemaAST } from "effect"
+import { Cause, Effect, Result, Schema, SchemaAST } from "effect"
 import {
   JobPayloadCodecError,
   jobPayloadFormatVersion,
@@ -91,34 +91,63 @@ export const encodeJobPayload: JobPayloadEncoder = Effect.fnUntraced(function* <
 })
 
 const readArtifact = (encoded: EncodedJobPayload) =>
-  Effect.try({
-    try: () => {
-      if (
-        encoded.formatVersion !== jobPayloadFormatVersion ||
-        !(encoded.payloadBytes instanceof Uint8Array) ||
-        !(encoded.semanticProjectionBytes instanceof Uint8Array)
-      ) {
-        throw new JobPayloadCodecError({ reason: "invalid-encoding" })
-      }
-      if (encoded.payloadBytes.byteLength > maximumJobPayloadBytes) {
-        throw new JobPayloadCodecError({ reason: "payload-too-large" })
-      }
-      if (
-        encoded.semanticProjectionBytes.byteLength > maximumJobSemanticProjectionBytes
-      ) {
-        throw new JobPayloadCodecError({ reason: "projection-too-large" })
-      }
-      // Snapshot before any application service can yield or mutate retained input.
-      return {
-        payloadBytes: new Uint8Array(encoded.payloadBytes),
-        semanticProjectionBytes: new Uint8Array(encoded.semanticProjectionBytes)
-      }
-    },
-    catch: (error) =>
-      error instanceof JobPayloadCodecError
-        ? error
-        : new JobPayloadCodecError({ reason: "invalid-encoding" })
-  })
+  Effect.suspend(() =>
+    Effect.fromResult(
+      Result.gen(function* () {
+        const valid = yield* Result.try({
+          // Foreign getters/proxies can throw even for the typed artifact port.
+          try: () =>
+            encoded.formatVersion === jobPayloadFormatVersion &&
+            encoded.payloadBytes instanceof Uint8Array &&
+            encoded.semanticProjectionBytes instanceof Uint8Array,
+          catch: (error) =>
+            error instanceof JobPayloadCodecError
+              ? error
+              : new JobPayloadCodecError({ reason: "invalid-encoding" })
+        })
+        if (!valid) {
+          return yield* Result.fail(
+            new JobPayloadCodecError({ reason: "invalid-encoding" })
+          )
+        }
+        const payloadLength = yield* Result.try({
+          try: () => encoded.payloadBytes.byteLength,
+          catch: (error) =>
+            error instanceof JobPayloadCodecError
+              ? error
+              : new JobPayloadCodecError({ reason: "invalid-encoding" })
+        })
+        if (payloadLength > maximumJobPayloadBytes) {
+          return yield* Result.fail(
+            new JobPayloadCodecError({ reason: "payload-too-large" })
+          )
+        }
+        const projectionLength = yield* Result.try({
+          try: () => encoded.semanticProjectionBytes.byteLength,
+          catch: (error) =>
+            error instanceof JobPayloadCodecError
+              ? error
+              : new JobPayloadCodecError({ reason: "invalid-encoding" })
+        })
+        if (projectionLength > maximumJobSemanticProjectionBytes) {
+          return yield* Result.fail(
+            new JobPayloadCodecError({ reason: "projection-too-large" })
+          )
+        }
+        // Snapshot before any application service can yield or mutate retained input.
+        return yield* Result.try({
+          try: () => ({
+            payloadBytes: new Uint8Array(encoded.payloadBytes),
+            semanticProjectionBytes: new Uint8Array(encoded.semanticProjectionBytes)
+          }),
+          catch: (error) =>
+            error instanceof JobPayloadCodecError
+              ? error
+              : new JobPayloadCodecError({ reason: "invalid-encoding" })
+        })
+      })
+    )
+  )
 
 const parse = (bytes: Uint8Array) =>
   Effect.try({

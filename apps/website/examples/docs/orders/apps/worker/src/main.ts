@@ -10,12 +10,7 @@ import * as JobConsumer from "effect-jobs/JobConsumer"
 import * as JobWorkerRuntime from "effect-jobs/JobWorkerRuntime"
 import * as PollingJobWorker from "effect-jobs/PollingJobWorker"
 import { ApplicationLayer } from "#database/Database"
-import {
-  SendOrderConfirmation,
-  CreateOrderInvoice,
-  SendInvoice,
-  OrdersQueue
-} from "#orders/contracts/jobs"
+import { OrderJobs, OrdersQueue } from "#orders/contracts/jobs"
 import { ConfirmationHandlerLayer } from "#worker/orders/jobs/SendConfirmation"
 import { InvoiceHandlerLayer } from "#worker/orders/jobs/CreateInvoice"
 import { InvoiceDeliveryHandlerLayer } from "#worker/orders/jobs/SendInvoice"
@@ -24,6 +19,7 @@ import * as SyntheticMail from "#worker/orders/SyntheticMail"
 // #region confirmation-composition
 export const ConfirmationWorkerLayer = Layer.unwrap(
   Effect.gen(function* () {
+    const { SendOrderConfirmation } = yield* OrderJobs
     const backend = yield* PostgreSqlJobs.PostgreSqlJobs
     return JobWorker.layer(backend.store, {
       catalog: [SendOrderConfirmation],
@@ -49,6 +45,7 @@ export const drainConfirmations = Effect.gen(function* () {
 // #region composition
 export const WorkerLayer = Layer.unwrap(
   Effect.gen(function* () {
+    const { SendOrderConfirmation, CreateOrderInvoice, SendInvoice } = yield* OrderJobs
     const backend = yield* PostgreSqlJobs.PostgreSqlJobs
     return JobWorker.layer(backend.store, {
       catalog: [SendOrderConfirmation, CreateOrderInvoice, SendInvoice],

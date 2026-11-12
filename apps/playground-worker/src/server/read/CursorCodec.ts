@@ -52,19 +52,26 @@ const encodeBytes = (bytes: Uint8Array) =>
     .replaceAll("+", "-")
     .replaceAll("/", "_")
     .replaceAll("=", "")
-const decodeBytes = (value: string) => {
+const decodeBytes = Effect.fnUntraced(function* (value: string) {
   if (!/^[A-Za-z0-9_-]+$/u.test(value)) {
-    throw new Error("Invalid cursor encoding")
+    return yield* new PlaygroundError({ code: "invalid-request" })
   }
-  const bytes = Uint8Array.from(
-    atob(value.replaceAll("-", "+").replaceAll("_", "/")),
-    (c) => c.charCodeAt(0)
-  )
-  if (encodeBytes(bytes) !== value) {
-    throw new Error("Noncanonical cursor encoding")
+  const bytes = yield* Effect.try({
+    try: () =>
+      Uint8Array.from(atob(value.replaceAll("-", "+").replaceAll("_", "/")), (c) =>
+        c.charCodeAt(0)
+      ),
+    catch: () => new PlaygroundError({ code: "invalid-request" })
+  })
+  const canonical = yield* Effect.try({
+    try: () => encodeBytes(bytes),
+    catch: () => new PlaygroundError({ code: "invalid-request" })
+  })
+  if (canonical !== value) {
+    return yield* new PlaygroundError({ code: "invalid-request" })
   }
   return bytes
-}
+})
 // WebCrypto is the portable FFI. The application supplies an HMAC SHA-256 key;
 // no key/env access or lifetime starts here. Rotation invalidates old cursors.
 export const make = (key: CryptoKey): typeof CursorCodec.Service => {
@@ -102,33 +109,34 @@ export const make = (key: CryptoKey): typeof CursorCodec.Service => {
     decode: (cursor) =>
       Schema.decodeUnknownEffect(Cursor)(cursor).pipe(
         Effect.mapError(() => new PlaygroundError({ code: "invalid-request" })),
-        Effect.flatMap((cursor) =>
-          Effect.tryPromise({
-            try: async () => {
-              const parts = cursor.split(".")
-              if (parts.length !== 2) {
-                throw new Error("Invalid cursor")
-              }
-              const body = decodeBytes(parts[0]!)
-              const signature = decodeBytes(parts[1]!)
-              if (
-                signature.byteLength !== 32 ||
-                !(await crypto.subtle.verify("HMAC", key, signature, body))
-              ) {
-                throw new Error("Invalid cursor signature")
-              }
-              return JSON.parse(text.decode(body)) as unknown
-            },
-            catch: () => new PlaygroundError({ code: "invalid-request" })
-          }).pipe(
-            Effect.flatMap((value) =>
-              Schema.decodeUnknownEffect(Position)(value, {
-                onExcessProperty: "error"
-              }).pipe(
-                Effect.mapError(() => new PlaygroundError({ code: "invalid-request" }))
-              )
+        Effect.flatMap(
+          Effect.fnUntraced(function* (cursor) {
+            const parts = cursor.split(".")
+            if (parts.length !== 2) {
+              return yield* new PlaygroundError({ code: "invalid-request" })
+            }
+            const body = yield* decodeBytes(parts[0]!)
+            const signature = yield* decodeBytes(parts[1]!)
+            if (signature.byteLength !== 32) {
+              return yield* new PlaygroundError({ code: "invalid-request" })
+            }
+            const verified = yield* Effect.tryPromise({
+              try: () => crypto.subtle.verify("HMAC", key, signature, body),
+              catch: () => new PlaygroundError({ code: "invalid-request" })
+            })
+            if (!verified) {
+              return yield* new PlaygroundError({ code: "invalid-request" })
+            }
+            const value = yield* Effect.try({
+              try: (): unknown => JSON.parse(text.decode(body)),
+              catch: () => new PlaygroundError({ code: "invalid-request" })
+            })
+            return yield* Schema.decodeUnknownEffect(Position)(value, {
+              onExcessProperty: "error"
+            }).pipe(
+              Effect.mapError(() => new PlaygroundError({ code: "invalid-request" }))
             )
-          )
+          })
         )
       )
   }

@@ -64,6 +64,8 @@ export const execute = (workload: Exclude<Definitions.Workload, "private-data-ex
 export const executeExport = Effect.fn("Playground.executeExport")(function* (
   input: HandlerInput<Definitions.ExportPayload>
 ) {
+  const definitions = yield* Definitions.Definitions
+
   const provider = yield* FakeProvider
   if (
     input.payload.document.subject !== input.payload.actor ||
@@ -72,7 +74,7 @@ export const executeExport = Effect.fn("Playground.executeExport")(function* (
     return yield* Effect.fail(JobFailures.Isolate({ code: codes.invariant }))
   }
   const encoded = yield* Codec.encodeJobPayload(
-    Definitions.ExportPayload,
+    definitions.ExportPayload,
     input.payload
   ).pipe(
     Effect.catchCause((cause) =>
@@ -92,6 +94,8 @@ export const executeExport = Effect.fn("Playground.executeExport")(function* (
 
 export const executeSyntheticExport = Effect.fn("Playground.executeSyntheticExport")(
   function* (input: HandlerInput<Definitions.SyntheticExportPayload>) {
+    const definitions = yield* Definitions.Definitions
+
     const provider = yield* FakeProvider
     if (
       input.payload.document.subject !== input.payload.actor ||
@@ -100,7 +104,7 @@ export const executeSyntheticExport = Effect.fn("Playground.executeSyntheticExpo
       return yield* Effect.fail(JobFailures.Isolate({ code: codes.invariant }))
     }
     const encoded = yield* Codec.encodeJobPayload(
-      Definitions.SyntheticExportPayload,
+      definitions.SyntheticExportPayload,
       input.payload
     ).pipe(
       Effect.catchCause((cause) =>
@@ -125,24 +129,34 @@ export const executeSyntheticExport = Effect.fn("Playground.executeSyntheticExpo
 
 // Proposal for HandlerRegistry.ts; importing this module installs nothing.
 // Provide the same FakeProvider Layer and DocumentKeys Layer for all handlers.
-export const layerNoDeps = Layer.mergeAll(
-  Definitions.WelcomeEmail.handlerLayer(execute("welcome-email"), Codec.decodeJobPayload),
-  Definitions.ImageProcessing.handlerLayer(
-    execute("image-processing"),
-    Codec.decodeJobPayload
-  ),
-  Definitions.WebhookDelivery.handlerLayer(
-    execute("webhook-delivery"),
-    Codec.decodeJobPayload
-  ),
-  Definitions.SyntheticDocumentExport.handlerLayer(
-    executeSyntheticExport,
-    Codec.decodeJobPayload
-  ),
-  Definitions.PrivateDataExport.handlerLayer(executeExport, Codec.decodeJobPayload),
-  Definitions.CatalogSync.handlerLayer(execute("catalog-sync"), Codec.decodeJobPayload),
-  Definitions.SimulatedPayment.handlerLayer(
-    execute("simulated-payment"),
-    Codec.decodeJobPayload
+export const layerNoDeps = Layer.unwrap(
+  Effect.map(Definitions.Definitions, (definitions) =>
+    Layer.mergeAll(
+      definitions.WelcomeEmail.handlerLayer(
+        execute("welcome-email"),
+        Codec.decodeJobPayload
+      ),
+      definitions.ImageProcessing.handlerLayer(
+        execute("image-processing"),
+        Codec.decodeJobPayload
+      ),
+      definitions.WebhookDelivery.handlerLayer(
+        execute("webhook-delivery"),
+        Codec.decodeJobPayload
+      ),
+      definitions.SyntheticDocumentExport.handlerLayer(
+        executeSyntheticExport,
+        Codec.decodeJobPayload
+      ),
+      definitions.PrivateDataExport.handlerLayer(executeExport, Codec.decodeJobPayload),
+      definitions.CatalogSync.handlerLayer(
+        execute("catalog-sync"),
+        Codec.decodeJobPayload
+      ),
+      definitions.SimulatedPayment.handlerLayer(
+        execute("simulated-payment"),
+        Codec.decodeJobPayload
+      )
+    )
   )
 )

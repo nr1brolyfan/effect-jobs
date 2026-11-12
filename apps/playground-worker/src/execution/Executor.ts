@@ -45,22 +45,27 @@ export class ExecutionDeadline extends Schema.TaggedError<ExecutionDeadline>()(
   {}
 ) {}
 
-export const consumers = Effect.forEach(queueNames, (name) =>
-  Consumer.make(
-    Definitions.definitions.find((definition) => definition.queue.name === name)!.queue,
-    {
-      localConcurrency: limits.concurrency,
-      claimLimitPerRun: limits.claimLimit,
-      recoveryLimitPerRun: limits.recoveryLimit
-    }
+export const consumers = Effect.gen(function* () {
+  const definitions = yield* Definitions.Definitions
+  return yield* Effect.forEach(queueNames, (name) =>
+    Consumer.make(
+      definitions.definitions.find((definition) => definition.queue.name === name)!.queue,
+      {
+        localConcurrency: limits.concurrency,
+        claimLimitPerRun: limits.claimLimit,
+        recoveryLimitPerRun: limits.recoveryLimit
+      }
+    )
   )
-)
+})
 export const workerLayerNoDeps = (schema: string) =>
   Layer.unwrap(
     Effect.gen(function* () {
+      const definitions = yield* Definitions.Definitions
+
       const backend = yield* PostgreSqlJobs
       return Worker.layer(backend.store, {
-        catalog: Definitions.definitions,
+        catalog: definitions.definitions,
         operationResponseBudgetMillis: 500
       }).pipe(
         Layer.provide(Handlers.layerNoDeps),

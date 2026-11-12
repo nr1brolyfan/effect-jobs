@@ -47,7 +47,7 @@ The transaction declaration references the internal symbol declaration; that fil
 must remain in the build artifact even though package export resolution denies
 runtime deep imports. Do not duplicate symbols, brands or errors in later units.
 
-## Identity and synchronous declaration validation
+## Identity and declaration validation
 
 `JobId.JobId` is a nonempty string Schema branded `effect-jobs/JobId`; the Schema
 and its inferred type share the name. IDs are library-assigned; their generation
@@ -81,18 +81,24 @@ Operation IDs are valid scalar strings without NUL, 1–256 UTF-8 bytes, with ex
 equality: no trimming, normalization or case folding. Application-branded strings
 are accepted. Durable collation/equality must preserve this behavior.
 
-`validateOperationId(value: string): void` throws `InvalidOperationId` with only
+`validateOperationId(value: string): Effect<void, InvalidOperationId>` validates lazily at execution and fails with only
 `rule: "unicode-scalars" | "no-nul" | "utf8-length"` and length-rule
 `byteLength`. It never includes the supplied ID. Untrusted non-string values use
 Schema validation at the consumer boundary; do not export raw Schema diagnostics
 containing sensitive inputs as enqueue errors.
 
+`producer.identity(input)` returns a literal-preserving Effect with
+`InvalidOperationId | JobDeclarationError` in E and no services. It snapshots
+operationId and slot once at execution; each reexecution reads fresh input.
+Normal bound enqueue retains its `InvalidJobInput` boundary.
+
 `validateProducerDeclaration({ operation: string, slots: ReadonlyArray<string> }):
 void` validates names, nonempty slots and uniqueness synchronously. It throws
 `JobDeclarationError` containing `field` (`operation`, `slots`, or `slots[index]`),
 the invalid declaration `value` where applicable, and actionable `expected` text.
-The producer unit **must call this before returning its immutable declaration**;
-there is no producer implementation here. It must preserve inferred operation and
+The producer factory shares the pure declaration classifier and reports
+`JobDeclarationError` in its lazy Effect before exposing immutable configuration.
+The standalone synchronous validator retains its own existing utility contract. It must preserve inferred operation and
 slot literals, reject undeclared slots, and snapshot/freeze its slot record.
 The validator takes the record keys; `JobProducer.make` accepts bindings to jobs,
 not an array of names. Bound enqueue derives the identity and enforces the

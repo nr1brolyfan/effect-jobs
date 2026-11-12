@@ -39,25 +39,33 @@ declare const tx: JobsTransaction<"backend-error", BackendService>
 declare const appId: string & { readonly AppId: unique symbol }
 
 export const queue = JobQueue.make("billing")
-export const job = Job.make({
-  queue,
-  name: "invoice.generate",
-  version: 1,
-  payload: schema,
-  encodePayload: encode
-})
-export const producer = JobProducer.make({
-  operation: "billing.issue",
-  slots: { pdf: job, email: job }
-})
-export const identity = producer.identity({ operationId: appId, slot: "pdf" })
+export const job = Effect.runSync(
+  Job.make({
+    queue,
+    name: "invoice.generate",
+    version: 1,
+    payload: schema,
+    encodePayload: encode
+  })
+)
+export const producer = Effect.runSync(
+  JobProducer.make({
+    operation: "billing.issue",
+    slots: { pdf: job, email: job }
+  })
+)
+export const identity = Effect.runSync(
+  producer.identity({ operationId: appId, slot: "pdf" })
+)
 export const literals: {
   readonly operation: "billing.issue"
   readonly slot: "pdf"
   readonly operationId: string
 } = identity
-// @ts-expect-error Undeclared slots are rejected, not widened to string.
-export const badSlot = producer.identity({ operationId: appId, slot: "sms" })
+export const badSlot = Effect.runSync(
+  // @ts-expect-error Undeclared slots are rejected, not widened to string.
+  producer.identity({ operationId: appId, slot: "sms" })
+)
 // @ts-expect-error Declarations and their copied slots are immutable.
 producer.slots.pdf = job
 

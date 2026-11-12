@@ -5,6 +5,7 @@ import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { resolve, join } from "node:path"
+import { publicModules } from "../../../../scripts/SourceExports.mjs"
 
 const root = resolve(import.meta.dirname, "../../../..")
 const sourceRoot = resolve(process.env.API_DESIGN_SOURCE_ROOT ?? root)
@@ -95,7 +96,14 @@ try {
         types: ["node"],
         typeRoots: [join(sourceRoot, "node_modules/@types")],
         paths: {
-          "effect-jobs/*": [join(sourceRoot, "src/*.ts")],
+          ...Object.fromEntries(
+            publicModules(
+              JSON.parse(readFileSync(join(sourceRoot, "package.json"), "utf8"))
+            ).map((module) => [
+              module.subpath === "." ? "effect-jobs" : `effect-jobs/${module.name}`,
+              [join(sourceRoot, module.source)]
+            ])
+          ),
           effect: [join(sourceRoot, "node_modules/effect/dist/index.d.ts")],
           "effect/*": [join(sourceRoot, "node_modules/effect/dist/*")]
         }

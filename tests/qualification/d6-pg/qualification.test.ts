@@ -16,22 +16,26 @@ import * as Bridge from "./PgBridge.js"
 // Credentials are read in-process, never printed or passed through argv.
 const resourceDirectory = process.env.D6_RESOURCE_DIRECTORY
 const enabled = resourceDirectory !== undefined
-const definition = Job.make({
-  name: "invoice.generate",
-  version: 1,
-  queue: Queue.make("billing"),
-  payload: Schema.Struct({ invoiceId: Schema.String }),
-  encodePayload: encodeJobPayload
-})
-const producer = Producer.make({
-  operation: "billing.issue",
-  slots: { generate: definition }
-})
+const definition = Effect.runSync(
+  Job.make({
+    name: "invoice.generate",
+    version: 1,
+    queue: Queue.make("billing"),
+    payload: Schema.Struct({ invoiceId: Schema.String }),
+    encodePayload: encodeJobPayload
+  })
+)
+const producer = Effect.runSync(
+  Producer.make({
+    operation: "billing.issue",
+    slots: { generate: definition }
+  })
+)
 class CallerValue extends Context.Service<CallerValue, { readonly value: number }>()(
   "d6/CallerValue"
 ) {}
 const input = (id: string, payload = id) => ({
-  producer: producer.identity({ operationId: id, slot: "generate" }),
+  producer: Effect.runSync(producer.identity({ operationId: id, slot: "generate" })),
   payload: { invoiceId: payload },
   policy: Policy.make()
 })

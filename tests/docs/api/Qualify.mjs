@@ -14,6 +14,7 @@ import { createHash } from "node:crypto"
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import * as ts from "typescript/unstable/ast"
+import { publicModules } from "../../../scripts/SourceExports.mjs"
 
 const root = resolve(import.meta.dirname, "../../..")
 const args = process.argv.slice(2)
@@ -26,6 +27,8 @@ const base = args[1] ?? null
 const work = join(root, ".toolchain/api-docs")
 mkdirSync(work, { recursive: true })
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
+const modules = publicModules(manifest)
+const modulesByName = new Map(modules.map((entry) => [entry.name, entry]))
 const examples = []
 const inventory = []
 const sourceHashes = {}
@@ -64,9 +67,9 @@ const tokens = (source) => {
   return result
 }
 
-for (const subpath of Object.keys(manifest.exports)) {
-  const name = subpath === "." ? "index" : subpath.slice(2)
-  const filename = `src/${name}.ts`
+for (const module of modules) {
+  const { subpath, name } = module
+  const filename = module.source
   const source = readFileSync(join(root, filename), "utf8")
   if (base !== null) {
     const original = run("git", ["show", `${base}:${filename}`])
@@ -143,8 +146,11 @@ import * as Payload from "./JobPayload.ts"
 import * as Codec from "./JobPayloadCodec.ts"
 import { ClaimResults, ClaimReconciliations, FinalizationResults, FinalizationReconciliations } from "effect-jobs/JobStore"
 import type { JobStoreService } from "effect-jobs/JobStore"
-assert.equal(Definition.definition.queue.name, "billing")
-assert.equal(Producer.producer.identity({ operationId: "request-123", slot: "delivery" }).operationId, "request-123")
+const definitionSetup = await Effect.runPromise(Definition.setup)
+assert.equal(definitionSetup.definition.queue.name, "billing")
+const producerSetup = await Effect.runPromise(Producer.setup)
+assert.equal(producerSetup.producer.slots.delivery, producerSetup.definition)
+assert.equal((await Effect.runPromise(producerSetup.producer.identity({ operationId: "request-123", slot: "delivery" }))).operationId, "request-123")
 assert.equal(Policy.policy.retrySchedule.delayMillis, 5000)
 assert.equal(Policy.policy.completedRetention._tag, "Duration")
 assert(Storage.ddl.includes('CREATE TABLE "app_jobs"."jobs"'))
@@ -163,7 +169,8 @@ const store: JobStoreService = {
   recoverExpired: () => Effect.succeed(0)
 }
 assert.equal(claims, 0)
-assert.deepEqual(await Effect.runPromise(Runtime.runOnce(store)), { _tag: "Idle", claimed: 0, recovered: 0 })
+const runtimeSetup = await Effect.runPromise(Runtime.setup)
+assert.deepEqual(await Effect.runPromise(runtimeSetup.runOnce(store)), { _tag: "Idle", claimed: 0, recovered: 0 })
 assert.equal(claims, 1)
 console.log("JSDoc constructor/codec/finite empty-store drain examples PASS")
 `
@@ -180,15 +187,20 @@ assert.deepEqual(examples.map(({ name }) => name).sort(), [
   "PostgreSqlSchema.ts"
 ])
 const exportedNames = {
-  Job: "definition",
-  JobProducer: "producer",
+  Job: "setup",
+  JobProducer: "setup",
   JobConsumer: "plan",
   JobPolicy: "policy",
-  JobWorkerRuntime: "runOnce",
+  JobWorkerRuntime: "setup",
   PostgreSqlSchema: "ddl",
   JobPayload: "protectedValue",
   JobPayloadCodec: "roundTrip",
   PostgreSqlJobs: "enqueueInside"
+}
+const localImport = (name, built) => {
+  const module = modulesByName.get(name)
+  assert(module, `Unknown public module: ${name}`)
+  return `"../../../${built ? module.import : module.source}"`
 }
 const prepare = (directory, source, built = false) => {
   mkdirSync(directory, { recursive: true })
@@ -199,9 +211,8 @@ const prepare = (directory, source, built = false) => {
       `export const ${binding}`
     )
     if (source) {
-      code = code.replace(
-        /"effect-jobs\/([^"/]+)"/g,
-        built ? '"../../../dist/$1.js"' : '"../../../src/$1.ts"'
+      code = code.replace(/"effect-jobs\/([^"/]+)"/g, (_match, name) =>
+        localImport(name, built)
       )
     }
     writeFileSync(join(directory, example.name), code)
@@ -209,9 +220,8 @@ const prepare = (directory, source, built = false) => {
   writeFileSync(
     join(directory, "check.ts"),
     source
-      ? checks.replace(
-          /"effect-jobs\/([^"/]+)"/g,
-          built ? '"../../../dist/$1.js"' : '"../../../src/$1.ts"'
+      ? checks.replace(/"effect-jobs\/([^"/]+)"/g, (_match, name) =>
+          localImport(name, built)
         )
       : checks
   )

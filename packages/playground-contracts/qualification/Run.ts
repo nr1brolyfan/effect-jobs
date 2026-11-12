@@ -11,7 +11,7 @@ import {
   realpathSync,
   writeFileSync
 } from "node:fs"
-import { join, resolve } from "node:path"
+import { isAbsolute, join, relative, resolve, sep } from "node:path"
 import { tmpdir } from "node:os"
 
 const root = resolve(import.meta.dirname, "../../..")
@@ -37,18 +37,53 @@ const run = (name: string, command: string, args: string[], cwd = root): string 
     throw error
   }
 }
+const exportTarget = (subpath: string, entry: unknown): string => {
+  assert(subpath === "." || /^\.\/[A-Za-z][A-Za-z0-9]*$/.test(subpath))
+  assert(entry !== null && typeof entry === "object" && "import" in entry)
+  assert(typeof entry.import === "string")
+  assert(/^\.\/dist\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.js$/.test(entry.import))
+  return entry.import
+}
+assert.equal(exportTarget(".", { import: "./dist/index.js" }), "./dist/index.js")
+assert.equal(
+  exportTarget("./PostgreSqlJobs", { import: "./dist/postgresql/PostgreSqlJobs.js" }),
+  "./dist/postgresql/PostgreSqlJobs.js"
+)
+for (const target of [
+  "./dist/../outside.js",
+  "../outside.js",
+  "/dist/index.js",
+  "./dist/a//index.js",
+  "./dist/%2e%2e/index.js",
+  "./dist/index.js?query",
+  "./dist\\index.js",
+  "./dist/index.d.ts"
+]) {
+  assert.throws(() => exportTarget("./Job", { import: target }))
+}
+assert.throws(() =>
+  exportTarget("./postgresql/internal/Store", { import: "./dist/index.js" })
+)
+assert.throws(() => exportTarget("./Job", { import: undefined }))
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
 assert.equal(manifest.name, "effect-jobs")
 assert.equal(manifest.private, false)
 assert.equal(manifest.dependencies, undefined)
-for (const subpath of Object.keys(manifest.exports)) {
-  const file = subpath === "." ? "index" : subpath.slice(2)
+const outputRoot = realpathSync(join(root, "dist"))
+for (const entry of Object.entries(manifest.exports)) {
+  const subpath = entry[0]
+  const target = realpathSync(resolve(root, exportTarget(subpath, entry[1])))
+  const outputPath = relative(outputRoot, target)
+  assert(outputPath !== "" && !isAbsolute(outputPath))
+  assert(outputPath !== ".." && !outputPath.startsWith(`..${sep}`))
   const installed = fileURLToPath(
-    import.meta.resolve(subpath === "." ? "effect-jobs" : `effect-jobs/${file}`)
+    import.meta.resolve(
+      subpath === "." ? "effect-jobs" : `effect-jobs/${subpath.slice(2)}`
+    )
   )
   assert.equal(
     readFileSync(installed, "utf8"),
-    readFileSync(join(root, "dist", `${file}.js`), "utf8"),
+    readFileSync(target, "utf8"),
     "Refresh the root file dependency after build"
   )
 }
@@ -58,18 +93,24 @@ assert.equal(
   ),
   realpathSync(join(root, "packages/playground-contracts/dist/Jobs.js"))
 )
-const previousDirectory = process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY
-process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY = join(work, "artifact")
-try {
-  run("pack", "node", ["scripts/pack-release.mjs"])
-} finally {
-  if (previousDirectory === undefined) {
-    delete process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY
-  } else {
-    process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY = previousDirectory
+const suppliedArchive = process.env.EFFECT_JOBS_ARCHIVE
+if (suppliedArchive === undefined) {
+  const previousDirectory = process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY
+  process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY = join(work, "artifact")
+  try {
+    run("pack", "node", ["scripts/pack-release.mjs"])
+  } finally {
+    if (previousDirectory === undefined) {
+      delete process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY
+    } else {
+      process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY = previousDirectory
+    }
   }
 }
-const archive = join(work, "artifact", `effect-jobs-${manifest.version}.tgz`)
+const archive =
+  suppliedArchive === undefined
+    ? join(work, "artifact", `effect-jobs-${manifest.version}.tgz`)
+    : realpathSync(resolve(root, suppliedArchive))
 const entries = run("inventory", "tar", ["-tzf", archive]).trim().split("\n")
 assert(
   entries.every((entry) =>
@@ -146,7 +187,7 @@ import { Effect, Schema } from "effect"
 import { TestClock } from "effect/testing"
 import { encodeJobPayload, decodeJobPayload } from "effect-jobs/JobPayloadCodec"
 import { JobDetail, JobPage } from "./dist/Jobs.js"
-import { ScenarioJob } from "./dist/Definitions.js"
+import { ScenarioDefinitions, ScenarioDefinitionsLayer } from "./dist/Definitions.js"
 import { JobsRead, Changes } from "./dist/Services.js"
 import * as Fixtures from "./dist/Fixtures.js"
 import * as MockLayer from "./dist/MockLayer.js"
@@ -155,6 +196,8 @@ assert.throws(() => require.resolve("drizzle-orm"))
 assert.throws(() => require.resolve("pg"))
 assert(Schema.is(JobDetail)(Fixtures.detail))
 assert(Schema.is(JobPage)(Fixtures.page))
+const { ScenarioJob, ScenarioProducer } = await Effect.runPromise(ScenarioDefinitions.pipe(Effect.provide(ScenarioDefinitionsLayer)))
+assert.equal(ScenarioProducer.slots.execute, ScenarioJob)
 const payload = Schema.decodeUnknownSync(ScenarioJob.payload)({ sandbox: Fixtures.sandbox.ref, scenario: "success", sequence: 1 })
 const encoded = await Effect.runPromise(encodeJobPayload(ScenarioJob.payload, payload))
 assert.deepEqual(await Effect.runPromise(decodeJobPayload(ScenarioJob.payload, encoded)), payload)
@@ -207,6 +250,7 @@ const receipt = {
     bun: run("bun-version", "bun", ["--version"]).trim()
   },
   checks: [
+    "manifest export targets, containment and negative controls",
     "root file dependency matches dist",
     "contracts workspace link",
     "pack inventory and byte equality",

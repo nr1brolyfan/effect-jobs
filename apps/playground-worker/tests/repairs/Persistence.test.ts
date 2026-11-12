@@ -1,3 +1,4 @@
+import { runPromise } from "../scenarios/Setup.js"
 import { describe, expect, it } from "vitest"
 import { Cause, Effect, Exit, Layer, Schema } from "effect"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
@@ -115,7 +116,7 @@ const setup = (override: Partial<RepairTransaction> = {}) =>
 
 describe("repair command protocol with isolated core/transaction ports", () => {
   it("commits a validated fresh repair through core, association and exact receipt", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const app = yield* setup()
         const result = yield* app.service.execute(access, Fixture.command)
@@ -136,7 +137,7 @@ describe("repair command protocol with isolated core/transaction ports", () => {
     )
   })
   it("missing exact receipt and unresolved admission never authorize replay", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const app = yield* setup({ admission: "Unresolved" })
         expect((yield* app.service.execute(access, Fixture.command))._tag).toBe(
@@ -155,7 +156,7 @@ describe("repair command protocol with isolated core/transaction ports", () => {
     )
   })
   it("conflicting admission returns a refusal without overwriting anything", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const app = yield* setup({ admission: "Conflict" })
         expect(yield* app.service.execute(access, Fixture.command)).toMatchObject({
@@ -168,7 +169,7 @@ describe("repair command protocol with isolated core/transaction ports", () => {
     )
   })
   it("exact historical receipt is returned without source/core/receipt writes", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const result = {
           _tag: "Rejected" as const,
@@ -190,7 +191,7 @@ describe("repair command protocol with isolated core/transaction ports", () => {
     )
   })
   it("expired authority and failed association abort instead of persisting an acceptance", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const expired = yield* setup({
           assertCurrent: Effect.fail(new PlaygroundError({ code: "sandbox-expired" }))
@@ -213,7 +214,7 @@ describe("repair command protocol with isolated core/transaction ports", () => {
     )
   })
   it("requires explicit unknown confirmation for manual close and audits resolution without invoking core", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const app = yield* setup({
           problem: () =>
@@ -253,13 +254,13 @@ describe("repair command protocol with isolated core/transaction ports", () => {
   it("sanitizes but preserves mixed failure/defect/interrupt causes", async () => {
     const unknown = new CommandTransactionFailure({ commitKnowledge: "Unknown" })
     expect(
-      await Effect.runPromise(Persistence.recover(Fixture.command)(Cause.fail(unknown)))
+      await runPromise(Persistence.recover(Fixture.command)(Cause.fail(unknown)))
     ).toMatchObject({ _tag: "OutcomeUnknown" })
     const mixed = Cause.fromReasons([
       Cause.makeFailReason(unknown),
       Cause.makeDieReason(new Error("private-provider-text"))
     ])
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.exit(Persistence.recover(Fixture.command)(mixed))
     )
     expect(Exit.isFailure(result)).toBe(true)

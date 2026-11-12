@@ -58,12 +58,16 @@ it("omitted version and standard encoder match explicit values; custom override 
     name: "receipt",
     payload: Schema.Struct({ invoiceId: Schema.String })
   }
-  const a = Job.make(base)
-  const b = Job.make({ ...base, version: 1, encodePayload: encodeJobPayload })
+  const a = Effect.runSync(Job.make(base))
+  const b = Effect.runSync(
+    Job.make({ ...base, version: 1, encodePayload: encodeJobPayload })
+  )
   expect(a.catalog).toEqual(b.catalog)
-  expect(Job.make({ ...base, version: 2 }).version).toBe(2)
+  expect(Effect.runSync(Job.make({ ...base, version: 2 })).version).toBe(2)
   for (const version of [0, -1, 1.5, 32768, NaN]) {
-    expect(() => Job.make({ ...base, version })).toThrow(Job.InvalidJobDefinition)
+    expect(Effect.runSync(Effect.flip(Job.make({ ...base, version })))).toBeInstanceOf(
+      Job.InvalidJobDefinition
+    )
   }
   const input = {
     producer: { operation: "billing.issue", operationId: "id", slot: "receipt" },
@@ -84,13 +88,15 @@ it("omitted version and standard encoder match explicit values; custom override 
   await Effect.runPromise(insert(b))
   expect(artifacts[0]).toEqual(artifacts[1])
   let calls = 0
-  const custom = Job.make({
-    ...base,
-    encodePayload: (schema, value) => {
-      calls++
-      return encodeJobPayload(schema, value)
-    }
-  })
+  const custom = Effect.runSync(
+    Job.make({
+      ...base,
+      encodePayload: (schema, value) => {
+        calls++
+        return encodeJobPayload(schema, value)
+      }
+    })
+  )
   await Effect.runPromise(insert(custom))
   expect(calls).toBe(1)
 })

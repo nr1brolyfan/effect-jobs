@@ -1,3 +1,4 @@
+import { definitions, runPromise } from "../scenarios/Setup.js"
 import { describe, expect, it } from "vitest"
 import { Effect, Exit, Schema } from "effect"
 import type { EncodedJobPayload } from "effect-jobs/JobContract"
@@ -19,7 +20,7 @@ const payload = {
   tenant: "demo-tenant-a" as const,
   order: "demo-order-a" as const
 }
-const row = (encoded: EncodedJobPayload, definition = Definitions.WelcomeEmail) => ({
+const row = (encoded: EncodedJobPayload, definition = definitions.WelcomeEmail) => ({
   queue: definition.catalog.queue,
   kind: definition.catalog.name,
   version: definition.catalog.version,
@@ -30,12 +31,12 @@ const row = (encoded: EncodedJobPayload, definition = Definitions.WelcomeEmail) 
 
 describe("private redrive source authority", () => {
   it("accepts exact supported scoped artifacts and rejects another sandbox/generation", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const encoded = yield* Codec.encodeJobPayload(Definitions.Payload, payload)
         const valid = row(encoded)
         expect((yield* Source.validate(valid, ref)).catalog).toEqual(
-          Definitions.WelcomeEmail.catalog
+          definitions.WelcomeEmail.catalog
         )
         for (const foreign of [
           { sandboxId: "private-b", generation: 1 },
@@ -62,11 +63,11 @@ describe("private redrive source authority", () => {
     )
   })
   it("refuses decodable encrypted exports with mismatched domain authority", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         for (const definition of [
-          Definitions.PrivateDataExport,
-          Definitions.SyntheticDocumentExport
+          definitions.PrivateDataExport,
+          definitions.SyntheticDocumentExport
         ]) {
           for (const tenant of ["demo-tenant-a", "demo-tenant-b"] as const) {
             const encoded = yield* Codec.encodeJobPayload(definition.payload, {
@@ -96,11 +97,11 @@ describe("private redrive source authority", () => {
       action: "redrive",
       confirmDuplicateEffects: true
     })
-    const identity = await Effect.runPromise(Source.producerIdentity(command))
+    const identity = await runPromise(Source.producerIdentity(command))
     expect(identity.operationId).toHaveLength(64)
-    expect(identity).toEqual(await Effect.runPromise(Source.producerIdentity(command)))
+    expect(identity).toEqual(await runPromise(Source.producerIdentity(command)))
     expect(identity).not.toEqual(
-      await Effect.runPromise(
+      await runPromise(
         Source.producerIdentity({ ...command, sandbox: { ...ref, generation: 2 } })
       )
     )

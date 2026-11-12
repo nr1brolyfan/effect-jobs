@@ -1,3 +1,8 @@
+import * as OperatorAuthority from "../../src/persistence/authority/PostgreSqlOperatorTransactions.js"
+import * as OperatorPersistence from "../../src/persistence/commands/OperatorPersistence.js"
+import { OperatorTransactions } from "../../src/persistence/commands/OperatorTransactions.js"
+import { CommandTransactionFailure } from "../../src/persistence/commands/Transactions.js"
+import { definitions as eventDefinitions } from "../scenarios/Setup.js"
 // Qualification fixtures use public lifecycle ports; application SQL only owns associations.
 // @effect-diagnostics unstableApiUsage:off
 import { Duration, Effect, Redacted, Schema } from "effect"
@@ -24,6 +29,7 @@ export const seed = (
     config,
     Effect.void,
     Effect.gen(function* () {
+      const definitions = yield* Definitions.Definitions
       const backend = yield* PostgreSqlJobs
       const sql = yield* SqlClient
       const id = yield* backend.withTransaction(() =>
@@ -58,7 +64,7 @@ export const seed = (
         })
       )
       if (state !== "Pending") {
-        const definition = Definitions.definitions[workload]!
+        const definition = definitions.definitions[workload]!
         const claim = yield* backend.store.claim({
           queue: definition.queue.name,
           supportedCatalog: [definition.catalog],
@@ -89,7 +95,8 @@ export const seed = (
         }
       }
       return id
-    })
+    }),
+    eventDefinitions
   )
 export const execute = (
   config: Event.Config,
@@ -105,7 +112,8 @@ export const execute = (
         yield* app.authenticate(Redacted.make(credential)),
         command
       )
-    })
+    }),
+    eventDefinitions
   )
 export const lookup = (
   config: Event.Config,
@@ -121,7 +129,8 @@ export const lookup = (
         yield* app.authenticate(Redacted.make(credential)),
         request
       )
-    })
+    }),
+    eventDefinitions
   )
 
 // Synthetic lost owning COMMIT response after the real native transaction resolves.
@@ -154,9 +163,6 @@ export const lostCommit = (
         })
       )
       return yield* service.execute(access, command)
-    })
+    }),
+    eventDefinitions
   )
-import * as OperatorAuthority from "../../src/persistence/authority/PostgreSqlOperatorTransactions.js"
-import * as OperatorPersistence from "../../src/persistence/commands/OperatorPersistence.js"
-import { OperatorTransactions } from "../../src/persistence/commands/OperatorTransactions.js"
-import { CommandTransactionFailure } from "../../src/persistence/commands/Transactions.js"

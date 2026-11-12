@@ -13,16 +13,16 @@ import {
 import * as Lifecycle from "../../JobLifecycle.js"
 import { CatalogIdentity, ProducerIdentity } from "../../JobIdentity.js"
 import { decodeJobPayload, encodeJobPayload } from "../../JobPayloadCodec.js"
-import { PreparedArtifact } from "../lifecycle/Artifacts.js"
-import { PostgreSqlInvalidHandle } from "../../PostgreSqlTransaction.js"
+import { PreparedArtifact } from "../../internal/lifecycle/Artifacts.js"
+import { PostgreSqlInvalidHandle } from "../PostgreSqlTransaction.js"
 import type {
   ApplicationAdapter,
   PostgreSqlError,
   TransactionQuery
-} from "../../PostgreSqlTransaction.js"
+} from "../PostgreSqlTransaction.js"
 import { dbTime, snapshot, integer, lineage } from "./Rows.js"
 import { EpochMillis } from "../../JobPolicy.js"
-import { PostgreSqlConfigurationError } from "../../PostgreSqlSchema.js"
+import { PostgreSqlConfigurationError } from "../PostgreSqlSchema.js"
 import { insertOrCompareAt } from "./Producer.js"
 
 const reject = (reason: JobOperatorRejected["reason"]) =>

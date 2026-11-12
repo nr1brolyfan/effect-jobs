@@ -24,10 +24,10 @@ import * as Consumer from "../../../dist/JobConsumer.js"
 import * as WorkerRuntime from "../../../dist/JobWorkerRuntime.js"
 import * as Registry from "../../../dist/JobRegistry.js"
 import * as Codec from "../../../dist/JobPayloadCodec.js"
-import * as Jobs from "../../../dist/PostgreSqlJobs.js"
-import * as Native from "../../../dist/PostgreSqlNative.js"
-import * as Tables from "../../../dist/PostgreSqlSchema.js"
-import { PostgreSqlApplication } from "../../../dist/PostgreSqlTransaction.js"
+import * as Jobs from "../../../dist/postgresql/PostgreSqlJobs.js"
+import * as Native from "../../../dist/postgresql/PostgreSqlNative.js"
+import * as Tables from "../../../dist/postgresql/PostgreSqlSchema.js"
+import { PostgreSqlApplication } from "../../../dist/postgresql/PostgreSqlTransaction.js"
 import { Measurements, nextArrival, rates, healthChecks } from "./Support.mjs"
 
 const {
@@ -182,11 +182,13 @@ try {
   )
   const definitions = queues.flatMap((queue) =>
     Array.from({ length: options.kindsPerQueue }, (_, k) =>
-      Job.make({
-        name: `soak.kind${k}`,
-        queue,
-        payload: Schema.Struct({ data: Schema.String })
-      })
+      Effect.runSync(
+        Job.make({
+          name: `soak.kind${k}`,
+          queue,
+          payload: Schema.Struct({ data: Schema.String })
+        })
+      )
     )
   )
   const churnPolicy = Policy.make({

@@ -7,6 +7,8 @@ import * as Projection from "../../../../playground-worker/src/server/read/JobDe
 import * as Diff from "../../../../playground/src/features/jobs/repair/PayloadDiff.js"
 import * as Fixture from "../../../../playground-worker/tests/repairs/Fixtures.js"
 
+import { definitions } from "../../../../playground-worker/tests/scenarios/Setup.js"
+
 describe("truthful allowlisted detail projection", () => {
   it("validates canonical unencrypted wire and rejects foreign/corrupt bytes", async () => {
     await Effect.runPromise(
@@ -20,24 +22,33 @@ describe("truthful allowlisted detail projection", () => {
           payload: encoded.payloadBytes,
           projection: encoded.semanticProjectionBytes
         }
-        expect(yield* Projection.payload(Fixture.detail, row)).toMatchObject({
-          _tag: "Available",
-          encryption: "None",
-          validation: "Valid"
-        })
+        expect(yield* Projection.payload(Fixture.detail, row, definitions)).toMatchObject(
+          {
+            _tag: "Available",
+            encryption: "None",
+            validation: "Valid"
+          }
+        )
         expect(
-          yield* Projection.payload(Fixture.detail, {
-            ...row,
-            projection: new TextEncoder().encode("{}")
-          })
+          yield* Projection.payload(
+            Fixture.detail,
+            {
+              ...row,
+              projection: new TextEncoder().encode("{}")
+            },
+            definitions
+          )
         ).toEqual({ _tag: "Unavailable", reason: "invalid-artifact" })
         expect(
           yield* Projection.payload(
             { ...Fixture.detail, sandbox: { ...Fixture.ref, generation: 2 } },
-            row
+            row,
+            definitions
           )
         ).toEqual({ _tag: "Unavailable", reason: "invalid-artifact" })
-        expect(yield* Projection.payload(Fixture.detail, { payload: null })).toEqual({
+        expect(
+          yield* Projection.payload(Fixture.detail, { payload: null }, definitions)
+        ).toEqual({
           _tag: "Unavailable",
           reason: "not-stored"
         })
@@ -46,7 +57,7 @@ describe("truthful allowlisted detail projection", () => {
   })
   it("returns only schema-valid ciphertext envelope without requiring/using keys or plaintext", async () => {
     const encoded = await Effect.runPromise(
-      Codec.encodeJobPayload(Definitions.ExportPayload, {
+      Codec.encodeJobPayload(definitions.ExportPayload, {
         ...Fixture.payload,
         document: {
           subject: Fixture.payload.actor,
@@ -57,22 +68,26 @@ describe("truthful allowlisted detail projection", () => {
     )
     const detail = {
       ...Fixture.detail,
-      job: { ...Fixture.detail.job, catalog: Definitions.PrivateDataExport.catalog }
+      job: { ...Fixture.detail.job, catalog: definitions.PrivateDataExport.catalog }
     }
     // If wire validation accidentally invokes decryption, the missing key service
     // fails this test. The wire is the ACTUAL encrypted codec output above.
     const result = await Effect.runPromise(
-      Projection.payload(detail, {
-        format_version: 1,
-        payload: encoded.payloadBytes,
-        projection: encoded.semanticProjectionBytes
-      })
+      Projection.payload(
+        detail,
+        {
+          format_version: 1,
+          payload: encoded.payloadBytes,
+          projection: encoded.semanticProjectionBytes
+        },
+        definitions
+      )
     )
     expect(result).toMatchObject({ _tag: "Available", encryption: "PrivateDocumentV1" })
     expect(JSON.stringify(result)).not.toContain("private-synthetic-note")
     expect(
-      Projection.eligibility(detail, Fixture.detail.problem, result).correctedRedrive
-        .reason
+      Projection.eligibility(detail, Fixture.detail.problem, result, definitions)
+        .correctedRedrive.reason
     ).toBe("encrypted-correction-unavailable")
   })
   it("reports absent attempts, creation and result rather than synthesizing them", () => {
@@ -84,13 +99,18 @@ describe("truthful allowlisted detail projection", () => {
   })
   it("keeps encrypted correction unavailable when the original envelope is absent", () => {
     const detail = {
-      job: { ...Fixture.detail.job, catalog: Definitions.PrivateDataExport.catalog }
+      job: { ...Fixture.detail.job, catalog: definitions.PrivateDataExport.catalog }
     }
     expect(
-      Projection.eligibility(detail, Fixture.detail.problem, {
-        _tag: "Unavailable",
-        reason: "not-stored"
-      }).correctedRedrive.reason
+      Projection.eligibility(
+        detail,
+        Fixture.detail.problem,
+        {
+          _tag: "Unavailable",
+          reason: "not-stored"
+        },
+        definitions
+      ).correctedRedrive.reason
     ).toBe("encrypted-correction-unavailable")
   })
 })

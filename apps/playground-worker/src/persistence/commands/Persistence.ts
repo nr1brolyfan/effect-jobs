@@ -1,3 +1,4 @@
+import * as Definitions from "../../scenarios/Definitions.js"
 import { Cause, Effect, Layer, Schema } from "effect"
 import { EpochMillis } from "effect-jobs/JobPolicy"
 import { JobBackendError, JobEnqueue } from "effect-jobs/JobEnqueue"
@@ -123,14 +124,18 @@ const validateReceipt = Effect.fnUntraced(function* (
 })
 
 export const make = Effect.gen(function* () {
+  const definitions = yield* Definitions.Definitions
+
   const transactions = yield* CommandTransactions
   const producer = yield* JobEnqueue
   const keys = yield* DocumentKeys
   const enqueue = (job: Plan.PlannedJob) =>
-    Plan.enqueue(job).pipe(
-      Effect.provideService(JobEnqueue, producer),
-      Effect.provideService(DocumentKeys, keys)
-    )
+    Plan.enqueue(job)
+      .pipe(Effect.provideService(Definitions.Definitions, definitions))
+      .pipe(
+        Effect.provideService(JobEnqueue, producer),
+        Effect.provideService(DocumentKeys, keys)
+      )
   const run = Effect.fn("Commands.persistScenario")(function* (
     access: SandboxAccess,
     input: ScenarioCommand
@@ -168,7 +173,9 @@ export const make = Effect.gen(function* () {
             current,
             0,
             command.scenario === "delayed-success" ? tx.dbNow + 120_000 : undefined
-          ).pipe(Effect.mapError(() => fail("invalid-request")))
+          )
+            .pipe(Effect.provideService(Definitions.Definitions, definitions))
+            .pipe(Effect.mapError(() => fail("invalid-request")))
           yield* tx.reserve(jobs.length)
           const jobIds = yield* Effect.forEach(
             jobs,

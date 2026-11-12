@@ -1,3 +1,4 @@
+import { definitions as eventDefinitions } from "../scenarios/Setup.js"
 // @effect-diagnostics unstableApiUsage:off
 // Finite real-PG qualification helpers. No resource acquisition on import.
 import { Effect, Schema } from "effect"
@@ -22,6 +23,7 @@ export const seed = (
       config,
       Effect.void,
       Effect.gen(function* () {
+        const definitions = yield* Definitions.Definitions
         const ref = yield* Schema.decodeUnknownEffect(SandboxRef)(input)
         const sql = yield* SqlClient
         const backend = yield* PostgreSqlJobs
@@ -38,7 +40,7 @@ export const seed = (
               order: "demo-order-a",
               document: { subject: "demo-customer", tenant: "demo-tenant-a", note }
             }
-            const result = yield* Definitions.SyntheticDocumentExport.enqueue({
+            const result = yield* definitions.SyntheticDocumentExport.enqueue({
               producer: {
                 operation: "playground.correction-qualification",
                 operationId: crypto.randomUUID(),
@@ -67,13 +69,14 @@ export const seed = (
             return result.jobId
           })
         )
-      })
+      }),
+      eventDefinitions
     ).pipe(Effect.timeout("30 seconds"))
   )
 
 export const decodeArtifact = (payload: Uint8Array, projection: Uint8Array) =>
   Effect.runPromise(
-    Codec.decodeJobPayload(Definitions.SyntheticExportPayload, {
+    Codec.decodeJobPayload(eventDefinitions.SyntheticExportPayload, {
       formatVersion: 1,
       payloadBytes: new Uint8Array(payload),
       semanticProjectionBytes: new Uint8Array(projection)

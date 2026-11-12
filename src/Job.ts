@@ -21,7 +21,7 @@ import { JobEnqueue, type JobBackendError } from "./JobEnqueue.js"
 import { insertPrepared } from "./internal/JobTransaction.js"
 
 /**
- * Thrown synchronously for an invalid catalog identity or payload Schema.
+ * Typed construction failure for invalid catalog identity, payload Schema or default policy.
  *
  * @category errors
  */
@@ -86,7 +86,8 @@ export interface JobDefinition<
 }
 
 /**
- * Creates a frozen definition; throws InvalidJobDefinition for invalid declarations.
+ * Creates a frozen definition lazily; invalid declarations fail with InvalidJobDefinition.
+ * Each execution snapshots configuration and creates an independently owned definition.
  * Omitted version is exactly 1; the standard payload encoder is the default.
  * An explicit encoder overrides it. Enqueue requires the Schema's encoding
  * services; handler installation captures decoding and execution services.
@@ -98,17 +99,17 @@ export interface JobDefinition<
  * import * as Queue from "effect-jobs/JobQueue"
  * import * as Codec from "effect-jobs/JobPayloadCodec"
  *
- * const definition = Job.make({
- *   queue: Queue.make("billing"),
- *   name: "invoice.generate",
- *   payload: Schema.Struct({ invoiceId: Schema.String })
+ * const setup = Effect.gen(function* () {
+ *   const definition = yield* Job.make({
+ *     queue: Queue.make("billing"),
+ *     name: "invoice.generate",
+ *     payload: Schema.Struct({ invoiceId: Schema.String })
+ *   })
+ *   // Provide JobRegistry when building this Layer. Add application services as needed.
+ *   // Replace this no-op with an idempotent application handler.
+ *   const handler = definition.handlerLayer(() => Effect.void, Codec.decodeJobPayload)
+ *   return { definition, handler }
  * })
- * // Provide JobRegistry when building this Layer. Add application services as needed.
- * // Replace this no-op with an idempotent application handler.
- * const HandlerLayer = definition.handlerLayer(
- *   ({ payload, context }) => Effect.void,
- *   Codec.decodeJobPayload
- * )
  * ```
  *
  * @category constructors
@@ -125,7 +126,10 @@ export function make<
   readonly payload: Payload
   readonly defaultPolicy: JobPolicy
   readonly encodePayload?: JobPayloadEncoder
-}): JobDefinition<Payload, Name, Version, Queue, JobPolicy>
+}): Effect.Effect<
+  JobDefinition<Payload, Name, Version, Queue, JobPolicy>,
+  InvalidJobDefinition
+>
 export function make<
   Payload extends Schema.Top,
   const Name extends string,
@@ -137,7 +141,7 @@ export function make<
   readonly payload: Payload
   readonly defaultPolicy: JobPolicy
   readonly encodePayload?: JobPayloadEncoder
-}): JobDefinition<Payload, Name, 1, Queue, JobPolicy>
+}): Effect.Effect<JobDefinition<Payload, Name, 1, Queue, JobPolicy>, InvalidJobDefinition>
 export function make<
   Payload extends Schema.Top,
   const Name extends string,
@@ -150,7 +154,10 @@ export function make<
   readonly payload: Payload
   readonly defaultPolicy: JobPolicy
   readonly encodePayload?: JobPayloadEncoder
-}): JobDefinition<Payload, Name, Version | 1, Queue, JobPolicy>
+}): Effect.Effect<
+  JobDefinition<Payload, Name, Version | 1, Queue, JobPolicy>,
+  InvalidJobDefinition
+>
 export function make<
   Payload extends Schema.Top,
   const Name extends string,
@@ -163,7 +170,10 @@ export function make<
   readonly payload: Payload
   readonly defaultPolicy?: JobPolicy | undefined
   readonly encodePayload?: JobPayloadEncoder
-}): JobDefinition<Payload, Name, Version, Queue, JobPolicy | undefined>
+}): Effect.Effect<
+  JobDefinition<Payload, Name, Version, Queue, JobPolicy | undefined>,
+  InvalidJobDefinition
+>
 export function make<
   Payload extends Schema.Top,
   const Name extends string,
@@ -175,7 +185,10 @@ export function make<
   readonly payload: Payload
   readonly defaultPolicy?: JobPolicy | undefined
   readonly encodePayload?: JobPayloadEncoder
-}): JobDefinition<Payload, Name, 1, Queue, JobPolicy | undefined>
+}): Effect.Effect<
+  JobDefinition<Payload, Name, 1, Queue, JobPolicy | undefined>,
+  InvalidJobDefinition
+>
 export function make<
   Payload extends Schema.Top,
   const Name extends string,
@@ -188,7 +201,10 @@ export function make<
   readonly payload: Payload
   readonly defaultPolicy?: JobPolicy | undefined
   readonly encodePayload?: JobPayloadEncoder
-}): JobDefinition<Payload, Name, Version | 1, Queue, JobPolicy | undefined>
+}): Effect.Effect<
+  JobDefinition<Payload, Name, Version | 1, Queue, JobPolicy | undefined>,
+  InvalidJobDefinition
+>
 export function make<
   Payload extends Schema.Top,
   Name extends string,
@@ -201,105 +217,116 @@ export function make<
   readonly payload: Payload
   readonly defaultPolicy?: JobPolicy | undefined
   readonly encodePayload?: JobPayloadEncoder
-}): JobDefinition<Payload, Name, Version | 1, Queue, JobPolicy | undefined> {
-  const { name, queue, payload } = options
-  const version = options.version === undefined ? 1 : options.version
-  const encodePayload = options.encodePayload ?? encodeJobPayload
-  const catalog = Object.freeze({ queue: queue.name, name, version })
-  if (!Schema.is(CatalogIdentity)(catalog) || !Schema.isSchema(payload)) {
-    throw new InvalidJobDefinition({
-      expected: "valid queue/name/version and payload Schema"
-    })
-  }
-  const configuredPolicy = options.defaultPolicy
-  if (
-    configuredPolicy !== undefined &&
-    !Schema.is(PersistedJobPolicy)(configuredPolicy)
-  ) {
-    throw new InvalidJobDefinition({ expected: "complete valid defaultPolicy" })
-  }
-  const snapshotPolicy = (policy: JobPolicy): JobPolicy =>
-    Object.freeze({
-      ...policy,
-      retrySchedule: Object.freeze({ ...policy.retrySchedule }),
-      completedRetention: Object.freeze({ ...policy.completedRetention }),
-      deadRetention: Object.freeze({ ...policy.deadRetention })
-    })
-  const defaultPolicy =
-    configuredPolicy === undefined ? undefined : snapshotPolicy(configuredPolicy)
-  const prepare = Effect.fnUntraced(function* (
-    input: EnqueueInput<Payload["Type"], JobPolicy>
-  ) {
-    if (!Schema.is(ProducerIdentity)(input.producer)) {
-      return yield* new InvalidJobInput({ field: "producer" })
+}): Effect.Effect<
+  JobDefinition<Payload, Name, Version | 1, Queue, JobPolicy | undefined>,
+  InvalidJobDefinition
+> {
+  return Effect.gen(function* () {
+    const {
+      name,
+      queue,
+      payload,
+      version: configuredVersion,
+      defaultPolicy: configuredPolicy,
+      encodePayload: configuredEncoder
+    } = options
+    const version = configuredVersion === undefined ? 1 : configuredVersion
+    const encodePayload = configuredEncoder ?? encodeJobPayload
+    const catalog = Object.freeze({ queue: queue.name, name, version })
+    if (!Schema.is(CatalogIdentity)(catalog) || !Schema.isSchema(payload)) {
+      return yield* new InvalidJobDefinition({
+        expected: "valid queue/name/version and payload Schema"
+      })
     }
-    const selectedPolicy = input.policy === undefined ? defaultPolicy : input.policy
-    if (!Schema.is(PersistedJobPolicy)(selectedPolicy)) {
-      return yield* new InvalidJobInput({ field: "policy" })
+    if (
+      configuredPolicy !== undefined &&
+      !Schema.is(PersistedJobPolicy)(configuredPolicy)
+    ) {
+      return yield* new InvalidJobDefinition({ expected: "complete valid defaultPolicy" })
     }
-    if (input.availableAt !== undefined && !Schema.is(EpochMillis)(input.availableAt)) {
-      return yield* new InvalidJobInput({ field: "availableAt" })
-    }
-    const producer = Object.freeze({
-      operation: input.producer.operation,
-      operationId: input.producer.operationId,
-      slot: input.producer.slot
+    const snapshotPolicy = (policy: JobPolicy): JobPolicy =>
+      Object.freeze({
+        ...policy,
+        retrySchedule: Object.freeze({ ...policy.retrySchedule }),
+        completedRetention: Object.freeze({ ...policy.completedRetention }),
+        deadRetention: Object.freeze({ ...policy.deadRetention })
+      })
+    const defaultPolicy =
+      configuredPolicy === undefined ? undefined : snapshotPolicy(configuredPolicy)
+    const prepare = Effect.fnUntraced(function* (
+      input: EnqueueInput<Payload["Type"], JobPolicy>
+    ) {
+      if (!Schema.is(ProducerIdentity)(input.producer)) {
+        return yield* new InvalidJobInput({ field: "producer" })
+      }
+      const selectedPolicy = input.policy === undefined ? defaultPolicy : input.policy
+      if (!Schema.is(PersistedJobPolicy)(selectedPolicy)) {
+        return yield* new InvalidJobInput({ field: "policy" })
+      }
+      if (input.availableAt !== undefined && !Schema.is(EpochMillis)(input.availableAt)) {
+        return yield* new InvalidJobInput({ field: "availableAt" })
+      }
+      const producer = Object.freeze({
+        operation: input.producer.operation,
+        operationId: input.producer.operationId,
+        slot: input.producer.slot
+      })
+      const policy = snapshotPolicy(selectedPolicy)
+      const availableAt = input.availableAt
+      const encoded = yield* encodePayload(payload, input.payload)
+      return Object.freeze({
+        catalog,
+        producer,
+        policy,
+        encoded,
+        ...(availableAt === undefined ? {} : { availableAt })
+      })
     })
-    const policy = snapshotPolicy(selectedPolicy)
-    const availableAt = input.availableAt
-    const encoded = yield* encodePayload(payload, input.payload)
     return Object.freeze({
+      name,
+      version,
+      queue,
+      payload,
+      defaultPolicy,
       catalog,
-      producer,
-      policy,
-      encoded,
-      ...(availableAt === undefined ? {} : { availableAt })
-    })
-  })
-  return Object.freeze({
-    name,
-    version,
-    queue,
-    payload,
-    defaultPolicy,
-    catalog,
-    enqueue: Effect.fnUntraced(function* (
-      input: EnqueueInput<Payload["Type"], JobPolicy>
-    ) {
-      const backend = yield* JobEnqueue
-      // Check transaction presence before potentially asynchronous encryption.
-      return yield* backend.enqueue(prepare(input))
-    }),
-    enqueueStandalone: Effect.fnUntraced(function* (
-      input: EnqueueInput<Payload["Type"], JobPolicy>
-    ) {
-      const backend = yield* JobEnqueue
-      return yield* backend.enqueueStandalone(prepare(input))
-    }),
-    enqueueInTransaction: Effect.fnUntraced(function* <E, R>(
-      tx: JobsTransaction<E, R>,
-      input: EnqueueInput<Payload["Type"], JobPolicy>
-    ) {
-      return yield* insertPrepared(tx, yield* prepare(input))
-    }),
-    handlerLayer: <R>(
-      execute: (
-        input: HandlerInput<Payload["Type"]>
-      ) => Effect.Effect<void, JobFailure, R>,
-      decodePayload: JobPayloadDecoder
-    ) =>
-      Layer.effectDiscard(
-        Effect.gen(function* () {
-          const registry = yield* JobRegistry
-          const services = yield* Effect.context<R | Payload["DecodingServices"]>()
-          yield* registry.install({
-            catalog,
-            execute: (encoded, context) =>
-              Effect.flatMap(decodePayload(payload, encoded), (decoded) =>
-                Effect.suspend(() => execute({ payload: decoded, context }))
-              ).pipe(Effect.provide(services))
+      enqueue: Effect.fnUntraced(function* (
+        input: EnqueueInput<Payload["Type"], JobPolicy>
+      ) {
+        const backend = yield* JobEnqueue
+        // Check transaction presence before potentially asynchronous encryption.
+        return yield* backend.enqueue(prepare(input))
+      }),
+      enqueueStandalone: Effect.fnUntraced(function* (
+        input: EnqueueInput<Payload["Type"], JobPolicy>
+      ) {
+        const backend = yield* JobEnqueue
+        return yield* backend.enqueueStandalone(prepare(input))
+      }),
+      enqueueInTransaction: Effect.fnUntraced(function* <E, R>(
+        tx: JobsTransaction<E, R>,
+        input: EnqueueInput<Payload["Type"], JobPolicy>
+      ) {
+        return yield* insertPrepared(tx, yield* prepare(input))
+      }),
+      handlerLayer: <R>(
+        execute: (
+          input: HandlerInput<Payload["Type"]>
+        ) => Effect.Effect<void, JobFailure, R>,
+        decodePayload: JobPayloadDecoder
+      ) =>
+        Layer.effectDiscard(
+          Effect.gen(function* () {
+            const registry = yield* JobRegistry
+            const services = yield* Effect.context<R | Payload["DecodingServices"]>()
+            yield* registry.install({
+              catalog,
+              execute: (encoded, context) =>
+                Effect.flatMap(decodePayload(payload, encoded), (decoded) =>
+                  Effect.suspend(() => execute({ payload: decoded, context }))
+                ).pipe(Effect.provide(services))
+            })
           })
-        })
-      )
+        )
+    })
   })
 }

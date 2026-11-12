@@ -5,11 +5,9 @@
 import assert from "node:assert/strict"
 import { Effect, Result } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
-import { SendInvoice } from "#orders/contracts/jobs"
-import {
-  placeOrderWithInvoice,
-  PlaceOrderWithInvoice
-} from "#api/orders/PlaceOrderWithInvoice"
+import { OrderJobs } from "#orders/contracts/jobs"
+import { ApiDefinitions } from "#api/orders/Definitions"
+import { placeOrderWithInvoice } from "#api/orders/PlaceOrderWithInvoice"
 import { placeOrder } from "#api/orders/PlaceOrder"
 import { placeOrderIdempotent } from "#api/orders/PlaceOrderIdempotent"
 import {
@@ -76,6 +74,7 @@ export const businessConflict = Effect.gen(function* () {
 
 // #region payload-conflict
 export const payloadConflict = Effect.gen(function* () {
+  const { PlaceOrderWithInvoice } = yield* ApiDefinitions
   const pg = yield* PgClient.PgClient
   const input = { operationId: "example-payload", payload: { orderId: "order-a" } }
   yield* pg.withTransaction(PlaceOrderWithInvoice.enqueue("send-confirmation", input))
@@ -95,6 +94,8 @@ export const payloadConflict = Effect.gen(function* () {
 
 // #region catalog-conflict
 export const catalogConflict = Effect.gen(function* () {
+  const { PlaceOrderWithInvoice } = yield* ApiDefinitions
+  const { SendInvoice } = yield* OrderJobs
   const pg = yield* PgClient.PgClient
   const operationId = "example-catalog"
   yield* pg.withTransaction(
@@ -107,7 +108,7 @@ export const catalogConflict = Effect.gen(function* () {
   const exit = yield* pg
     .withTransaction(
       SendInvoice.enqueue({
-        producer: PlaceOrderWithInvoice.identity({
+        producer: yield* PlaceOrderWithInvoice.identity({
           operationId,
           slot: "send-confirmation"
         }),

@@ -3,12 +3,12 @@ import { Effect, Option } from "effect"
 import {
   PostgreSqlFailure,
   PostgreSqlInvalidHandle
-} from "../../src/PostgreSqlTransaction.js"
+} from "../../src/postgresql/PostgreSqlTransaction.js"
 import type {
   ApplicationAdapter,
   PostgreSqlError,
   TransactionQuery
-} from "../../src/PostgreSqlTransaction.js"
+} from "../../src/postgresql/PostgreSqlTransaction.js"
 import * as App from "../qualification/d6-pg/ApplicationTransactions.js"
 
 const sanitize = <A, E, R>(

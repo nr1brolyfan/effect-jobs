@@ -12,12 +12,14 @@ import { TestClock } from "effect/testing"
 import * as WakeCycle from "../../src/cloudflare/WakeCycle.js"
 
 const queue = Queue.make("cloudflare-probe")
-const definition = Job.make({
-  queue,
-  name: "synthetic",
-  payload: Schema.String,
-  encodePayload: Codec.encodeJobPayload
-})
+const definition = Effect.runSync(
+  Job.make({
+    queue,
+    name: "synthetic",
+    payload: Schema.String,
+    encodePayload: Codec.encodeJobPayload
+  })
+)
 
 const exercise = (
   snapshots: ReadonlyArray<WakeCycle.WakeSnapshot>,

@@ -11,7 +11,8 @@
     "alchemy": "2.0.0-beta.84",
     "@alchemy.run/cloudflare": "2.0.0-beta.84",
     "@alchemy.run/cloudflare-runtime": "2.0.0-beta.84",
-    "@alchemy.run/domain": "2.0.0-beta.84"
+    "@alchemy.run/domain": "2.0.0-beta.84",
+    "drizzle-orm": "1.0.0-rc.5-ab785fc"
   },
   "scripts": {
     "check": "tsc -p tsconfig.json",

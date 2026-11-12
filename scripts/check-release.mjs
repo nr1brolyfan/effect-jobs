@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { execFileSync } from "node:child_process"
 import { readFileSync } from "node:fs"
-import { resolve } from "node:path"
+import { posix, resolve } from "node:path"
 import { releaseImports } from "./release-imports.mjs"
 
 assert(process.env.EFFECT_JOBS_ARCHIVE, "EFFECT_JOBS_ARCHIVE is required")
@@ -72,7 +72,15 @@ for (const { filename: entry, source } of sources) {
   }
   assert(!/effect-auth/.test(source), `Private auth dependency in ${entry}`)
   for (const specifier of importsByFile.get(entry)) {
-    if (!specifier.startsWith(".")) {
+    if (specifier.startsWith(".")) {
+      const target = posix.normalize(posix.join(posix.dirname(entry), specifier))
+      assert(target.startsWith("package/dist/"), `Escaping relative import in ${entry}`)
+      const filename = entry.endsWith(".d.ts") ? target.replace(/\.js$/, ".d.ts") : target
+      assert(
+        entries.includes(filename),
+        `Missing relative import ${specifier} in ${entry}`
+      )
+    } else {
       assert(
         /^(effect(?:\/|$)|node:|drizzle-orm(?:\/|$))/.test(specifier),
         `Unexpected dependency ${specifier}`

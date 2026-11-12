@@ -6,9 +6,11 @@ import { createHash } from "node:crypto"
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { publicModules } from "../../../scripts/SourceExports.mjs"
 const root = fileURLToPath(new URL("../../../", import.meta.url))
 assert.equal(process.version, "v24.15.0")
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
+const modules = new Map(publicModules(manifest).map((module) => [module.name, module]))
 const readme = readFileSync(join(root, "README.md"), "utf8")
 const fences = [...readme.matchAll(/```(\w+)\n([\s\S]*?)```/g)]
 assert(fences.every((m) => ["ts", "sh", "text"].includes(m[1])))
@@ -159,9 +161,13 @@ try {
   ]) {
     const replace = (code) =>
       label === "source"
-        ? code.replace(/"effect-jobs\/([^"/]+)"/g, (_, module) =>
-            JSON.stringify(`${relative(directory, join(root, "src", module))}.js`)
-          )
+        ? code.replace(/"effect-jobs\/([^"/]+)"/g, (_, module) => {
+            const entry = modules.get(module)
+            assert(entry, `Unknown public module: ${module}`)
+            return JSON.stringify(
+              relative(directory, join(root, entry.source)).replace(/\.ts$/, ".js")
+            )
+          })
         : code
     for (const [i, name] of names.entries()) {
       writeFileSync(join(directory, `${name}.ts`), replace(wrap(name, snippets[i])))

@@ -4,6 +4,8 @@ import * as Fixture from "../../../../playground-worker/tests/repairs/Fixtures.j
 import * as Projection from "../../../../playground-worker/src/server/read/JobDetailsProjection.js"
 import * as Eligibility from "../../../../playground/src/features/jobs/OperatorEligibility.js"
 
+import { definitions } from "../../../../playground-worker/tests/scenarios/Setup.js"
+
 const sandbox = {
   ref: Fixture.ref,
   expiresAt: 10000,
@@ -41,7 +43,12 @@ describe("source-projected action applicability", () => {
           ...Fixture.detail,
           job,
           problem,
-          eligibility: Projection.eligibility({ job }, problem, Fixture.detail.payload)
+          eligibility: Projection.eligibility(
+            { job },
+            problem,
+            Fixture.detail.payload,
+            definitions
+          )
         }
         const terminalFailure = state === "Dead" || state === "Isolated"
         const repair = terminalFailure && (resolution === null || resolution === "Open")

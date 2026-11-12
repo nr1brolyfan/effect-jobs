@@ -3,6 +3,7 @@ import { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
 import { sandbox } from "@effect-jobs/playground-contracts/Fixtures"
 import * as Policy from "effect-jobs/JobPolicy"
 import * as Definitions from "./Definitions.js"
+import * as Catalogs from "@effect-jobs/playground-contracts/ScenarioCatalogs"
 import { codes } from "./Handlers.js"
 
 const now = 1_800_000_000_000
@@ -27,6 +28,15 @@ const profiles = [
   { label: "recovered", state: "Pending", attempts: 0, stalls: 1, code: null }
 ] as const
 
+const catalogs = [
+  Catalogs.WelcomeEmail,
+  Catalogs.ImageProcessing,
+  Catalogs.WebhookDelivery,
+  Catalogs.PrivateDataExport,
+  Catalogs.CatalogSync,
+  Catalogs.SimulatedPayment,
+  Catalogs.SyntheticDocumentExport
+]
 export const dashboard = profiles.map((profile, index) => ({
   label: profile.label,
   detail: Schema.decodeUnknownSync(JobDetail)(
@@ -34,7 +44,7 @@ export const dashboard = profiles.map((profile, index) => ({
       sandbox: sandbox.ref,
       job: {
         jobId: `synthetic-${profile.label}`,
-        catalog: Definitions.definitions[index % Definitions.definitions.length]!.catalog,
+        catalog: catalogs[index % catalogs.length]!.catalog,
         state: profile.state,
         availableAt: profile.label === "delayed" ? now + 60_000 : now,
         updatedAt: now,
@@ -62,10 +72,11 @@ export const dashboard = profiles.map((profile, index) => ({
         redrive: { enabled: false, reason: "public-read-only" },
         correctedRedrive: { enabled: false, reason: "public-read-only" }
       },
-      producer: Definitions.Producer.identity({
+      producer: {
+        operation: Definitions.operation,
         operationId: `synthetic-fixture-${index}`,
         slot: "welcome-email"
-      }),
+      },
       policy: Policy.make(),
       relations: { syntheticActor: "demo-customer", syntheticOrderId: "demo-order-a" },
       ...(profile.label === "unknown"

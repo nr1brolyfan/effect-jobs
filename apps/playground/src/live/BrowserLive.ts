@@ -184,11 +184,13 @@ export const scoped = <A>(options: BrowserOptions<A>) =>
                   typeof event.data !== "string" ||
                   event.data.length > liveLimits.messageBytes
                 ) {
-                  throw new Error("invalid signal")
+                  finish()
+                  return
                 }
                 const signal = decodeSignal(JSON.parse(event.data))
                 if (!sameSandbox(signal.sandbox, options.sandbox.ref)) {
-                  throw new Error("foreign signal")
+                  finish()
+                  return
                 }
                 socket.send(JSON.stringify({ kind: "ack", sequence: signal.sequence }))
                 Deferred.doneUnsafe(admitted, Effect.void)

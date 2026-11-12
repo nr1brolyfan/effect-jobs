@@ -5,10 +5,12 @@ import * as Payloads from "@effect-jobs/playground-contracts/ScenarioPayloads"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import * as WorkerDefinitions from "../../playground-worker/src/scenarios/Definitions.js"
 
+const definitions = Effect.runSync(WorkerDefinitions.make)
+
 describe("portable scenario boundary", () => {
   it("uses the same catalog identities as worker execution", () => {
     expect(Catalogs.definitions.map((definition) => definition.catalog)).toEqual(
-      WorkerDefinitions.definitions.map((definition) => definition.catalog)
+      definitions.definitions.map((definition) => definition.catalog)
     )
   })
 
@@ -28,7 +30,7 @@ describe("portable scenario boundary", () => {
         fingerprint: "a".repeat(64)
       }
     }
-    const worker = Schema.toEncoded(WorkerDefinitions.SyntheticExportPayload)
+    const worker = Schema.toEncoded(definitions.SyntheticExportPayload)
     for (const candidate of [
       { value: valid, accepted: true },
       { value: { ...valid, sequence: 0 }, accepted: false },

@@ -50,7 +50,7 @@ export const probe = (url, schema, alarm, checks = []) =>
       }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
       yield* backend.ready
       checks.push("real connection and packed backend readiness")
-      const definition = Job.make({
+      const definition = yield* Job.make({
         queue: Queue.make("cf-real"),
         name: "synthetic",
         payload: Schema.String

@@ -6,7 +6,20 @@
       "@effect-jobs/playground-contracts/*": [
         "../../../../../packages/playground-contracts/src/*.ts"
       ],
-      "effect-jobs/*": ["../../../../../src/*.ts"]
+      "effect-jobs/*": ["../../../../../src/*.ts"],
+      "effect-jobs/PostgreSqlJobs": ["../../../../../src/postgresql/PostgreSqlJobs.ts"],
+      "effect-jobs/PostgreSqlNative": [
+        "../../../../../src/postgresql/PostgreSqlNative.ts"
+      ],
+      "effect-jobs/PostgreSqlTransaction": [
+        "../../../../../src/postgresql/PostgreSqlTransaction.ts"
+      ],
+      "effect-jobs/PostgreSqlSchema": [
+        "../../../../../src/postgresql/PostgreSqlSchema.ts"
+      ],
+      "effect-jobs/PostgreSqlDrizzleSchema": [
+        "../../../../../src/postgresql/PostgreSqlDrizzleSchema.ts"
+      ]
     }
   },
   "include": [

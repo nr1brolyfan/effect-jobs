@@ -46,6 +46,7 @@ export const migrationCommand = (sql: string): string => {
 export const qualify = (client: PgClient, schema: string) =>
   Effect.scoped(
     Effect.gen(function* () {
+      const definitions = yield* Definitions.Definitions
       // A unique qualification namespace, never an existing app/preview schema.
       if (!/^repair_qualification_[a-f0-9]{12}$/u.test(schema)) {
         return yield* Effect.die(new Error("Fresh qualification schema required"))
@@ -113,7 +114,7 @@ export const qualify = (client: PgClient, schema: string) =>
           }
           const inserted = yield* client.withTransaction(
             Effect.gen(function* () {
-              const result = yield* Definitions.WelcomeEmail.enqueue({
+              const result = yield* definitions.WelcomeEmail.enqueue({
                 producer,
                 payload,
                 policy: Fixture.detail.policy
@@ -142,8 +143,8 @@ export const qualify = (client: PgClient, schema: string) =>
             })
           )
           const claimed = yield* backend.store.claim({
-            queue: Definitions.WelcomeEmail.catalog.queue,
-            supportedCatalog: [Definitions.WelcomeEmail.catalog],
+            queue: definitions.WelcomeEmail.catalog.queue,
+            supportedCatalog: [definitions.WelcomeEmail.catalog],
             leaseToken: crypto.randomUUID()
           })
           assert.equal(claimed._tag, "Claimed")
@@ -184,8 +185,8 @@ export const qualify = (client: PgClient, schema: string) =>
       const complete = (jobId: string) =>
         Effect.gen(function* () {
           const claimed = yield* backend.store.claim({
-            queue: Definitions.WelcomeEmail.catalog.queue,
-            supportedCatalog: [Definitions.WelcomeEmail.catalog],
+            queue: definitions.WelcomeEmail.catalog.queue,
+            supportedCatalog: [definitions.WelcomeEmail.catalog],
             leaseToken: crypto.randomUUID()
           })
           assert.equal(claimed._tag, "Claimed")
@@ -359,6 +360,7 @@ export const qualify = (client: PgClient, schema: string) =>
     })
   ).pipe(
     Effect.provideService(SqlClient, client),
+    Effect.provide(Definitions.layer),
     Effect.provideService(Mode.LocalPrivate, true),
     Effect.timeout("2 minutes")
   )

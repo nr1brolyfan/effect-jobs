@@ -1,3 +1,4 @@
+import { runPromise } from "../scenarios/Setup.js"
 // @effect-diagnostics unstableApiUsage:off
 import { describe, expect, it } from "vitest"
 import { Effect, Exit, Semaphore, Stream } from "effect"
@@ -201,7 +202,7 @@ const fixture = Effect.gen(function* () {
 
 describe("native admission/receipt authority protocol with synthetic driver", () => {
   it("rejects a receipt of the wrong operation and mismatched source identity", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const db = yield* fixture
         yield* db.executeRejected()
@@ -238,7 +239,7 @@ describe("native admission/receipt authority protocol with synthetic driver", ()
     )
   })
   it("serializes identical concurrent requests, preserves exact receipt and rejects conflicting reuse", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const db = yield* fixture
         const results = yield* Effect.all([db.executeRejected(), db.executeRejected()], {
@@ -256,7 +257,7 @@ describe("native admission/receipt authority protocol with synthetic driver", ()
     )
   })
   it("lost durable COMMIT acknowledgement is resolved by exact read-only receipt lookup", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const db = yield* fixture
         db.loseCommit()
@@ -281,7 +282,7 @@ describe("native admission/receipt authority protocol with synthetic driver", ()
     )
   })
   it("persisted demo ownership defeats forged capability hints", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const db = yield* fixture
         db.demo()
@@ -291,7 +292,7 @@ describe("native admission/receipt authority protocol with synthetic driver", ()
     )
   })
   it("expiry after source lock aborts receipt writes, preserves admission and refuses later replay", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const db = yield* fixture
         db.expire()
@@ -310,7 +311,7 @@ describe("native admission/receipt authority protocol with synthetic driver", ()
     )
   })
   it("rejects already active exact-client context before admitting or issuing nested controls", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const db = yield* fixture
         const exit = yield* Effect.exit(db.client.withTransaction(db.executeRejected()))

@@ -1,13 +1,13 @@
-import { Effect, Result, Schema } from "effect"
+import { Cause, Effect, Result, Schema } from "effect"
 import * as Lifecycle from "../../JobLifecycle.js"
 import * as Store from "../../JobStore.js"
-import * as Reconciliation from "../lifecycle/Reconciliation.js"
-import { PostgreSqlFailure } from "../../PostgreSqlTransaction.js"
+import * as Reconciliation from "../../internal/lifecycle/Reconciliation.js"
+import { PostgreSqlFailure } from "../PostgreSqlTransaction.js"
 import type {
   ApplicationAdapter,
   PostgreSqlError,
   TransactionQuery
-} from "../../PostgreSqlTransaction.js"
+} from "../PostgreSqlTransaction.js"
 import { claimArtifact, dbTime, fromResult, snapshot, writeSnapshot } from "./Rows.js"
 
 const inputError = () => new Store.JobStoreProtocolError({ reason: "invalid-input" })
@@ -38,11 +38,20 @@ const finalizationInput = (input: Store.FinalizationRequest) =>
   )
 const unknownResult = <A, B, E, R>(effect: Effect.Effect<A, E, R>, unknown: () => B) =>
   effect.pipe(
-    Effect.catchIf(
-      (error): error is E & PostgreSqlFailure =>
-        error instanceof PostgreSqlFailure && error.commitKnowledge === "Unknown",
-      () => Effect.succeed(unknown())
-    )
+    Effect.catchCause((cause) => {
+      const reason = cause.reasons[0]
+      // An uncertain result does not replace additional failures, defects or interruption.
+      if (
+        cause.reasons.length === 1 &&
+        reason !== undefined &&
+        Cause.isFailReason(reason) &&
+        reason.error instanceof PostgreSqlFailure &&
+        reason.error.commitKnowledge === "Unknown"
+      ) {
+        return Effect.succeed(unknown())
+      }
+      return Effect.failCause(cause)
+    })
   )
 
 /** Invalid durable metadata is removed from scheduling, not repaired into executable data. */

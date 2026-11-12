@@ -1,5 +1,5 @@
 // #region shared-contract
-import { Duration, Schema } from "effect"
+import { Context, Duration, Effect, Layer, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
 import * as JobQueue from "effect-jobs/JobQueue"
 import * as JobPolicy from "effect-jobs/JobPolicy"
@@ -38,3 +38,19 @@ export const SendInvoice = Job.make({
   defaultPolicy: OrderPolicy
 })
 // #endregion invoice-contracts
+
+export const orderJobs = Effect.gen(function* () {
+  const confirmation = yield* SendOrderConfirmation
+  const invoice = yield* CreateOrderInvoice
+  const delivery = yield* SendInvoice
+  return {
+    SendOrderConfirmation: confirmation,
+    CreateOrderInvoice: invoice,
+    SendInvoice: delivery
+  }
+})
+export class OrderJobs extends Context.Service<
+  OrderJobs,
+  Effect.Success<typeof orderJobs>
+>()("orders/OrderJobs") {}
+export const OrderJobsLayer = Layer.effect(OrderJobs, orderJobs)

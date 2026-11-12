@@ -1,7 +1,7 @@
 import * as FailureCodes from "../../src/FailureCode.js"
 import assert from "node:assert/strict"
 import { createHmac, randomUUID } from "node:crypto"
-import { Context, Effect, Layer, Logger, Schema, SchemaAST } from "effect"
+import { Context, Effect, Layer, Logger, Result, Schema, SchemaAST } from "effect"
 import { TestClock } from "effect/testing"
 import { it } from "vitest"
 import * as Job from "../../src/Job.js"
@@ -11,7 +11,7 @@ import * as Policy from "../../src/JobPolicy.js"
 import { JobPayloadCodecError } from "../../src/JobContract.js"
 import { JobFailures } from "../../src/JobFailure.js"
 import { JobRegistry, layer as registryLayer } from "../../src/JobRegistry.js"
-import { canonicalText } from "../../src/internal/codec/CanonicalJson.js"
+import { canonicalText as canonicalTextResult } from "../../src/internal/codec/CanonicalJson.js"
 import { project } from "../../src/internal/codec/ProtectedProjection.js"
 import { executionFor } from "../../src/internal/worker/Execution.js"
 import { harness } from "../core/worker/Harness.js"
@@ -23,6 +23,10 @@ import {
 } from "./EncryptedPayload.js"
 import type { EncryptionCodec } from "./EncryptedPayload.js"
 import type { EncodedJobPayload, PreparedJob } from "../../src/JobContract.js"
+
+// This test fixture deliberately extracts a successful synchronous Result.
+const canonicalText = (...args: Parameters<typeof canonicalTextResult>) =>
+  Result.getOrThrow(canonicalTextResult(...args))
 
 const Envelope = Schema.Struct({
   keyId: Schema.String,
@@ -289,13 +293,15 @@ const UnmarkedPayload = Schema.Struct({
   invoiceId: Schema.String,
   document: native({ schema: Document, codec: ReceiptCodec }, false)
 })
-const definition = Job.make({
-  queue: Queue.make("poc"),
-  name: "encrypted.document",
-  version: 1,
-  payload: UnmarkedPayload,
-  encodePayload: Codec.encodeJobPayload
-})
+const definition = Effect.runSync(
+  Job.make({
+    queue: Queue.make("poc"),
+    name: "encrypted.document",
+    version: 1,
+    payload: UnmarkedPayload,
+    encodePayload: Codec.encodeJobPayload
+  })
+)
 const artifact = (wire: unknown): EncodedJobPayload => {
   const json = canonicalText(wire, 65_536, "payload-too-large")
   return {

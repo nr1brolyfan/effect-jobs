@@ -9,13 +9,13 @@ import * as Job from "../../src/Job.js"
 import * as Queue from "../../src/JobQueue.js"
 import * as Producer from "../../src/JobProducer.js"
 import * as Policy from "../../src/JobPolicy.js"
-import * as Jobs from "../../src/PostgreSqlJobs.js"
-import * as Tables from "../../src/PostgreSqlSchema.js"
+import * as Jobs from "../../src/postgresql/PostgreSqlJobs.js"
+import * as Tables from "../../src/postgresql/PostgreSqlSchema.js"
 import {
   PostgreSqlApplication,
   PostgreSqlFailure
-} from "../../src/PostgreSqlTransaction.js"
-import type { ApplicationAdapter } from "../../src/PostgreSqlTransaction.js"
+} from "../../src/postgresql/PostgreSqlTransaction.js"
+import type { ApplicationAdapter } from "../../src/postgresql/PostgreSqlTransaction.js"
 import * as Payload from "../../src/JobPayload.js"
 import { encodeJobPayload, decodeJobPayload } from "../../src/JobPayloadCodec.js"
 import * as Registry from "../../src/JobRegistry.js"
@@ -31,23 +31,27 @@ import * as App from "../qualification/d6-pg/ApplicationTransactions.js"
 import * as Adapter from "./Adapter.js"
 
 const directory = process.env.D6_RESOURCE_DIRECTORY
-const definition = Job.make({
-  name: "invoice.generate",
-  version: 1,
-  queue: Queue.make("billing"),
-  payload: Schema.Struct({ invoiceId: Schema.String }),
-  encodePayload: encodeJobPayload
-})
-const producer = Producer.make({
-  operation: "billing.issue",
-  slots: { generate: definition }
-})
+const definition = Effect.runSync(
+  Job.make({
+    name: "invoice.generate",
+    version: 1,
+    queue: Queue.make("billing"),
+    payload: Schema.Struct({ invoiceId: Schema.String }),
+    encodePayload: encodeJobPayload
+  })
+)
+const producer = Effect.runSync(
+  Producer.make({
+    operation: "billing.issue",
+    slots: { generate: definition }
+  })
+)
 const policy = Policy.make({
   completedRetention: Duration.millis(1),
   deadRetention: Duration.millis(1)
 })
 const input = (id: string, value = id, configured = policy, availableAt?: number) => ({
-  producer: producer.identity({ operationId: id, slot: "generate" }),
+  producer: Effect.runSync(producer.identity({ operationId: id, slot: "generate" })),
   payload: { invoiceId: value },
   policy: configured,
   ...(availableAt === undefined ? {} : { availableAt })
@@ -483,17 +487,19 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
   })
   test("protected semantic fingerprints exclude encryption randomness without overwriting stored bytes", async () => {
     await clear()
-    const protectedDefinition = Job.make({
-      name: "invoice.private",
-      version: 1,
-      queue: definition.queue,
-      payload: Schema.Struct({
-        secret: Payload.protected(
-          Schema.Struct({ envelope: Schema.String, fingerprint: Schema.String })
-        )
-      }),
-      encodePayload: encodeJobPayload
-    })
+    const protectedDefinition = Effect.runSync(
+      Job.make({
+        name: "invoice.private",
+        version: 1,
+        queue: definition.queue,
+        payload: Schema.Struct({
+          secret: Payload.protected(
+            Schema.Struct({ envelope: Schema.String, fingerprint: Schema.String })
+          )
+        }),
+        encodePayload: encodeJobPayload
+      })
+    )
     const produce = (envelope: string, fingerprint: string) =>
       Effect.runPromise(
         backend.withTransaction((tx) =>
@@ -1154,7 +1160,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL backend", () => 
   test("explicit scoped handles expire; foreign source rejected without borrowing; store rejects joined owner", async () => {
     await clear()
     let saved:
-      | JobsTransaction<import("../../src/PostgreSqlTransaction.js").PostgreSqlError>
+      | JobsTransaction<
+          import("../../src/postgresql/PostgreSqlTransaction.js").PostgreSqlError
+        >
       | undefined
     await Effect.runPromise(
       adapter.applicationTransaction((handle) =>

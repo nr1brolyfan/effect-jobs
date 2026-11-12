@@ -1,12 +1,44 @@
 # Job API refinements
 
-`Job.make` defaults omitted version to exactly `1` and uses the standard encoder
+`Job.make` returns a lazy `Effect<JobDefinition<...>, InvalidJobDefinition>`
+with constructor R=never. All six overloads retain their exact success types. It
+defaults omitted version to exactly `1` and uses the standard encoder
 unless `encodePayload` is supplied. Returned identity always contains a validated
 concrete version. Literal inference preserves omission and explicit versions;
 optional version variables conservatively include `1`. Incompatible payload
 changes need an explicit new version and its decoder. The handler decoder remains
 explicit. `JobPolicy.defaultPolicy` is deeply frozen and readonly; `make()` has the
 same defaults and never freezes/mutates caller options.
+
+## Lazy setup and shared application definitions
+
+`JobPayload.encrypted`, `Job.make` and `JobProducer.make` each have one public
+Effect constructor. Expected configuration errors are `InvalidEncryptedSchema`,
+`InvalidJobDefinition` and `JobDeclarationError`, respectively. Construction starts
+no encoding/decoding, key lookup, SQL, worker or background activity. Schema
+encoding/decoding requirements remain on the returned Codec and subsequent
+operations, rather than the constructor's R channel.
+
+Each execution reads and snapshots its caller configuration, validates it, and
+creates fresh output. Calling a factory alone does no validation or registration.
+Reexecuting observes current input; previously returned snapshots remain owned by
+that execution. Job policy and producer slot records are copied/frozen without
+mutating caller objects. Encrypted setup captures schema, envelope and callback
+references at execution; callbacks retain their original receiver, whose arbitrary
+internal mutable state is application-owned.
+
+Compose encrypted fields, schemas, jobs, producers, handlers and catalogs in one
+explicit setup Effect/Layer per application installation. Reuse one definitions
+Layer reference within a live memoized graph. Enqueue and handler installation
+use those same values, and request paths do not rerun setup. Portable imports
+remain inert. Host startup explicitly handles setup failure before exposing
+callbacks; it must not hide a private runtime in an internal constructor.
+
+`validateOperationId` and producer `identity` also validate lazily in Effect,
+with their precise bounded errors and no services. Identity reads operationId
+and slot once per execution and never normalizes ID bytes. Bound enqueue keeps
+`InvalidJobInput`; Policy and PostgreSqlNative constructors retain their existing
+synchronous contracts, and `defaultPolicy` remains a prevalidated frozen value.
 
 ## Names, bindings and definition policy
 
@@ -26,11 +58,15 @@ Operator/repair discriminants and `redrive_kind` keep their meanings.
 A producer uses a nonempty immutable record of slot-to-job bindings:
 
 ```ts
-const PlaceOrderProducer = JobProducer.make({
-  operation: "order.place",
-  slots: { confirmation: SendOrderConfirmation, invoice: CreateOrderInvoice }
+const DefinitionsProgram = Effect.gen(function* () {
+  const PlaceOrderProducer = yield* JobProducer.make({
+    operation: "order.place",
+    slots: { confirmation: SendOrderConfirmation, invoice: CreateOrderInvoice }
+  })
+  return { PlaceOrderProducer }
 })
-PlaceOrderProducer.enqueue("confirmation", {
+// Consume the built shared setup rather than reconstructing it per request.
+definitions.PlaceOrderProducer.enqueue("confirmation", {
   operationId: "submission-1",
   payload: { orderId: "order-1" }
 })
@@ -81,7 +117,9 @@ no database migration is needed for the expanded Schema boundary.
 
 ## Schema-bound encryption
 
-`JobPayload.encrypted({ schema, codec })` is a native Effect Schema transformation.
+`JobPayload.encrypted({ schema, codec })` returns a lazy
+`Effect<Schema.Codec<...>, InvalidEncryptedSchema>` with constructor R=never.
+The success value is a native Effect Schema transformation.
 The app codec declares an identity JSON envelope Schema with an own required
 `fingerprint`, and these operations:
 

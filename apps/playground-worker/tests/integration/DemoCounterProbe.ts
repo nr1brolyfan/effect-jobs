@@ -1,3 +1,4 @@
+import { definitions as eventDefinitions } from "../scenarios/Setup.js"
 // Real-PG reproduction uses the same app-owned unstable SQL boundary as Event.
 // @effect-diagnostics unstableApiUsage:off
 import { Cause, Effect, Exit } from "effect"
@@ -17,7 +18,8 @@ export const prepare = (config: Event.Config) =>
         yield* Runtime.drain(consumer)
       }
       return yield* Demo.tick(config.schema)
-    })
+    }),
+    eventDefinitions
   )
 export const tick = (config: Event.Config) =>
   Event.run(
@@ -44,7 +46,8 @@ export const tick = (config: Event.Config) =>
         driverType: typeof row!.retained_jobs,
         result
       }
-    })
+    }),
+    eventDefinitions
   )
 
 export { batch, maxRetainedJobs } from "../../src/demo/Traffic.js"

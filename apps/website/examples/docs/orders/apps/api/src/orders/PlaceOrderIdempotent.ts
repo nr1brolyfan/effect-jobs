@@ -12,7 +12,7 @@ import {
   OrderConflict,
   matchesSubmission
 } from "#api/orders/OrderSubmission"
-import { PlaceOrder } from "#api/orders/PlaceOrder"
+import { ApiDefinitions } from "#api/orders/Definitions"
 
 // #endregion imports
 
@@ -24,6 +24,7 @@ export const placeOrderIdempotent = (externalInput: unknown) =>
       onExcessProperty: "error"
     })
 
+    const { PlaceOrder } = yield* ApiDefinitions
     const db = yield* Database
     const pg = yield* PgClient.PgClient
 

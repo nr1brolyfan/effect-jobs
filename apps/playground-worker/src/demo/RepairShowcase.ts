@@ -2,7 +2,6 @@ import { Effect, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
-import * as Producer from "effect-jobs/JobProducer"
 import * as Policy from "effect-jobs/JobPolicy"
 import { JobId } from "effect-jobs/JobId"
 import {
@@ -17,14 +16,12 @@ import * as Definitions from "../scenarios/Definitions.js"
 import * as Tables from "../persistence/authority/Schema.js"
 import { maxRetainedJobs } from "./Traffic.js"
 
-const producer = Producer.make({
-  operation: "playground.synthetic-showcase",
-  slots: { "encrypted-document": Definitions.SyntheticDocumentExport }
-})
 // Trusted maintenance only. No route accepts this capability or caller-selected flags.
 // All state/attempt changes belong to producer + real worker + repair reconciliation.
 export const run = (schema: string, sandbox: SandboxView) =>
   Effect.gen(function* () {
+    const definitions = yield* Definitions.Definitions
+    const producer = definitions.ShowcaseProducer
     const sql = yield* SqlClient
     const backend = yield* PostgreSqlJobs
     const repairs = yield* SyntheticRepairs
@@ -69,14 +66,13 @@ export const run = (schema: string, sandbox: SandboxView) =>
             note: "Synthetic encrypted recorded fixture"
           }
         }
-        const result = yield* Definitions.SyntheticDocumentExport.enqueue({
-          producer: producer.identity({
+        const result = yield* producer
+          .enqueue("encrypted-document", {
             operationId: `${ref.sandboxId}:${ref.generation}`,
-            slot: "encrypted-document"
-          }),
-          policy: Policy.make(),
-          payload
-        }).pipe(Effect.provideService(JobEnqueue, backend.producer))
+            policy: Policy.make(),
+            payload
+          })
+          .pipe(Effect.provideService(JobEnqueue, backend.producer))
         yield* sql.unsafe(
           `INSERT INTO ${t.associations}(sandbox_id,generation,job_id,relations) VALUES($1,$2,$3,$4::jsonb)`,
           [

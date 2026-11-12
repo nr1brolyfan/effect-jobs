@@ -21,10 +21,7 @@ import {
   placeOrderIdempotent as placeOrder,
   readOrderReceipt
 } from "../../examples/docs/orders/apps/api/src/orders/PlaceOrderIdempotent.js"
-import {
-  PlaceOrder,
-  placeOrder as createOrder
-} from "../../examples/docs/orders/apps/api/src/orders/PlaceOrder.js"
+import { placeOrder as createOrder } from "../../examples/docs/orders/apps/api/src/orders/PlaceOrder.js"
 import { placeOrder as placeOrderDirect } from "../../examples/docs/orders/apps/api/src/orders/Orders.js"
 import {
   TransactionalEmails,
@@ -37,12 +34,12 @@ import {
   drainConfirmations
 } from "../../examples/docs/orders/apps/worker/src/main.js"
 import {
-  SendOrderConfirmation,
-  SendInvoice,
+  OrderJobs,
   OrderPolicy
 } from "../../examples/docs/orders/packages/orders/src/contracts/jobs.js"
 import * as Scenarios from "../../examples/docs/orders/apps/api/src/orders/SubmissionScenarios.js"
 import { matchesSubmission } from "../../examples/docs/orders/apps/api/src/orders/OrderSubmission.js"
+import { ApiDefinitions } from "../../examples/docs/orders/apps/api/src/orders/Definitions.js"
 // Native SQL APIs are intentionally pinned to Effect 4.0.5 by this qualification.
 // @effect-diagnostics unstableApiUsage:off
 // Disposable owned PG only. Executes the exact compiled canonical application.
@@ -141,6 +138,8 @@ await Effect.runPromise(
       )
     }
     yield* Effect.gen(function* () {
+      const { PlaceOrder } = yield* ApiDefinitions
+      const { SendOrderConfirmation, SendInvoice } = yield* OrderJobs
       const db = yield* Database
       const counts = Effect.gen(function* () {
         return yield* Effect.forEach(
@@ -203,7 +202,7 @@ await Effect.runPromise(
       )
       assert.deepEqual(yield* counts, [1, 1, 1, 1, 0, 1, 5])
       // Independent job semantic payload/catalog conflict under the SAME tuple.
-      const identity = PlaceOrder.identity({
+      const identity = yield* PlaceOrder.identity({
         operationId: input.operationId,
         slot: "send-confirmation"
       })
@@ -234,7 +233,7 @@ await Effect.runPromise(
       // Enqueue outside ambient owner fails without business or job writes.
       failure(
         yield* SendOrderConfirmation.enqueue({
-          producer: PlaceOrder.identity({
+          producer: yield* PlaceOrder.identity({
             operationId: "missing-owner",
             slot: "send-confirmation"
           }),

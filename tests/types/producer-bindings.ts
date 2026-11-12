@@ -11,24 +11,32 @@ import type { JobEnqueue } from "../../src/JobEnqueue.js"
 class Encoding extends Context.Service<Encoding, {}>()("types/Encoding") {}
 declare const schema: Schema.Codec<{ readonly total: number }, string, never, Encoding>
 const queue = Queue.make("billing")
-const required = Job.make({ name: "invoice.generate", queue, payload: schema })
-const defaulted = Job.make({
-  name: "invoice.send",
-  queue: Queue.make("mail"),
-  payload: Schema.Struct({ recipient: Schema.String }),
-  defaultPolicy: Policy.defaultPolicy
-})
+const required = Effect.runSync(
+  Job.make({ name: "invoice.generate", queue, payload: schema })
+)
+const defaulted = Effect.runSync(
+  Job.make({
+    name: "invoice.send",
+    queue: Queue.make("mail"),
+    payload: Schema.Struct({ recipient: Schema.String }),
+    defaultPolicy: Policy.defaultPolicy
+  })
+)
 declare const optionalDefault: Policy.JobPolicy | undefined
-const dynamic = Job.make({
-  name: "invoice.dynamic",
-  queue,
-  payload: Schema.String,
-  defaultPolicy: optionalDefault
-})
-const producer = Producer.make({
-  operation: "invoice.create",
-  slots: { generate: required, delivery: defaulted, copy: defaulted, dynamic }
-})
+const dynamic = Effect.runSync(
+  Job.make({
+    name: "invoice.dynamic",
+    queue,
+    payload: Schema.String,
+    defaultPolicy: optionalDefault
+  })
+)
+const producer = Effect.runSync(
+  Producer.make({
+    operation: "invoice.create",
+    slots: { generate: required, delivery: defaulted, copy: defaulted, dynamic }
+  })
+)
 const bound = producer.enqueue("generate", {
   operationId: "one",
   payload: { total: 1 },
@@ -82,27 +90,29 @@ export const case8 = producer.enqueue(uncertainSlot, {
 })
 // @ts-expect-error missing default requires policy on the job-level ambient entrypoint
 export const case9 = required.enqueue({
-  producer: producer.identity({ operationId: "one", slot: "generate" }),
+  producer: Effect.runSync(producer.identity({ operationId: "one", slot: "generate" })),
   payload: { total: 1 }
 })
 // @ts-expect-error dynamic default must not promise policy omission
 export const case10 = dynamic.enqueueStandalone({
-  producer: producer.identity({ operationId: "one", slot: "dynamic" }),
+  producer: Effect.runSync(producer.identity({ operationId: "one", slot: "dynamic" })),
   payload: "input"
 })
 // @ts-expect-error deprecated kind constructor is absent
-Job.make({ kind: "old", queue, payload: Schema.String })
+Effect.runSync(Job.make({ kind: "old", queue, payload: Schema.String }))
 void services
 
 declare const maybeOptions: { readonly defaultPolicy?: Policy.JobPolicy }
-const optionalOptions = Job.make({
-  name: "optional.options",
-  queue,
-  payload: Schema.String,
-  ...maybeOptions
-})
+const optionalOptions = Effect.runSync(
+  Job.make({
+    name: "optional.options",
+    queue,
+    payload: Schema.String,
+    ...maybeOptions
+  })
+)
 // @ts-expect-error optional property cannot promise runtime presence
 export const optionalOptionsMissingPolicy = optionalOptions.enqueue({
-  producer: producer.identity({ operationId: "one", slot: "dynamic" }),
+  producer: Effect.runSync(producer.identity({ operationId: "one", slot: "dynamic" })),
   payload: "input"
 })

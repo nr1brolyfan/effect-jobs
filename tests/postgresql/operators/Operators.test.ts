@@ -3,20 +3,20 @@ import { randomUUID } from "node:crypto"
 import { Pool } from "pg"
 import { Cause, Duration, Effect, Exit, Option, Result, Schema } from "effect"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
-import * as Tables from "../../../src/PostgreSqlSchema.js"
-import { ready } from "../../../src/internal/postgresql/Readiness.js"
-import { makeOperators } from "../../../src/internal/postgresql/Operators.js"
-import { makeStore, makeCleanup } from "../../../src/internal/postgresql/Store.js"
-import { snapshot, writeSnapshot } from "../../../src/internal/postgresql/Rows.js"
-import { insertOrCompare } from "../../../src/internal/postgresql/Producer.js"
+import * as Tables from "../../../src/postgresql/PostgreSqlSchema.js"
+import { ready } from "../../../src/postgresql/internal/Readiness.js"
+import { makeOperators } from "../../../src/postgresql/internal/Operators.js"
+import { makeStore, makeCleanup } from "../../../src/postgresql/internal/Store.js"
+import { snapshot, writeSnapshot } from "../../../src/postgresql/internal/Rows.js"
+import { insertOrCompare } from "../../../src/postgresql/internal/Producer.js"
 import { JobOperatorExpected } from "../../../src/JobOperators.js"
 import type { JobOperatorsService } from "../../../src/JobOperators.js"
-import { PostgreSqlInvalidHandle } from "../../../src/PostgreSqlTransaction.js"
+import { PostgreSqlInvalidHandle } from "../../../src/postgresql/PostgreSqlTransaction.js"
 import type {
   ApplicationAdapter,
   PostgreSqlError,
   TransactionQuery
-} from "../../../src/PostgreSqlTransaction.js"
+} from "../../../src/postgresql/PostgreSqlTransaction.js"
 import * as Policy from "../../../src/JobPolicy.js"
 import * as App from "../../qualification/d6-pg/ApplicationTransactions.js"
 import * as Adapter from "../Adapter.js"
@@ -30,7 +30,7 @@ import {
   EncryptedDocument,
   keys
 } from "../../core/codec/EncryptedFixture.js"
-import { makeJobTables } from "../../../src/PostgreSqlDrizzleSchema.js"
+import { makeJobTables } from "../../../src/postgresql/PostgreSqlDrizzleSchema.js"
 
 const configPath = process.env.OPERATORS_PG_CONFIG_FILE
 const definition = {
@@ -318,19 +318,21 @@ describe.skipIf(!configPath)(
         lifecycleVersion: 0
       })
       let decoded = false
-      const payload = Payload.encrypted({
-        schema: Document,
-        codec: {
-          ...DocumentEncryption,
-          open: (value) =>
-            Effect.gen(function* () {
-              yield* Effect.sleep("10 millis")
-              const document = yield* DocumentEncryption.open(value)
-              decoded = true
-              return document
-            })
-        }
-      })
+      const payload = Effect.runSync(
+        Payload.encrypted({
+          schema: Document,
+          codec: {
+            ...DocumentEncryption,
+            open: (value) =>
+              Effect.gen(function* () {
+                yield* Effect.sleep("10 millis")
+                const document = yield* DocumentEncryption.open(value)
+                decoded = true
+                return document
+              })
+          }
+        })
+      )
       const sampled = makeOperators(
         {
           ...adapter,

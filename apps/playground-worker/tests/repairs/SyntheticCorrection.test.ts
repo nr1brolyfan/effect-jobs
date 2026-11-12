@@ -1,8 +1,8 @@
+import { definitions, runPromise } from "../scenarios/Setup.js"
 import { describe, expect, it } from "vitest"
 import { Effect, Exit, Schema } from "effect"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Crypto from "@effect-jobs/playground-contracts/SyntheticCryptoFixture"
-import * as Definitions from "../../src/scenarios/Definitions.js"
 import * as Source from "../../src/persistence/commands/RepairSource.js"
 import * as Projection from "../../src/server/read/JobDetailsProjection.js"
 import * as Diff from "../../../playground/src/features/jobs/repair/PayloadDiff.js"
@@ -10,7 +10,7 @@ import * as Fixture from "./Fixtures.js"
 
 describe("authenticated synthetic document correction", () => {
   it("authenticates encrypted input and computes real changes while preserving source", async () => {
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function* () {
         const document: Crypto.Document = {
           subject: "demo-customer",
@@ -19,15 +19,15 @@ describe("authenticated synthetic document correction", () => {
         }
         const original = { ...Fixture.payload, document }
         const artifact = yield* Codec.encodeJobPayload(
-          Definitions.SyntheticExportPayload,
+          definitions.SyntheticExportPayload,
           original
         )
         const bytes = new Uint8Array(artifact.payloadBytes)
         const row = {
           ...Fixture.sourceRow,
-          queue: Definitions.SyntheticDocumentExport.catalog.queue,
-          kind: Definitions.SyntheticDocumentExport.catalog.name,
-          version: Definitions.SyntheticDocumentExport.catalog.version,
+          queue: definitions.SyntheticDocumentExport.catalog.queue,
+          kind: definitions.SyntheticDocumentExport.catalog.name,
+          version: definitions.SyntheticDocumentExport.catalog.version,
           format_version: 1,
           payload: bytes,
           projection: artifact.semanticProjectionBytes,
@@ -38,7 +38,7 @@ describe("authenticated synthetic document correction", () => {
           behavior: "success" as const,
           document: { ...document, note: "after" }
         }
-        const wire = yield* Schema.encodeEffect(Definitions.SyntheticExportPayload)(
+        const wire = yield* Schema.encodeEffect(definitions.SyntheticExportPayload)(
           changed
         )
         const prepared = yield* Source.replacement(row, Fixture.ref, wire)
@@ -74,7 +74,7 @@ describe("authenticated synthetic document correction", () => {
             )
           ).toBe(true)
         }
-        const mismatched = yield* Schema.encodeEffect(Definitions.SyntheticExportPayload)(
+        const mismatched = yield* Schema.encodeEffect(definitions.SyntheticExportPayload)(
           { ...changed, document: { ...document, tenant: "demo-tenant-b" } }
         )
         expect(
@@ -86,7 +86,7 @@ describe("authenticated synthetic document correction", () => {
           Exit.isFailure(
             yield* Effect.exit(
               Source.replacement(
-                { ...row, kind: Definitions.PrivateDataExport.catalog.name },
+                { ...row, kind: definitions.PrivateDataExport.catalog.name },
                 Fixture.ref,
                 wire
               )
@@ -97,20 +97,26 @@ describe("authenticated synthetic document correction", () => {
           ...Fixture.detail,
           job: {
             ...Fixture.detail.job,
-            catalog: Definitions.SyntheticDocumentExport.catalog
+            catalog: definitions.SyntheticDocumentExport.catalog
           }
         }
-        const view = yield* Projection.payload(detail, row)
+        const view = yield* Projection.payload(detail, row, definitions)
         expect(view._tag).toBe("Available")
         expect(JSON.stringify(view)).not.toContain('"note"')
         expect(
-          Projection.eligibility(detail, detail.problem, view).correctedRedrive.enabled
+          Projection.eligibility(detail, detail.problem, view, definitions)
+            .correctedRedrive.enabled
         ).toBe(true)
         expect(
-          Projection.eligibility(detail, detail.problem, {
-            _tag: "Unavailable",
-            reason: "invalid-artifact"
-          }).correctedRedrive.enabled
+          Projection.eligibility(
+            detail,
+            detail.problem,
+            {
+              _tag: "Unavailable",
+              reason: "invalid-artifact"
+            },
+            definitions
+          ).correctedRedrive.enabled
         ).toBe(false)
         const full = { ...detail, payload: view }
         const editor = JSON.stringify(changed)
@@ -137,8 +143,12 @@ describe("authenticated synthetic document correction", () => {
           )
         }
         expect(
-          Projection.eligibility({ job: { ...detail.job, state: "Active" } }, null, view)
-            .correctedRedrive.enabled
+          Projection.eligibility(
+            { job: { ...detail.job, state: "Active" } },
+            null,
+            view,
+            definitions
+          ).correctedRedrive.enabled
         ).toBe(false)
       })
     )

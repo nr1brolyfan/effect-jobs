@@ -1,3 +1,4 @@
+import { definitions as eventDefinitions } from "../scenarios/Setup.js"
 // Test-only app fixture. Use the public native transaction/enqueue APIs; never write lifecycle SQL.
 // @effect-diagnostics unstableApiUsage:off
 import { Duration, Effect, Redacted } from "effect"
@@ -52,5 +53,6 @@ export const delayed = (config: Event.Config, credential: string, requestId: str
           return result.jobId
         })
       )
-    })
+    }),
+    eventDefinitions
   )

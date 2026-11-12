@@ -3,10 +3,10 @@ import { EnqueueResults, JobIntegrityConflict } from "../../JobContract.js"
 import type { PreparedJob } from "../../JobContract.js"
 import type { JobId } from "../../JobId.js"
 import { JobId as JobIdSchema } from "../../JobId.js"
-import type { TransactionQuery } from "../../PostgreSqlTransaction.js"
+import type { TransactionQuery } from "../PostgreSqlTransaction.js"
 import { JobOperatorRejected, type JobLineage } from "../../JobOperators.js"
 import { dbTime, lineage as readLineage } from "./Rows.js"
-import { PostgreSqlFailure } from "../../PostgreSqlTransaction.js"
+import { PostgreSqlFailure } from "../PostgreSqlTransaction.js"
 
 /** READ COMMITTED is required: the post-conflict statement sees the committed winner. */
 export const insertOrCompare = (

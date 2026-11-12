@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process"
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, symlinkSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { publicModules } from "./SourceExports.mjs"
 
 // Foreground, finite qualification. Keep the isolated consumer/logs for receipts.
 const root = fileURLToPath(new URL("../", import.meta.url))
@@ -25,6 +26,12 @@ const run = (command, args, cwd = directory, extra = {}) => {
   return output
 }
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
+const sourceToPublic = new Map(
+  publicModules(manifest).map((module) => [
+    module.source.replace(/\.ts$/, ".js"),
+    module.subpath === "." ? "effect-jobs" : `effect-jobs/${module.name}`
+  ])
+)
 const archive = resolve(process.env.EFFECT_JOBS_ARCHIVE ?? "")
 assert(
   process.env.EFFECT_JOBS_ARCHIVE,
@@ -81,7 +88,7 @@ run("bun", [
 
 // Reuse the author's unchanged real-PG oracle against packed production bytes.
 // Only production imports change; runtime tests use public package exports.
-for (const path of [
+for (const pathName of [
   "tests/qualification/Resource.mjs",
   "tests/qualification/Resource.d.mts",
   "tests/postgresql/Backend.test.ts",
@@ -90,11 +97,16 @@ for (const path of [
   "tests/qualification/d6-pg/ApplicationTransactions.ts",
   "tests/qualification/d6-pg/PgDriver.ts"
 ]) {
-  const destination = join(directory, path)
+  const destination = join(directory, pathName)
   mkdirSync(resolve(destination, ".."), { recursive: true })
-  const source = readFileSync(join(root, path), "utf8").replace(
-    /"(?:\.\.\/){2,3}src\/([^"/]+)\.js"/g,
-    '"effect-jobs/$1"'
+  const source = readFileSync(join(root, pathName), "utf8").replace(
+    /"((?:\.\.\/){2,3}src\/[^"\n]+\.js)"/g,
+    (_match, specifier) => {
+      const path = resolve(root, pathName, "..", specifier)
+      const publicImport = sourceToPublic.get(path.slice(root.length))
+      assert(publicImport, `Not a public source import: ${specifier}`)
+      return JSON.stringify(publicImport)
+    }
   )
   writeFileSync(destination, source)
 }

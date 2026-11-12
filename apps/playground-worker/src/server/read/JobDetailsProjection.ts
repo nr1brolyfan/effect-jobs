@@ -15,11 +15,12 @@ const unavailable = (
 // or invoke an application decryptor during a detail SELECT.
 export const payload = (
   detail: Pick<JobDetail, "job" | "sandbox">,
-  row: Readonly<Record<string, unknown>>
+  row: Readonly<Record<string, unknown>>,
+  definitions: Definitions.Setup
 ): Effect.Effect<JobPayloadView> =>
   Effect.gen(function* () {
     const catalog = detail.job.catalog
-    const definition = Definitions.definitions.find(
+    const definition = definitions.definitions.find(
       (entry) =>
         entry.catalog.name === catalog.name &&
         entry.catalog.queue === catalog.queue &&
@@ -79,9 +80,10 @@ export const payload = (
 export const eligibility = (
   detail: Pick<JobDetail, "job">,
   problem: JobProblem | null,
-  payloadView: JobPayloadView
+  payloadView: JobPayloadView,
+  definitions: Definitions.Setup
 ) => {
-  const selected = Definitions.definitions.find(
+  const selected = definitions.definitions.find(
     (entry) =>
       entry.catalog.name === detail.job.catalog.name &&
       entry.catalog.queue === detail.job.catalog.queue &&
@@ -111,17 +113,17 @@ export const eligibility = (
       : null)
   const correction =
     common ??
-    (selected === Definitions.SyntheticDocumentExport &&
+    (selected === definitions.SyntheticDocumentExport &&
     payloadView._tag === "Unavailable"
       ? "invalid-artifact"
       : null) ??
     ((selected &&
       "document" in selected.payload.fields &&
-      selected !== Definitions.SyntheticDocumentExport) ||
+      selected !== definitions.SyntheticDocumentExport) ||
     (payloadView._tag === "Available" &&
       payloadView.encryption !== "None" &&
       !(
-        selected === Definitions.SyntheticDocumentExport &&
+        selected === definitions.SyntheticDocumentExport &&
         payloadView.encryption === "SyntheticDocumentV1"
       ))
       ? "encrypted-correction-unavailable"

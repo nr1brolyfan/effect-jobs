@@ -53,11 +53,13 @@ const mapping = Tables.tables({ schema })
 const domain = pgSchema(schema).table("invoices", { id: text("id").primaryKey() })
 const receipts = pgSchema(schema).table("receipts", { id: text("id").primaryKey() })
 const traceReceipts: Array<{ id: string; pid: number; xid: string }> = []
-const definition = Job.make({
-  queue: Queue.make("billing"),
-  name: "receipt",
-  payload: Schema.Struct({ invoiceId: Schema.String })
-})
+const definition = Effect.runSync(
+  Job.make({
+    queue: Queue.make("billing"),
+    name: "receipt",
+    payload: Schema.Struct({ invoiceId: Schema.String })
+  })
+)
 const input = (id: string, value = id) => ({
   producer: { operation: "billing.issue", operationId: id, slot: "receipt" },
   policy: Policy.defaultPolicy,
@@ -310,7 +312,7 @@ try {
       )
       // Deterministic after-durable-COMMIT response loss injection on the actual native connection.
       // This is not a real lost-network / server-crash claim.
-      const lost = Job.make({
+      const lost = yield* Job.make({
         queue: definition.queue,
         name: definition.name,
         payload: definition.payload,
@@ -365,10 +367,10 @@ try {
       const localKeys = { old: randomBytes(32), current: randomBytes(32) }
       const fingerprintKey = randomBytes(32)
       let keyId: "old" | "current" = "old"
-      const protectedJob = Job.make({
+      const protectedJob = yield* Job.make({
         queue: definition.queue,
         name: "private.receipt",
-        payload: Payload.encrypted({
+        payload: yield* Payload.encrypted({
           schema: Schema.String,
           codec: {
             envelope: Envelope,

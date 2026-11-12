@@ -11,7 +11,7 @@ one. The application must also make its report and receipt writes idempotent.
 
 ## Name the business consequence
 
-Declare `JobProducer.make({ operation, slots })` once in an application domain
+Yield `JobProducer.make({ operation, slots })` once during application setup in an application domain
 module and share it between callers. For reports, an operation such as
 `report.request` declares the slot `generate`. Construct each
 identity with `producer.identity({ operationId, slot })`.

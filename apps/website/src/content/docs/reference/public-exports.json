@@ -8,13 +8,13 @@
   {
     "subpath": "effect-jobs/Job",
     "filename": "src/Job.ts",
-    "sha256": "2b59afacc943ba75a4fe35de617ff507aeba7811abc89aa1c4fd72c28840ec5e",
+    "sha256": "9d5b4a287d7cc0595ba38692191b3aaadbc551d2cf56f1f5d5c1483bd7121a4c",
     "symbols": [
       {
         "name": "InvalidJobDefinition",
         "kind": "value + type",
         "category": "errors",
-        "description": "Thrown synchronously for an invalid catalog identity or payload Schema."
+        "description": "Typed construction failure for invalid catalog identity, payload Schema or default policy."
       },
       {
         "name": "JobDefinition",
@@ -26,7 +26,7 @@
         "name": "make",
         "kind": "value",
         "category": "constructors",
-        "description": "Creates a frozen definition; throws InvalidJobDefinition for invalid declarations.\nOmitted version is exactly 1; the standard payload encoder is the default.\nAn explicit encoder overrides it. Enqueue requires the Schema's encoding\nservices; handler installation captures decoding and execution services."
+        "description": "Creates a frozen definition lazily; invalid declarations fail with InvalidJobDefinition.\nEach execution snapshots configuration and creates an independently owned definition.\nOmitted version is exactly 1; the standard payload encoder is the default.\nAn explicit encoder overrides it. Enqueue requires the Schema's encoding\nservices; handler installation captures decoding and execution services."
       }
     ]
   },
@@ -58,7 +58,7 @@
   {
     "subpath": "effect-jobs/JobProducer",
     "filename": "src/JobProducer.ts",
-    "sha256": "e23117dec01019a71f897ea2812e5a6f110196613e0c183d068dbc487fd111af",
+    "sha256": "b0466c437017bfa44d3a49ea782e919e0cd8712abd5cc812c4f780764b3a4f15",
     "symbols": [
       {
         "name": "BoundEnqueueInput",
@@ -82,14 +82,14 @@
         "name": "make",
         "kind": "value",
         "category": "constructors",
-        "description": "Declares nonempty slot bindings near the owning business operation.\nBound enqueue selects the contract and joins the existing transaction; it never\nbegins, commits or replays one. identity remains useful for lower-level calls."
+        "description": "Lazily validates and snapshots nonempty slot bindings near the owning business operation.\nEach execution creates fresh immutable configuration and reports JobDeclarationError in E.\nBound enqueue selects the contract and joins the existing transaction; it never\nbegins, commits or replays one. identity remains useful for lower-level calls."
       }
     ]
   },
   {
     "subpath": "effect-jobs/JobIdentity",
     "filename": "src/JobIdentity.ts",
-    "sha256": "2b1ff4673bc7bd4d332fcbb63ca4ba28eb2a55d31dccfc31336f88bdba954945",
+    "sha256": "0b1f8912183ac6298618ffc95e9adf0d21187dae2a3312438854f6cdb09225f8",
     "symbols": [
       {
         "name": "CatalogIdentity",
@@ -101,13 +101,13 @@
         "name": "InvalidOperationId",
         "kind": "value + type",
         "category": "errors",
-        "description": "Synchronous identifier failure; reports the violated rule without echoing the ID."
+        "description": "Typed identifier failure; reports the violated rule without echoing the ID."
       },
       {
         "name": "JobDeclarationError",
         "kind": "value + type",
         "category": "errors",
-        "description": "Synchronous declaration failure with an actionable field/name constraint."
+        "description": "Declaration validation failure with an actionable field/name constraint."
       },
       {
         "name": "JobName",
@@ -161,13 +161,13 @@
         "name": "validateOperationId",
         "kind": "value",
         "category": "operations",
-        "description": "Validates Unicode scalars, absence of NUL and 1–256 UTF-8 bytes. Throws\nInvalidOperationId; compares IDs exactly, without trimming or normalization."
+        "description": "Lazily validates Unicode scalars, absence of NUL and 1–256 UTF-8 bytes.\nFails with InvalidOperationId without echoing the ID; never normalizes it."
       },
       {
         "name": "validateProducerDeclaration",
         "kind": "value",
         "category": "operations",
-        "description": "Validates operation and nonempty unique slots synchronously; throws\nJobDeclarationError. Called by JobProducer.make before returning configuration."
+        "description": "Validates operation and nonempty unique slots synchronously; throws\nJobDeclarationError. The lazy producer factory shares its pure classifier."
       }
     ]
   },
@@ -364,13 +364,13 @@
   {
     "subpath": "effect-jobs/JobPayload",
     "filename": "src/JobPayload.ts",
-    "sha256": "52d7f10eb19fc3dcd747a2275e0b02aa57bc4ffdb35411b581255afbb1213fcc",
+    "sha256": "fcedc58f13877a29da2729191a08131d9d9cee504cdbc30a3aeea46dab39634b",
     "symbols": [
       {
         "name": "encrypted",
         "kind": "value",
         "category": "schemas",
-        "description": "Bind a decoded domain Schema to an app-owned encrypted JSON envelope.\nDomain encoding/validation precedes seal; open precedes domain decoding/validation.\nMultiple independent fields, structs, arrays, optionals and unions are supported.\nEncrypted-within-encrypted and recursive domain schemas fail at construction.\nAll encrypted fields are opened before the handler; this is not selective access.\nMalformed envelopes/domain data follow the existing bounded artifact decode path.\nDefects and interruption are not converted to codec failures. No remote key retry\ncontract is added; configured keys must be validated before worker startup."
+        "description": "Bind a decoded domain Schema to an app-owned encrypted JSON envelope.\nDomain encoding/validation precedes seal; open precedes domain decoding/validation.\nMultiple independent fields, structs, arrays, optionals and unions are supported.\nSetup is lazy and fails with InvalidEncryptedSchema in the Effect error channel.\nEach execution snapshots schema, envelope and codec methods into a fresh Schema.\nEncrypted-within-encrypted and recursive domain schemas fail during setup.\nAll encrypted fields are opened before the handler; this is not selective access.\nMalformed envelopes/domain data follow the existing bounded artifact decode path.\nDefects and interruption are not converted to codec failures. No remote key retry\ncontract is added; configured keys must be validated before worker startup."
       },
       {
         "name": "EncryptionCodec",
@@ -401,7 +401,7 @@
   {
     "subpath": "effect-jobs/JobPayloadCodec",
     "filename": "src/JobPayloadCodec.ts",
-    "sha256": "0c82d06eaf61e7b2ff263c5939e61881ced2fddfeb76cfb26d285be00b92dd8d",
+    "sha256": "0e250c48e553cc41ad7772b26b20471a3bee479d2c1200e629bce1eab427204e",
     "symbols": [
       {
         "name": "decodeJobPayload",
@@ -708,7 +708,7 @@
   {
     "subpath": "effect-jobs/JobWorkerRuntime",
     "filename": "src/JobWorkerRuntime.ts",
-    "sha256": "34f0194fa4c29f889d9f95c09335e69ee12656e430b9b8a1f4d25a07b614cc64",
+    "sha256": "8d8274439962ae5d9a482a8179e64672f1272f46d01015faccac6f08a4405650",
     "symbols": [
       {
         "name": "drain",
@@ -1066,8 +1066,8 @@
   },
   {
     "subpath": "effect-jobs/PostgreSqlJobs",
-    "filename": "src/PostgreSqlJobs.ts",
-    "sha256": "bc0f4d33683bd49cb203163212bb4db471f176d04ddf9915bea3d2b8747cec78",
+    "filename": "src/postgresql/PostgreSqlJobs.ts",
+    "sha256": "aa46c4e76350a1ff298896313e7cf12c01f95434a83d91d1dfca0b4620d0d3c0",
     "symbols": [
       {
         "name": "Backend",
@@ -1103,7 +1103,7 @@
   },
   {
     "subpath": "effect-jobs/PostgreSqlTransaction",
-    "filename": "src/PostgreSqlTransaction.ts",
+    "filename": "src/postgresql/PostgreSqlTransaction.ts",
     "sha256": "0a2b090b31cc04d2b8b6e054f79f7d017f0c989a8753699868bcb69b93899a32",
     "symbols": [
       {
@@ -1146,8 +1146,8 @@
   },
   {
     "subpath": "effect-jobs/PostgreSqlNative",
-    "filename": "src/PostgreSqlNative.ts",
-    "sha256": "e367e189f4d558b7937c44c7b4fa365e41eb75c7e456dd033b79319c243b50a4",
+    "filename": "src/postgresql/PostgreSqlNative.ts",
+    "sha256": "c4074d3e7824ebbb6224d61a141dbef789e154f9376da3fdb678d64f9921d7aa",
     "symbols": [
       {
         "name": "layer",
@@ -1171,7 +1171,7 @@
   },
   {
     "subpath": "effect-jobs/PostgreSqlSchema",
-    "filename": "src/PostgreSqlSchema.ts",
+    "filename": "src/postgresql/PostgreSqlSchema.ts",
     "sha256": "503db56dc69908d12a3c1d08eb06fd606786d6187a92b8c1a0c7f59238acc185",
     "symbols": [
       {
@@ -1232,8 +1232,8 @@
   },
   {
     "subpath": "effect-jobs/PostgreSqlDrizzleSchema",
-    "filename": "src/PostgreSqlDrizzleSchema.ts",
-    "sha256": "3204fbc54a9284fbd0f08941f3922f363784e7725a926b6a0b4fdbc451c8eabb",
+    "filename": "src/postgresql/PostgreSqlDrizzleSchema.ts",
+    "sha256": "b7018316dc479f0c2df889255e0c573f48dc453a1c4357db3cd878cae5885812",
     "symbols": [
       {
         "name": "JobsIndexColumns",

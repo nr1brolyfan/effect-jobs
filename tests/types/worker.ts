@@ -18,13 +18,15 @@ class HandlerDependency extends Context.Service<
   { readonly send: Effect.Effect<void> }
 >()("types/worker/handler") {}
 declare const store: JobStoreService<string, Provider>
-const definition = Job.make({
-  queue: Queue.make("types"),
-  name: "message",
-  version: 1,
-  payload: Schema.Struct({ text: Schema.String }),
-  encodePayload: Codec.encodeJobPayload
-})
+const definition = Effect.runSync(
+  Job.make({
+    queue: Queue.make("types"),
+    name: "message",
+    version: 1,
+    payload: Schema.Struct({ text: Schema.String }),
+    encodePayload: Codec.encodeJobPayload
+  })
+)
 const installed: Layer.Layer<
   never,
   DuplicateJobHandler,

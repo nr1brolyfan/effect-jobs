@@ -1,3 +1,4 @@
+import * as Definitions from "../scenarios/Definitions.js"
 import * as Cloudflare from "@alchemy.run/cloudflare"
 import { RuntimeContext } from "alchemy/RuntimeContext"
 import { Clock, Effect, Schema } from "effect"
@@ -33,6 +34,8 @@ const Attachment = Schema.Struct({
 })
 
 export const implementation = Effect.gen(function* () {
+  const definitions = yield* Definitions.make.pipe(Effect.orDie)
+
   const state = yield* Cloudflare.DurableObjectState
   const env = yield* Configuration.configuration
   return Effect.gen(function* () {
@@ -57,7 +60,8 @@ export const implementation = Effect.gen(function* () {
             [ref.sandboxId, ref.generation]
           )
           return rows.length === 1
-        })
+        }),
+        definitions
       ).pipe(
         Effect.timeout("2 seconds"),
         Effect.catchCause(() => Effect.succeed(false))
@@ -164,7 +168,8 @@ export const implementation = Effect.gen(function* () {
             : Http.authenticate(request, {
                 configuredOrigin: env.ORIGIN,
                 localPreview: env.LOCAL_PREVIEW === "true"
-              }).pipe(Effect.map((access) => access.sandbox))
+              }).pipe(Effect.map((access) => access.sandbox)),
+          definitions
         ).pipe(
           Effect.timeout("2 seconds"),
           Effect.flatMap(

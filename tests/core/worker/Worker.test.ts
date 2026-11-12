@@ -42,13 +42,15 @@ import type { JobFailure } from "../../../src/JobFailure.js"
 import type { JobStoreService } from "../../../src/JobStore.js"
 
 const queue = Queue.make("worker-tests")
-const definition = Job.make({
-  queue,
-  name: "neutral.job",
-  version: 1,
-  payload: Schema.Struct({ value: Schema.String }),
-  encodePayload: Codec.encodeJobPayload
-})
+const definition = Effect.runSync(
+  Job.make({
+    queue,
+    name: "neutral.job",
+    version: 1,
+    payload: Schema.Struct({ value: Schema.String }),
+    encodePayload: Codec.encodeJobPayload
+  })
+)
 const consumer = (claimLimitPerRun = 5, localConcurrency = 1, recoveryLimitPerRun = 1) =>
   Effect.runSync(
     Consumer.make(queue, { claimLimitPerRun, localConcurrency, recoveryLimitPerRun })
@@ -681,7 +683,7 @@ it("splits store-wide recovery into batches <=500 within the total budget", asyn
 it("runs notification and protected OTP-style adapters on the SAME generic engine", async () => {
   await run(
     Effect.gen(function* () {
-      const notification = Job.make({
+      const notification = yield* Job.make({
         queue,
         name: "security.notification",
         version: 1,
@@ -691,7 +693,7 @@ it("runs notification and protected OTP-style adapters on the SAME generic engin
         }),
         encodePayload: Codec.encodeJobPayload
       })
-      const otp = Job.make({
+      const otp = yield* Job.make({
         queue,
         name: "email.otp",
         version: 1,

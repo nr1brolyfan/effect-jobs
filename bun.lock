@@ -71,6 +71,7 @@
         "@effect-jobs/playground-contracts": "workspace:*",
         "@effect/sql-pg": "4.0.5",
         "alchemy": "2.0.0-beta.84",
+        "drizzle-orm": "1.0.0-rc.5-ab785fc",
         "effect": "4.0.5",
         "effect-jobs": "file:../..",
       },
@@ -1580,6 +1581,10 @@
     "@base-ui/utils/reselect": ["reselect@5.3.0", "", {}, "sha512-XGoLeRAVzUTcJ1qkxPQhDJyIZ5d6zzZD9nT7AEZOaaU9UbWclhycElmhO+VD5bFeLuzhPBaOV2oXC8uG35ZSpg=="],
 
     "@cspotcode/source-map-support/@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.9", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.0.3", "@jridgewell/sourcemap-codec": "^1.4.10" } }, "sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ=="],
+
+    "@effect-jobs/playground-contracts/effect-jobs": ["effect-jobs@root:", {}],
+
+    "@effect-jobs/playground-worker/effect-jobs": ["effect-jobs@root:", {}],
 
     "@effect/platform-node-shared/@types/ws": ["@types/ws@8.18.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w=="],
 

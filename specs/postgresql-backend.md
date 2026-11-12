@@ -9,6 +9,10 @@ and does not restart their review or qualify arbitrary transaction adapters.
 
 ## Public module boundaries
 
+The five public `effect-jobs/PostgreSql*` subpaths resolve to modules under
+`src/postgresql/` (emitted as `dist/postgresql/`). Private implementation files
+live in `src/postgresql/internal/`; these paths are not public deep exports.
+
 - `PostgreSqlJobs`: `make(options)` / `layerNoDeps(options)` produce
   `PostgreSqlJobs` and require `PostgreSqlApplication`. The value exposes an
   explicit `ready` Effect, the generic `store`, optional separately selected

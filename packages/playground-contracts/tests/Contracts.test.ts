@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { Effect, Schema } from "effect"
+import { Context, Effect, Layer, Schema } from "effect"
 import { TestClock } from "effect/testing"
 import { JobDetail, JobPage, ListJobs } from "../src/Jobs.js"
 import { ResetResult, ScenarioCommand, ScenarioResult } from "../src/Scenarios.js"
 import { Changes, JobsRead, Scenarios, toPublicError } from "../src/Services.js"
 import * as Fixtures from "../src/Fixtures.js"
 import * as MockLayer from "../src/MockLayer.js"
-import { ScenarioJob, ScenarioProducer } from "../src/Definitions.js"
+import { ScenarioDefinitions, ScenarioDefinitionsLayer } from "../src/Definitions.js"
 import { SandboxView } from "../src/Sandbox.js"
 
 const access = { sandbox: Fixtures.sandbox }
@@ -111,15 +111,53 @@ describe("frozen playground boundaries", () => {
     ).toBe(false)
   })
   it("uses current library definitions without inventing user/job identity", () => {
+    const { ScenarioJob, ScenarioProducer } = Effect.runSync(
+      Effect.gen(function* () {
+        const first = yield* ScenarioDefinitions
+        const second = yield* ScenarioDefinitions
+        expect(second).toBe(first)
+        expect(first.ScenarioProducer.slots.execute).toBe(first.ScenarioJob)
+        return first
+      }).pipe(Effect.provide(ScenarioDefinitionsLayer))
+    )
     expect(ScenarioJob.catalog).toEqual({
       queue: "playground",
       name: "playground.scenario",
       version: 1
     })
     expect(
-      ScenarioProducer.identity({ operationId: "demo-request", slot: "execute" })
-        .operation
+      Effect.runSync(
+        ScenarioProducer.identity({ operationId: "demo-request", slot: "execute" })
+      ).operation
     ).toBe("playground.scenario")
+  })
+  it("shares one definitions graph across dependent Layers and isolates fresh executions", () => {
+    type Definitions = Context.Service.Shape<typeof ScenarioDefinitions>
+    class JobView extends Context.Service<JobView, Definitions["ScenarioJob"]>()(
+      "test/ScenarioJobView"
+    ) {}
+    class ProducerView extends Context.Service<
+      ProducerView,
+      Definitions["ScenarioProducer"]
+    >()("test/ScenarioProducerView") {}
+    const JobViewLayer = Layer.effect(
+      JobView,
+      Effect.map(ScenarioDefinitions, (definitions) => definitions.ScenarioJob)
+    ).pipe(Layer.provide(ScenarioDefinitionsLayer))
+    const ProducerViewLayer = Layer.effect(
+      ProducerView,
+      Effect.map(ScenarioDefinitions, (definitions) => definitions.ScenarioProducer)
+    ).pipe(Layer.provide(ScenarioDefinitionsLayer))
+    const graph = Effect.gen(function* () {
+      const job = yield* JobView
+      const producer = yield* ProducerView
+      expect(producer.slots.execute).toBe(job)
+      return { job, producer }
+    }).pipe(Effect.provide(Layer.merge(JobViewLayer, ProducerViewLayer)))
+    const first = Effect.runSync(graph)
+    const second = Effect.runSync(graph)
+    expect(second.job).not.toBe(first.job)
+    expect(second.producer).not.toBe(first.producer)
   })
   it("supplies composable filtered reads and reconciliation-only notifications", async () => {
     expect(

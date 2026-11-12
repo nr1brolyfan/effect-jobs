@@ -28,6 +28,8 @@ export const run = (schema: string) =>
       for (const row of rows) {
         after = row.job_id
         const value = yield* Effect.gen(function* () {
+          const definitions = yield* Definitions.Definitions
+
           const ref = yield* Schema.decodeUnknownEffect(SandboxRef)({
             sandboxId: row.sandbox_id,
             generation: Number(row.generation)
@@ -37,7 +39,7 @@ export const run = (schema: string) =>
             name: row.kind,
             version: Number(row.version)
           })
-          const definition = Definitions.definitions.find(
+          const definition = definitions.definitions.find(
             (d) =>
               d.catalog.queue === catalog.queue &&
               d.catalog.name === catalog.name &&
