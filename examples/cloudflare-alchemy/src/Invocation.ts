@@ -83,27 +83,46 @@ export const openInvocation = <R = never>(settings: Settings<R>) =>
               error instanceof AdmissionRejected ? error : new OperationUnconfirmed()
             )
           )
-          const response = yield* Effect.tryPromise({
-            try: (signal) =>
-              fetch(settings.providerUrl, {
-                method: "POST",
-                signal,
-                headers: {
-                  "content-type": "application/json",
-                  "idempotency-key": idempotencyKey
-                },
-                body: JSON.stringify({ tenantId, invoiceId })
+          return yield* Effect.acquireUseRelease(
+            Effect.sync(() => new AbortController()),
+            (controller) =>
+              Effect.gen(function* () {
+                const response = yield* Effect.tryPromise({
+                  try: (signal) =>
+                    fetch(settings.providerUrl, {
+                      method: "POST",
+                      signal: AbortSignal.any([signal, controller.signal]),
+                      headers: {
+                        "content-type": "application/json",
+                        "idempotency-key": idempotencyKey
+                      },
+                      body: JSON.stringify({ tenantId, invoiceId })
+                    }),
+                  catch: () => new OperationUnconfirmed()
+                }).pipe(
+                  Effect.timeoutOrElse({
+                    duration: "2 seconds",
+                    orElse: () => Effect.fail(new OperationUnconfirmed())
+                  })
+                )
+                // The provider body is unused; release it without buffering it.
+                // Bound cancellation, then abort the request as a fallback on every exit.
+                yield* Effect.tryPromise({
+                  try: () => response.body?.cancel() ?? Promise.resolve(),
+                  catch: () => new OperationUnconfirmed()
+                }).pipe(
+                  Effect.timeoutOrElse({
+                    duration: "250 millis",
+                    orElse: () => Effect.void
+                  }),
+                  Effect.ignore
+                )
+                if (!response.ok) {
+                  return yield* new OperationUnconfirmed()
+                }
               }),
-            catch: () => new OperationUnconfirmed()
-          }).pipe(
-            Effect.timeoutOrElse({
-              duration: "2 seconds",
-              orElse: () => Effect.fail(new OperationUnconfirmed())
-            })
+            (controller) => Effect.sync(() => controller.abort())
           )
-          if (!response.ok) {
-            return yield* new OperationUnconfirmed()
-          }
         })
     })
     const WorkerLayer = Worker.layer(declarations.api, {

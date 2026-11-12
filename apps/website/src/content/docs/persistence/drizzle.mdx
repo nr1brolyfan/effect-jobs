@@ -19,7 +19,7 @@ operationTimeoutMillis })`, then provide the resulting `PostgreSqlApplication`
    to `PostgreSqlJobs.layerNoDeps({ ...mapping,
 operationResponseBudgetMillis })`.
 4. Supply the jobs Layer's `JobEnqueue` to the mutation. Run Drizzle queries and
-   `SendOrderConfirmation.enqueue(input)` inside public `client.withTransaction(body)`.
+   `PlaceOrder.enqueue({ slot: "send-confirmation", operationId, payload: { orderId } })` inside public `client.withTransaction(body)`.
 
 The shared order example builds the Drizzle `Database` service and jobs producer
 once from that same client. Application writes use Drizzle query builders.
@@ -59,25 +59,24 @@ subpaths rather than internal modules.
 
 ## Exact supported graph and limits
 
-The current local candidate targets Effect **4.0.5**, native
-**`@effect/sql-pg@4.0.5`**, and exactly either Drizzle
-**`1.0.0-rc.5-ab785fc`** or **`1.0.0-rc.5-169397b`**. The qualified native matrix
-uses Node **24.15.0**, Bun **1.4.2**, PostgreSQL **16.15** and pg **8.23.0**.
-These two Drizzle snapshots are separately qualified; their hash suffixes imply
-no compatible range. Use ordinary peer resolution, one physical Effect instance
-and the intended native peers, without force installs or dependency overrides.
+The current local candidate targets Effect **4.1.0**, native
+**`@effect/sql-pg@4.1.0`**, and exactly Drizzle **`1.0.0-rc.5`**. The qualified
+native matrix uses Node **24.15.0**, Bun **1.4.2**, PostgreSQL **16.15** and pg
+**8.23.0**. Use ordinary peer resolution, one physical Effect instance and the
+intended native peers, without force installs or dependency overrides. This
+qualification uses the exact local candidate tarball, not the registry release.
 
 Own-source strict/exact-optional contracts (A+B) use the accepted dependency
 `skipLibCheck: true` setting, with actual negative compiler checks. Full foreign
 declaration checking (C, `skipLibCheck: false`) remains **known upstream FAIL**:
-three removed SQL error imports and four policy/role declaration diagnostics.
-That exact-seven exception is not full strict PASS and covers no new diagnostics.
+six Redux diagnostics and seven Drizzle diagnostics are recorded separately.
+Those failures are not full strict PASS and cover no new diagnostics.
 
 Real PostgreSQL qualification covers same-connection atomic writes, rollback,
 concurrent duplicates/conflicts, interruption and synthetic lost response after
 durable COMMIT. It does not qualify arbitrary drivers or versions, nested/options
 semantics, real network/server crashes, Cloudflare PostgreSQL or production use.
-An Alchemy **2.0.0-beta.83** combined install graph is qualified with `ab785fc`;
+An Alchemy **2.0.0-beta.85** combined install graph is qualified with `1.0.0-rc.5`;
 that is install evidence, not cloud execution or deployment evidence.
 
 Return to [transaction ownership](/docs/persistence/transactions/) before adapting
