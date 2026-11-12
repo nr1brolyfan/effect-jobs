@@ -8,7 +8,7 @@ export class InvalidScenario extends Data.TaggedError("InvalidScenario")<{}> {}
 export interface PlannedJob {
   readonly workload: Definitions.Workload
   readonly payload: Definitions.Payload
-  readonly producer: ReturnType<typeof Definitions.Producer.identity>
+  readonly producer: Effect.Success<ReturnType<typeof Definitions.Producer.identity>>
   readonly policy: JobPolicy.JobPolicy
   readonly availableAt?: number
 }
@@ -66,39 +66,37 @@ export const plan = Effect.fn("Playground.plan")(function* (
     catch: () => new InvalidScenario()
   })
   const operationId = `sandbox-request-${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`
-  const jobs: PlannedJob[] = []
-  for (let index = 0; index < command.count; index++) {
-    const workload = workloads[(seed + index) % workloads.length]!
-    jobs.push({
-      workload,
-      payload: {
-        sandbox: { ...authorized },
-        version: 1,
-        seed,
-        sequence: index + 1,
-        behavior: behavior(command.scenario),
-        actor: "demo-customer",
-        tenant: (seed + index) % 2 === 0 ? "demo-tenant-a" : "demo-tenant-b",
-        order: (seed + index) % 2 === 0 ? "demo-order-a" : "demo-order-b"
-      },
-      producer: Definitions.Producer.identity({ operationId, slot: workload }),
-      policy: JobPolicy.make(
-        command.scenario === "retry-then-success"
-          ? { retryDelay: Duration.seconds(120) }
-          : {}
-      ),
-      ...(availableAt === undefined ? {} : { availableAt })
-    })
-  }
-  // A slot can appear more than once in a 10-job batch. Distinguish consequences
-  // by sequence while retaining the operation/request namespace on replay.
-  return jobs.map((job) => ({
-    ...job,
-    producer: Definitions.Producer.identity({
-      operationId: `${operationId}-${job.payload.sequence}`,
-      slot: job.workload
-    })
-  }))
+  return yield* Effect.forEach(
+    Array.from({ length: command.count }, (_, index) => index),
+    (index) =>
+      Effect.gen(function* () {
+        const workload = workloads[(seed + index) % workloads.length]!
+        return {
+          workload,
+          payload: {
+            sandbox: { ...authorized },
+            version: 1,
+            seed,
+            sequence: index + 1,
+            behavior: behavior(command.scenario),
+            actor: "demo-customer",
+            tenant: (seed + index) % 2 === 0 ? "demo-tenant-a" : "demo-tenant-b",
+            order: (seed + index) % 2 === 0 ? "demo-order-a" : "demo-order-b"
+          },
+          // Sequence distinguishes repeated slots while preserving the request namespace.
+          producer: yield* Definitions.Producer.identity({
+            operationId: `${operationId}-${index + 1}`,
+            slot: workload
+          }),
+          policy: JobPolicy.make(
+            command.scenario === "retry-then-success"
+              ? { retryDelay: Duration.seconds(120) }
+              : {}
+          ),
+          ...(availableAt === undefined ? {} : { availableAt })
+        } satisfies PlannedJob
+      })
+  )
 })
 
 export const exportPayload = (

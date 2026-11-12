@@ -203,10 +203,12 @@ await Effect.runPromise(
       )
       assert.deepEqual(yield* counts, [1, 1, 1, 1, 0, 1, 5])
       // Independent job semantic payload/catalog conflict under the SAME tuple.
-      const identity = PlaceOrder.identity({
-        operationId: input.operationId,
-        slot: "send-confirmation"
-      })
+      const identity = Effect.runSync(
+        PlaceOrder.identity({
+          operationId: input.operationId,
+          slot: "send-confirmation"
+        })
+      )
       failure(
         yield* pg
           .withTransaction(
@@ -234,10 +236,12 @@ await Effect.runPromise(
       // Enqueue outside ambient owner fails without business or job writes.
       failure(
         yield* SendOrderConfirmation.enqueue({
-          producer: PlaceOrder.identity({
-            operationId: "missing-owner",
-            slot: "send-confirmation"
-          }),
+          producer: Effect.runSync(
+            PlaceOrder.identity({
+              operationId: "missing-owner",
+              slot: "send-confirmation"
+            })
+          ),
           payload: { orderId: "missing" },
           policy: OrderPolicy
         }).pipe(Effect.exit),

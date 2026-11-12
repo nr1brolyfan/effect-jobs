@@ -53,7 +53,7 @@ Import: `effect-jobs/JobIdentity`. Source: `src/JobIdentity.ts`.
 | Export                        | Kind         | Contract                                                                                                                                               |
 | ----------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `CatalogIdentity`             | value + type | Queue/name/version Schema and literal-preserving structural identity.                                                                                  |
-| `InvalidOperationId`          | value + type | Synchronous identifier failure; reports the violated rule without echoing the ID.                                                                      |
+| `InvalidOperationId`          | value + type | Typed identifier failure; reports the violated rule without echoing the ID.                                                                            |
 | `JobDeclarationError`         | value + type | Synchronous declaration failure with an actionable field/name constraint.                                                                              |
 | `JobName`                     | value + type | Job-name Schema: 1–128 ASCII characters matching nameFormat. Stable job-name Schema: 1–128 ASCII characters matching nameFormat.                       |
 | `JobVersion`                  | value        | Explicit catalog version Schema: an integer in 1–32,767.                                                                                               |
@@ -63,7 +63,7 @@ Import: `effect-jobs/JobIdentity`. Source: `src/JobIdentity.ts`.
 | `ProducerIdentity`            | value + type | Operation/operationId/slot Schema and literal-preserving deduplication identity.                                                                       |
 | `QueueName`                   | value        | Queue-name Schema: 1–64 ASCII characters matching nameFormat.                                                                                          |
 | `SlotName`                    | value        | Consequence-slot Schema: 1–128 ASCII characters matching nameFormat.                                                                                   |
-| `validateOperationId`         | value        | Validates Unicode scalars, absence of NUL and 1–256 UTF-8 bytes. Throws InvalidOperationId; compares IDs exactly, without trimming or normalization.   |
+| `validateOperationId`         | value        | Lazily validates Unicode scalars, absence of NUL and 1–256 UTF-8 bytes. Fails with InvalidOperationId without echoing the ID; never normalizes it.     |
 | `validateProducerDeclaration` | value        | Validates operation and nonempty unique slots synchronously; throws JobDeclarationError. Called by JobProducer.make before returning configuration.    |
 
 ## JobId

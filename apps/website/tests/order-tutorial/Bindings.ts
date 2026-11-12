@@ -96,7 +96,9 @@ export const qualifyBindings = (pg: SqlClient) =>
     assert.equal(handled, 1)
     const duplicate = yield* pg.withTransaction(
       nextDefault.enqueue({
-        producer: producer.identity({ operationId: "old", slot: "invoice" }),
+        producer: Effect.runSync(
+          producer.identity({ operationId: "old", slot: "invoice" })
+        ),
         payload: "pre-existing"
       })
     )
@@ -116,7 +118,9 @@ export const qualifyBindings = (pg: SqlClient) =>
     assert.equal(stored.state, "Completed")
     // New defaults, full overrides and first policy/availability all survive replay.
     const freshInput = {
-      producer: producer.identity({ operationId: "new", slot: "invoice" }),
+      producer: Effect.runSync(
+        producer.identity({ operationId: "new", slot: "invoice" })
+      ),
       payload: "fresh",
       availableAt: 200
     }
@@ -138,7 +142,9 @@ export const qualifyBindings = (pg: SqlClient) =>
     const override = yield* pg.withTransaction(
       nextDefault.enqueue({
         ...freshInput,
-        producer: producer.identity({ operationId: "override", slot: "invoice" }),
+        producer: Effect.runSync(
+          producer.identity({ operationId: "override", slot: "invoice" })
+        ),
         policy: Policy.make({ maxAttempts: 1 })
       })
     )
@@ -175,7 +181,9 @@ export const qualifyBindings = (pg: SqlClient) =>
       const exit = yield* pg
         .withTransaction(
           changed.enqueue({
-            producer: producer.identity({ operationId: "concurrent", slot: "copy" }),
+            producer: Effect.runSync(
+              producer.identity({ operationId: "concurrent", slot: "copy" })
+            ),
             payload: "recipient"
           })
         )

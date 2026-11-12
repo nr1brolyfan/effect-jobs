@@ -69,7 +69,7 @@ const producer = Producer.make({
   slots: { generate: definition }
 })
 const input = (id: string, value = id) => ({
-  producer: producer.identity({ operationId: id, slot: "generate" }),
+  producer: Effect.runSync(producer.identity({ operationId: id, slot: "generate" })),
   payload: { invoiceId: value },
   policy: Policy.make()
 })

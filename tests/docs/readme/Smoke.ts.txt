@@ -38,8 +38,8 @@ assert.equal(SendReceipt.catalog.version, 1)
 assert.equal(BillingQueue.name, "billing")
 assert.equal(GeneratePdf.name, CloudPdf.name)
 assert.equal(Layer.isLayer(BillingWorkerLayer), true)
-assert.equal(CloudInvoiceProducer.identity({ operationId: "op", slot: "generate-pdf" }).slot, "generate-pdf")
-assert.equal(IssueInvoice.identity({ operationId: "op", slot: "receipt" }).operation, "billing.issue-invoice")
+assert.equal(Effect.runSync(CloudInvoiceProducer.identity({ operationId: "op", slot: "generate-pdf" })).slot, "generate-pdf")
+assert.equal(Effect.runSync(IssueInvoice.identity({ operationId: "op", slot: "receipt" })).operation, "billing.issue-invoice")
 assert(Object.isFrozen(Policy.defaultPolicy))
 assert(jobTables.jobs && jobTables.payloads)
 assert(getTableConfig(customTables.jobs).indexes.some((i) => i.config.name === "jobs_dashboard"))
@@ -77,7 +77,7 @@ assert.deepEqual(await Effect.runPromise(Codec.decodeJobPayload(privateDefinitio
 assert(Exit.isFailure(await Effect.runPromiseExit(Codec.encodeJobPayload(privateDefinitions.SendPrivateReceipt.payload, privateValue).pipe(Effect.provide(Fixture.keysLayer({ ...ring, encryption: {} }))))))
 assert(Exit.isFailure(await Effect.runPromiseExit(Effect.void.pipe(Effect.provide(Fixture.keysLayer({ ...ring, encryption: {} }))))))
 assert(Exit.isFailure(await Effect.runPromiseExit(Codec.decodeJobPayload(privateDefinitions.SendPrivateReceipt.payload, a).pipe(Effect.provide(Fixture.keysLayer({ ...ring, encryption: { one: new Uint8Array(32) } }))))))
-const context = { jobId: Schema.decodeSync(JobId)("handler-job"), catalog: SendReceipt.catalog, producer: IssueInvoice.identity({ operationId: "op", slot: "receipt" }), attemptNumber: 1 }
+const context = { jobId: Schema.decodeSync(JobId)("handler-job"), catalog: SendReceipt.catalog, producer: Effect.runSync(IssueInvoice.identity({ operationId: "op", slot: "receipt" })), attemptNumber: 1 }
 const encoded = await Effect.runPromise(Codec.encodeJobPayload(SendReceipt.payload, { invoiceId: "invoice" }))
 let calls = 0
 const registry = Registry.layer

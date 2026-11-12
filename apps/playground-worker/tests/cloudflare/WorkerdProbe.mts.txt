@@ -52,7 +52,7 @@ const nativeProbe = Effect.scoped(
     )
     const result = yield* definition
       .enqueue({
-        producer: producer.identity({ operationId: "synthetic-1", slot: "synthetic" }),
+        producer: Effect.runSync(producer.identity({ operationId: "synthetic-1", slot: "synthetic" })),
         payload: "synthetic",
         policy: Policy.make()
       })

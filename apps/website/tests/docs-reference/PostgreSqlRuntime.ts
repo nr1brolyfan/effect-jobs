@@ -104,10 +104,12 @@ try {
         const activeStandalone = yield* client
           .withTransaction(
             GenerateReport.enqueueStandalone({
-              producer: RequestReport.identity({
-                operationId: "standalone",
-                slot: "generate"
-              }),
+              producer: Effect.runSync(
+                RequestReport.identity({
+                  operationId: "standalone",
+                  slot: "generate"
+                })
+              ),
               payload,
               policy: ReportPolicy
             }).pipe(Effect.provideService(JobEnqueue, backend.producer))

@@ -40,11 +40,8 @@ export const recordGeneratedReport = (generatedJobId: string, payload: ReportPay
           .values({ reportId: payload.reportId, generatedBy: generatedJobId })
           .onConflictDoNothing({ target: generatedReports.reportId })
 
-        yield* DeliverReport.enqueue({
-          producer: GeneratedReport.identity({
-            operationId: generatedJobId,
-            slot: "deliver"
-          }),
+        yield* GeneratedReport.enqueue("deliver", {
+          operationId: generatedJobId,
           payload,
           policy: ReportPolicy
         })

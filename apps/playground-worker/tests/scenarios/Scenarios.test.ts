@@ -204,10 +204,12 @@ describe("fake provider ledger", () => {
         expect((yield* provider.inspect(input))?.effects).toBe(1)
         const lost = {
           ...input,
-          producer: Definitions.Producer.identity({
-            slot: input.producer.slot,
-            operationId: "lost"
-          }),
+          producer: Effect.runSync(
+            Definitions.Producer.identity({
+              slot: input.producer.slot,
+              operationId: "lost"
+            })
+          ),
           behavior: "accepted-response-lost" as const
         }
         const failure = yield* Effect.flip(provider.execute(lost))
@@ -240,10 +242,12 @@ describe("fake provider ledger", () => {
         const job = (yield* jobs())[0]!
         const inputs = Array.from({ length: 100 }, (_, index) => ({
           sandbox: job.payload.sandbox,
-          producer: Definitions.Producer.identity({
-            slot: job.producer.slot,
-            operationId: `independent-${index}`
-          }),
+          producer: Effect.runSync(
+            Definitions.Producer.identity({
+              slot: job.producer.slot,
+              operationId: `independent-${index}`
+            })
+          ),
           workload: job.workload,
           behavior: "success" as const,
           semanticProjection: new Uint8Array([index])
@@ -252,10 +256,12 @@ describe("fake provider ledger", () => {
         expect((yield* provider.inspect(inputs[99]!))?.effects).toBe(1)
         const overflow = {
           ...inputs[0]!,
-          producer: Definitions.Producer.identity({
-            slot: job.producer.slot,
-            operationId: "overflow"
-          })
+          producer: Effect.runSync(
+            Definitions.Producer.identity({
+              slot: job.producer.slot,
+              operationId: "overflow"
+            })
+          )
         }
         expect((yield* Effect.flip(provider.execute(overflow)))._tag).toBe("LedgerFull")
         expect(yield* provider.inspect(overflow)).toBeUndefined()
@@ -280,10 +286,12 @@ describe("encrypted consumer payload and installed handlers", () => {
         })
       )
       const payload = (await Effect.runPromise(jobs()))[0]!.payload
-      const producer = Definitions.Producer.identity({
-        operationId: "mixed",
-        slot: "welcome-email"
-      })
+      const producer = Effect.runSync(
+        Definitions.Producer.identity({
+          operationId: "mixed",
+          slot: "welcome-email"
+        })
+      )
       const result = await Effect.runPromiseExit(
         Handlers.execute("welcome-email")({
           payload,
@@ -322,10 +330,12 @@ describe("encrypted consumer payload and installed handlers", () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         const provider = yield* FakeProvider
-        const producer = Definitions.Producer.identity({
-          operationId: "wrong-tenant",
-          slot: "private-data-export"
-        })
+        const producer = Effect.runSync(
+          Definitions.Producer.identity({
+            operationId: "wrong-tenant",
+            slot: "private-data-export"
+          })
+        )
         const result = yield* Effect.flip(
           Handlers.executeExport({
             payload: { ...payload, tenant: "demo-tenant-a" },
@@ -546,10 +556,12 @@ describe("encrypted consumer payload and installed handlers", () => {
             catalog: definition.catalog,
             producer:
               definition === Definitions.SyntheticDocumentExport
-                ? Definitions.Producer.identity({
-                    slot: job.producer.slot,
-                    operationId: "synthetic-document-fixture"
-                  })
+                ? Effect.runSync(
+                    Definitions.Producer.identity({
+                      slot: job.producer.slot,
+                      operationId: "synthetic-document-fixture"
+                    })
+                  )
                 : job.producer,
             attemptNumber: 1
           })
@@ -567,10 +579,12 @@ describe("encrypted consumer payload and installed handlers", () => {
             registry.find(Definitions.WelcomeEmail.catalog)!.execute(encoded, {
               jobId,
               catalog: Definitions.WelcomeEmail.catalog,
-              producer: Definitions.Producer.identity({
-                slot: job.producer.slot,
-                operationId: behavior
-              }),
+              producer: Effect.runSync(
+                Definitions.Producer.identity({
+                  slot: job.producer.slot,
+                  operationId: behavior
+                })
+              ),
               attemptNumber: 1
             })
           )

@@ -107,7 +107,7 @@ export const catalogConflict = Effect.gen(function* () {
   const exit = yield* pg
     .withTransaction(
       SendInvoice.enqueue({
-        producer: PlaceOrderWithInvoice.identity({
+        producer: yield* PlaceOrderWithInvoice.identity({
           operationId,
           slot: "send-confirmation"
         }),

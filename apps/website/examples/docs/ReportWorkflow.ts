@@ -45,8 +45,8 @@ export const ReportPolicy = JobPolicy.make({
 
 // #region enqueue
 export const enqueueReport = (operationId: string, payload: ReportPayload) =>
-  GenerateReport.enqueue({
-    producer: RequestReport.identity({ operationId, slot: "generate" }),
+  RequestReport.enqueue("generate", {
+    operationId,
     payload,
     policy: ReportPolicy
   })

@@ -117,8 +117,9 @@ describe("frozen playground boundaries", () => {
       version: 1
     })
     expect(
-      ScenarioProducer.identity({ operationId: "demo-request", slot: "execute" })
-        .operation
+      Effect.runSync(
+        ScenarioProducer.identity({ operationId: "demo-request", slot: "execute" })
+      ).operation
     ).toBe("playground.scenario")
   })
   it("supplies composable filtered reads and reconciliation-only notifications", async () => {

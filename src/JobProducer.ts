@@ -8,6 +8,7 @@ import type { JobEnqueueError } from "./JobTransaction.js"
 import type { JobPolicy } from "./JobPolicy.js"
 import {
   CatalogIdentity,
+  type InvalidOperationId,
   JobDeclarationError,
   OperationId,
   validateOperationId,
@@ -47,7 +48,10 @@ export interface JobProducer<
   readonly identity: <const Slot extends keyof Slots & string>(input: {
     readonly operationId: string
     readonly slot: Slot
-  }) => ProducerIdentity<Operation, Slot>
+  }) => Effect.Effect<
+    ProducerIdentity<Operation, Slot>,
+    InvalidOperationId | JobDeclarationError
+  >
   readonly enqueue: <const Slot extends keyof Slots & string>(
     ...args: { [K in Slot]: readonly [slot: K, input: BoundEnqueueInput<Slots[K]>] }[Slot]
   ) => Effect.Effect<
@@ -122,13 +126,23 @@ export const make = <
   const identity = <const Slot extends keyof Slots & string>(input: {
     readonly operationId: string
     readonly slot: Slot
-  }): ProducerIdentity<Operation, Slot> => {
-    validateOperationId(input.operationId)
-    if (!Object.hasOwn(slots, input.slot)) {
-      throw new JobDeclarationError({ field: "slots", expected: "a declared slot" })
-    }
-    return Object.freeze({ operation, operationId: input.operationId, slot: input.slot })
-  }
+  }): Effect.Effect<
+    ProducerIdentity<Operation, Slot>,
+    InvalidOperationId | JobDeclarationError
+  > =>
+    Effect.gen(function* () {
+      const operationId = input.operationId
+      const slot = input.slot
+      yield* validateOperationId(operationId)
+      if (!Object.hasOwn(slots, slot)) {
+        return yield* new JobDeclarationError({
+          field: "slots",
+          expected: "a declared slot"
+        })
+      }
+      return Object.freeze({ operation, operationId, slot })
+    })
+
   return Object.freeze({
     operation,
     slots,

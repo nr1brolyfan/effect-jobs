@@ -43,7 +43,9 @@ const producer = JobProducer.make({
   operation: "billing.issue",
   slots: { pdf: job, email: job }
 })
-const identity = producer.identity({ operationId: "operation", slot: "pdf" })
+const identity = Effect.runSync(
+  producer.identity({ operationId: "operation", slot: "pdf" })
+)
 const input = { producer: identity, payload: { amount: 1.5 }, policy }
 const context: HandlerContext = {
   jobId,
@@ -65,10 +67,12 @@ describe("immutable declarations", () => {
     expect(Object.isFrozen(declaration)).toBe(true)
     expect(Object.isFrozen(declaration.slots)).toBe(true)
     expect(
-      Object.isFrozen(declaration.identity({ operationId: "op", slot: "pdf" }))
+      Object.isFrozen(
+        Effect.runSync(declaration.identity({ operationId: "op", slot: "pdf" }))
+      )
     ).toBe(true)
     expect(() =>
-      declaration.identity({ operationId: "op", slot: "sms" } as never)
+      Effect.runSync(declaration.identity({ operationId: "op", slot: "sms" } as never))
     ).toThrow(JobDeclarationError)
   })
 
@@ -86,7 +90,7 @@ describe("immutable declarations", () => {
     (operationId) => {
       let caught: unknown
       try {
-        producer.identity({ operationId, slot: "pdf" })
+        Effect.runSync(producer.identity({ operationId, slot: "pdf" }))
       } catch (error) {
         caught = error
       }
@@ -97,9 +101,10 @@ describe("immutable declarations", () => {
   )
 
   it("preserves exact IDs and validates queue/catalog boundaries", () => {
-    expect(producer.identity({ operationId: " Opé ", slot: "email" }).operationId).toBe(
-      " Opé "
-    )
+    expect(
+      Effect.runSync(producer.identity({ operationId: " Opé ", slot: "email" }))
+        .operationId
+    ).toBe(" Opé ")
     expect(() => JobQueue.make("Bad")).toThrow(JobQueue.InvalidJobQueue)
     expect(() => JobQueue.make("x".repeat(65))).toThrow(JobQueue.InvalidJobQueue)
     expect(() =>

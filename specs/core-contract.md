@@ -47,7 +47,7 @@ The transaction declaration references the internal symbol declaration; that fil
 must remain in the build artifact even though package export resolution denies
 runtime deep imports. Do not duplicate symbols, brands or errors in later units.
 
-## Identity and synchronous declaration validation
+## Identity and declaration validation
 
 `JobId.JobId` is a nonempty string Schema branded `effect-jobs/JobId`; the Schema
 and its inferred type share the name. IDs are library-assigned; their generation
@@ -81,11 +81,16 @@ Operation IDs are valid scalar strings without NUL, 1–256 UTF-8 bytes, with ex
 equality: no trimming, normalization or case folding. Application-branded strings
 are accepted. Durable collation/equality must preserve this behavior.
 
-`validateOperationId(value: string): void` throws `InvalidOperationId` with only
+`validateOperationId(value: string): Effect<void, InvalidOperationId>` validates lazily at execution and fails with only
 `rule: "unicode-scalars" | "no-nul" | "utf8-length"` and length-rule
 `byteLength`. It never includes the supplied ID. Untrusted non-string values use
 Schema validation at the consumer boundary; do not export raw Schema diagnostics
 containing sensitive inputs as enqueue errors.
+
+`producer.identity(input)` returns a literal-preserving Effect with
+`InvalidOperationId | JobDeclarationError` in E and no services. It snapshots
+operationId and slot once at execution; each reexecution reads fresh input.
+Normal bound enqueue retains its `InvalidJobInput` boundary.
 
 `validateProducerDeclaration({ operation: string, slots: ReadonlyArray<string> }):
 void` validates names, nonempty slots and uniqueness synchronously. It throws

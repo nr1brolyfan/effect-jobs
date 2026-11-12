@@ -86,10 +86,12 @@ await Effect.runPromise(
       const ownership = Result.getOrThrow(Lifecycle.ownershipOf(snapshot))
       const prepared = {
         catalog: definition.catalog,
-        producer: Producer.make({
-          operation: "installed.produce",
-          slots: { run: definition }
-        }).identity({ operationId: "PRIVATE_INSTALLED_OPERATION", slot: "run" }),
+        producer: Effect.runSync(
+          Producer.make({
+            operation: "installed.produce",
+            slots: { run: definition }
+          }).identity({ operationId: "PRIVATE_INSTALLED_OPERATION", slot: "run" })
+        ),
         policy,
         encoded
       }

@@ -69,14 +69,13 @@ export const run = (schema: string, sandbox: SandboxView) =>
             note: "Synthetic encrypted recorded fixture"
           }
         }
-        const result = yield* Definitions.SyntheticDocumentExport.enqueue({
-          producer: producer.identity({
+        const result = yield* producer
+          .enqueue("encrypted-document", {
             operationId: `${ref.sandboxId}:${ref.generation}`,
-            slot: "encrypted-document"
-          }),
-          policy: Policy.make(),
-          payload
-        }).pipe(Effect.provideService(JobEnqueue, backend.producer))
+            policy: Policy.make(),
+            payload
+          })
+          .pipe(Effect.provideService(JobEnqueue, backend.producer))
         yield* sql.unsafe(
           `INSERT INTO ${t.associations}(sandbox_id,generation,job_id,relations) VALUES($1,$2,$3,$4::jsonb)`,
           [

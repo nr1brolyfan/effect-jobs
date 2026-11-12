@@ -47,7 +47,7 @@ const policy = Policy.make({
   deadRetention: Duration.millis(1)
 })
 const input = (id: string, value = id, configured = policy, availableAt?: number) => ({
-  producer: producer.identity({ operationId: id, slot: "generate" }),
+  producer: Effect.runSync(producer.identity({ operationId: id, slot: "generate" })),
   payload: { invoiceId: value },
   policy: configured,
   ...(availableAt === undefined ? {} : { availableAt })

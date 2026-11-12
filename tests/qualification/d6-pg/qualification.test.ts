@@ -31,7 +31,7 @@ class CallerValue extends Context.Service<CallerValue, { readonly value: number 
   "d6/CallerValue"
 ) {}
 const input = (id: string, payload = id) => ({
-  producer: producer.identity({ operationId: id, slot: "generate" }),
+  producer: Effect.runSync(producer.identity({ operationId: id, slot: "generate" })),
   payload: { invoiceId: payload },
   policy: Policy.make()
 })

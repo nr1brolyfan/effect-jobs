@@ -82,12 +82,12 @@ export const case8 = producer.enqueue(uncertainSlot, {
 })
 // @ts-expect-error missing default requires policy on the job-level ambient entrypoint
 export const case9 = required.enqueue({
-  producer: producer.identity({ operationId: "one", slot: "generate" }),
+  producer: Effect.runSync(producer.identity({ operationId: "one", slot: "generate" })),
   payload: { total: 1 }
 })
 // @ts-expect-error dynamic default must not promise policy omission
 export const case10 = dynamic.enqueueStandalone({
-  producer: producer.identity({ operationId: "one", slot: "dynamic" }),
+  producer: Effect.runSync(producer.identity({ operationId: "one", slot: "dynamic" })),
   payload: "input"
 })
 // @ts-expect-error deprecated kind constructor is absent
@@ -103,6 +103,6 @@ const optionalOptions = Job.make({
 })
 // @ts-expect-error optional property cannot promise runtime presence
 export const optionalOptionsMissingPolicy = optionalOptions.enqueue({
-  producer: producer.identity({ operationId: "one", slot: "dynamic" }),
+  producer: Effect.runSync(producer.identity({ operationId: "one", slot: "dynamic" })),
   payload: "input"
 })

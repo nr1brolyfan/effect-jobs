@@ -58,7 +58,7 @@
   {
     "subpath": "effect-jobs/JobProducer",
     "filename": "src/JobProducer.ts",
-    "sha256": "e23117dec01019a71f897ea2812e5a6f110196613e0c183d068dbc487fd111af",
+    "sha256": "02d39df2c1320e3a0c944ba58557d1c0997b77960527ecc8ce40e5bf8d18bf5b",
     "symbols": [
       {
         "name": "BoundEnqueueInput",
@@ -89,7 +89,7 @@
   {
     "subpath": "effect-jobs/JobIdentity",
     "filename": "src/JobIdentity.ts",
-    "sha256": "2b1ff4673bc7bd4d332fcbb63ca4ba28eb2a55d31dccfc31336f88bdba954945",
+    "sha256": "536f90006b8898dec80464191efe3b12fab3f29a64e90681a0ab40468b0a649f",
     "symbols": [
       {
         "name": "CatalogIdentity",
@@ -101,7 +101,7 @@
         "name": "InvalidOperationId",
         "kind": "value + type",
         "category": "errors",
-        "description": "Synchronous identifier failure; reports the violated rule without echoing the ID."
+        "description": "Typed identifier failure; reports the violated rule without echoing the ID."
       },
       {
         "name": "JobDeclarationError",
@@ -161,7 +161,7 @@
         "name": "validateOperationId",
         "kind": "value",
         "category": "operations",
-        "description": "Validates Unicode scalars, absence of NUL and 1–256 UTF-8 bytes. Throws\nInvalidOperationId; compares IDs exactly, without trimming or normalization."
+        "description": "Lazily validates Unicode scalars, absence of NUL and 1–256 UTF-8 bytes.\nFails with InvalidOperationId without echoing the ID; never normalizes it."
       },
       {
         "name": "validateProducerDeclaration",
