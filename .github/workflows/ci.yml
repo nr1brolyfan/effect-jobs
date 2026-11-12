@@ -41,7 +41,7 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts 2>&1 | tee "$CI_EVIDENCE/install.log"
       - name: Install the pinned browser for workspace tests
         run: bun run test:browser:install 2>&1 | tee "$CI_EVIDENCE/browser-install.log"
-      - name: Verify library and workspace tests
+      - name: Build applications and verify library and workspace tests
         run: bun run verify 2>&1 | tee "$CI_EVIDENCE/verify.log"
       - name: Check workspace types and lint
         run: |
@@ -54,9 +54,8 @@ jobs:
         run: |
           docker pull postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
           bun run test:playground:native 2>&1 | tee "$CI_EVIDENCE/native.log"
-      - name: Build playground and public site
+      - name: Check built public site
         run: |
-          bun run playground:build 2>&1 | tee "$CI_EVIDENCE/apps-build.log"
           bun run site:check 2>&1 | tee "$CI_EVIDENCE/site-types.log"
           bun run site:test 2>&1 | tee "$CI_EVIDENCE/site-tests.log"
           bun run site:routes 2>&1 | tee "$CI_EVIDENCE/site-routes.log"

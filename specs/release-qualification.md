@@ -194,6 +194,14 @@ bun run qualify:postgresql:installed
 bun run release:check
 ```
 
+`bun run verify` prepares the library and workspace contracts, checks types/lint/format,
+then builds the playground client, public site and worker before running workspace
+tests. CI uses this same ordering; later browser and site checks consume these builds.
+After a frozen install and `bun run test:browser:install`, verify needs no prior app build.
+For a separate `bun run test`, first run `bun run workspace:prepare && bun run playground:build`
+and install the pinned browser. Run builds and tests serially in one checkout so
+asset output is complete before the browser adapters read it.
+
 All child operations are foreground and finite. Tests sharing schemas run
 serially. Resource records contain exact container/image/labels/deadline/loopback
 ports; validation compares actual Docker state before fixture SQL. Credentials

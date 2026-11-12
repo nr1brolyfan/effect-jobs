@@ -151,7 +151,7 @@
     "qualify:docs:readme": "node tests/docs/readme/Run.mjs",
     "check:docs:api": "node tests/docs/api/Qualify.mjs",
     "test:release-imports": "node --test tests/qualification/ReleaseImports.mjs",
-    "verify": "bun run workspace:prepare && bun run check && bun run lint && bun run format:check && bun run test && bun run test:release-imports && bun run check:docs:api",
+    "verify": "bun run workspace:prepare && bun run check && bun run lint && bun run format:check && bun run playground:build && bun run test && bun run test:release-imports && bun run check:docs:api",
     "release:pack": "node scripts/pack-release.mjs",
     "release:check": "node scripts/check-release.mjs",
     "qualify:release": "node scripts/qualify-release.mjs",
