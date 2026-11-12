@@ -1,13 +1,13 @@
+import * as JobApi from "../../src/JobApi.js"
+import * as JobApiBuilder from "../../src/JobApiBuilder.js"
 import { Context, Effect, Layer, Schema } from "effect"
 import * as Job from "../../src/Job.js"
 import * as Queue from "../../src/JobQueue.js"
-import * as Consumer from "../../src/JobConsumer.js"
-import * as Codec from "../../src/JobPayloadCodec.js"
+import * as Group from "../../src/JobGroup.js"
 import * as Worker from "../../src/JobWorker.js"
-import { drain } from "../../src/JobWorkerRuntime.js"
-import { layerForPlan } from "../../src/PollingJobWorker.js"
+import * as Storage from "../../src/JobStorage.js"
+import * as Polling from "../../src/JobPolling.js"
 import type { JobStoreService } from "../../src/JobStore.js"
-import type { JobRegistry, DuplicateJobHandler } from "../../src/JobRegistry.js"
 
 class Provider extends Context.Service<
   Provider,
@@ -18,69 +18,94 @@ class HandlerDependency extends Context.Service<
   { readonly send: Effect.Effect<void> }
 >()("types/worker/handler") {}
 declare const store: JobStoreService<string, Provider>
+const queue = Queue.make("types")
 const definition = Effect.runSync(
   Job.make({
-    queue: Queue.make("types"),
     name: "message",
-    version: 1,
-    payload: Schema.Struct({ text: Schema.String }),
-    encodePayload: Codec.encodeJobPayload
+    payload: Schema.Struct({ text: Schema.String })
   })
 )
+const group = Group.make("typed-worker", { message: definition })
 const installed: Layer.Layer<
-  never,
-  DuplicateJobHandler,
-  JobRegistry | HandlerDependency
-> = definition.handlerLayer(
-  ({ payload, context }) =>
-    Effect.gen(function* () {
-      const dependency = yield* HandlerDependency
-      const text: string = payload.text
-      const attempt: number = context.attemptNumber
-      void text
-      void attempt
-      // @ts-expect-error handlers do not receive ownership powers
-      void context.leaseToken
-      // @ts-expect-error handlers do not receive transactions
-      void context.transaction
-      // @ts-expect-error handlers do not receive finalization powers
-      context.finalize()
-      yield* dependency.send
-    }),
-  Codec.decodeJobPayload
+  Group.Handlers<"typed-worker", typeof group.definitions>,
+  Group.JobGroupConfigurationError,
+  HandlerDependency
+> = JobApiBuilder.group(
+  JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+  group.name,
+  (_handlers) =>
+    _handlers.handle("message", (input) =>
+      Effect.gen(function* () {
+        const dependency = yield* HandlerDependency
+        const text: string = input.payload.text
+        const attempt: number = input.context.nextFinalizationNumber
+        void text
+        void attempt
+        // @ts-expect-error Handlers do not receive ownership powers.
+        void input.context.leaseToken
+        // @ts-expect-error Handlers do not receive transactions.
+        void input.context.transaction
+        // @ts-expect-error Handlers do not receive finalization powers.
+        input.context.finalize()
+        yield* dependency.send
+      })
+    )
 )
 void installed
-
+const storage = { store, operationResponseBudgetMillis: 100 }
 const made: Effect.Effect<
   Worker.JobWorkerService,
   Worker.JobWorkerConfigurationError,
-  Provider | JobRegistry
-> = Worker.make(store, { catalog: [definition], operationResponseBudgetMillis: 100 })
+  Storage.JobStorage | Group.Handlers<"typed-worker", typeof group.definitions>
+> = Worker.make(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
+  queues: [{ queue }]
+})
 void made
 const built: Layer.Layer<
   Worker.JobWorker,
   Worker.JobWorkerConfigurationError,
-  Provider | JobRegistry
-> = Worker.layer(store, { catalog: [definition], operationResponseBudgetMillis: 100 })
+  Storage.JobStorage | Group.Handlers<"typed-worker", typeof group.definitions>
+> = Worker.layer(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
+  queues: [{ queue }]
+})
 void built
-declare const consumer: Consumer.JobConsumer
-declare const plan: Consumer.JobPlan
+export const capturedStorage: Layer.Layer<
+  Storage.JobStorage,
+  Storage.JobStorageConfigurationError,
+  Provider
+> = Storage.layer(storage)
+export const composed: Effect.Effect<
+  Worker.JobWorkerService,
+  Worker.JobWorkerConfigurationError | Storage.JobStorageConfigurationError,
+  Provider | Group.Handlers<"typed-worker", typeof group.definitions>
+> = made.pipe(Effect.provide(capturedStorage))
 const drained: Effect.Effect<
-  import("../../src/JobWorkerRuntime.js").DrainResult,
+  Worker.DrainResult,
   Worker.JobWorkerNotReady | Worker.JobWorkerConfigurationError,
   Worker.JobWorker
-> = drain(consumer)
+> = Worker.drain(queue)
 void drained
 const polling: Layer.Layer<
   never,
   Worker.JobWorkerNotReady | Worker.JobWorkerConfigurationError,
   Worker.JobWorker
-> = layerForPlan(plan)
+> = Polling.layer([queue], { shutdownGraceMillis: 1000 })
 void polling
-// @ts-expect-error the worker requires explicit finite backend response configuration
-const missingBudget = Worker.make(store, { catalog: [definition] })
-void missingBudget
-// @ts-expect-error no domain handler error classifier callback
-layerForPlan(plan, { classifyError: () => "Retry" })
-// @ts-expect-error internal hooks are not public polling configuration
-layerForPlan(plan, { beforeExecutionBoundary: Effect.void })
+export const explicitStorage = Worker.make(
+  JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+  storage,
+  // @ts-expect-error Response budget comes from configured storage, not a worker argument.
+  { queues: [{ queue }] }
+)
+// @ts-expect-error Configured storage requires its admission reserve.
+export const missingBudget = Storage.layer({ store })
+// @ts-expect-error No domain error classifier callback.
+Polling.layer([queue], { classifyError: () => "Retry" })
+// @ts-expect-error Internal hooks are not public polling configuration.
+Polling.layer([queue], { beforeExecutionBoundary: Effect.void })
+// @ts-expect-error Drain concurrency is fixed at worker construction.
+export const perDrainConcurrency = Worker.drain(queue, { concurrency: 2 })
+Polling.layer([
+  // @ts-expect-error Polling accepts queues, not consumer/plan configurations.
+  { queue, localConcurrency: 2, claimLimitPerRun: 10, recoveryLimitPerRun: 10 }
+])

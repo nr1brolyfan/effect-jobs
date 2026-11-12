@@ -220,9 +220,9 @@ describe("server source authority and validation", () => {
               Source.replacement(
                 {
                   ...row,
-                  queue: definitions.PrivateDataExport.catalog.queue,
-                  kind: definitions.PrivateDataExport.catalog.name,
-                  version: definitions.PrivateDataExport.catalog.version
+                  queue: definitions.catalogFor(definitions.PrivateDataExport).queue,
+                  kind: definitions.catalogFor(definitions.PrivateDataExport).name,
+                  version: definitions.catalogFor(definitions.PrivateDataExport).version
                 },
                 Fixture.ref,
                 Fixture.payload

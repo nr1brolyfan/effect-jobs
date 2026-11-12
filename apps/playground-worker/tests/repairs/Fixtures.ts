@@ -50,12 +50,12 @@ export const detail = Schema.decodeUnknownSync(JobDetail)({
   sandbox: ref,
   job: {
     jobId: sourceId,
-    catalog: definitions.WelcomeEmail.catalog,
+    catalog: definitions.catalogFor(definitions.WelcomeEmail),
     state: "Dead",
     availableAt: 100,
     updatedAt: 900,
     completedAt: 900,
-    attemptsMade: 2,
+    finalizedAttempts: 2,
     stalledCount: 0,
     lifecycleVersion: 2,
     lastFailureCode: "fake_provider_terminal_rejected"
@@ -65,13 +65,13 @@ export const detail = Schema.decodeUnknownSync(JobDetail)({
     operationId: "test",
     slot: "welcome-email"
   },
-  policy: Policy.make(),
+  policy: Policy.defaultPolicy,
   relations: { syntheticActor: payload.actor, syntheticOrderId: payload.order },
   createdAt: null,
   payload: {
     _tag: "Available",
     formatVersion: 1,
-    catalog: definitions.WelcomeEmail.catalog,
+    catalog: definitions.catalogFor(definitions.WelcomeEmail),
     encoded: payload,
     validation: "Valid",
     encryption: "None"
@@ -101,6 +101,7 @@ export const sourceRow = {
   state: "Dead",
   available_at: 100,
   updated_at: 900,
+  created_at: null,
   completed_at: 900,
   lifecycle_version: 2,
   attempts_made: 2,

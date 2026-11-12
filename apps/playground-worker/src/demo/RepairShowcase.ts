@@ -1,3 +1,4 @@
+import * as NativeTransaction from "../persistence/NativeTransaction.js"
 import { Effect, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
@@ -23,12 +24,13 @@ export const run = (schema: string, sandbox: SandboxView) =>
     const definitions = yield* Definitions.Definitions
     const producer = definitions.ShowcaseProducer
     const sql = yield* SqlClient
-    const backend = yield* PostgreSqlJobs
+    const jobs = yield* PostgreSqlJobs
     const repairs = yield* SyntheticRepairs
     const read = yield* JobsRead
     const t = Tables.relations(schema)
     const ref = sandbox.ref
-    yield* sql.withTransaction(
+    yield* NativeTransaction.withTransaction(
+      sql,
       Effect.gen(function* () {
         const owned = yield* sql.unsafe(
           `SELECT sandbox_id FROM ${t.sandboxes} WHERE sandbox_id=$1 AND generation=$2 AND demo_owned AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint FOR UPDATE`,
@@ -67,12 +69,13 @@ export const run = (schema: string, sandbox: SandboxView) =>
           }
         }
         const result = yield* producer
-          .enqueue("encrypted-document", {
+          .enqueue({
+            slot: "encrypted-document",
             operationId: `${ref.sandboxId}:${ref.generation}`,
-            policy: Policy.make(),
+            policy: Policy.defaultPolicy,
             payload
           })
-          .pipe(Effect.provideService(JobEnqueue, backend.producer))
+          .pipe(Effect.provideService(JobEnqueue, jobs.producer))
         yield* sql.unsafe(
           `INSERT INTO ${t.associations}(sandbox_id,generation,job_id,relations) VALUES($1,$2,$3,$4::jsonb)`,
           [

@@ -5,7 +5,7 @@ import { Effect, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
-import * as Policy from "effect-jobs/JobPolicy"
+import * as Producer from "effect-jobs/JobProducer"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import * as Definitions from "../../src/scenarios/Definitions.js"
@@ -26,7 +26,7 @@ export const seed = (
         const definitions = yield* Definitions.Definitions
         const ref = yield* Schema.decodeUnknownEffect(SandboxRef)(input)
         const sql = yield* SqlClient
-        const backend = yield* PostgreSqlJobs
+        const jobs = yield* PostgreSqlJobs
         return yield* sql.withTransaction(
           Effect.gen(function* () {
             const payload: Definitions.SyntheticExportPayload = {
@@ -40,15 +40,16 @@ export const seed = (
               order: "demo-order-a",
               document: { subject: "demo-customer", tenant: "demo-tenant-a", note }
             }
-            const result = yield* definitions.SyntheticDocumentExport.enqueue({
-              producer: {
-                operation: "playground.correction-qualification",
-                operationId: crypto.randomUUID(),
-                slot: "document"
-              },
-              payload,
-              policy: Policy.make()
-            }).pipe(Effect.provideService(JobEnqueue, backend.producer))
+            const producer = yield* Producer.make(
+              "playground.correction-qualification"
+            ).pipe(
+              Producer.withSlot("document", definitions.SyntheticDocumentExport, {
+                queue: definitions.PrivateDataQueue
+              })
+            )
+            const result = yield* producer
+              .enqueue({ operationId: crypto.randomUUID(), slot: "document", payload })
+              .pipe(Effect.provideService(JobEnqueue, jobs.producer))
             yield* sql.unsafe(
               `INSERT INTO "${config.schema}".associations(sandbox_id,generation,job_id,relations) VALUES($1,$2,$3,$4::jsonb)`,
               [

@@ -5,29 +5,17 @@ import { join } from "node:path"
 import { performance } from "node:perf_hooks"
 import { setTimeout as delay } from "node:timers/promises"
 import pg from "pg"
-import {
-  Duration,
-  Effect,
-  Exit,
-  Layer,
-  ManagedRuntime,
-  Redacted,
-  References,
-  Schema
-} from "effect"
+import { Effect, Exit, Layer, ManagedRuntime, Redacted, References } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
-import * as Job from "../../../dist/Job.js"
-import * as Queue from "../../../dist/JobQueue.js"
-import * as Policy from "../../../dist/JobPolicy.js"
-import * as Worker from "../../../dist/JobWorker.js"
-import * as Consumer from "../../../dist/JobConsumer.js"
-import * as WorkerRuntime from "../../../dist/JobWorkerRuntime.js"
-import * as Registry from "../../../dist/JobRegistry.js"
-import * as Codec from "../../../dist/JobPayloadCodec.js"
-import * as Jobs from "../../../dist/postgresql/PostgreSqlJobs.js"
-import * as Native from "../../../dist/postgresql/PostgreSqlNative.js"
-import * as Tables from "../../../dist/postgresql/PostgreSqlSchema.js"
-import { PostgreSqlApplication } from "../../../dist/postgresql/PostgreSqlTransaction.js"
+import * as Policy from "effect-jobs/JobPolicy"
+import * as Worker from "effect-jobs/JobWorker"
+import * as ApiBuilder from "effect-jobs/JobApiBuilder"
+import * as Storage from "effect-jobs/JobStorage"
+import * as Definitions from "./Definitions.mjs"
+import * as Jobs from "effect-jobs/PostgreSqlJobs"
+import * as Native from "effect-jobs/PostgreSqlNative"
+import * as Tables from "effect-jobs/PostgreSqlSchema"
+import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
 import { Measurements, nextArrival, rates, healthChecks } from "./Support.mjs"
 
 const {
@@ -177,37 +165,19 @@ try {
     )
   )
   await run(jobs.ready)
-  const queues = Array.from({ length: options.queues }, (_, q) =>
-    Queue.make(`soak.q${q}`)
-  )
-  const definitions = queues.flatMap((queue) =>
-    Array.from({ length: options.kindsPerQueue }, (_, k) =>
-      Effect.runSync(
-        Job.make({
-          name: `soak.kind${k}`,
-          queue,
-          payload: Schema.Struct({ data: Schema.String })
-        })
-      )
-    )
-  )
-  const churnPolicy = Policy.make({
-    completedRetention: Duration.seconds(options.churnRetentionSeconds)
-  })
+  const setup = await run(Definitions.make(options))
+  const { queues, routes, group, catalog, producers, churnPolicy } = setup
   const enqueue = (
     sequence,
     policy,
     data = "x".repeat(options.payloadBytes),
     operation = "soak.load"
   ) => {
-    const index = sequence % definitions.length
+    const index = sequence % routes.length
     return jobs.withTransaction((tx) =>
-      definitions[index].enqueueInTransaction(tx, {
-        producer: {
-          operationId: String(sequence),
-          slot: "work",
-          operation
-        },
+      producers[operation][index].enqueueInTransaction(tx, {
+        operationId: String(sequence),
+        slot: "work",
         payload: { data },
         policy
       })
@@ -250,37 +220,27 @@ try {
         )
     ])
   )
-  const handlers = definitions.map((definition, index) =>
-    definition.handlerLayer(
-      ({ payload }) =>
-        Effect.sync(() => {
-          createHash("sha256").update(payload.data).digest()
-        }).pipe(Effect.andThen(Effect.sleep(index % 2 === 0 ? 5 : 15))),
-      Codec.decodeJobPayload
-    )
+  const handler = (index) => (input) =>
+    Effect.sync(() => {
+      createHash("sha256").update(input.payload.data).digest()
+    }).pipe(Effect.andThen(Effect.sleep(index % 2 === 0 ? 5 : 15)))
+  const handlers = ApiBuilder.group(catalog, group.name, (initial) =>
+    initial.handle("kind0", handler(0)).handle("kind1", handler(1))
   )
-  // Independent worker instances/registries, shared finite native pool. No separate-process claim.
+  // Independent catalog-backed worker instances share the same finite native pool.
+  // Queue concurrency is fixed once per worker, shared across its concurrent drains.
   for (let w = 0; w < options.workers; w++) {
     workerRuntimes.push(
       ManagedRuntime.make(
-        Worker.layer(store, {
-          catalog: definitions,
-          operationResponseBudgetMillis: 1000
-        }).pipe(Layer.provide(Layer.mergeAll(...handlers)), Layer.provide(Registry.layer))
+        Worker.layer(catalog, {
+          queues: queues.map((queue) => ({ queue, concurrency: options.concurrency }))
+        }).pipe(
+          Layer.provide(handlers),
+          Layer.provide(Storage.layer({ store, operationResponseBudgetMillis: 1000 }))
+        )
       )
     )
   }
-  const consumers = await Promise.all(
-    queues.map((queue) =>
-      run(
-        Consumer.make(queue, {
-          localConcurrency: options.concurrency,
-          claimLimitPerRun: 20,
-          recoveryLimitPerRun: 20
-        })
-      )
-    )
-  )
   const start = performance.now()
   const sample = async () => {
     const pending = (
@@ -366,14 +326,15 @@ try {
     )
   }
   for (const worker of workerRuntimes) {
-    for (const consumer of consumers) {
+    for (const queue of queues) {
       loops.push(
         guard(async () => {
           while (running) {
             const result = await worker.runPromise(
-              measured("drain", WorkerRuntime.drain(consumer)).pipe(
-                Effect.provideService(References.MinimumLogLevel, "None")
-              )
+              measured(
+                "drain",
+                Worker.drain(queue, { maxJobs: 20, recoveryLimit: 20 })
+              ).pipe(Effect.provideService(References.MinimumLogLevel, "None"))
             )
             if (result._tag !== "MoreWork") {
               await delay(20)

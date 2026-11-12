@@ -75,6 +75,7 @@ const fixture = Effect.gen(function* () {
     executeValuesUnprepared: () => Effect.die("Unexpected values")
   }
   const client = yield* SqlClient.make({
+    driver: "test",
     acquirer: Effect.succeed(connection),
     compiler: PgClient.makeCompiler(),
     spanAttributes: []
@@ -86,10 +87,11 @@ const fixture = Effect.gen(function* () {
       throw new Error("Unexpected JSON fragment")
     },
     listen: () => Effect.die("Unexpected LISTEN"),
-    notify: () => Effect.die("Unexpected NOTIFY")
+    notify: () => Effect.die("Unexpected NOTIFY"),
+    poolStats: Effect.die("Unexpected pool stats")
   } satisfies Pick<
     PgClient.PgClient,
-    PgClient.TypeId | "config" | "json" | "listen" | "notify"
+    PgClient.TypeId | "config" | "json" | "listen" | "notify" | "poolStats"
   >)
   const commands = yield* Authority.make("port_test", pg).pipe(
     Effect.provideService(SqlClient.SqlClient, client),
@@ -280,6 +282,7 @@ describe("command authority compiled query bridge", () => {
       }
       const makeClient = () =>
         SqlClient.make({
+          driver: "test",
           acquirer: Effect.succeed(connection),
           compiler: PgClient.makeCompiler(),
           spanAttributes: []
@@ -294,10 +297,11 @@ describe("command authority compiled query bridge", () => {
             throw new Error("Unexpected JSON fragment")
           },
           listen: () => Effect.die("Unexpected LISTEN"),
-          notify: () => Effect.die("Unexpected NOTIFY")
+          notify: () => Effect.die("Unexpected NOTIFY"),
+          poolStats: Effect.die("Unexpected pool stats")
         } satisfies Pick<
           PgClient.PgClient,
-          PgClient.TypeId | "config" | "json" | "listen" | "notify"
+          PgClient.TypeId | "config" | "json" | "listen" | "notify" | "poolStats"
         >
       )
       const make = Authority.make("command_authority", pg).pipe(

@@ -1,3 +1,4 @@
+import * as NativeTransaction from "../NativeTransaction.js"
 // The application supplies the exact PgClient's SqlClient service and native adapter.
 // @effect-diagnostics unstableApiUsage:off
 import { Cause, Effect, Layer, Option, Redacted, Schema } from "effect"
@@ -176,31 +177,28 @@ export const make = (schema: string, client: Pg.PgClient) =>
         )
       )
     const renew = (access: SandboxAccess) =>
-      sql
-        .withTransaction(
-          Effect.gen(function* () {
-            const row = yield* guard(
-              yield* locked(access.sandbox.ref.sandboxId),
-              access.sandbox.ref
+      NativeTransaction.withTransaction(
+        sql,
+        Effect.gen(function* () {
+          const row = yield* guard(
+            yield* locked(access.sandbox.ref.sandboxId),
+            access.sandbox.ref
+          )
+          yield* query(
+            `UPDATE ${t.sandboxes} SET viewer_until=LEAST(expires_at,$2::bigint+$3::bigint) WHERE sandbox_id=$1`,
+            [row.sandbox_id, row.db_now, viewerMillis]
+          )
+          if (row.demo_owned !== true) {
+            yield* traffic.ensure((yield* view(row, local)).ref, Number(row.db_now)).pipe(
+              Effect.catchTags({
+                PlaygroundError: (error) =>
+                  error.code === "limit-reached" ? Effect.void : Effect.fail(error)
+              })
             )
-            yield* query(
-              `UPDATE ${t.sandboxes} SET viewer_until=LEAST(expires_at,$2::bigint+$3::bigint) WHERE sandbox_id=$1`,
-              [row.sandbox_id, row.db_now, viewerMillis]
-            )
-            if (row.demo_owned !== true) {
-              yield* traffic
-                .ensure((yield* view(row, local)).ref, Number(row.db_now))
-                .pipe(
-                  Effect.catchTags({
-                    PlaygroundError: (error) =>
-                      error.code === "limit-reached" ? Effect.void : Effect.fail(error)
-                  })
-                )
-            }
-            return yield* view((yield* described(String(row.sandbox_id)))[0]!, local)
-          })
-        )
-        .pipe(publicEffect)
+          }
+          return yield* view((yield* described(String(row.sandbox_id)))[0]!, local)
+        })
+      ).pipe(publicEffect)
     const authority = SandboxAuthority.of({
       issue: () =>
         Effect.gen(function* () {
@@ -211,7 +209,8 @@ export const make = (schema: string, client: Pg.PgClient) =>
           )
           const hash = yield* digest(credential)
           const id = yield* Effect.sync(() => crypto.randomUUID())
-          return yield* sql.withTransaction(
+          return yield* NativeTransaction.withTransaction(
+            sql,
             Effect.gen(function* () {
               const rows = yield* query(
                 `INSERT INTO ${t.sandboxes}(sandbox_id,generation,expires_at,credential_hash,viewer_until,next_generation_at)
@@ -273,7 +272,8 @@ export const make = (schema: string, client: Pg.PgClient) =>
           }
           // Persist first admission separately. Receipt absence NEVER grants write replay.
           const fresh = yield* controls(
-            sql.withTransaction(
+            NativeTransaction.withTransaction(
+              sql,
               Effect.gen(function* () {
                 const admitted = yield* guard(yield* locked(request.sandbox.sandboxId))
                 if (admitted.demo_owned === true) {
@@ -314,7 +314,8 @@ export const make = (schema: string, client: Pg.PgClient) =>
             )
           )
           return yield* controls(
-            sql.withTransaction(
+            NativeTransaction.withTransaction(
+              sql,
               Effect.gen(function* () {
                 const row = yield* guard(yield* locked(request.sandbox.sandboxId))
                 if (
@@ -409,7 +410,8 @@ export const make = (schema: string, client: Pg.PgClient) =>
         }),
       lookup: (access, request, operation) =>
         controls(
-          sql.withTransaction(
+          NativeTransaction.withTransaction(
+            sql,
             Effect.gen(function* () {
               if (request.sandbox.sandboxId !== access.sandbox.ref.sandboxId) {
                 return yield* fail("not-found")

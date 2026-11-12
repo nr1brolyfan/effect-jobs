@@ -1,4 +1,4 @@
-// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this checked example.
+// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this checked example.
 // @effect-diagnostics unstableApiUsage:off
 import { Effect, Schema } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
@@ -53,12 +53,14 @@ export const placeOrderWithInvoice = (externalInput: unknown) =>
         }
 
         // Enqueue both independent consequences atomically with the order.
-        const confirmation = yield* PlaceOrderWithInvoice.enqueue("send-confirmation", {
+        const confirmation = yield* PlaceOrderWithInvoice.enqueue({
+          slot: "send-confirmation",
           operationId: input.operationId,
           payload: { orderId: input.orderId }
         })
 
-        const invoice = yield* PlaceOrderWithInvoice.enqueue("create-invoice", {
+        const invoice = yield* PlaceOrderWithInvoice.enqueue({
+          slot: "create-invoice",
           operationId: input.operationId,
           payload: { orderId: input.orderId }
         })

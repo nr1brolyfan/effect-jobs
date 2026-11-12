@@ -164,8 +164,8 @@ try {
     .map((line) => line.replaceAll("\u200b", "").replaceAll("\n", ""))
     .join("\n")
   assert(invoiceCode.includes("const emails = yield* TransactionalEmails\n\n"))
-  assert(invoiceCode.includes("\n\n        if (!invoice)"))
-  assert(invoiceCode.includes("}\n\n        yield* emails"))
+  assert.match(invoiceCode, /\n\n\s+if \(!invoice\)/)
+  assert.match(invoiceCode, /}\n\n\s+yield\* emails/)
   assert(!invoiceCode.includes("yield* Mail"))
   const publicText = await navigation.locator(".sl-markdown-content").innerText()
   assert.equal(await navigation.locator(".ej-code-stage").count(), 0)
@@ -179,9 +179,31 @@ try {
     0,
     "new contract is plain"
   )
-  const stages = JSON.parse(
+  // Keep the original golden inventory immutable. The contract-first migration
+  // has its own versioned inventory and retains exact historical source regions.
+  const originalStages = JSON.parse(
     readFileSync(join(root, "apps/website/tests/order-tutorial/CodeStages.json"), "utf8")
   )
+  const migration = JSON.parse(
+    readFileSync(
+      join(root, "apps/website/tests/order-tutorial/CodeStages.v2.json"),
+      "utf8"
+    )
+  )
+  const stages = migration.stages
+  assert.equal(stages.length, originalStages.length)
+  for (const [index, stage] of stages.entries()) {
+    const original = originalStages[index]
+    assert.equal(stage.sourcePath, original.sourcePath)
+    assert.equal(stage.beforeSourcePath, original.beforeSourcePath)
+    assert.equal(stage.role, original.role)
+    assert.equal(hash(stage.historicalBefore), original.beforeSha256)
+    assert.equal(hash(stage.historicalAfter), original.afterSha256)
+    assert.deepEqual(
+      addedLines(stage.historicalBefore, stage.historicalAfter),
+      original.added
+    )
+  }
   const canonical = (path: string, region?: string) =>
     extractRegion(
       readFileSync(join(root, "apps/website/examples/docs", path), "utf8"),
@@ -238,22 +260,19 @@ try {
     article.indexOf("detached in-process") < article.indexOf("export const OrdersQueue")
   )
   const createPanel = panels
-    .filter({ hasText: 'PlaceOrder.enqueue("send-confirmation"' })
+    .filter({ hasText: /PlaceOrder\.enqueue\(\{\s+slot: "send-confirmation"/ })
     .first()
   const createCode = await createPanel.innerText()
   assert(createCode.includes("invoiceRequested: false"))
-  assert(createCode.includes('PlaceOrder.enqueue("send-confirmation"'))
+  assert.match(createCode, /PlaceOrder\.enqueue\(\{\s+slot: "send-confirmation"/)
   assert(
     !/onConflictDoNothing|matchesSubmission|OrderConflict|\.select\(/.test(createCode)
   )
   assert(article.includes("duplicate rejection, not idempotent response replay"))
+  assert(initialContract.indexOf("JobQueue.make") < initialContract.indexOf("Job.make"))
   assert(
-    initialContract.indexOf("JobQueue.make") <
-      initialContract.indexOf("queue: OrdersQueue")
-  )
-  assert(
-    initialContract.indexOf("export const OrderPolicy") <
-      initialContract.indexOf("defaultPolicy: OrderPolicy")
+    initialContract.includes("export const OrderPolicy") &&
+      !initialContract.includes("defaultPolicy:")
   )
   assert(initialContract.includes('"effect-jobs/JobQueue"'))
   assert.equal(await contractPanel.locator("xpath=ancestor::details").count(), 0)
@@ -290,7 +309,7 @@ try {
       if (route === "start/tutorial") {
         const changed = page
           .locator(".expressive-code")
-          .filter({ hasText: 'PlaceOrder.enqueue("send-confirmation"' })
+          .filter({ hasText: /PlaceOrder\.enqueue\(\{\s+slot: "send-confirmation"/ })
           .first()
         await changed.screenshot({ path: join(output, title + "-diff.png") })
         assert.equal(

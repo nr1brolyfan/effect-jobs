@@ -1,5 +1,5 @@
 import { readQualificationResource } from "../Resource.mjs"
-// Native low-level SQL APIs are intentionally pinned to 4.0.5 by the consumer runner.
+// Native low-level SQL APIs are intentionally pinned to 4.1.0 by the consumer runner.
 // @effect-diagnostics unstableApiUsage:off
 import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
@@ -10,7 +10,6 @@ import type { Handle } from "./NativeApplication.mjs"
 import type { PostgreSqlError } from "effect-jobs/PostgreSqlTransaction"
 import type { EnqueueResult } from "effect-jobs/JobContract"
 import type { JobEnqueueError } from "effect-jobs/JobTransaction"
-type NativeDb = Effect.Success<ReturnType<typeof Drizzle.makeWithDefaults>>
 import { Cause, Context, Deferred, Effect, Exit, Fiber, Redacted, Schema } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import * as Drizzle from "drizzle-orm/effect-postgres"
@@ -26,9 +25,10 @@ import {
 import * as Job from "effect-jobs/Job"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Producer from "effect-jobs/JobProducer"
-import * as Policy from "effect-jobs/JobPolicy"
 import { encodeJobPayload } from "effect-jobs/JobPayloadCodec"
 import * as Application from "./NativeApplication.mjs"
+
+type NativeDb = Effect.Success<ReturnType<typeof Drizzle.makeWithDefaults>>
 
 const resource = process.env.D6_RESOURCE_DIRECTORY
 assert(resource, "private resource directory required")
@@ -61,21 +61,18 @@ const definition = Effect.runSync(
   Job.make({
     name: "invoice.generate",
     version: 1,
-    queue: Queue.make("billing"),
-    payload: Schema.Struct({ invoiceId: Schema.String }),
-    encodePayload: encodeJobPayload
+    payload: Schema.Struct({ invoiceId: Schema.String })
   })
 )
 const producer = Effect.runSync(
-  Producer.make({
-    operation: "billing.native",
-    slots: { generate: definition }
-  })
+  Producer.make("billing.native").pipe(
+    Producer.withSlot("generate", definition, { queue: Queue.make("billing") })
+  )
 )
 const input = (id: string, value = id) => ({
-  producer: Effect.runSync(producer.identity({ operationId: id, slot: "generate" })),
-  payload: { invoiceId: value },
-  policy: Policy.make()
+  operationId: id,
+  slot: "generate" as const,
+  payload: { invoiceId: value }
 })
 const config = {
   host: "127.0.0.1",
@@ -139,15 +136,15 @@ try {
           const client = yield* PgClient.PgClient
           const db = yield* Drizzle.makeWithDefaults()
           const application = Application.make(client)
-          const backend = yield* Jobs.make({
+          const jobs = yield* Jobs.make({
             ...mapping,
             operationResponseBudgetMillis: 100
           }).pipe(Effect.provideService(PostgreSqlApplication, application))
           const writes = (id: string, tx: NativeDb, handle: unknown) =>
-            backend.joinTransaction(handle, (jobsTx) =>
+            jobs.joinTransaction(handle, (jobsTx) =>
               Effect.gen(function* () {
                 yield* tx.insert(domain).values({ id })
-                const result = yield* definition.enqueueInTransaction(jobsTx, input(id))
+                const result = yield* producer.enqueueInTransaction(jobsTx, input(id))
                 yield* tx.insert(receipts).values({ id, jobId: result.jobId })
                 return result
               })
@@ -183,8 +180,8 @@ try {
           yield* check(
             "native duplicate equality and first stored bytes",
             Effect.gen(function* () {
-              const duplicate = yield* backend.withTransaction((tx) =>
-                definition.enqueueInTransaction(tx, input("commit"))
+              const duplicate = yield* jobs.withTransaction((tx) =>
+                producer.enqueueInTransaction(tx, input("commit"))
               )
               assert.equal(duplicate._tag, "AlreadyPresent")
               assert.deepEqual(yield* Effect.promise(() => count("commit")), all)
@@ -198,14 +195,16 @@ try {
                 application.sanitizeControls(
                   client.withTransaction(
                     application.register((handle) =>
-                      backend.joinTransaction(handle, (jobsTx) =>
+                      jobs.joinTransaction(handle, (jobsTx) =>
                         Effect.gen(function* () {
                           invocations++
                           yield* db.insert(domain).values({ id: "caught-conflict" })
-                          yield* definition
+                          yield* producer
                             .enqueueInTransaction(jobsTx, input("commit", "changed"))
                             .pipe(
-                              Effect.catchTag("JobIntegrityConflict", () => Effect.void)
+                              Effect.catchTags({
+                                JobIntegrityConflict: () => Effect.void
+                              })
                             )
                         })
                       )
@@ -232,7 +231,7 @@ try {
               const Caller = Context.Service<{ readonly value: string }>(
                 "drizzle-native/Caller"
               )
-              const result = yield* backend
+              const result = yield* jobs
                 .withTransaction(() =>
                   Effect.gen(function* () {
                     return (yield* Caller).value
@@ -383,9 +382,9 @@ try {
                 let escaped:
                   | Effect.Effect<EnqueueResult, JobEnqueueError | PostgreSqlError>
                   | undefined
-                const body = backend.withTransaction((tx) =>
+                const body = jobs.withTransaction((tx) =>
                   Effect.gen(function* () {
-                    escaped = definition.enqueueInTransaction(
+                    escaped = producer.enqueueInTransaction(
                       tx,
                       input(`escaped-${channel}`)
                     )
@@ -501,8 +500,8 @@ try {
     drizzle: JSON.parse(
       readFileSync(new URL("./package.json", import.meta.resolve("drizzle-orm")), "utf8")
     ).version,
-    nativeDriver: "@effect/sql-pg@4.0.5",
-    effect: "4.0.5",
+    nativeDriver: "@effect/sql-pg@4.1.0",
+    effect: "4.1.0",
     passed,
     stage,
     cleanup,

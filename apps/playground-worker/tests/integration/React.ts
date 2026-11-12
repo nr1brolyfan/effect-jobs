@@ -1,3 +1,4 @@
+import type axe from "axe-core"
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import assert from "node:assert/strict"
@@ -20,6 +21,7 @@ const { createLocal } = (await import(
 declare global {
   interface Window {
     qualificationSockets: WebSocket[]
+    axe: typeof axe
   }
 }
 const configurationPath = process.env.PLAYGROUND_PRIVATE_CONFIG

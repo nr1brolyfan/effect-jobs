@@ -3,7 +3,10 @@ import * as Job from "effect-jobs/Job"
 import * as JobQueue from "effect-jobs/JobQueue"
 import * as JobProducer from "effect-jobs/JobProducer"
 import * as JobPolicy from "effect-jobs/JobPolicy"
-import * as JobPayloadCodec from "effect-jobs/JobPayloadCodec"
+import * as JobRetryPolicy from "effect-jobs/JobRetryPolicy"
+import * as JobGroup from "effect-jobs/JobGroup"
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 import * as FailureCode from "effect-jobs/FailureCode"
 import { JobFailures, type JobFailure } from "effect-jobs/JobFailure"
 
@@ -25,28 +28,38 @@ export const ReportPayload = Schema.Struct({
 
 export const reportDefinitions = Effect.gen(function* () {
   const GenerateReport = yield* Job.make({
-    queue: ReportsQueue,
     name: "report.generate", // Work type used to select the installed handler.
     payload: ReportPayload // Omitted version is exactly 1.
   })
 
-  // The business operation that produces work, distinct from the job kind.
-  const RequestReport = yield* JobProducer.make({
-    operation: "report.request",
-    slots: { generate: GenerateReport } // Named consequence within each request; not a workflow edge.
-  })
+  // The business operation that produces work, distinct from the job name.
+  const RequestReport = yield* JobProducer.make("report.request").pipe(
+    JobProducer.withSlot("generate", GenerateReport, { queue: ReportsQueue })
+  )
 
   const DeliverReport = yield* Job.make({
-    queue: ReportsQueue,
     name: "report.deliver",
     payload: ReportPayload
   })
-  const GeneratedReport = yield* JobProducer.make({
-    operation: "report.generated",
-    slots: { deliver: DeliverReport }
-  })
+  const GeneratedReport = yield* JobProducer.make("report.generated").pipe(
+    JobProducer.withSlot("deliver", DeliverReport, { queue: ReportsQueue })
+  )
 
-  return { GenerateReport, RequestReport, DeliverReport, GeneratedReport }
+  const GenerateJobs = JobGroup.make("generate", { report: GenerateReport })
+  const DeliverJobs = JobGroup.make("deliver", { report: DeliverReport })
+  const ApplicationJobs = JobApi.make("reports").pipe(
+    JobApi.addGroup(GenerateJobs),
+    JobApi.addGroup(DeliverJobs)
+  )
+  return {
+    GenerateReport,
+    RequestReport,
+    DeliverReport,
+    GeneratedReport,
+    GenerateJobs,
+    DeliverJobs,
+    ApplicationJobs
+  }
 })
 export class ReportDefinitions extends Context.Service<
   ReportDefinitions,
@@ -55,8 +68,9 @@ export class ReportDefinitions extends Context.Service<
 export const ReportDefinitionsLayer = Layer.effect(ReportDefinitions, reportDefinitions)
 
 export const ReportPolicy = JobPolicy.make({
-  maxAttempts: 3, // Finalized attempts including the first (1–100); not all invocations.
-  retryDelay: Duration.seconds(5), // Fixed delay after Retry, not exponential backoff.
+  retry: JobRetryPolicy.fixed(Duration.seconds(5)).pipe(
+    JobRetryPolicy.maxFinalizedAttempts(3)
+  ),
   completedRetention: Duration.days(90), // From Completed; cleanup also respects app references.
   deadRetention: Duration.infinity // Keep Dead jobs until an explicit application decision.
 })
@@ -66,16 +80,17 @@ export const ReportPolicy = JobPolicy.make({
 export const enqueueReport = (operationId: string, payload: ReportPayload) =>
   Effect.gen(function* () {
     const { RequestReport } = yield* ReportDefinitions
-    return yield* RequestReport.enqueue("generate", {
+    return yield* RequestReport.enqueue({
+      slot: "generate",
       operationId,
       payload,
-      policy: ReportPolicy
+      policy: yield* ReportPolicy
     })
   })
 // Requires JobEnqueue and the configured client's active transaction.
 // operationId: exact opaque request ID, 1–256 UTF-8 bytes; reuse on safe business retries.
 // (operation, operationId, slot) locates retained dedup evidence. Matching catalog
-// (queue, kind, version) + semantic payload returns the first ID; changes conflict.
+// (name, version) + semantic payload returns the first ID; changes conflict.
 // A duplicate keeps its first policy. Deleting evidence ends this dedup window.
 // #endregion enqueue
 
@@ -123,20 +138,27 @@ export class ReportHandoff extends Context.Service<
 // #region handler
 export const ReportHandlerLayer = Layer.unwrap(
   Effect.map(ReportDefinitions, (definitions) =>
-    definitions.GenerateReport.handlerLayer(
-      Effect.fn("Reports.generate")(function* (input) {
-        const storage = yield* ReportStorage
-        const handoff = yield* ReportHandoff
-        // Stable artifact key + immutable report input make retrying this write safe.
-        // The application must prevent reuse of reportId for a different report.
-        yield* storage
-          .put(input.payload.reportId, renderReport(input.payload))
-          .pipe(
-            Effect.mapError(() => JobFailures.Retry({ code: Codes.storageUnavailable }))
-          )
-        yield* handoff.record(input.context.jobId, input.payload)
-      }),
-      JobPayloadCodec.decodeJobPayload
+    JobApiBuilder.group(
+      definitions.ApplicationJobs,
+      definitions.GenerateJobs.name,
+      (handlers) =>
+        handlers.handle(
+          "report",
+          Effect.fn("Reports.generate")(function* (input) {
+            const storage = yield* ReportStorage
+            const handoff = yield* ReportHandoff
+            // Stable artifact key + immutable report input make retrying this write safe.
+            // The application must prevent reuse of reportId for a different report.
+            yield* storage
+              .put(input.payload.reportId, renderReport(input.payload))
+              .pipe(
+                Effect.mapError(() =>
+                  JobFailures.Retry({ code: Codes.storageUnavailable })
+                )
+              )
+            yield* handoff.record(input.context.jobId, input.payload)
+          })
+        )
     )
   )
 )
@@ -170,19 +192,26 @@ export const DeliveryCodes = FailureCode.define({
 })
 export const DeliveryHandlerLayer = Layer.unwrap(
   Effect.map(ReportDefinitions, (definitions) =>
-    definitions.DeliverReport.handlerLayer(
-      Effect.fn("Reports.deliver")(function* (input) {
-        const delivery = yield* ReportDelivery
-        yield* delivery.send(input.payload).pipe(
-          Effect.catchTags({
-            DeliveryBusy: () =>
-              Effect.fail(JobFailures.Retry({ code: DeliveryCodes.busy })),
-            DeliveryUncertain: () =>
-              Effect.fail(JobFailures.OutcomeUnknown({ code: DeliveryCodes.uncertain }))
+    JobApiBuilder.group(
+      definitions.ApplicationJobs,
+      definitions.DeliverJobs.name,
+      (handlers) =>
+        handlers.handle(
+          "report",
+          Effect.fn("Reports.deliver")(function* (input) {
+            const delivery = yield* ReportDelivery
+            yield* delivery.send(input.payload).pipe(
+              Effect.catchTags({
+                DeliveryBusy: () =>
+                  Effect.fail(JobFailures.Retry({ code: DeliveryCodes.busy })),
+                DeliveryUncertain: () =>
+                  Effect.fail(
+                    JobFailures.OutcomeUnknown({ code: DeliveryCodes.uncertain })
+                  )
+              })
+            )
           })
         )
-      }),
-      JobPayloadCodec.decodeJobPayload
     )
   )
 )

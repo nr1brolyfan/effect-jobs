@@ -18,7 +18,7 @@ import {
   drainReports
 } from "../../examples/docs/PostgreSqlReports.js"
 import { ReportsLayer, requestReport } from "../../examples/docs/DrizzleReportRequest.js"
-// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this qualification.
+// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this qualification.
 // @effect-diagnostics unstableApiUsage:off
 
 // Only the disposable loopback container created by Qualify.mjs is connected here.
@@ -43,11 +43,11 @@ try {
         yield* client.unsafe(statement)
       }
       return yield* Effect.gen(function* () {
-        const { GenerateReport, RequestReport } = yield* ReportDefinitions
-        const backend = yield* PostgreSqlJobs
-        yield* backend.ready
+        const { RequestReport } = yield* ReportDefinitions
+        const jobs = yield* PostgreSqlJobs
+        yield* jobs.ready
         const missing = yield* enqueueReport("missing", payload).pipe(
-          Effect.provideService(JobEnqueue, backend.producer),
+          Effect.provideService(JobEnqueue, jobs.producer),
           Effect.exit
         )
         assert(Exit.isFailure(missing), "ambient enqueue must reject missing transaction")
@@ -55,7 +55,7 @@ try {
           Schema.decodeUnknownSync(Schema.Struct({ _tag: Schema.String }))(
             Cause.squash(missing.cause)
           )._tag,
-          "JobBackendError"
+          "JobPersistenceError"
         )
         assert.equal(
           Schema.decodeUnknownSync(Schema.Struct({ reason: Schema.String }))(
@@ -86,7 +86,7 @@ try {
               yield* enqueueReport("rollback-op", {
                 ...payload,
                 reportId: "rollback-report"
-              }).pipe(Effect.provideService(JobEnqueue, backend.producer))
+              }).pipe(Effect.provideService(JobEnqueue, jobs.producer))
               return yield* Effect.fail("application-rollback")
             })
           )
@@ -103,14 +103,12 @@ try {
         )
         const activeStandalone = yield* client
           .withTransaction(
-            GenerateReport.enqueueStandalone({
-              producer: yield* RequestReport.identity({
-                operationId: "standalone",
-                slot: "generate"
-              }),
+            RequestReport.enqueueStandalone({
+              operationId: "standalone",
+              slot: "generate",
               payload,
-              policy: ReportPolicy
-            }).pipe(Effect.provideService(JobEnqueue, backend.producer))
+              policy: yield* ReportPolicy
+            }).pipe(Effect.provideService(JobEnqueue, jobs.producer))
           )
           .pipe(Effect.exit)
         assert(

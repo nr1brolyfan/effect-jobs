@@ -24,7 +24,7 @@ export const cancel = (
         prepare: false,
         connectTimeout: "2 seconds"
       })
-      const backend = yield* Jobs.make({
+      const jobs = yield* Jobs.make({
         schema,
         operationResponseBudgetMillis: 500
       }).pipe(
@@ -39,7 +39,7 @@ export const cancel = (
       const transaction: Effect.Effect<JobOperatorTransition, DrizzleProbeFailure> = db
         .transaction(() =>
           Effect.gen(function* () {
-            const result = yield* backend.operators.cancel(expected)
+            const result = yield* jobs.operators.cancel(expected)
             yield* client.unsafe(
               `INSERT INTO "${schema}".drizzle_operator_receipts(job_id,xid) VALUES ($1,txid_current())`,
               [expected.jobId]

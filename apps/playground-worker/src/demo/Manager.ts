@@ -1,3 +1,4 @@
+import * as NativeTransaction from "../persistence/NativeTransaction.js"
 // App-owned demo metadata/retention only. Lifecycle changes go through effect-jobs.
 // @effect-diagnostics unstableApiUsage:off
 import { Duration, Effect, Schema } from "effect"
@@ -12,6 +13,7 @@ import * as Definitions from "../scenarios/Definitions.js"
 import { relations } from "../persistence/authority/Schema.js"
 import * as RepairSchema from "../persistence/commands/RepairSchema.js"
 import * as Traffic from "./Traffic.js"
+import * as Retry from "effect-jobs/JobRetryPolicy"
 
 export const limits = Object.freeze({
   rotationMillis: 86_400_000,
@@ -67,29 +69,29 @@ const seedBatch = (
 ) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
-    const backend = yield* PostgreSqlJobs
+    const jobs = yield* PostgreSqlJobs
     const ref = yield* Schema.decodeUnknownEffect(SandboxRef)({
       sandboxId: id,
       generation: 1
     })
-    const jobs = yield* Plan.plan(
+    const plannedJobs = yield* Plan.plan(
       { sandbox: ref, requestId, scenario: "success", count },
       ref,
       seed,
       availableAt
     )
-    for (const job of jobs) {
+    for (const job of plannedJobs) {
       const profile = profiles?.[job.payload.sequence - 1]
       const planned = {
         ...job,
         payload: { ...job.payload, behavior: profile?.behavior ?? behavior },
         availableAt: availableAt + (profile?.waitMillis ?? 0),
-        policy: JobPolicy.make({
-          retryDelay: Duration.millis(profile?.retryMillis ?? 60_000)
+        policy: yield* JobPolicy.make({
+          retry: Retry.fixed(Duration.millis(profile?.retryMillis ?? 60_000))
         })
       }
       const result = yield* Plan.enqueue(planned).pipe(
-        Effect.provideService(JobEnqueue, backend.producer)
+        Effect.provideService(JobEnqueue, jobs.producer)
       )
       yield* sql.unsafe(
         `INSERT INTO ${relations(schema).associations} VALUES($1,1,$2,$3::jsonb)`,
@@ -115,7 +117,8 @@ export const tick = (schema: string, rotationMillis: number = limits.rotationMil
     const t = relations(schema)
     const control = `"${schema}"."demo_control"`
     // Persisted control row serializes retries/restarts and makes seed/switch atomic.
-    return yield* sql.withTransaction(
+    return yield* NativeTransaction.withTransaction(
+      sql,
       Effect.gen(function* () {
         const [d] = yield* sql.unsafe<{
           current_id: string | null

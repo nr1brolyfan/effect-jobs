@@ -41,7 +41,7 @@ export const page = Schema.decodeUnknownSync(JobPage)(
         availableAt: 1_800_000_000_000,
         updatedAt: 1_800_000_001_000,
         completedAt: 1_800_000_001_000,
-        attemptsMade: 1,
+        finalizedAttempts: 1,
         stalledCount: 0,
         lifecycleVersion: 2,
         lastFailureCode: null
@@ -71,7 +71,7 @@ export const detail = Schema.decodeUnknownSync(JobDetail)(
       operationId: "demo-request-a",
       slot: "execute"
     },
-    policy: JobPolicy.make(),
+    policy: JobPolicy.defaultPolicy,
     relations: { syntheticOrderId: "demo-order-a", syntheticActor: "demo-customer" },
     observation: { source: "mock", observedAt: 1_800_000_001_000, outcome: "success" }
   },

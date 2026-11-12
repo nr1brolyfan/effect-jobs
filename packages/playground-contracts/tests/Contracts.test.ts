@@ -116,20 +116,17 @@ describe("frozen playground boundaries", () => {
         const first = yield* ScenarioDefinitions
         const second = yield* ScenarioDefinitions
         expect(second).toBe(first)
-        expect(first.ScenarioProducer.slots.execute).toBe(first.ScenarioJob)
+        expect(first.ScenarioProducer.slots.execute.job).toEqual(first.ScenarioJob)
+        expect(first.ScenarioProducer.slots.execute.job.payload).toBe(
+          first.ScenarioJob.payload
+        )
         return first
       }).pipe(Effect.provide(ScenarioDefinitionsLayer))
     )
-    expect(ScenarioJob.catalog).toEqual({
-      queue: "playground",
-      name: "playground.scenario",
-      version: 1
-    })
-    expect(
-      Effect.runSync(
-        ScenarioProducer.identity({ operationId: "demo-request", slot: "execute" })
-      ).operation
-    ).toBe("playground.scenario")
+    expect(ScenarioJob.name).toBe("playground.scenario")
+    expect(ScenarioJob.version).toBe(1)
+    expect(ScenarioProducer.operation).toBe("playground.scenario")
+    expect(ScenarioProducer.slots.execute.queue.name).toBe("playground")
   })
   it("shares one definitions graph across dependent Layers and isolates fresh executions", () => {
     type Definitions = Context.Service.Shape<typeof ScenarioDefinitions>
@@ -151,7 +148,8 @@ describe("frozen playground boundaries", () => {
     const graph = Effect.gen(function* () {
       const job = yield* JobView
       const producer = yield* ProducerView
-      expect(producer.slots.execute).toBe(job)
+      expect(producer.slots.execute.job).toEqual(job)
+      expect(producer.slots.execute.job.payload).toBe(job.payload)
       return { job, producer }
     }).pipe(Effect.provide(Layer.merge(JobViewLayer, ProducerViewLayer)))
     const first = Effect.runSync(graph)
@@ -198,9 +196,9 @@ describe("frozen playground boundaries", () => {
           yield* TestClock.setTime(1)
           return yield* Effect.flatMap(JobsRead, (read) => read.list(context, query))
         }).pipe(
-          Effect.catchTag("PlaygroundError", (error) =>
-            Effect.succeed(toPublicError(error))
-          )
+          Effect.catchTags({
+            PlaygroundError: (error) => Effect.succeed(toPublicError(error))
+          })
         )
       )
       expect(result).toEqual({ code })
@@ -215,9 +213,9 @@ describe("frozen playground boundaries", () => {
     })
     const result = await run(
       Effect.flatMap(Scenarios, (service) => service.run(access, command)).pipe(
-        Effect.catchTag("PlaygroundError", (error) =>
-          Effect.succeed(toPublicError(error))
-        )
+        Effect.catchTags({
+          PlaygroundError: (error) => Effect.succeed(toPublicError(error))
+        })
       )
     )
     expect(result).toEqual({ code: "capability-unavailable" })

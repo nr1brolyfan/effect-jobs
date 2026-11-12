@@ -71,7 +71,7 @@ const client: Client = {
         jobId:
           `demo-job-${String(index + 1).padStart(2, "0")}` as typeof Fixtures.detail.job.jobId,
         state: updated && index === 20 ? ("Completed" as const) : state,
-        attemptsMade: updated && index === 20 ? 1 : state === "Pending" ? 0 : 1,
+        finalizedAttempts: updated && index === 20 ? 1 : state === "Pending" ? 0 : 1,
         completedAt:
           state === "Completed" || state === "Dead" || (updated && index === 20)
             ? 1_700_000_001_000

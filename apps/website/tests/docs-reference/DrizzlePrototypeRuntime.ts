@@ -2,9 +2,9 @@ import assert from "node:assert/strict"
 import { Effect, Exit, Cause } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import * as Drizzle from "drizzle-orm/effect-postgres"
-import { JobBackendError } from "effect-jobs/JobEnqueue"
+import { JobPersistenceError } from "effect-jobs/JobEnqueue"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
-import { EnqueueResults } from "effect-jobs/JobContract"
+import { EnqueueResult } from "effect-jobs/JobContract"
 import { JobId } from "effect-jobs/JobId"
 import { Schema } from "effect"
 import {
@@ -13,7 +13,7 @@ import {
   readReceipt
 } from "../../examples/docs/DrizzleReportRequest.js"
 import { ReportDefinitionsLayer } from "../../examples/docs/ReportWorkflow.js"
-// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this qualification.
+// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this qualification.
 // @effect-diagnostics unstableApiUsage:off
 // Real Drizzle builders and canonical Effects with a recording SQL boundary.
 // This exercises query generation, parameters, order and error propagation, NOT PG atomicity.
@@ -27,7 +27,7 @@ for (const failureAt of [undefined, "request", "enqueue", "receipt", "commit"]) 
     parameters?: readonly unknown[] | undefined
   }> = []
   let active = false
-  const fail = new JobBackendError({
+  const fail = new JobPersistenceError({
     reason: "storage-failure",
     commitKnowledge: "Unknown"
   })
@@ -81,7 +81,7 @@ for (const failureAt of [undefined, "request", "enqueue", "receipt", "commit"]) 
               events.push({ phase: "enqueue" })
               return failureAt === "enqueue"
                 ? Effect.fail(fail)
-                : Effect.succeed(EnqueueResults.Inserted({ jobId }))
+                : Effect.succeed(EnqueueResult.Inserted({ jobId }))
             })
           ),
         enqueueStandalone: () => Effect.die("Standalone must never be called")

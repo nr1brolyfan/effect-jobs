@@ -1,8 +1,8 @@
 import { Cause, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
-import * as Job from "../../../src/Job.js"
+import * as Job from "../definitions/ProtocolJob.js"
 import * as Queue from "../../../src/JobQueue.js"
-import * as Registry from "../../../src/JobRegistry.js"
+import * as Registry from "../definitions/ProtocolRegistry.js"
 import * as Payload from "../../../src/JobPayload.js"
 import { JobPayloadCodecError } from "../../../src/JobContract.js"
 import { encodeJobPayload, decodeJobPayload } from "../../../src/JobPayloadCodec.js"
@@ -84,9 +84,9 @@ describe("schema-bound local encrypted fields", () => {
     const RegistryLayer = Registry.layer
     const HandlerLayer = definition
       .handlerLayer(
-        ({ payload }) =>
+        (input) =>
           Effect.sync(() => {
-            expect(payload.document.total).toBe(123n)
+            expect(input.payload.document.total).toBe(123n)
             calls++
           }),
         decodeJobPayload
@@ -99,7 +99,7 @@ describe("schema-bound local encrypted fields", () => {
           jobId: Schema.decodeSync(JobId)("job"),
           catalog: definition.catalog,
           producer: { operation: "billing.issue", operationId: "id", slot: "receipt" },
-          attemptNumber: 1
+          nextFinalizationNumber: 1
         })
       }).pipe(Effect.provide(Layer.merge(RegistryLayer, HandlerLayer)))
     )
@@ -158,7 +158,7 @@ describe("schema-bound local encrypted fields", () => {
         second: personal
       }),
       items: Schema.Array(item),
-      optional: Schema.optionalKey(EncryptedDocument)
+      optional: EncryptedDocument.pipe(Schema.optionalKey)
     })
     const input = {
       nested: { first: document, second: document },
@@ -178,7 +178,7 @@ describe("schema-bound local encrypted fields", () => {
     ).toEqual(input)
     const optional = await run(
       encodeJobPayload(
-        Schema.Struct({ optional: Schema.optionalKey(EncryptedDocument) }),
+        Schema.Struct({ optional: EncryptedDocument.pipe(Schema.optionalKey) }),
         { optional: document }
       )
     )
@@ -262,9 +262,9 @@ it("actual worker isolates invalid opened artifacts before the handler under exi
   const [{ harness }, Worker, Consumer, Runtime, { TestClock }, Policy] =
     await Promise.all([
       import("../worker/Harness.js"),
-      import("../../../src/JobWorker.js"),
-      import("../../../src/JobConsumer.js"),
-      import("../../../src/JobWorkerRuntime.js"),
+      import("../worker/ProtocolWorker.js"),
+      import("../definitions/ProtocolConsumer.js"),
+      import("../worker/ProtocolWorker.js"),
       import("effect/testing"),
       import("../../../src/JobPolicy.js")
     ])
@@ -331,7 +331,7 @@ it("actual worker isolates invalid opened artifacts before the handler under exi
     expect(store.rows[0]!.snapshot).toMatchObject({
       state: "Isolated",
       lastFailureCode: "invalid_claimed_artifact",
-      attemptsMade: 1
+      finalizedAttempts: 1
     })
     expect(store.calls.finalizations).toHaveLength(1)
   }

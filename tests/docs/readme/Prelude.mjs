@@ -15,10 +15,6 @@ export const names = [
   "policy",
   "encrypted",
   "private-handler",
-  "cloud-contracts",
-  "cloud-consumer",
-  "cloud-application",
-  "cloud-stack",
   "migration",
   "drizzle",
   "indexes"
@@ -26,16 +22,19 @@ export const names = [
 export const imports = `import "effect/Schema"
 import { Context, Duration, Effect, Layer, Match, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
+import * as JobGroup from "effect-jobs/JobGroup"
 import * as JobQueue from "effect-jobs/JobQueue"
 import * as JobProducer from "effect-jobs/JobProducer"
 import * as JobPolicy from "effect-jobs/JobPolicy"
+import * as Retry from "effect-jobs/JobRetryPolicy"
 import * as JobPayload from "effect-jobs/JobPayload"
 import * as Codec from "effect-jobs/JobPayloadCodec"
-import * as Consumer from "effect-jobs/JobConsumer"
-import * as Registry from "effect-jobs/JobRegistry"
 import * as Worker from "effect-jobs/JobWorker"
-import * as Runtime from "effect-jobs/JobWorkerRuntime"
-import * as Polling from "effect-jobs/PollingJobWorker"
+import * as JobStorage from "effect-jobs/JobStorage"
+import * as JobSchedule from "effect-jobs/JobSchedule"
+import * as Polling from "effect-jobs/JobPolling"
 import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
 import * as PostgreSqlNative from "effect-jobs/PostgreSqlNative"
 import * as PostgreSqlSchema from "effect-jobs/PostgreSqlSchema"
@@ -46,13 +45,15 @@ import { JobEnqueue } from "effect-jobs/JobEnqueue"
 const common = [
   "BillingQueue",
   "SendReceipt",
-  "GeneratePdf",
+  "BillingJobs",
+  "ApplicationJobs",
   "Definitions",
   "DefinitionsLayer",
-  "CapturedDefinitionsLayer"
+  "CapturedDefinitionsLayer",
+  "GeneratePdf"
 ]
 const fixtures = [
-  "jobsStorage",
+  "jobs",
   "ApplicationPostgresLayer",
   "invoices",
   "operationId",
@@ -67,32 +68,28 @@ const fixtures = [
   "InvoicePdfRenderer",
   "InvoicePdfRendererLayer",
   "receiptPolicy",
-  "billing",
   "WorkerLayer",
-  "tables"
+  "ReceiptHandler",
+  "issueInvoice",
+  "IssueInvoice",
+  "SendPrivateReceipt",
+  "tables",
+  "BillingWorkerLayer"
 ]
-// The fence itself is unchanged. Only the test host executes/captures setup below it.
+// Only complete fences are wrapped; code inside each fence remains byte-for-byte.
 export const wrap = (name, code) => {
   if (!names.includes(name)) {
     throw new Error(`Unknown fence ${name}`)
   }
   const defined = [...code.matchAll(/(?:const|class) (\w+)/g)].map((m) => m[1])
+  const shared = common.filter((binding) => !defined.includes(binding))
+  const app = fixtures.filter((binding) => !defined.includes(binding))
   let prefix = imports
-  if (name !== "contracts") {
-    const shared = common.filter((binding) => !defined.includes(binding))
-    if (shared.length) {
-      prefix += `import { ${shared.join(", ")} } from "./contracts.js"\n`
-    }
-    const app = fixtures.filter((binding) => !defined.includes(binding))
-    if (app.length) {
-      prefix += `import { ${app.join(", ")} } from "./Fixture.js"\n`
-    }
-    if (name !== "application") {
-      prefix += 'import { IssueInvoice, issueInvoice } from "./application.js"\n'
-    }
-    if (!["overview", "handler", "failures"].includes(name)) {
-      prefix += 'import { ReceiptHandler } from "./handler.js"\n'
-    }
+  if (shared.length && name !== "contracts") {
+    prefix += `import { ${shared.join(", ")} } from "./contracts.js"\n`
+  }
+  if (app.length && name !== "contracts") {
+    prefix += `import { ${app.join(", ")} } from "./Fixture.js"\n`
   }
   if (["drizzle", "indexes", "native"].includes(name)) {
     prefix +=
@@ -106,24 +103,6 @@ export const wrap = (name, code) => {
     prefix +=
       'import * as PgClient from "@effect/sql-pg/PgClient"\nimport * as NodeRuntime from "@effect/platform-node/NodeRuntime"\n'
   }
-  if (name === "private-handler") {
-    prefix += 'import { PrivateDefinitions } from "./encrypted.js"\n'
-  }
-  if (["cloud-consumer", "cloud-application", "cloud-stack"].includes(name)) {
-    prefix +=
-      'import * as Alchemy from "alchemy"\nimport * as Cloudflare from "alchemy/Cloudflare"\n'
-    if (name === "cloud-consumer") {
-      prefix +=
-        'import { CloudDefinitions, CloudDefinitionsProgram, BillingWorkerLayer } from "./cloud-contracts.js"\n'
-    }
-    if (name === "cloud-application") {
-      prefix +=
-        'import { CloudDefinitionsProgram } from "./cloud-contracts.js"\nimport { BillingConsumer } from "./cloud-consumer.js"\n'
-    }
-    if (name === "cloud-stack") {
-      prefix += 'import InvoiceApplication from "./cloud-application.js"\n'
-    }
-  }
   const generators = [
     "overview",
     "slots",
@@ -136,7 +115,7 @@ export const wrap = (name, code) => {
   ]
   if (generators.includes(name)) {
     const exports = {
-      overview: "{ SendReceipt, IssueInvoice, ReceiptHandler, jobsStorage }",
+      overview: "{ SendReceipt, IssueInvoice, ReceiptHandler, jobs }",
       slots: "IssueInvoiceWithPdf",
       "node-worker": "WorkerLayer",
       policy: "receiptPolicy",
@@ -149,23 +128,26 @@ export const wrap = (name, code) => {
       "})\n"
     )
   }
+  if (name === "failures") {
+    prefix += 'import { Codes } from "./codes.js"\n'
+  }
+  if (name === "private-handler") {
+    prefix += 'import { PrivateDefinitions } from "./encrypted.js"\n'
+  }
   const host = {
     contracts: `export const capturedDefinitions = Effect.runSync(DefinitionsProgram)
 export const CapturedDefinitionsLayer = Layer.succeed(Definitions, capturedDefinitions)
-export const { BillingQueue, SendReceipt } = capturedDefinitions
-export const GeneratePdf = Effect.runSync(Job.make({ queue: BillingQueue, name: "invoice.generate-pdf", payload: Schema.Struct({ invoiceId: Schema.String }) }))`,
+export const { BillingQueue, SendReceipt, BillingJobs, ApplicationJobs } = capturedDefinitions
+export const GeneratePdf = Effect.runSync(Job.make({ name: "invoice.generate-pdf", payload: Schema.Struct({ invoiceId: Schema.String }) }))`,
     application: `export const application = Effect.runSync(ApplicationProgram.pipe(Effect.provide(CapturedDefinitionsLayer)))
-export const { IssueInvoice, issueInvoice } = application
-export { InvoiceApplication, InvoiceApplicationLayer }`,
+export const { IssueInvoice, issueInvoice } = application`,
     encrypted: `export const capturedPrivateDefinitions = Effect.runSync(PrivateDefinitionsProgram.pipe(Effect.provide(CapturedDefinitionsLayer)))
 export const CapturedPrivateDefinitionsLayer = Layer.succeed(PrivateDefinitions, capturedPrivateDefinitions)
-export const { SendPrivateReceipt, PrivateReceiptProducer } = capturedPrivateDefinitions
-export { ReceiptDocument, PrivateDefinitions, PrivateDefinitionsLayer, requestPrivateReceipt }`,
-    "cloud-contracts": `export const capturedCloudDefinitions = Effect.runSync(CloudDefinitionsProgram.pipe(Effect.provide(CapturedDefinitionsLayer)))
-export const { GeneratePdf, CloudInvoiceProducer } = capturedCloudDefinitions
-export { CloudDefinitions, CloudDefinitionsProgram, PdfHandler, BillingWorkerLayer }`
+export { PrivateDefinitions, PrivateDefinitionsLayer, requestPrivateReceipt }`
   }
-  const exports = {
+  const exportBindings = {
+    contracts: null,
+
     handler: "ReceiptHandler",
     codes: "Codes",
     failures: "ReceiptHandler",
@@ -177,6 +159,6 @@ export { CloudDefinitions, CloudDefinitionsProgram, PdfHandler, BillingWorkerLay
     prefix +
     code +
     (host[name] ? `\n${host[name]}\n` : "") +
-    (exports[name] ? `\nexport { ${exports[name]} }\n` : "")
+    (exportBindings[name] ? `\nexport { ${exportBindings[name]} }\n` : "")
   )
 }

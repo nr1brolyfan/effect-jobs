@@ -13,15 +13,13 @@ export const ScenarioPayload = Schema.Struct({
 })
 export const ScenarioDefinitionsProgram = Effect.gen(function* () {
   const ScenarioJob = yield* Job.make({
-    queue,
     name: "playground.scenario",
     version: 1,
     payload: ScenarioPayload
   })
-  const ScenarioProducer = yield* JobProducer.make({
-    operation: "playground.scenario",
-    slots: { execute: ScenarioJob }
-  })
+  const ScenarioProducer = yield* JobProducer.make("playground.scenario").pipe(
+    JobProducer.withSlot("execute", ScenarioJob, { queue })
+  )
   return { ScenarioJob, ScenarioProducer }
 })
 

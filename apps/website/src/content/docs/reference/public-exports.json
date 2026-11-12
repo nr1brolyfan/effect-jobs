@@ -2,31 +2,31 @@
   {
     "subpath": "effect-jobs",
     "filename": "src/index.ts",
-    "sha256": "37e5fcd648c97b606d67fa87cfe9c862da528b20fd5db68a4572de7b1deca5da",
+    "sha256": "2a8b4e59a3b273899eb0cffc674bbc84907dd4e3515f59a1b3a4a05073efa3d1",
     "symbols": []
   },
   {
     "subpath": "effect-jobs/Job",
     "filename": "src/Job.ts",
-    "sha256": "9d5b4a287d7cc0595ba38692191b3aaadbc551d2cf56f1f5d5c1483bd7121a4c",
+    "sha256": "108d1cf511147ef68b79c5a570bdf85d1604a9d9871184e7f2e5a30b7e3e02b0",
     "symbols": [
       {
         "name": "InvalidJobDefinition",
         "kind": "value + type",
         "category": "errors",
-        "description": "Typed construction failure for invalid catalog identity, payload Schema or default policy."
+        "description": "Invalid static declaration; never contains payload values."
       },
       {
         "name": "JobDefinition",
         "kind": "type",
         "category": "models",
-        "description": "Immutable job declaration. Payload carries decoded data and its Schema service requirements."
+        "description": "Schema preserves decoded/encoded types and both service requirements.\nRouting and policy are selected during production, not by this contract."
       },
       {
         "name": "make",
         "kind": "value",
         "category": "constructors",
-        "description": "Creates a frozen definition lazily; invalid declarations fail with InvalidJobDefinition.\nEach execution snapshots configuration and creates an independently owned definition.\nOmitted version is exactly 1; the standard payload encoder is the default.\nAn explicit encoder overrides it. Enqueue requires the Schema's encoding\nservices; handler installation captures decoding and execution services."
+        "description": "Lazily declares a frozen contract with version 1 when omitted. Each execution\nsnapshots the configuration. Invalid declarations and unsupported Schemas fail\nwith InvalidJobDefinition, without acquiring encoding or decoding services.\nInstall complete handlers with JobGroup; produce through JobProducer slots."
       }
     ]
   },
@@ -58,38 +58,203 @@
   {
     "subpath": "effect-jobs/JobProducer",
     "filename": "src/JobProducer.ts",
-    "sha256": "b0466c437017bfa44d3a49ea782e919e0cd8712abd5cc812c4f780764b3a4f15",
+    "sha256": "816b4c348c53a6db6b4774c4540e0aefc10624b408439a61f5a9ce191fb92b1a",
     "symbols": [
       {
-        "name": "BoundEnqueueInput",
+        "name": "Binding",
         "kind": "type",
-        "category": "models",
-        "description": "Slot-specific input without the derived producer tuple."
+        "category": "contract",
+        "description": "One consequence's contract, closed routing declaration and resolved policy."
       },
       {
-        "name": "JobBinding",
+        "name": "Bindings",
         "kind": "type",
-        "category": "models",
-        "description": "A binding retains the payload Schema, default presence and ambient enqueue."
+        "category": "contract",
+        "description": "Named consequences; aliases are persisted producer slots."
+      },
+      {
+        "name": "Input",
+        "kind": "type",
+        "category": "contract",
+        "description": "Discriminated per-slot inputs preserve payload/routing correlation, including unions."
+      },
+      {
+        "name": "InvalidProducerBinding",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "Invalid static slot configuration; diagnostics expose only declaration names."
       },
       {
         "name": "JobProducer",
         "kind": "type",
-        "category": "models",
-        "description": "Immutable operation and slot-to-job bindings. identity is structural, not binding proof."
+        "category": "contract",
+        "description": "Immutable operation declaration and typed production methods; no transaction ownership on joined enqueue."
       },
       {
         "name": "make",
         "kind": "value",
-        "category": "constructors",
-        "description": "Lazily validates and snapshots nonempty slot bindings near the owning business operation.\nEach execution creates fresh immutable configuration and reports JobDeclarationError in E.\nBound enqueue selects the contract and joins the existing transaction; it never\nbegins, commits or replays one. identity remains useful for lower-level calls."
+        "category": "contract",
+        "description": "Starts an immutable producer declaration. Add consequences with withSlot;\nan empty declaration has no legal enqueue slot. Construction starts no work."
+      },
+      {
+        "name": "Routing",
+        "kind": "type",
+        "category": "contract",
+        "description": "Exactly one route declaration; selectable queues have no implicit default."
+      },
+      {
+        "name": "withSlot",
+        "kind": "value",
+        "category": "contract",
+        "description": "Adds one immutable binding, preserving prior slot types and Schema services.\nDuplicate names fail in the typed channel, never overwrite. Configuration is copied\nwhen the setup Effect executes; omitted policy resolves to defaultPolicy. Explicit choices and\nmatching-duplicate first-write-wins semantics are independent of assembly."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobGroup",
+    "filename": "src/JobGroup.ts",
+    "sha256": "a1cfd6df573bdcf0b4b1bf844a2c659562e1f68d998dca47cda7ed0926900508",
+    "symbols": [
+      {
+        "name": "BoundHandler",
+        "kind": "type",
+        "category": "contract",
+        "description": "Encoded invocation boundary used by installed handler services."
+      },
+      {
+        "name": "DecodingServices",
+        "kind": "type",
+        "category": "contract",
+        "description": "Schema decoding requirements of every contract in the group."
+      },
+      {
+        "name": "Definitions",
+        "kind": "type",
+        "category": "contract",
+        "description": "Named job contracts, independent of queue routing."
+      },
+      {
+        "name": "Handlers",
+        "kind": "type",
+        "category": "contract",
+        "description": "The group name and definitions participate in the worker's service requirement."
+      },
+      {
+        "name": "HandlerServices",
+        "kind": "type",
+        "category": "contract",
+        "description": "Union of implementation service requirements captured during installation."
+      },
+      {
+        "name": "HandlersFrom",
+        "kind": "type",
+        "category": "contract",
+        "description": "Complete decoded handler implementations inferred from the group contracts."
+      },
+      {
+        "name": "InstalledHandlers",
+        "kind": "type",
+        "category": "contract",
+        "description": "Decoding and execution dependencies are captured when the Layer is acquired."
+      },
+      {
+        "name": "InvalidJobGroup",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "Invalid static declaration; diagnostics expose aliases, never payload values."
+      },
+      {
+        "name": "JobGroup",
+        "kind": "type",
+        "category": "contract",
+        "description": "Immutable contract declaration with a distinct installation service identity."
+      },
+      {
+        "name": "JobGroupConfigurationError",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "Installation rejected incomplete handlers or an unsupported payload Schema."
+      },
+      {
+        "name": "make",
+        "kind": "value",
+        "category": "contract",
+        "description": "Declares a named group, preserving aliases and payload types. The name is a\ncompile-time service identity, not a durable job identity. Each construction\nallocates a distinct Context key, even for identical names and definitions.\nReuse the same group reference when installing handlers and building a worker."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobApi",
+    "filename": "src/JobApi.ts",
+    "sha256": "ed0ccd5c8dfa5f80e16522035a39a2f9dfa8e79b85f82e656abd76bbb3817088",
+    "symbols": [
+      {
+        "name": "addGroup",
+        "kind": "value",
+        "category": "contract",
+        "description": "Adds a group without mutating earlier or sibling catalogs."
+      },
+      {
+        "name": "Group",
+        "kind": "type",
+        "category": "contract",
+        "description": "Existential group view; concrete catalogs preserve each original group type."
+      },
+      {
+        "name": "Groups",
+        "kind": "type",
+        "category": "contract",
+        "description": "Groups keyed by their declaration names, independent of durable job identity."
+      },
+      {
+        "name": "HandlerServices",
+        "kind": "type",
+        "category": "contract",
+        "description": "Every declared group's exact installation requirement. Structural TS types\ncannot distinguish separate same-shaped declarations; runtime keys do."
+      },
+      {
+        "name": "InvalidJobApi",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "Invalid catalog assembly; diagnostics never include payloads."
+      },
+      {
+        "name": "JobApi",
+        "kind": "type",
+        "category": "contract",
+        "description": "A pipeable declaration; there is no acquisition, registry or finalize step."
+      },
+      {
+        "name": "make",
+        "kind": "value",
+        "category": "contract",
+        "description": "Starts an empty catalog. Workers require at least one runnable definition."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobApiBuilder",
+    "filename": "src/JobApiBuilder.ts",
+    "sha256": "08478918698c559e4eff606e826f8f5e6e6a10d1365d656ce3c17a05d895fa1a",
+    "symbols": [
+      {
+        "name": "group",
+        "kind": "value",
+        "category": "contract",
+        "description": "Acquires callback dependencies once per Layer acquisition; invocation services\nand Schema decoders use the existing per-job scoped installation runtime."
+      },
+      {
+        "name": "Handlers",
+        "kind": "type",
+        "category": "contract",
+        "description": "Immutable builder. A union alias cannot prove that every possible member ran."
       }
     ]
   },
   {
     "subpath": "effect-jobs/JobIdentity",
     "filename": "src/JobIdentity.ts",
-    "sha256": "0b1f8912183ac6298618ffc95e9adf0d21187dae2a3312438854f6cdb09225f8",
+    "sha256": "ec376d0ffad0ac31d07b7441eb8b85ec533f9e8f534da6e27968de6393aa9415",
     "symbols": [
       {
         "name": "CatalogIdentity",
@@ -167,27 +332,27 @@
         "name": "validateProducerDeclaration",
         "kind": "value",
         "category": "operations",
-        "description": "Validates operation and nonempty unique slots synchronously; throws\nJobDeclarationError. The lazy producer factory shares its pure classifier."
+        "description": "Validates operation and unique slots synchronously; throws\nJobDeclarationError. Empty slots are valid during immutable assembly."
       }
     ]
   },
   {
     "subpath": "effect-jobs/JobId",
     "filename": "src/JobId.ts",
-    "sha256": "0d7977d8519a1343fa2636d2c9ebac9a6f8c41926450bbf381adbce9ce18b55d",
+    "sha256": "c87865be817e34c56ff90b751872ae1830ba14fd99f8420c008df4b857c1d41f",
     "symbols": [
       {
         "name": "JobId",
         "kind": "value + type",
         "category": "models",
-        "description": "Decoded value of the JobId Schema.\nNonempty branded identifier generated by the backend on first insertion.\nApplications never supply job IDs to enqueue."
+        "description": "Decoded value of the JobId Schema.\nNonempty branded identifier generated by persistence on first insertion.\nApplications never supply job IDs to enqueue."
       }
     ]
   },
   {
     "subpath": "effect-jobs/JobContract",
     "filename": "src/JobContract.ts",
-    "sha256": "7c8ab757a50b83bcb3a51bf6dc41be6eb523fe88e67f110393f034ec027c29d9",
+    "sha256": "735a6d442e26307e903e8c149d4560278d48c392e4633001478c70122cc1a533",
     "symbols": [
       {
         "name": "EncodedJobPayload",
@@ -199,31 +364,19 @@
         "name": "EnqueueInput",
         "kind": "type",
         "category": "models",
-        "description": "Decoded enqueue options plus the explicit producer identity."
-      },
-      {
-        "name": "EnqueueOptions",
-        "kind": "type",
-        "category": "models",
-        "description": "Decoded payload, stable producer identity and resolved policy. No caller job ID.\nMatching duplicates retain the original policy and availability."
+        "description": "Decoded payload, stable producer identity and resolved policy. No caller job ID.\nMatching duplicates retain the original queue, policy and availability."
       },
       {
         "name": "EnqueueResult",
-        "kind": "type",
+        "kind": "value + type",
         "category": "models",
-        "description": "Inserted or AlreadyPresent with the durable job ID. Success inside a joined\ntransaction is provisional until the application owner commits."
-      },
-      {
-        "name": "EnqueueResults",
-        "kind": "value",
-        "category": "constructors",
-        "description": "Tagged constructors and matchers for enqueue results."
+        "description": "Inserted or AlreadyPresent with the durable job ID. Success inside a joined\ntransaction is provisional until the application owner commits.\nTagged constructors and matchers for enqueue results."
       },
       {
         "name": "HandlerContext",
         "kind": "type",
         "category": "models",
-        "description": "Handler metadata without SQL, lease tokens or finalization authority.\nattemptNumber is one-based and may repeat after unknown outcomes and recovery."
+        "description": "Handler metadata without SQL, lease tokens or finalization authority.\nnextFinalizationNumber is one-based and may repeat after unknown outcomes and recovery."
       },
       {
         "name": "HandlerInput",
@@ -241,7 +394,7 @@
         "name": "JobIntegrityConflict",
         "kind": "value + type",
         "category": "errors",
-        "description": "Same producer tuple with different catalog or semantic payload. Propagate the\nfailure to the transaction owner; do not commit partial domain writes."
+        "description": "Same producer tuple with different kind/version or semantic payload. Propagate the\nfailure to the transaction owner; do not commit partial domain writes."
       },
       {
         "name": "JobPayloadCodecError",
@@ -266,6 +419,12 @@
         "kind": "value",
         "category": "constants",
         "description": "Current canonical encoded payload/projection format discriminator."
+      },
+      {
+        "name": "JobPolicyIncompatible",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "New production cannot reserve its attempt timeout and this storage's response budget.\nMatching duplicates still retain their original policy. No payload data is exposed."
       },
       {
         "name": "maximumJobPayloadBytes",
@@ -301,57 +460,57 @@
         "name": "PreparedJob",
         "kind": "type",
         "category": "models",
-        "description": "Producer-to-backend artifact and first configuration; the backend assigns the ID."
+        "description": "Prepared production artifact and first configuration; persistence assigns the ID."
       }
     ]
   },
   {
     "subpath": "effect-jobs/JobEnqueue",
     "filename": "src/JobEnqueue.ts",
-    "sha256": "e9efe2c5cf6c4f83044e981428f2df530fbc653bd585e2e55c1fbb19e3d15318",
+    "sha256": "e42155ce47532efe4d449e319d8c4929b576fd5419fd0f33788730c16bd97955",
     "symbols": [
-      {
-        "name": "JobBackendError",
-        "kind": "value + type",
-        "category": "errors",
-        "description": "Safe backend failure preserving commit knowledge and transaction misuse.\nNo SQL, credentials, provider Causes or payloads are retained."
-      },
       {
         "name": "JobEnqueue",
         "kind": "value + type",
         "category": "services",
-        "description": "Configured application storage; provided by a qualified backend Layer."
+        "description": "Configured application storage; provided by a qualified persistence Layer."
       },
       {
         "name": "JobEnqueueService",
         "kind": "type",
         "category": "models",
-        "description": "Backend owns presence checks and the transaction; preparation preserves E/R.\nenqueue joins only an active configured transaction. Standalone owns the entire\nprepare/insert/commit operation and returns after commit acknowledgement."
+        "description": "The configured producer owns presence checks and the transaction; preparation preserves E/R.\nenqueue joins only an active configured transaction. Standalone owns the entire\nprepare/insert/commit operation and returns after commit acknowledgement."
+      },
+      {
+        "name": "JobPersistenceError",
+        "kind": "value + type",
+        "category": "errors",
+        "description": "Safe persistence failure preserving commit knowledge and transaction misuse.\nNo SQL, credentials, provider Causes or payloads are retained."
       }
     ]
   },
   {
     "subpath": "effect-jobs/JobTransaction",
     "filename": "src/JobTransaction.ts",
-    "sha256": "a1c5434c035de1fa76de067fc221edc1f7318e9fe94c940492fd4209d54f22e8",
+    "sha256": "7c856864fcc44fe45afcd267962fa339b8a24bddc0f406bea2924548b8092219",
     "symbols": [
       {
         "name": "JobEnqueueError",
         "kind": "type",
         "category": "models",
-        "description": "Core enqueue failures; backend errors remain in the caller's separate E channel."
+        "description": "Core enqueue failures; storage errors remain in the caller's separate E channel."
       },
       {
         "name": "JobsTransaction",
         "kind": "type",
         "category": "models",
-        "description": "Backend callback capability; never fabricate or retain it outside the callback.\nE and R preserve backend errors and requirements. No public constructor, SQL,\ncommit, rollback or replay authority; sequence operations on the same transaction."
+        "description": "Transaction callback capability; never fabricate or retain it outside the callback.\nE and R preserve storage errors and requirements. No public constructor, SQL,\ncommit, rollback or replay authority; sequence operations on the same transaction."
       },
       {
         "name": "JobsTransactionClosed",
         "kind": "value + type",
         "category": "errors",
-        "description": "Typed failure when enqueue runs after its backend callback has exited."
+        "description": "Typed failure when enqueue runs after its transaction callback has exited."
       },
       {
         "name": "JobTransactionsService",
@@ -420,7 +579,7 @@
   {
     "subpath": "effect-jobs/JobPolicy",
     "filename": "src/JobPolicy.ts",
-    "sha256": "fa63661f5c7d6c7f0f93537cc54e2717aafc923d5f5080f792d742e4e8617f47",
+    "sha256": "e418a6bded5a62c2e078df746bbfb9150aba1f198e66e5cdce253d85defa19ca",
     "symbols": [
       {
         "name": "defaultPolicy",
@@ -442,15 +601,21 @@
       },
       {
         "name": "JobPolicy",
-        "kind": "type",
+        "kind": "value + type",
         "category": "models",
-        "description": "Complete immutable policy resolved by make and validated by PersistedJobPolicy."
+        "description": "Complete immutable policy resolved by make; the attempt limit counts finalizations.\nValidates resolved in-memory policy without decoding its storage representation.\nRequires attemptTimeoutMillis < leaseDurationMillis."
       },
       {
         "name": "JobPolicyConfigurationError",
         "kind": "value + type",
         "category": "errors",
-        "description": "Thrown synchronously with the invalid option field and expected constraint."
+        "description": "Expected validation failure in make's typed error channel; supplied values are not echoed."
+      },
+      {
+        "name": "JobPolicyConfigurationField",
+        "kind": "type",
+        "category": "contract",
+        "description": "Exact option path reported for invalid public configuration."
       },
       {
         "name": "JobPolicyOptions",
@@ -468,7 +633,7 @@
         "name": "make",
         "kind": "value",
         "category": "constructors",
-        "description": "Resolves and freezes policy, throwing JobPolicyConfigurationError for invalid input.\nDefaults: 90s fixed lease, 30s attempt timeout, 5s retry delay, 3 finalized attempts,\n1 stalled recovery, 90d Completed retention and Forever Dead retention.\nTimeout must be strictly shorter than the lease. Unknown outcomes can repeat an\nattempt number; maxAttempts does not bound every handler invocation."
+        "description": "Lazily validates and freezes complete policy; expected errors stay in the Effect channel.\nDefaults: 90s fixed lease, 30s attempt timeout, 5s retry delay, 3 finalized attempts,\n1 stalled recovery, 90d Completed retention and Forever Dead retention.\nTimeout must be strictly shorter than the lease. Unknown outcomes can repeat a\nfinalization ordinal; maxFinalizedAttempts does not bound every handler invocation."
       },
       {
         "name": "maximumMillis",
@@ -480,7 +645,7 @@
         "name": "PersistedJobPolicy",
         "kind": "value",
         "category": "schemas",
-        "description": "Complete V1 policy Schema, requiring attemptTimeoutMillis < leaseDurationMillis.\nDecoding stored policy never applies current deployment defaults."
+        "description": "Storage codec: retained JSON maxAttempts maps to public maxFinalizedAttempts.\nEncode with this codec before persistence, never JSON.stringify a resolved policy.\nDecoding stored policy never applies current deployment defaults or changes limits."
       },
       {
         "name": "PositiveMillis",
@@ -491,9 +656,52 @@
     ]
   },
   {
+    "subpath": "effect-jobs/JobRetryPolicy",
+    "filename": "src/JobRetryPolicy.ts",
+    "sha256": "8962969a0ac720e21cfeb622aa85aab3997743ed9ec9a567f6861ef87b5ca55b",
+    "symbols": [
+      {
+        "name": "capped",
+        "kind": "value",
+        "category": "contract",
+        "description": "Cap the base delay before jitter, regardless of combinator order."
+      },
+      {
+        "name": "exponential",
+        "kind": "value",
+        "category": "contract",
+        "description": "Exponential delay, factor 2 by default; first retry uses the supplied base."
+      },
+      {
+        "name": "fixed",
+        "kind": "value",
+        "category": "contract",
+        "description": "Fixed delay; defaults to at most three finalized attempts."
+      },
+      {
+        "name": "jittered",
+        "kind": "value",
+        "category": "contract",
+        "description": "Integer jitter in 80–120% of nominal delay, with the range bounded by the hard cap."
+      },
+      {
+        "name": "JobRetryPolicy",
+        "kind": "type",
+        "category": "contract",
+        "description": "A reusable unvalidated description; Policy.make supplies the typed validation boundary."
+      },
+      {
+        "name": "maxFinalizedAttempts",
+        "kind": "value",
+        "category": "contract",
+        "description": "Maximum finalized attempts including the first, 1–100; 1 disables retries."
+      }
+    ]
+  },
+  {
     "subpath": "effect-jobs/JobFailure",
     "filename": "src/JobFailure.ts",
-    "sha256": "4d1ff31e61743dc47d6c472d344670a3ce2fbb7ab023023318ff62fa3e90bc6f",
+    "sha256": "278bf77f677ef97e638a0ec99ea1c8daf9ba21e55c5290df3b90492b440f53f5",
     "symbols": [
       {
         "name": "FailureCode",
@@ -553,113 +761,82 @@
     ]
   },
   {
-    "subpath": "effect-jobs/JobRegistry",
-    "filename": "src/JobRegistry.ts",
-    "sha256": "60653d575bdf6746e4d902d82383fc194eec028b03ea93c4e52833d10804a471",
+    "subpath": "effect-jobs/JobStorage",
+    "filename": "src/JobStorage.ts",
+    "sha256": "82a845c133e8425d1a96c54a514cc55d153387679f841021f8cc72580305d9d7",
     "symbols": [
       {
-        "name": "catalog",
-        "kind": "value",
-        "category": "operations",
-        "description": "Validates unique queue/name/version tuples and freezes a copy, retaining entry types.\nFails with DuplicateJobCatalogEntry; creates no global catalog or workers."
-      },
-      {
-        "name": "CatalogEntry",
-        "kind": "type",
-        "category": "models",
-        "description": "Catalog identity accepted by worker configuration; job definitions satisfy this port."
-      },
-      {
-        "name": "DuplicateJobCatalogEntry",
+        "name": "JobStorage",
         "kind": "value + type",
-        "category": "errors",
-        "description": "Typed catalog validation failure for a repeated queue/name/version."
+        "category": "contract",
+        "description": "Application-selected storage, independent of SQL peers and handler groups."
       },
       {
-        "name": "DuplicateJobHandler",
+        "name": "JobStorageConfigurationError",
         "kind": "value + type",
-        "category": "errors",
-        "description": "Typed installation failure for an already registered queue/name/version."
+        "category": "contract",
+        "description": "Invalid storage configuration; no provider or payload values are retained."
       },
       {
-        "name": "JobHandler",
+        "name": "JobStorageService",
         "kind": "type",
-        "category": "models",
-        "description": "Registered artifact decoder and handler; application services are captured at installation."
+        "category": "contract",
+        "description": "Captured execution port and its one positive finite response reserve."
       },
       {
-        "name": "JobRegistry",
+        "name": "JobStorageUnavailable",
         "kind": "value + type",
-        "category": "models",
-        "description": "Context service required by definition handler Layers and worker construction."
-      },
-      {
-        "name": "JobRegistryService",
-        "kind": "type",
-        "category": "models",
-        "description": "Application-local handler installation and exact catalog lookup."
+        "category": "contract",
+        "description": "Safe infrastructure failure. Does not prove that a dispatched write rolled back."
       },
       {
         "name": "layer",
         "kind": "value",
-        "category": "layers",
-        "description": "Builds a fresh registry per Layer acquisition. Reuse the same Layer reference for\nworkers and handler installation so they share one registry; starts no fibers."
-      }
-    ]
-  },
-  {
-    "subpath": "effect-jobs/JobConsumer",
-    "filename": "src/JobConsumer.ts",
-    "sha256": "4a7a96d077f2ef1ebd7d09845e258e86884adab76ec044fd531a2307d34a4894",
-    "symbols": [
-      {
-        "name": "DuplicateJobConsumer",
-        "kind": "value + type",
-        "category": "errors",
-        "description": "Typed plan failure when multiple consumers name the same logical queue."
-      },
-      {
-        "name": "InvalidJobConsumer",
-        "kind": "value + type",
-        "category": "errors",
-        "description": "Typed configuration failure for invalid bounds or excess option keys."
-      },
-      {
-        "name": "JobConsumer",
-        "kind": "type",
-        "category": "models",
-        "description": "Per-run limits and local concurrency for one logical queue; not a running worker."
-      },
-      {
-        "name": "JobPlan",
-        "kind": "type",
-        "category": "models",
-        "description": "Explicit consumer list for scoped polling; one consumer per logical queue."
+        "category": "contract",
+        "description": "Provides captured storage; source requirements remain visible on the Layer."
       },
       {
         "name": "make",
         "kind": "value",
-        "category": "constructors",
-        "description": "Validates localConcurrency (1–64) and claim/recovery limits (1–10,000).\nReturns an Effect failing with InvalidJobConsumer; starts no work."
+        "category": "contract",
+        "description": "Captures provider requirements once and snapshots the budget. Typed provider\nfailures cross a safe infrastructure boundary; library protocol/admission errors,\ndefects, interruptions and explicit Unknown results retain their semantics.\nOwn the source's lifetime outside this service; no borrowing, readiness, DDL,\npolling, cleanup or pool shutdown occurs here. This is not an atomicity proof."
       },
       {
-        "name": "plan",
-        "kind": "value",
-        "category": "operations",
-        "description": "Copies and freezes the consumer list, preserving tuple types. Duplicate queue names\nfail with DuplicateJobConsumer when the Effect runs; starts no work."
+        "name": "Options",
+        "kind": "type",
+        "category": "contract",
+        "description": "Adapter input. The qualified store must use this same budget for admission."
       }
     ]
   },
   {
     "subpath": "effect-jobs/JobWorker",
     "filename": "src/JobWorker.ts",
-    "sha256": "87e01787221ac255bd3d7b16e69a0042d67ae1e8e6a9c041a91bb39c24210328",
+    "sha256": "3a7c697ec7d0cde3c8b19c82d681d6bc3399f57c961c72f15f93018ccbb2cfe9",
     "symbols": [
+      {
+        "name": "drain",
+        "kind": "value",
+        "category": "contract",
+        "description": "Runs bounded recovery and claims with concurrency fixed at worker construction.\nIdle observes an empty claim; MoreWork reaches the run limit; Backoff requests\ndelayed retry after storage uncertainty. None promises exactly-once effects."
+      },
+      {
+        "name": "DrainLimits",
+        "kind": "type",
+        "category": "contract",
+        "description": "Public integration contract; see the exported declaration."
+      },
+      {
+        "name": "DrainResult",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "Public integration contract; see the exported declaration."
+      },
       {
         "name": "JobWorker",
         "kind": "value + type",
-        "category": "models",
-        "description": "Context service required by JobWorkerRuntime.drain and scoped polling."
+        "category": "contract",
+        "description": "Application-composed worker service; construction starts no execution."
       },
       {
         "name": "JobWorkerConfigurationError",
@@ -674,16 +851,10 @@
         "description": "Public integration contract; see the exported declaration."
       },
       {
-        "name": "JobWorkerOptions",
-        "kind": "type",
-        "category": "models",
-        "description": "Nonempty unique supported catalog and positive response budget matching the store."
-      },
-      {
         "name": "JobWorkerService",
         "kind": "type",
-        "category": "models",
-        "description": "Sealed runtime service used by drain and polling; no public manual dispatch capability."
+        "category": "contract",
+        "description": "Sealed execution capability captured by bounded drain and scoped polling."
       },
       {
         "name": "JobWorkerUnavailable",
@@ -694,65 +865,125 @@
       {
         "name": "layer",
         "kind": "value",
-        "category": "layers",
-        "description": "Produces JobWorker, requiring JobRegistry and the store's R services.\nConstruction validates configuration but starts no drain, polling, migration or pool."
+        "category": "contract",
+        "description": "Construction is inert; drain and polling have explicit application-owned lifetimes."
       },
       {
         "name": "make",
         "kind": "value",
-        "category": "constructors",
-        "description": "Captures JobRegistry and store requirements R and validates catalog/budget.\nFails with JobWorkerConfigurationError; creates no running worker or pool.\nEvery catalog entry needs an installed handler before drain or polling is ready."
-      }
-    ]
-  },
-  {
-    "subpath": "effect-jobs/JobWorkerRuntime",
-    "filename": "src/JobWorkerRuntime.ts",
-    "sha256": "8d8274439962ae5d9a482a8179e64672f1272f46d01015faccac6f08a4405650",
-    "symbols": [
-      {
-        "name": "drain",
-        "kind": "value",
-        "category": "operations",
-        "description": "Runs bounded recovery and claims, acquiring local permits before claiming.\nRequires JobWorker; waits for scoped executions and shares per-queue permits\nacross concurrent drains of that worker. Idle means an empty claim was observed;\nMoreWork means the claim limit was reached; Backoff requests delayed retry after\nclaim/recovery/reconciliation uncertainty. None promises exactly-once effects."
+        "category": "contract",
+        "description": "Captures a complete handler group and configures queue concurrency before use."
       },
       {
-        "name": "DrainResult",
+        "name": "Options",
         "kind": "type",
         "category": "contract",
         "description": "Public integration contract; see the exported declaration."
       },
       {
-        "name": "DrainResults",
-        "kind": "value",
+        "name": "QueueOptions",
+        "kind": "type",
         "category": "contract",
         "description": "Public integration contract; see the exported declaration."
       }
     ]
   },
   {
-    "subpath": "effect-jobs/PollingJobWorker",
-    "filename": "src/PollingJobWorker.ts",
-    "sha256": "6a3ec97d87fc928498dc7f31807c1f291b031c5f031c17272fe5d0e74e2e8d1d",
+    "subpath": "effect-jobs/JobPolling",
+    "filename": "src/JobPolling.ts",
+    "sha256": "3ea6ffe61a334046816c13c6dcb443552992dbf95bc3f38efdb1759aab0f0d7a",
     "symbols": [
       {
-        "name": "layerForPlan",
+        "name": "layer",
         "kind": "value",
         "category": "layers",
-        "description": "Starts one scoped loop per consumer when the Layer is built, requiring JobWorker.\nValidates the whole plan before forking; Scope closure interrupts the loops.\nBuild only in the application-owned lifetime; importing or constructing starts no work."
+        "description": "Starts one scoped loop per queue when the Layer is built, requiring JobWorker.\nValidates all queues before forking. Scope closure first interrupts admission\nloops, including permit waits, recovery and in-flight claims. Already-started\nexecutions retain their scopes and can finalize during one shared grace period.\nAfter grace expiry remaining executions are interrupted, never released as safe\nunexecuted work. Unknown effects remain subject to lease recovery.\nSource acquisition/control/release and handler finalizers must be finitely bounded\nand interruption-cooperative; a grace timer cannot hard-kill arbitrary native or\nuninterruptible user code. One-shot drain interruption remains immediate.\nBuild only in the application-owned lifetime; importing or constructing starts no work."
       },
       {
-        "name": "PollingJobWorkerOptions",
+        "name": "Options",
         "kind": "type",
         "category": "models",
-        "description": "Polling configuration; idlePollMillis defaults to 1,000 positive integer\nmilliseconds. Idle/backoff sleeps include jitter."
+        "description": "Polling configuration; idlePollMillis defaults to 1,000 positive integer\nmilliseconds. Idle/backoff sleeps include jitter. shutdownGraceMillis defaults\nto 30,000; integer 0–300,000, with zero requesting immediate interruption."
+      }
+    ]
+  },
+  {
+    "subpath": "effect-jobs/JobSchedule",
+    "filename": "src/JobSchedule.ts",
+    "sha256": "55596377bafd8ce983aa055e940756e81974cf8c6f59da299d49ff0a3b972ab8",
+    "symbols": [
+      {
+        "name": "JobSchedule",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "Application-selected observation source, provided separately from execution storage."
+      },
+      {
+        "name": "JobScheduleProtocolError",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "Invalid observation request or malformed storage metadata; never includes row values."
+      },
+      {
+        "name": "JobScheduleService",
+        "kind": "type",
+        "category": "contract",
+        "description": "Captured safe observation service; independent of handler installation and workers."
+      },
+      {
+        "name": "JobScheduleUnavailable",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "Safe source failure; no provider diagnostics or database parameters are retained."
+      },
+      {
+        "name": "layer",
+        "kind": "value",
+        "category": "contract",
+        "description": "Provide an explicit observation source. No polling, alarms or migrations are installed."
+      },
+      {
+        "name": "make",
+        "kind": "value",
+        "category": "contract",
+        "description": "Capture source requirements without performing reads or owning its resource lifetime."
+      },
+      {
+        "name": "Observation",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "The earliest supported availability in a bounded queue head and earliest active lease.\nNull availability with saturated=true is inconclusive, not an empty queue.\nSubtract observedAt from timestamps for delays; never treat process time as DB time.\nRuntime observation contract. Past timestamps are due; no lifecycle state is changed."
+      },
+      {
+        "name": "observe",
+        "kind": "value",
+        "category": "contract",
+        "description": "Observe the selected group's contracts in one queue, without requiring handlers.\nRecovery is queue-scoped, including expired leases for other contracts, just like drain.\nHints can become stale immediately after reading. Keep a finite repair wakeup even\nwhen timestamps are null; saturated samples especially cannot establish emptiness.\nThe application owns authorization, activation expiry and exclusive alarm ownership."
+      },
+      {
+        "name": "Options",
+        "kind": "type",
+        "category": "contract",
+        "description": "Per-observation metadata sample size; defaults to 100, maximum 500."
+      },
+      {
+        "name": "Reader",
+        "kind": "type",
+        "category": "contract",
+        "description": "Qualified read-only source. Validate requests before queries, snapshot their selection,\nreturn only bounded metadata from one authoritative-clock observation, and never lock,\nclaim, recover or modify jobs. Source acquisition/query/release must be finitely bounded.\nSaturation reports an incomplete pending/retry sample, not an exact queue count."
+      },
+      {
+        "name": "Request",
+        "kind": "type",
+        "category": "contract",
+        "description": "One queue and at most 500 supported contracts; limit is an integer in 1–500."
       }
     ]
   },
   {
     "subpath": "effect-jobs/JobLifecycle",
     "filename": "src/JobLifecycle.ts",
-    "sha256": "ba03805c8091709e8db0655340473f9822ba2bad1a49a4c30685f6a818f1add0",
+    "sha256": "aa930fa2516853393f9987bde1c51845e07ab0b4d9333286c43d5ba4749a084e",
     "symbols": [
       {
         "name": "addTimestamp",
@@ -761,16 +992,10 @@
         "description": "Adds positive bounded milliseconds without overflow/clamping. Adapters supply\none DB-time snapshot for the entire atomic transition; reads no process clock."
       },
       {
-        "name": "attemptNumber",
-        "kind": "value",
-        "category": "operations",
-        "description": "One-based attemptsMade + 1; may repeat after unknown outcomes and recovery.\nNot an invocation count or external idempotency key."
-      },
-      {
         "name": "BatchLimit",
         "kind": "value",
         "category": "schemas",
-        "description": "Bounded backend recovery/cleanup batch Schema: integer 1–500."
+        "description": "Bounded storage recovery/cleanup batch Schema: integer 1–500."
       },
       {
         "name": "cancel",
@@ -782,13 +1007,13 @@
         "name": "claim",
         "kind": "value",
         "category": "operations",
-        "description": "Plans a due Pending/RetryScheduled claim (availableAt <= dbNow) with a fixed lease.\nDoes not increment attempts; the backend must lock/CAS and commit atomically."
+        "description": "Plans a due Pending/RetryScheduled claim (availableAt <= dbNow) with a fixed lease.\nDoes not increment attempts; storage must lock/CAS and commit atomically."
       },
       {
         "name": "cleanupEligible",
         "kind": "value",
         "category": "operations",
-        "description": "Pure terminal-retention eligibility at expiry <= dbNow. Pending, Active,\nRetryScheduled, Isolated and Cancelled are excluded. Application/backend must coordinate\ndomain references and deletion atomically; this result is not deletion authority."
+        "description": "Pure terminal-retention eligibility at expiry <= dbNow. Pending, Active,\nRetryScheduled, Isolated and Cancelled are excluded. Application/persistence must coordinate\ndomain references and deletion atomically; this result is not deletion authority."
       },
       {
         "name": "Counter",
@@ -806,7 +1031,7 @@
         "name": "finalize",
         "kind": "value",
         "category": "operations",
-        "description": "Plans one fenced Complete/Retry/Dead/Isolate transition and increments attempts once.\nUses first stored fixed delay; next availability >= notAfter or exhausted attempts\nbecomes Dead. notAfter limits retry scheduling, not handler execution."
+        "description": "Plans one fenced Complete/Retry/Dead/Isolate transition and increments attempts once.\nUses the first stored retry policy; next availability >= retryBefore or exhausted attempts\nbecomes Dead. retryBefore limits retry scheduling, not handler execution."
       },
       {
         "name": "isOwned",
@@ -857,6 +1082,12 @@
         "description": "Bounded lease token Schema: 1–128 hexadecimal/hyphen characters."
       },
       {
+        "name": "nextFinalizationNumber",
+        "kind": "value",
+        "category": "operations",
+        "description": "One-based finalizedAttempts + 1; may repeat after unknown outcomes and recovery.\nNot an invocation count or external idempotency key."
+      },
+      {
         "name": "ownershipOf",
         "kind": "value",
         "category": "operations",
@@ -866,13 +1097,13 @@
         "name": "recoverExpired",
         "kind": "value",
         "category": "operations",
-        "description": "Plans recovery at leaseExpiresAt <= dbNow. Increments stalls, not attempts;\nexceeding maxStalledCount makes the job Dead. Backend owns bounded atomic recovery."
+        "description": "Plans recovery at leaseExpiresAt <= dbNow. Increments stalls, not attempts;\nexceeding maxStalledCount makes the job Dead. Persistence owns bounded atomic recovery."
       },
       {
         "name": "release",
         "kind": "value",
         "category": "operations",
-        "description": "Plans release only before execution and while the exact lease remains owned.\nClears ownership without incrementing attempts; backend commits the plan atomically."
+        "description": "Plans release only before execution and while the exact lease remains owned.\nClears ownership without incrementing attempts; storage commits the plan atomically."
       },
       {
         "name": "retryNow",
@@ -897,7 +1128,7 @@
   {
     "subpath": "effect-jobs/JobStore",
     "filename": "src/JobStore.ts",
-    "sha256": "22ecf57515b8ad78a07ea5dcc4a9f9220ef3a1856d7bf87ce16fefda44bf61d5",
+    "sha256": "89711279ee48aeb24fab1212fb88e4f163932942a177f169e1b67e4d7f0130b6",
     "symbols": [
       {
         "name": "ClaimedJob",
@@ -907,15 +1138,9 @@
       },
       {
         "name": "ClaimReconciliation",
-        "kind": "type",
+        "kind": "value + type",
         "category": "models",
-        "description": "Read-only original-token result: usable Owned, InsufficientLease, NotOwned or Unknown."
-      },
-      {
-        "name": "ClaimReconciliations",
-        "kind": "value",
-        "category": "constructors",
-        "description": "Tagged constructors and matchers for claim reconciliation."
+        "description": "Read-only original-token result: usable Owned, InsufficientLease, NotOwned or Unknown.\nTagged constructors and matchers for claim reconciliation."
       },
       {
         "name": "ClaimRequest",
@@ -925,27 +1150,15 @@
       },
       {
         "name": "ClaimResult",
-        "kind": "type",
+        "kind": "value + type",
         "category": "models",
-        "description": "Claimed, observed Empty or uncertain Unknown; reconcile Unknown by its original\ncaller token before further dispatch."
-      },
-      {
-        "name": "ClaimResults",
-        "kind": "value",
-        "category": "constructors",
-        "description": "Tagged constructors and matchers for claim results."
+        "description": "Claimed, observed Empty or uncertain Unknown; reconcile Unknown by its original\ncaller token before further dispatch.\nTagged constructors and matchers for claim results."
       },
       {
         "name": "FinalizationReconciliation",
-        "kind": "type",
+        "kind": "value + type",
         "category": "models",
-        "description": "Read-only exact-transition result; StillOwned permits only bounded identical\nfinalization retry, never immediate handler replay."
-      },
-      {
-        "name": "FinalizationReconciliations",
-        "kind": "value",
-        "category": "constructors",
-        "description": "Tagged constructors and matchers for finalization reconciliation."
+        "description": "Read-only exact-transition result; StillOwned permits only bounded identical\nfinalization retry, never immediate handler replay.\nTagged constructors and matchers for finalization reconciliation."
       },
       {
         "name": "FinalizationRequest",
@@ -955,15 +1168,9 @@
       },
       {
         "name": "FinalizationResult",
-        "kind": "type",
+        "kind": "value + type",
         "category": "models",
-        "description": "Applied or Unknown write result; response loss does not prove rollback."
-      },
-      {
-        "name": "FinalizationResults",
-        "kind": "value",
-        "category": "constructors",
-        "description": "Tagged constructors and matchers for finalization results."
+        "description": "Applied or Unknown write result; response loss does not prove rollback.\nTagged constructors and matchers for finalization results."
       },
       {
         "name": "JobCleanupService",
@@ -987,7 +1194,7 @@
         "name": "JobStoreService",
         "kind": "type",
         "category": "contract",
-        "description": "Explicit configured port, not a backend constructor or atomicity proof.\nE/R preserve provider failure and connection requirements. Unknown dispatched writes\nMUST be returned as Unknown (including response loss); typed failures cannot imply rollback.\nNever replay mutations automatically. Lock/CAS the exact state/token/version using one\nDB-time snapshot, fixed non-renewable leases and bounded validated arithmetic.\nClaim atomically selects at most one due supported row and its immutable payload;\nits lease must reserve stored timeout plus configured positive operation-response budget.\nReconciliation reads once by the ORIGINAL caller token, never by an unrelated new claim.\nAll transitions preserve first policy, identities and artifact bytes; no lease renewal."
+        "description": "Explicit configured port, not a persistence constructor or atomicity proof.\nE/R preserve provider failure and connection requirements. Unknown dispatched writes\nMUST be returned as Unknown (including response loss); typed failures cannot imply rollback.\nNever replay mutations automatically. Lock/CAS the exact state/token/version using one\nDB-time snapshot, fixed non-renewable leases and bounded validated arithmetic.\nClaim atomically selects at most one due supported row and its immutable payload;\nits lease must reserve stored timeout plus configured positive operation-response budget.\nReconciliation reads once by the ORIGINAL caller token, never by an unrelated new claim.\nAll transitions preserve first policy, identities and artifact bytes; no lease renewal."
       },
       {
         "name": "validateClaimRequest",
@@ -1000,7 +1207,7 @@
   {
     "subpath": "effect-jobs/JobOperators",
     "filename": "src/JobOperators.ts",
-    "sha256": "ed666fbb52121a3916d923762da4428baf34ad122caa0b209267cec5fb218abd",
+    "sha256": "32cce7d6123377ba3602a2908c5858b9bc1f678fc32d44c3b35bf86151ce109b",
     "symbols": [
       {
         "name": "JobCorrectedRedriveRequest",
@@ -1067,14 +1274,8 @@
   {
     "subpath": "effect-jobs/PostgreSqlJobs",
     "filename": "src/postgresql/PostgreSqlJobs.ts",
-    "sha256": "aa46c4e76350a1ff298896313e7cf12c01f95434a83d91d1dfca0b4620d0d3c0",
+    "sha256": "791329a84b8298adf3afa9bec269c7cee7d9f01886213af9d68a6b02e0c1e87f",
     "symbols": [
-      {
-        "name": "Backend",
-        "kind": "type",
-        "category": "models",
-        "description": "Configured persistence and callback bridge. Readiness, workers and cleanup are\nexplicit; migrations and pool lifetime remain application-owned."
-      },
       {
         "name": "layerNoDeps",
         "kind": "value",
@@ -1085,19 +1286,25 @@
         "name": "make",
         "kind": "value",
         "category": "constructors",
-        "description": "Captures PostgreSqlApplication and validates mapping/budget. Fails with\nPostgreSqlConfigurationError; performs no borrowing, readiness SQL, DDL,\nworker startup or pool shutdown. Invoke backend.ready explicitly before use."
+        "description": "Captures PostgreSqlApplication and validates mapping/budget. Fails with\nPostgreSqlConfigurationError; performs no borrowing, readiness SQL, DDL,\nworker startup or pool shutdown. Invoke jobs.ready explicitly before use."
       },
       {
         "name": "Options",
         "kind": "type",
         "category": "models",
-        "description": "Storage mapping and positive operation response budget; match the worker budget."
+        "description": "Storage mapping and its single positive operation response budget."
       },
       {
         "name": "PostgreSqlJobs",
         "kind": "value + type",
         "category": "services",
         "description": "Context service produced by make or layerNoDeps; construction starts no SQL."
+      },
+      {
+        "name": "Service",
+        "kind": "type",
+        "category": "models",
+        "description": "Configured persistence and callback bridge. Readiness, workers and cleanup are\nexplicit; migrations and pool lifetime remain application-owned."
       }
     ]
   },
@@ -1147,7 +1354,7 @@
   {
     "subpath": "effect-jobs/PostgreSqlNative",
     "filename": "src/postgresql/PostgreSqlNative.ts",
-    "sha256": "c4074d3e7824ebbb6224d61a141dbef789e154f9376da3fdb678d64f9921d7aa",
+    "sha256": "4d880ff2fbb9bd1c7e3004d38544473bcb46c412a9d22e82028f5d64412ef28e",
     "symbols": [
       {
         "name": "layer",
@@ -1165,15 +1372,21 @@
         "name": "Options",
         "kind": "type",
         "category": "models",
-        "description": "Only native PgClient@4.0.5 is qualified. Pass the exact application-owned client\nused by Effect-native Drizzle@1.0.0-rc.5-169397b. Other SQL drivers/clients require\nseparate qualification; structural type compatibility is not a driver guarantee."
+        "description": "Only native PgClient@4.1.0 is qualified. Pass the exact application-owned client\nused by Effect-native Drizzle@1.0.0-rc.5. Other SQL drivers/clients require\nseparate qualification; structural type compatibility is not a driver guarantee."
       }
     ]
   },
   {
     "subpath": "effect-jobs/PostgreSqlSchema",
     "filename": "src/postgresql/PostgreSqlSchema.ts",
-    "sha256": "503db56dc69908d12a3c1d08eb06fd606786d6187a92b8c1a0c7f59238acc185",
+    "sha256": "118564e669752dfae538d9cd0abe06e747ad587c9e850a8e578b5ccc7417f67d",
     "symbols": [
+      {
+        "name": "creationTimeMigration",
+        "kind": "value",
+        "category": "operations",
+        "description": "Adds truthful creation metadata without inventing times for existing rows.\nApplications run this once in their own migration transaction. Runtime never\nmigrates; readiness requires this nullable bigint column before use."
+      },
       {
         "name": "indexPrefix",
         "kind": "value",
@@ -1190,7 +1403,7 @@
         "name": "migration",
         "kind": "value",
         "category": "operations",
-        "description": "Returns DDL for the configured jobs and immutable payload tables and indexes.\nThe application creates the schema and runs migrations; runtime never invokes DDL.\nUse the same mapping for backend construction."
+        "description": "Returns DDL for the configured jobs and immutable payload tables and indexes.\nThe application creates the schema and runs migrations; runtime never invokes DDL.\nUse the same mapping for jobs construction."
       },
       {
         "name": "operatorMigration",
@@ -1202,7 +1415,7 @@
         "name": "PostgreSqlConfigurationError",
         "kind": "value + type",
         "category": "errors",
-        "description": "Thrown for invalid table configuration or returned for invalid backend budget."
+        "description": "Thrown for invalid table configuration or returned for invalid storage budget."
       },
       {
         "name": "relations",
@@ -1226,14 +1439,14 @@
         "name": "Tables",
         "kind": "type",
         "category": "models",
-        "description": "Complete storage mapping shared by backend and application migration generation."
+        "description": "Complete storage mapping shared by runtime configuration and application migration generation."
       }
     ]
   },
   {
     "subpath": "effect-jobs/PostgreSqlDrizzleSchema",
     "filename": "src/postgresql/PostgreSqlDrizzleSchema.ts",
-    "sha256": "b7018316dc479f0c2df889255e0c573f48dc453a1c4357db3cd878cae5885812",
+    "sha256": "9b06a00c09ecee0689520f77eb7089a362e60e33cc5f51aea63c3013b06a1467",
     "symbols": [
       {
         "name": "JobsIndexColumns",
@@ -1245,7 +1458,7 @@
         "name": "makeJobTables",
         "kind": "value",
         "category": "constructors",
-        "description": "Creates fixed-column Drizzle declarations for the configured namespace/table names.\nRequires optional drizzle-orm@1.0.0-rc.5-169397b. Applications generate/run migrations;\nthese declarations neither open a connection nor qualify a transaction adapter.\nFull upstream strict declaration checking remains an alpha limitation."
+        "description": "Creates fixed-column Drizzle declarations for the configured namespace/table names.\nRequires optional drizzle-orm@1.0.0-rc.5. Applications generate/run migrations;\nthese declarations neither open a connection nor qualify a transaction adapter.\nDependency qualification scope is documented in specs/drizzle-compatibility.md."
       },
       {
         "name": "Options",

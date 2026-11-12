@@ -20,7 +20,7 @@ Start with a database and migration runner your application already owns.
 3. Pass the **same mapping** to `PostgreSqlJobs.layerNoDeps` or
    `PostgreSqlJobs.make`. Set a positive `operationResponseBudgetMillis` matching
    the worker's response budget.
-4. Explicitly run `backend.ready` before admitting work. It checks required
+4. Explicitly run `jobs.ready` before admitting work. It checks required
    columns, keys, cascade and valid indexes; it never repairs the schema.
 
 The application migration example generates SQL without opening a connection.
@@ -78,7 +78,7 @@ reset storage. Fresh `migration(mapping)` includes the current layout.
 
 ## Plan retention with receipts
 
-Cleanup is explicit and bounded. The generic backend exposes `cleanup`; it does
+Cleanup is explicit and bounded. The generic jobs service exposes `cleanup`; it does
 not automatically install or run maintenance. Completed and Dead jobs are eligible
 only under their persisted retention policy. Pending, RetryScheduled, Active,
 Isolated and Cancelled jobs are not generic cleanup candidates.
@@ -90,6 +90,6 @@ keys. Running generic deletion alongside it can bypass those protections.
 Removing durable identity evidence ends the corresponding
 [deduplication window](/docs/persistence/deduplication/).
 
-The [complete examples](/docs/reference/examples/) keep migration, backend and
+The [complete examples](/docs/reference/examples/) keep migration, jobs and
 worker sources together; [PostgreSQL API reference](/docs/reference/postgresql/)
 lists the public constructors and service requirements.

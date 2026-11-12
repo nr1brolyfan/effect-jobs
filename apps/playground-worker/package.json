@@ -4,15 +4,15 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "effect": "4.0.5",
+    "effect": "4.1.0",
     "effect-jobs": "file:../..",
     "@effect-jobs/playground-contracts": "workspace:*",
-    "@effect/sql-pg": "4.0.5",
-    "alchemy": "2.0.0-beta.84",
-    "@alchemy.run/cloudflare": "2.0.0-beta.84",
-    "@alchemy.run/cloudflare-runtime": "2.0.0-beta.84",
-    "@alchemy.run/domain": "2.0.0-beta.84",
-    "drizzle-orm": "1.0.0-rc.5-ab785fc"
+    "@effect/sql-pg": "4.1.0",
+    "alchemy": "2.0.0-beta.85",
+    "@alchemy.run/cloudflare": "2.0.0-beta.85",
+    "@alchemy.run/cloudflare-runtime": "2.0.0-beta.85",
+    "@alchemy.run/domain": "2.0.0-beta.85",
+    "drizzle-orm": "1.0.0-rc.5"
   },
   "scripts": {
     "check": "tsc -p tsconfig.json",
@@ -30,7 +30,8 @@
     "@cloudflare/workers-types": "5.20261110.1",
     "@types/bun": "1.4.3",
     "@types/ws": "8.18.1",
-    "@effect/platform-bun": "4.0.5",
-    "ws": "8.22.0"
+    "@effect/platform-bun": "4.1.0",
+    "ws": "8.22.0",
+    "@alchemy.run/test": "2.0.0-beta.85"
   }
 }

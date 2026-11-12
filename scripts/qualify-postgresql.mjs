@@ -40,7 +40,7 @@ assert(
 const entries = run("tar", ["-tzf", archive]).trim().split("\n")
 assert(
   entries.every((entry) =>
-    /^package\/(dist\/|specs\/|package.json$|README.md$|CHANGELOG.md$|LICENSE$)/.test(
+    /^package\/(dist\/|specs\/|docs\/observability(?:-checklist)?\.md$|package.json$|README.md$|CHANGELOG.md$|LICENSE$)/.test(
       entry
     )
   )
@@ -55,11 +55,11 @@ writeFileSync(
   JSON.stringify({
     private: true,
     type: "module",
-    dependencies: { "effect-jobs": `file:${archive}`, effect: "4.0.5" }
+    dependencies: { "effect-jobs": `file:${archive}`, effect: "4.1.0" }
   })
 )
 run("bun", ["install", "--ignore-scripts"])
-// No optional peers installed: core and non-Drizzle backend imports must stay inert.
+// No optional peers installed: core and non-Drizzle jobs imports must stay inert.
 writeFileSync(
   join(directory, "imports.mjs"),
   `
@@ -70,7 +70,7 @@ for (const peer of ["pg", "drizzle-orm"]) assert.throws(() => require.resolve(pe
 for (const subpath of ${JSON.stringify(Object.keys(manifest.exports).filter((key) => key !== "./PostgreSqlDrizzleSchema"))}) {
   await import(subpath === "." ? "effect-jobs" : "effect-jobs/" + subpath.slice(2))
 }
-console.log("all core/non-Drizzle public imports PASS without backend peers")
+console.log("all core/non-Drizzle public imports PASS without SQL peers")
 `
 )
 run("node", ["imports.mjs"])
@@ -91,7 +91,7 @@ run("bun", [
 for (const pathName of [
   "tests/qualification/Resource.mjs",
   "tests/qualification/Resource.d.mts",
-  "tests/postgresql/Backend.test.ts",
+  "tests/postgresql/Jobs.test.ts",
   "tests/core/codec/PayloadCodec.test.ts",
   "tests/postgresql/Adapter.ts",
   "tests/qualification/d6-pg/ApplicationTransactions.ts",
@@ -118,7 +118,7 @@ symlinkSync(
 writeFileSync(
   join(directory, "vitest.config.ts"),
   `import { defineConfig } from "vitest/config"
-export default defineConfig({ test: { include: ["tests/postgresql/Backend.test.ts", "tests/core/codec/PayloadCodec.test.ts"] } })\n`
+export default defineConfig({ test: { include: ["tests/postgresql/Jobs.test.ts", "tests/core/codec/PayloadCodec.test.ts"] } })\n`
 )
 writeFileSync(
   join(directory, "types.ts"),
@@ -129,7 +129,7 @@ import * as Tables from "effect-jobs/PostgreSqlSchema"
 import { PostgreSqlApplication, type ApplicationAdapter } from "effect-jobs/PostgreSqlTransaction"
 declare const adapter: ApplicationAdapter
 const mapping = Tables.tables({ schema: "installed", jobsTable: "tasks", payloadsTable: "artifacts" })
-const program: Effect.Effect<Jobs.Backend, Tables.PostgreSqlConfigurationError> = Jobs.make({ ...mapping, operationResponseBudgetMillis: 100 }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
+const program: Effect.Effect<Jobs.Service, Tables.PostgreSqlConfigurationError> = Jobs.make({ ...mapping, operationResponseBudgetMillis: 100 }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
 const layer = Jobs.layerNoDeps({ ...mapping, operationResponseBudgetMillis: 100 }).pipe(Layer.provide(Layer.succeed(PostgreSqlApplication, adapter)))
 void program; void layer
 `
@@ -153,7 +153,7 @@ writeFileSync(
 run("node", ["node_modules/typescript/bin/tsc", "-p", "tsconfig.json"])
 // Match the repository's Drizzle consumer setting. This does not qualify
 // upstream Drizzle declarations with skipLibCheck:false. Keep strict full
-// declaration checking above for the non-Drizzle backend.
+// declaration checking above for the non-Drizzle PostgreSQL entrypoints.
 writeFileSync(
   join(directory, "drizzle-types.ts"),
   `

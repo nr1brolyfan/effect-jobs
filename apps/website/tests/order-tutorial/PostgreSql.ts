@@ -4,7 +4,8 @@ import { Effect, Exit, Cause, Schema } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import { eq } from "drizzle-orm"
 import { pgTable, text, integer } from "drizzle-orm/pg-core"
-import { JobBackendError } from "effect-jobs/JobEnqueue"
+import * as Producer from "effect-jobs/JobProducer"
+import { JobPersistenceError } from "effect-jobs/JobEnqueue"
 import {
   ApplicationLayer,
   Database
@@ -40,7 +41,7 @@ import {
 import * as Scenarios from "../../examples/docs/orders/apps/api/src/orders/SubmissionScenarios.js"
 import { matchesSubmission } from "../../examples/docs/orders/apps/api/src/orders/OrderSubmission.js"
 import { ApiDefinitions } from "../../examples/docs/orders/apps/api/src/orders/Definitions.js"
-// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this qualification.
+// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this qualification.
 // @effect-diagnostics unstableApiUsage:off
 // Disposable owned PG only. Executes the exact compiled canonical application.
 
@@ -139,7 +140,7 @@ await Effect.runPromise(
     }
     yield* Effect.gen(function* () {
       const { PlaceOrder } = yield* ApiDefinitions
-      const { SendOrderConfirmation, SendInvoice } = yield* OrderJobs
+      const { SendInvoice } = yield* OrderJobs
       const db = yield* Database
       const counts = Effect.gen(function* () {
         return yield* Effect.forEach(
@@ -202,17 +203,19 @@ await Effect.runPromise(
       )
       assert.deepEqual(yield* counts, [1, 1, 1, 1, 0, 1, 5])
       // Independent job semantic payload/catalog conflict under the SAME tuple.
-      const identity = yield* PlaceOrder.identity({
-        operationId: input.operationId,
-        slot: "send-confirmation"
-      })
+      const conflictingProducer = yield* Producer.make(PlaceOrder.operation).pipe(
+        Producer.withSlot("send-confirmation", SendInvoice, {
+          queue: PlaceOrder.slots["send-confirmation"].queue
+        })
+      )
       failure(
         yield* pg
           .withTransaction(
-            SendOrderConfirmation.enqueue({
-              producer: identity,
+            PlaceOrder.enqueue({
+              slot: "send-confirmation",
+              operationId: input.operationId,
               payload: { orderId: "changed" },
-              policy: OrderPolicy
+              policy: yield* OrderPolicy
             })
           )
           .pipe(Effect.exit),
@@ -221,10 +224,11 @@ await Effect.runPromise(
       failure(
         yield* pg
           .withTransaction(
-            SendInvoice.enqueue({
-              producer: identity,
+            conflictingProducer.enqueue({
+              slot: "send-confirmation",
+              operationId: input.operationId,
               payload: { invoiceId: input.orderId },
-              policy: OrderPolicy
+              policy: yield* OrderPolicy
             })
           )
           .pipe(Effect.exit),
@@ -232,15 +236,13 @@ await Effect.runPromise(
       )
       // Enqueue outside ambient owner fails without business or job writes.
       failure(
-        yield* SendOrderConfirmation.enqueue({
-          producer: yield* PlaceOrder.identity({
-            operationId: "missing-owner",
-            slot: "send-confirmation"
-          }),
+        yield* PlaceOrder.enqueue({
+          slot: "send-confirmation",
+          operationId: "missing-owner",
           payload: { orderId: "missing" },
-          policy: OrderPolicy
+          policy: yield* OrderPolicy
         }).pipe(Effect.exit),
-        "JobBackendError"
+        "JobPersistenceError"
       )
       // Last-write rejection must roll back ALL business/job/payload writes.
       yield* pg.unsafe(
@@ -318,7 +320,7 @@ await Effect.runPromise(
       yield* pg.unsafe("ALTER TABLE invoices DROP CONSTRAINT reject_handoff")
       // Synthetic acknowledgement loss AFTER durable real COMMIT. No network claim.
       let calls = 0
-      const unknown = new JobBackendError({
+      const unknown = new JobPersistenceError({
         reason: "storage-failure",
         commitKnowledge: "Unknown"
       })
@@ -493,7 +495,7 @@ await Effect.runPromise(
         operationId: "beginner-rollback",
         orderId: "beginner-rollback"
       }).pipe(Effect.exit),
-      "JobBackendError"
+      "JobPersistenceError"
     )
     assert.deepEqual(
       yield* snapshot,

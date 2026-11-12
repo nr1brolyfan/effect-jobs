@@ -4,7 +4,8 @@ import { JobFailures } from "../../src/JobFailure.js"
 import * as Job from "../../src/Job.js"
 import * as Policy from "../../src/JobPolicy.js"
 import * as Queue from "../../src/JobQueue.js"
-import { JobEnqueue, type JobBackendError } from "../../src/JobEnqueue.js"
+import * as Producer from "../../src/JobProducer.js"
+import { JobEnqueue, type JobPersistenceError } from "../../src/JobEnqueue.js"
 import type { JobEnqueueError } from "../../src/JobTransaction.js"
 import type { EnqueueResult } from "../../src/JobContract.js"
 import {
@@ -26,12 +27,10 @@ const rawCode: Codes.FailureCode = "valid"
 void rawCode
 const base = {
   name: "receipt",
-  queue: Queue.make("billing"),
   payload: Schema.String
 } as const
 const omitted = Effect.runSync(Job.make(base))
 export const one: 1 = omitted.version
-export const catalogOne: 1 = omitted.catalog.version
 export const two: 2 = Effect.runSync(Job.make({ ...base, version: 2 })).version
 const optional: typeof base & { readonly version?: 2 } = base
 const explicitOptional: typeof base & { readonly version: 2 | undefined } = {
@@ -49,22 +48,27 @@ void unsound
 // @ts-expect-error Default policy cannot be mutated through public types.
 Policy.defaultPolicy.retrySchedule.delayMillis = 9
 const job = Effect.runSync(Job.make({ ...base, payload: EncryptedDocument }))
+const producer = Effect.runSync(
+  Producer.make("billing.issue").pipe(
+    Producer.withSlot("receipt", job, { queue: Queue.make("billing") })
+  )
+)
 const input = {
-  producer: { operation: "billing.issue", operationId: "id", slot: "receipt" },
-  policy: Policy.defaultPolicy,
+  operationId: "id",
+  slot: "receipt" as const,
   payload: { recipient: "private", total: 1n }
 }
 export const joined: Effect.Effect<
   EnqueueResult,
-  JobEnqueueError | JobBackendError,
+  JobEnqueueError | JobPersistenceError,
   JobEnqueue | DocumentKeys
-> = job.enqueue(input)
-export const standalone: typeof joined = job.enqueueStandalone(input)
+> = producer.enqueue(input)
+export const standalone: typeof joined = producer.enqueueStandalone(input)
 type ExpectFalse<T extends false> = T
 export type ServicesRemain = ExpectFalse<
   typeof joined extends Effect.Effect<EnqueueResult, unknown, JobEnqueue> ? true : false
 >
-export const invalidPayload = job.enqueue({
+export const invalidPayload = producer.enqueue({
   ...input,
   // @ts-expect-error Domain input is not the persisted encrypted envelope.
   payload: { ciphertext: "sealed", fingerprint: "stable" }
@@ -73,6 +77,7 @@ const domain: typeof Document.Type = {} as typeof EncryptedDocument.Type
 void domain
 makeJobTables({
   extraIndexes: (jobs) => [
+    index("by_creation").on(jobs.createdAt),
     index("by_state")
       .on(jobs.state.asc(), jobs.id.desc())
       .where(sql`${jobs.state} = 'Pending'`)
@@ -81,7 +86,7 @@ makeJobTables({
 makeJobTables({
   extraIndexes: (jobs) => {
     // @ts-expect-error No application-owned columns are fabricated.
-    return [index("unknown").on(jobs.createdAt)]
+    return [index("unknown").on(jobs.applicationOwnedColumn)]
   }
 })
 // @ts-expect-error Only index builders, not arbitrary checks/constraints.

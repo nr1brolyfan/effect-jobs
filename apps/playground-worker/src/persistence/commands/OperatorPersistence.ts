@@ -60,7 +60,7 @@ const recover = (request: JobOperatorReceiptRequest) => (cause: Cause.Cause<unkn
 }
 export const make = Effect.gen(function* () {
   const transactions = yield* OperatorTransactions
-  const backend = yield* PostgreSqlJobs
+  const jobs = yield* PostgreSqlJobs
   return Operators.of({
     execute: Effect.fn("Operators.execute")(function* (access, input) {
       const command = yield* decode(JobOperatorCommand, input)
@@ -104,8 +104,8 @@ export const make = Effect.gen(function* () {
                 return reject("investigation-required")
               }
               const transition = yield* command.action === "cancel"
-                ? backend.operators.cancel(expected)
-                : backend.operators.retryNow(expected)
+                ? jobs.operators.cancel(expected)
+                : jobs.operators.retryNow(expected)
               return yield* decode(JobOperatorResult.members[0], {
                 _tag: "Committed",
                 sandbox: command.sandbox,

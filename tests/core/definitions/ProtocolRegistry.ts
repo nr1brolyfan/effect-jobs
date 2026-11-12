@@ -1,28 +1,8 @@
-/**
- * Installs handlers by queue/name/version in an application-composed registry.
- */
+/** Test-only mutable handler installation for direct protocol fault controls.
+ * Public workers require complete JobGroup handlers, not this fixture service. */
 import { Context, Data, Effect, Layer } from "effect"
-import type {
-  EncodedJobPayload,
-  HandlerContext,
-  JobPayloadCodecError
-} from "./JobContract.js"
-import type { JobFailure } from "./JobFailure.js"
-import type { CatalogIdentity } from "./JobIdentity.js"
-
-/**
- * Registered artifact decoder and handler; application services are captured at installation.
- *
- * @category models
- */
-export interface JobHandler {
-  readonly catalog: CatalogIdentity
-  /** Decodes first; services were captured by the definition's handler Layer. */
-  readonly execute: (
-    encoded: EncodedJobPayload,
-    context: HandlerContext
-  ) => Effect.Effect<void, JobFailure | JobPayloadCodecError>
-}
+import type { CatalogIdentity } from "../../../src/JobIdentity.js"
+import type { JobHandler } from "../../../src/internal/worker/Handler.js"
 
 /**
  * Typed installation failure for an already registered queue/name/version.
@@ -68,7 +48,7 @@ export interface JobRegistryService {
  * @category models
  */
 export class JobRegistry extends Context.Service<JobRegistry, JobRegistryService>()(
-  "effect-jobs/JobRegistry"
+  "tests/protocol/JobRegistry"
 ) {}
 
 const key = (catalog: CatalogIdentity) =>

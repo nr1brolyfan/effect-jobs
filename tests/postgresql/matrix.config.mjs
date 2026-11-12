@@ -3,6 +3,9 @@ import { defineConfig } from "vitest/config"
 
 export default defineConfig({
   resolve: {
+    // Source fixtures and library must share the same Schema runtime. Installed
+    // consumers qualify their own independently resolved graph separately.
+    dedupe: ["effect"],
     alias: {
       pg: fileURLToPath(new URL("../../node_modules/pg/lib/index.js", import.meta.url)),
       "drizzle-orm/pg-core": fileURLToPath(

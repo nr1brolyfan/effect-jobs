@@ -169,9 +169,9 @@ export const definition = (row: Readonly<Record<string, unknown>>) =>
     const definitions = yield* Definitions.Definitions
     const found = definitions.definitions.find(
       (candidate) =>
-        candidate.catalog.queue === row.queue &&
-        candidate.catalog.name === row.kind &&
-        candidate.catalog.version === Number(row.version)
+        definitions.catalogFor(candidate).queue === row.queue &&
+        candidate.name === row.kind &&
+        candidate.version === Number(row.version)
     )
     if (!found) {
       return yield* rejected("unsupported-catalog")

@@ -1,170 +1,327 @@
-/** Typed, application-local producer bindings for durable consequences. */
-import { Effect, Schema } from "effect"
+/** Declares producer operations with typed contract, routing and default-policy bindings. */
+import { Data, Effect, Pipeable, Schema } from "effect"
 import type { JobDefinition } from "./Job.js"
-import type { EnqueueInput, EnqueueOptions, EnqueueResult } from "./JobContract.js"
-import { InvalidJobInput } from "./JobContract.js"
-import { JobEnqueue, type JobBackendError } from "./JobEnqueue.js"
-import type { JobEnqueueError } from "./JobTransaction.js"
-import type { JobPolicy } from "./JobPolicy.js"
+import type { JobQueue } from "./JobQueue.js"
+import { defaultPolicy, EpochMillis, JobPolicy } from "./JobPolicy.js"
 import {
-  CatalogIdentity,
-  type InvalidOperationId,
+  JobName,
+  JobVersion,
   JobDeclarationError,
-  OperationId,
-  validateOperationId
+  SlotName,
+  nameFormat,
+  validateOperationId,
+  QueueName
 } from "./JobIdentity.js"
-import type { ProducerIdentity } from "./JobIdentity.js"
+import { InvalidJobInput } from "./JobContract.js"
+import type { EnqueueResult, PreparedJob } from "./JobContract.js"
+import { JobEnqueue } from "./JobEnqueue.js"
+import type { JobPersistenceError } from "./JobEnqueue.js"
+import type { JobEnqueueError, JobsTransaction } from "./JobTransaction.js"
+import { encodeJobPayload } from "./JobPayloadCodec.js"
+import { observe } from "./JobTelemetry.js"
 import { declaration } from "./internal/ProducerDeclaration.js"
+import { insertPreparing } from "./internal/JobTransaction.js"
+import { prepareProjection } from "./internal/codec/ProtectedProjection.js"
 
-/** A binding retains the payload Schema, default presence and ambient enqueue.
- * @category models
- */
-export interface JobBinding {
-  readonly catalog: CatalogIdentity
-  readonly payload: Schema.Top
-  readonly defaultPolicy: JobPolicy | undefined
-  enqueue(
-    input: EnqueueInput<unknown, JobPolicy>
-  ): Effect.Effect<EnqueueResult, JobEnqueueError | JobBackendError, unknown>
+/** Exactly one route declaration; selectable queues have no implicit default. */
+export type Routing =
+  | { readonly queue: JobQueue; readonly queues?: never }
+  | { readonly queues: readonly [JobQueue, ...JobQueue[]]; readonly queue?: never }
+
+/** One consequence's contract, closed routing declaration and resolved policy. */
+export type Binding = Routing & {
+  readonly job: JobDefinition
+  readonly policy?: JobPolicy
 }
+/** Named consequences; aliases are persisted producer slots. */
+export type Bindings = Readonly<Record<string, Binding>>
 
-/** Slot-specific input without the derived producer tuple.
- * @category models
- */
-export type BoundEnqueueInput<Definition extends JobBinding> = EnqueueOptions<
-  Definition["payload"]["Type"],
-  Definition["defaultPolicy"]
-> & { readonly operationId: string }
-
-/** Immutable operation and slot-to-job bindings. identity is structural, not binding proof.
- * @category models
- */
-export interface JobProducer<
-  Operation extends string,
-  Slots extends Readonly<Record<string, JobBinding>>
-> {
-  readonly operation: Operation
-  readonly slots: Readonly<Slots>
-  readonly identity: <const Slot extends keyof Slots & string>(input: {
+/** Discriminated per-slot inputs preserve payload/routing correlation, including unions. */
+export type Input<D extends Bindings, K extends keyof D & string = keyof D & string> = {
+  [S in K]: {
+    readonly slot: S
     readonly operationId: string
-    readonly slot: Slot
-  }) => Effect.Effect<
-    ProducerIdentity<Operation, Slot>,
-    InvalidOperationId | JobDeclarationError
-  >
-  readonly enqueue: <const Slot extends keyof Slots & string>(
-    ...args: { [K in Slot]: readonly [slot: K, input: BoundEnqueueInput<Slots[K]>] }[Slot]
+    readonly payload: D[S]["job"]["payload"]["Type"]
+    /** Complete resolved replacement, never a partial merge or retained-job update. */
+    readonly policy?: JobPolicy
+    readonly availableAt?: number
+  } & (D[S] extends { readonly queues: ReadonlyArray<JobQueue<infer Name>> }
+    ? { readonly queue: Name }
+    : { readonly queue?: never })
+}[K]
+
+/** Immutable operation declaration and typed production methods; no transaction ownership on joined enqueue. */
+export interface JobProducer<Operation extends string, D extends Bindings>
+  extends Pipeable.Pipeable {
+  readonly operation: Operation
+  readonly slots: D
+  readonly enqueue: <const K extends keyof D & string>(
+    input: Input<D, K> & { readonly slot: K }
   ) => Effect.Effect<
     EnqueueResult,
-    JobEnqueueError | JobBackendError,
-    JobEnqueue | Slots[Slot]["payload"]["EncodingServices"]
+    JobEnqueueError | JobPersistenceError,
+    JobEnqueue | D[K]["job"]["payload"]["EncodingServices"]
+  >
+  readonly enqueueStandalone: <const K extends keyof D & string>(
+    input: Input<D, K> & { readonly slot: K }
+  ) => Effect.Effect<
+    EnqueueResult,
+    JobEnqueueError | JobPersistenceError,
+    JobEnqueue | D[K]["job"]["payload"]["EncodingServices"]
+  >
+  readonly enqueueInTransaction: <E, R, const K extends keyof D & string>(
+    tx: JobsTransaction<E, R>,
+    input: Input<D, K> & { readonly slot: K }
+  ) => Effect.Effect<
+    EnqueueResult,
+    E | JobEnqueueError,
+    R | D[K]["job"]["payload"]["EncodingServices"]
   >
 }
 
-const enqueueBound = <Payload extends Schema.Top, Default extends JobPolicy | undefined>(
-  definition: Pick<
-    JobDefinition<Payload, string, number, string, Default>,
-    "payload" | "defaultPolicy" | "enqueue"
-  >,
-  producer: ProducerIdentity,
-  input: EnqueueOptions<Payload["Type"], Default>
-) => definition.enqueue({ ...input, producer })
+/** Invalid static slot configuration; diagnostics expose only declaration names. */
+export class InvalidProducerBinding extends Data.TaggedError("InvalidProducerBinding")<{
+  readonly slot: string
+  readonly field: "job" | "queue" | "policy" | "payload"
+}> {}
 
-/** Lazily validates and snapshots nonempty slot bindings near the owning business operation.
- * Each execution creates fresh immutable configuration and reports JobDeclarationError in E.
- * Bound enqueue selects the contract and joins the existing transaction; it never
- * begins, commits or replays one. identity remains useful for lower-level calls.
+const snapshotPolicy = (policy: JobPolicy): JobPolicy => {
+  const snapshot = { ...policy }
+  return Object.freeze({
+    ...snapshot,
+    retrySchedule: Object.freeze({ ...snapshot.retrySchedule }),
+    completedRetention: Object.freeze({ ...snapshot.completedRetention }),
+    deadRetention: Object.freeze({ ...snapshot.deadRetention })
+  })
+}
+
+type ResolvedBinding<Job extends JobDefinition, Route extends Routing> = Route & {
+  readonly job: Job
+  readonly policy: JobPolicy
+}
+
+/**
+ * Starts an immutable producer declaration. Add consequences with withSlot;
+ * an empty declaration has no legal enqueue slot. Construction starts no work.
  * @example
  * ```ts
  * import { Effect, Schema } from "effect"
- * import * as Job from "effect-jobs/Job"
- * import * as Queue from "effect-jobs/JobQueue"
- * import * as Policy from "effect-jobs/JobPolicy"
  * import * as Producer from "effect-jobs/JobProducer"
+ * import * as Queue from "effect-jobs/JobQueue"
+ *
  * const setup = Effect.gen(function* () {
- *   const definition = yield* Job.make({ name: "invoice.send", queue: Queue.make("billing"), payload: Schema.Struct({ invoiceId: Schema.String }), defaultPolicy: Policy.defaultPolicy })
- *   const producer = yield* Producer.make({ operation: "invoice.create", slots: { delivery: definition } })
- *   const enqueue = producer.enqueue("delivery", { operationId: "request-123", payload: { invoiceId: "invoice-1" } })
- *   return { definition, producer, enqueue }
+ * const producer = yield* Producer.make("invoice.create").pipe(
+ *   Producer.withSlot("generate",
+ *     { name: "invoice.generate", version: 1, payload: Schema.String },
+ *     { queue: Queue.make("billing") }
+ *   )
+ * )
+ * return producer
+ * // Use producer.enqueue({ slot: "generate", operationId: "request-123", payload: "invoice-123" }) inside an owning transaction.
  * })
  * ```
- * @category constructors
  */
-export const make = <
-  const Operation extends string,
-  const Slots extends Readonly<Record<string, JobBinding>>
->(options: {
-  readonly operation: Operation
-  readonly slots: Slots
-}): Effect.Effect<JobProducer<Operation, Slots>, JobDeclarationError> =>
+export const make = <const Operation extends string>(
+  operation: Operation
+): Effect.Effect<JobProducer<Operation, {}>, JobDeclarationError> =>
   Effect.gen(function* () {
-    const operation = options.operation
-    const configuredSlots = options.slots
-    if (
-      configuredSlots === null ||
-      typeof configuredSlots !== "object" ||
-      Array.isArray(configuredSlots)
-    ) {
-      return yield* new JobDeclarationError({
-        field: "slots",
-        expected: "a nonempty slot-to-job record"
-      })
-    }
-    const slots = Object.freeze({ ...configuredSlots })
-    yield* Effect.fromResult(declaration({ operation, slots: Object.keys(slots) }))
-    for (const definition of Object.values(slots)) {
-      if (
-        definition === null ||
-        typeof definition !== "object" ||
-        !Schema.is(CatalogIdentity)(definition.catalog) ||
-        !Schema.isSchema(definition.payload) ||
-        typeof definition.enqueue !== "function"
-      ) {
-        return yield* new JobDeclarationError({
-          field: "slots",
-          expected: "job definitions as slot values"
-        })
-      }
-    }
-    const identity = <const Slot extends keyof Slots & string>(input: {
-      readonly operationId: string
-      readonly slot: Slot
-    }): Effect.Effect<
-      ProducerIdentity<Operation, Slot>,
-      InvalidOperationId | JobDeclarationError
-    > =>
-      Effect.gen(function* () {
-        const operationId = input.operationId
-        const slot = input.slot
-        yield* validateOperationId(operationId)
-        if (!Object.hasOwn(slots, slot)) {
+    yield* Effect.fromResult(declaration({ operation, slots: [] }))
+    return assemble(operation, Object.freeze({}))
+  })
+
+/**
+ * Adds one immutable binding, preserving prior slot types and Schema services.
+ * Duplicate names fail in the typed channel, never overwrite. Configuration is copied
+ * when the setup Effect executes; omitted policy resolves to defaultPolicy. Explicit choices and
+ * matching-duplicate first-write-wins semantics are independent of assembly.
+ */
+export const withSlot =
+  <
+    const Slot extends string,
+    const Job extends JobDefinition,
+    const Route extends Routing
+  >(
+    slot: Slot,
+    job: Job,
+    options: Route & { readonly policy?: JobPolicy; readonly defaultQueue?: never }
+  ) =>
+  <Operation extends string, D extends Bindings, E, R>(
+    effect: Effect.Effect<JobProducer<Operation, D>, E, R> &
+      ([Extract<Slot, keyof NoInfer<D>>] extends [never] ? unknown : never)
+  ): Effect.Effect<
+    JobProducer<Operation, D & { readonly [K in Slot]: ResolvedBinding<Job, Route> }>,
+    E | JobDeclarationError | InvalidProducerBinding,
+    R
+  > =>
+    Effect.flatMap(
+      effect,
+      Effect.fnUntraced(function* (self) {
+        const field = `slots[${Object.keys(self.slots).length}]` as const
+        if (!Schema.is(SlotName)(slot)) {
           return yield* new JobDeclarationError({
-            field: "slots",
-            expected: "a declared slot"
+            field,
+            value: slot,
+            expected: `1–128 ASCII characters matching ${nameFormat}`
           })
         }
-        return Object.freeze({ operation, operationId, slot })
-      })
-
-    return Object.freeze({
-      operation,
-      slots,
-      identity,
-      enqueue: <const Slot extends keyof Slots & string>(
-        ...args: {
-          [K in Slot]: readonly [slot: K, input: BoundEnqueueInput<Slots[K]>]
-        }[Slot]
-      ) =>
-        Effect.suspend(() => {
-          const [slot, input] = args
-          if (!Object.hasOwn(slots, slot) || !Schema.is(OperationId)(input.operationId)) {
-            return Effect.fail(new InvalidJobInput({ field: "producer" }))
-          }
-          return enqueueBound<Slots[Slot]["payload"], Slots[Slot]["defaultPolicy"]>(
-            slots[slot],
-            { operation, operationId: input.operationId, slot },
-            input
-          )
+        if (Object.hasOwn(self.slots, slot)) {
+          return yield* new JobDeclarationError({
+            field,
+            value: slot,
+            expected: "unique declared slot"
+          })
+        }
+        if (job === null || typeof job !== "object") {
+          return yield* new InvalidProducerBinding({ slot, field: "job" })
+        }
+        const contract = Object.freeze({
+          name: job.name,
+          version: job.version,
+          payload: job.payload
         })
+        if (
+          !Schema.is(JobName)(contract.name) ||
+          !Schema.is(JobVersion)(contract.version) ||
+          !Schema.isSchema(contract.payload)
+        ) {
+          return yield* new InvalidProducerBinding({ slot, field: "job" })
+        }
+        // Validate only the newly applied declaration; never freeze caller-owned values.
+        if (
+          options === null ||
+          typeof options !== "object" ||
+          "defaultQueue" in options ||
+          "queue" in options === "queues" in options
+        ) {
+          return yield* new InvalidProducerBinding({ slot, field: "queue" })
+        }
+        const declaredDestinations =
+          "queues" in options ? options.queues : [options.queue]
+        if (!Array.isArray(declaredDestinations) || declaredDestinations.length === 0) {
+          return yield* new InvalidProducerBinding({ slot, field: "queue" })
+        }
+        const configuredDestinations = Array.from(declaredDestinations)
+        if (
+          configuredDestinations.some(
+            (queue) => typeof queue !== "object" || queue === null
+          )
+        ) {
+          return yield* new InvalidProducerBinding({ slot, field: "queue" })
+        }
+        const destinations = configuredDestinations.map((queue) =>
+          Object.freeze({ ...queue })
+        )
+        if (
+          destinations.some((queue) => !Schema.is(QueueName)(queue.name)) ||
+          new Set(destinations.map((queue) => queue.name)).size !== destinations.length
+        ) {
+          return yield* new InvalidProducerBinding({ slot, field: "queue" })
+        }
+        const route =
+          "queues" in options
+            ? { queues: Object.freeze(destinations) }
+            : { queue: destinations[0]! }
+        const policy = snapshotPolicy(options.policy ?? defaultPolicy)
+        if (!Schema.is(JobPolicy)(policy)) {
+          return yield* new InvalidProducerBinding({ slot, field: "policy" })
+        }
+        // Declaration-time traversal is pure and requires no Schema encoding services.
+        yield* prepareProjection(contract.payload).pipe(
+          Effect.mapError(() => new InvalidProducerBinding({ slot, field: "payload" }))
+        )
+        return assemble(
+          self.operation,
+          Object.freeze({
+            ...self.slots,
+            [slot]: Object.freeze({
+              job: contract,
+              ...route,
+              policy
+            })
+          }) as unknown as D & { readonly [K in Slot]: ResolvedBinding<Job, Route> }
+        )
+      })
+    )
+
+const assemble = <Operation extends string, D extends Bindings>(
+  operation: Operation,
+  slots: D
+): JobProducer<Operation, D> => {
+  const prepare = Effect.fnUntraced(function* <const K extends keyof D & string>(
+    input: Input<D, K> & { readonly slot: K }
+  ) {
+    const slot = input.slot
+    const operationId = input.operationId
+    const availableAt = input.availableAt
+    const payload = input.payload
+    if (!Object.hasOwn(slots, slot) || typeof operationId !== "string") {
+      return yield* new InvalidJobInput({ field: "producer" })
+    }
+    yield* validateOperationId(operationId)
+    if (availableAt !== undefined && !Schema.is(EpochMillis)(availableAt)) {
+      return yield* new InvalidJobInput({ field: "availableAt" })
+    }
+    const binding = slots[slot]!
+    const destination = input.queue
+    const configured = input.policy
+    if (
+      "queues" in binding
+        ? typeof destination !== "string" ||
+          !binding.queues!.some((queue) => queue.name === destination)
+        : "queue" in input
+    ) {
+      return yield* new InvalidJobInput({ field: "catalog" })
+    }
+    const policy = configured === undefined ? binding.policy! : snapshotPolicy(configured)
+    if (configured !== undefined && !Schema.is(JobPolicy)(policy)) {
+      return yield* new InvalidJobInput({ field: "policy" })
+    }
+    // Capture the selected name and validated owned policy before encoding can suspend.
+    const queueName = "queues" in binding ? destination! : binding.queue.name
+    const producer = Object.freeze({
+      operation,
+      operationId,
+      slot
     })
+    const encoded = yield* encodeJobPayload<D[K]["job"]["payload"]>(
+      binding.job.payload,
+      payload
+    )
+    return Object.freeze({
+      catalog: Object.freeze({
+        queue: queueName,
+        name: binding.job.name,
+        version: binding.job.version
+      }),
+      producer,
+      policy,
+      encoded,
+      ...(availableAt === undefined ? {} : { availableAt })
+    }) satisfies PreparedJob
   })
+  return Object.freeze({
+    ...Pipeable.Prototype,
+    operation,
+    slots,
+    enqueue: Effect.fnUntraced(function* <const K extends keyof D & string>(
+      input: Input<D, K> & { readonly slot: K }
+    ) {
+      const enqueueService = yield* JobEnqueue
+      return yield* enqueueService
+        .enqueue(prepare(input))
+        .pipe(observe("enqueue", "provisional"))
+    }),
+    enqueueStandalone: Effect.fnUntraced(function* <const K extends keyof D & string>(
+      input: Input<D, K> & { readonly slot: K }
+    ) {
+      const enqueueService = yield* JobEnqueue
+      return yield* enqueueService
+        .enqueueStandalone(prepare(input))
+        .pipe(observe("enqueue-standalone", "committed"))
+    }),
+    enqueueInTransaction: <E, R, const K extends keyof D & string>(
+      tx: JobsTransaction<E, R>,
+      input: Input<D, K> & { readonly slot: K }
+    ) => insertPreparing(tx, prepare(input)).pipe(observe("enqueue", "provisional"))
+  })
+}

@@ -16,7 +16,7 @@ No force install, peer override or dependency patch is part of this setup.
 
 ## Choose the database integration
 
-PostgreSQL is the current durable backend. For the native Effect SQL route, add
+PostgreSQL is the current durable storage. For the native Effect SQL route, add
 the matching client and driver:
 
 ```sh
@@ -43,7 +43,7 @@ set, not support for arbitrary Drizzle releases. Use public
 | Declaration checks           | Own strict/exact-optional source checks; separately recorded upstream Drizzle declaration failures remain unresolved. |
 
 Other runtimes, driver versions and production deployment are not established by
-these examples. The queue's portable core does not imply a qualified backend on
+these examples. The queue's portable core does not imply a qualified storage on
 every platform.
 
 ## Import focused modules

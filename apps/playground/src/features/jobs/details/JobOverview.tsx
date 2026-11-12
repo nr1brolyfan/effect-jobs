@@ -44,7 +44,7 @@ export function JobOverview(props: { readonly detail: JobDetail }) {
             : []),
           {
             label: "Attempts finalized",
-            value: `${props.detail.job.attemptsMade} / ${props.detail.policy.maxAttempts}`
+            value: `${props.detail.job.finalizedAttempts} / ${props.detail.policy.maxFinalizedAttempts}`
           },
           {
             label: "Stalled recoveries",

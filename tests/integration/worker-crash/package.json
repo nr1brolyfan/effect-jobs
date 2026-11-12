@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@effect/sql-pg": "4.0.5",
-    "effect": "4.0.5",
+    "@effect/sql-pg": "4.1.0",
+    "effect": "4.1.0",
     "pg": "8.23.0",
     "vitest": "4.1.11"
   }

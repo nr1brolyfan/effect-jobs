@@ -1,16 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { Effect, Exit } from "effect"
 import { createFixture } from "./Fixture.mjs"
-import { definition, queue, makeBackend } from "./Scenario.mjs"
+import { producer, catalog, queue, makeJobs } from "./Scenario.mjs"
 
 describe.sequential("real PostgreSQL worker process crash", () => {
   /** @type {Awaited<ReturnType<typeof createFixture>>} */
   let fixture
-  /** @type {Awaited<ReturnType<typeof makeBackend>>} */
+  /** @type {Awaited<ReturnType<typeof makeJobs>>} */
   let composition
   beforeAll(async () => {
     fixture = await createFixture()
-    composition = await makeBackend(fixture.connection)
+    composition = await makeJobs(fixture.connection)
     console.log(`Worker crash test evidence: ${fixture.directory}`)
   })
   afterAll(async () => {
@@ -23,9 +23,10 @@ describe.sequential("real PostgreSQL worker process crash", () => {
   const run = (effect) => composition.runtime.runPromise(effect)
   const enqueue = (id) =>
     run(
-      composition.backend.withTransaction((tx) =>
-        definition.enqueueInTransaction(tx, {
-          producer: { operation: "crash.enqueue", operationId: id, slot: "delivery" },
+      composition.jobs.withTransaction((tx) =>
+        producer.enqueueInTransaction(tx, {
+          operationId: id,
+          slot: "delivery",
           payload: { consequenceId: id }
         })
       )
@@ -106,12 +107,12 @@ describe.sequential("real PostgreSQL worker process crash", () => {
       )
     ).rows[0]
     expect(Number(remaining.millis)).toBeGreaterThan(1000)
-    expect(await run(composition.backend.store.recoverExpired(1))).toBe(0)
+    expect(await run(composition.jobs.store.recoverExpired(queue.name, 1))).toBe(0)
     expect(
       await run(
-        composition.backend.store.claim({
+        composition.jobs.store.claim({
           queue: queue.name,
-          supportedCatalog: [definition.catalog],
+          supportedCatalog: [catalog],
           leaseToken: crypto.randomUUID()
         })
       )
@@ -132,7 +133,7 @@ describe.sequential("real PostgreSQL worker process crash", () => {
         { timeout: 15000, interval: 50 }
       )
       .toBe(true)
-    expect(await run(composition.backend.store.recoverExpired(1))).toBe(1)
+    expect(await run(composition.jobs.store.recoverExpired(queue.name, 1))).toBe(1)
     const recovered = await row(inserted.jobId)
     expect(recovered.state).toBe("Pending")
     expect(recovered.lease_token).toBeNull()
@@ -155,7 +156,7 @@ describe.sequential("real PostgreSQL worker process crash", () => {
       // Negative control: authentic old capability/snapshot, now stale. It must
       // neither complete nor release the replacement owner's job.
       const stale = await run(
-        composition.backend.store
+        composition.jobs.store
           .finalize({
             ownership: oldClaim.ownership,
             before: oldClaim.snapshot,
@@ -166,7 +167,7 @@ describe.sequential("real PostgreSQL worker process crash", () => {
       expect(Exit.isFailure(stale)).toBe(true)
       expect(stale.cause.reasons[0].error._tag).toBe("JobOwnershipLost")
       const staleRelease = await run(
-        composition.backend.store
+        composition.jobs.store
           .release(oldClaim.ownership, "BeforeExecution")
           .pipe(Effect.exit)
       )

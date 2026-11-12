@@ -7,8 +7,8 @@
     "@stylexjs/stylex": "0.19.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "@effect/atom-react": "4.0.5",
-    "effect": "4.0.5",
+    "@effect/atom-react": "4.1.0",
+    "effect": "4.1.0",
     "lucide-react": "1.71.0"
   },
   "scripts": {
@@ -27,7 +27,7 @@
     "@babel/plugin-syntax-typescript": "7.29.7",
     "@babel/plugin-transform-react-jsx": "7.29.7",
     "@babel/plugin-transform-typescript": "7.29.7",
-    "@effect/sql-pg": "4.0.5",
+    "@effect/sql-pg": "4.1.0",
     "@stylexjs/babel-plugin": "0.19.1",
     "@stylexjs/unplugin": "0.19.1",
     "@types/react": "19.3.0",

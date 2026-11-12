@@ -42,7 +42,8 @@ const makeJobsColumns = () => ({
   state: text("state").notNull(),
   availableAt: bigint("available_at", { mode: "number" }).notNull(),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
-  attemptsMade: bigint("attempts_made", { mode: "number" }).notNull().default(0),
+  createdAt: bigint("created_at", { mode: "number" }),
+  finalizedAttempts: bigint("attempts_made", { mode: "number" }).notNull().default(0),
   stalledCount: bigint("stalled_count", { mode: "number" }).notNull().default(0),
   lifecycleVersion: bigint("lifecycle_version", { mode: "number" }).notNull().default(0),
   leaseToken: text("lease_token"),
@@ -70,9 +71,9 @@ export interface Options extends TableOptions {
 
 /**
  * Creates fixed-column Drizzle declarations for the configured namespace/table names.
- * Requires optional drizzle-orm@1.0.0-rc.5-169397b. Applications generate/run migrations;
+ * Requires optional drizzle-orm@1.0.0-rc.5. Applications generate/run migrations;
  * these declarations neither open a connection nor qualify a transaction adapter.
- * Full upstream strict declaration checking remains an alpha limitation.
+ * Dependency qualification scope is documented in specs/drizzle-compatibility.md.
  *
  * @category constructors
  */
@@ -104,7 +105,7 @@ export const makeJobTables = (options: Options = {}) => {
       `${prefix}_state`,
       sql`${j.state} IN ('Pending','Active','RetryScheduled','Completed','Dead','Isolated','Cancelled')`
     ),
-    check(`${prefix}_attempts`, sql`${j.attemptsMade} >= 0`),
+    check(`${prefix}_attempts`, sql`${j.finalizedAttempts} >= 0`),
     check(`${prefix}_stalls`, sql`${j.stalledCount} >= 0`),
     check(`${prefix}_version`, sql`${j.lifecycleVersion} >= 0`),
     check(

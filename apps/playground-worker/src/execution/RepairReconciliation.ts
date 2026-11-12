@@ -1,6 +1,8 @@
+import * as NativeTransaction from "../persistence/NativeTransaction.js"
 // @effect-diagnostics unstableApiUsage:off
 import { Effect, Schema } from "effect"
 import { JobSnapshot } from "effect-jobs/JobLifecycle"
+import { PersistedJobPolicy } from "effect-jobs/JobPolicy"
 import { SqlClient } from "effect/sql/SqlClient"
 import type { JobProblem } from "@effect-jobs/playground-contracts/Repairs"
 import type { JobSummary } from "@effect-jobs/playground-contracts/Jobs"
@@ -78,11 +80,13 @@ export const reconcileLocked = (
       yield* Schema.decodeUnknownEffect(JobSnapshot)(
         {
           jobId: successor.id,
-          policy: successor.policy,
+          policy: yield* Schema.decodeUnknownEffect(PersistedJobPolicy)(
+            successor.policy
+          ).pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" }))),
           state: successor.state,
           availableAt: Number(successor.available_at),
           updatedAt: Number(successor.updated_at),
-          attemptsMade: Number(successor.attempts_made),
+          finalizedAttempts: Number(successor.attempts_made),
           stalledCount: Number(successor.stalled_count),
           lifecycleVersion: Number(successor.lifecycle_version),
           leaseToken: successor.lease_token,
@@ -169,7 +173,8 @@ export const run = (schema: string, options: { readonly limit: number }) =>
     let changed = 0
     // Serial native transactions, bounded by caller, under the existing executor.
     for (const candidate of candidates) {
-      changed += yield* sql.withTransaction(
+      changed += yield* NativeTransaction.withTransaction(
+        sql,
         Effect.gen(function* () {
           const [sandbox] = yield* sql.unsafe<{ generation: string; expires_at: string }>(
             `SELECT generation,expires_at FROM ${t.sandboxes} WHERE sandbox_id=$1 FOR UPDATE`,

@@ -1,132 +1,38 @@
+import * as JobApi from "../../../src/JobApi.js"
+import * as JobApiBuilder from "../../../src/JobApiBuilder.js"
 /**
- * @title Observable operation boundary
- *
- * Classify locally, sanitize before export, then emit one terminal observation.
+ * Jobs operations already own safe terminal observations. The application owns
+ * logger/tracer/exporter Layers, resources, finite transport/shutdown and sampling.
+ * See docs/observability.md and load its checklist with each complete source file.
  */
-import { Effect, Exit, Match, Metric, Schema } from "effect"
-import {
-  sanitizeEffectCause,
-  singleFailure
-} from "../../../src/server/internal/CauseSanitization.js"
-import { inspectCause } from "../../../src/server/internal/AuthTelemetryVocabulary.js"
-import {
-  CreatedRegistration,
-  RegistrationConflict,
-  RegistrationInput,
-  RegistrationStore,
-  RegistrationUnavailable,
-  type RegistrationFailure
-} from "../fixtures/Auth.js"
+import { Effect, Schema } from "effect"
+import * as Job from "../../../src/Job.js"
+import * as Group from "../../../src/JobGroup.js"
+import { JobFailures } from "../../../src/JobFailure.js"
+import { define } from "../../../src/FailureCode.js"
 
-const operationTotal = Metric.counter("effect_auth_operation_total", {
-  incremental: true
-})
-
-class RegistrationDefect extends Schema.TaggedError<RegistrationDefect>()(
-  "RegistrationDefect",
-  {}
-) {}
-
-const sanitizeRegistrationCause = sanitizeEffectCause(
-  Match.type<unknown>().pipe(
-    Match.when(Match.instanceOf(RegistrationConflict), () => new RegistrationConflict()),
-    Match.orElse(() => new RegistrationUnavailable({}))
-  ),
-  () => new RegistrationDefect()
-)
-
-const observeExit = Effect.fnUntraced(function* (
-  exit: Exit.Exit<CreatedRegistration, RegistrationFailure>
-) {
-  return yield* Exit.match(exit, {
-    onFailure: (cause) =>
-      Effect.gen(function* () {
-        const result = Match.value(singleFailure(cause)).pipe(
-          Match.when(Match.instanceOf(RegistrationConflict), () => "conflict" as const),
-          Match.orElse(() => "unavailable" as const)
-        )
-        const inspected = inspectCause(cause)
-
-        yield* Effect.annotateCurrentSpan({
-          "auth.operation": "registration",
-          "auth.result": result,
-          "auth.cause_kind": inspected.kind,
-          "auth.cause_reason_count": inspected.reasonCount
-        })
-        yield* Metric.update(
-          Metric.withAttributes(operationTotal, {
-            operation: "registration",
-            result
-          }),
-          1
-        )
-        yield* Effect.logInfo("effect-auth operation completed", {
-          operation: "registration",
-          result,
-          causeKind: inspected.kind,
-          reasonCount: inspected.reasonCount
-        })
-      }),
-    onSuccess: () =>
-      Effect.gen(function* () {
-        yield* Effect.annotateCurrentSpan({
-          "auth.operation": "registration",
-          "auth.result": "created"
-        })
-        yield* Metric.update(
-          Metric.withAttributes(operationTotal, {
-            operation: "registration",
-            result: "created"
-          }),
-          1
-        )
-        yield* Effect.logInfo("effect-auth operation completed", {
-          operation: "registration",
-          result: "created"
-        })
-      })
+const codes = define({ temporarilyUnavailable: "temporarily_unavailable" })
+export const InvoiceHandlerLayer = Effect.gen(function* () {
+  const InvoiceJob = yield* Job.make({
+    name: "invoice.generate",
+    payload: Schema.Struct({ invoiceId: Schema.String })
   })
+
+  // Expected failure classifies Retry. Do not attach payload, code, identity or Cause
+  // to a span. Single expected Fail and mixed Cause have different meanings.
+  const group = Group.make("observability-invoices", { invoice: InvoiceJob })
+  return JobApiBuilder.group(
+    JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+    group.name,
+    (_handlers) =>
+      _handlers.handle("invoice", () =>
+        Effect.fail(JobFailures.Retry({ code: codes.temporarilyUnavailable }))
+      )
+  )
 })
 
-export const create = Effect.fn("Registration.create")(
-  function* (
-    input: RegistrationInput
-  ): Effect.fn.Return<CreatedRegistration, RegistrationFailure, RegistrationStore> {
-    const store = yield* RegistrationStore
-    return yield* store.create(input).pipe(
-      Effect.tapCause((cause) => {
-        const category = Match.value(singleFailure(cause)).pipe(
-          Match.when(Match.instanceOf(RegistrationConflict), () => "conflict" as const),
-          Match.when(
-            Match.instanceOf(RegistrationUnavailable),
-            () => "unavailable" as const
-          ),
-          Match.orElse(() => "unexpected" as const)
-        )
-        return Effect.annotateCurrentSpan({
-          "auth.failure_phase": "persistence",
-          "auth.failure_category": category
-        })
-      }),
-      Effect.mapError(
-        Match.type<RegistrationConflict | RegistrationUnavailable>().pipe(
-          Match.when(
-            Match.instanceOf(RegistrationConflict),
-            () => new RegistrationConflict()
-          ),
-          Match.orElse(() => new RegistrationUnavailable({}))
-        )
-      ),
-      Effect.flatMap((value) =>
-        Schema.decodeUnknownEffect(CreatedRegistration)(value, {
-          onExcessProperty: "error"
-        }).pipe(Effect.mapError(() => new RegistrationUnavailable({})))
-      )
-    )
-  },
-  sanitizeRegistrationCause,
-  Effect.onExit(observeExit)
-)
-
-// Never attach raw identifiers, passwords, bearers, SQL, provider messages,
-// stack traces, Causes, or arbitrary error objects to logs, metrics, or spans.
+// Own jobs spans deliberately finish with Success(void), then restore the original
+// Exit outside the span. A red span is not a durable-job/availability counter.
+// App-owned named failing spans can still export raw provider errors: sanitize at
+// their actual construction boundary. An outer observer cannot redact ended children.
+// Do not reuse the old auth sanitization imports; they are not jobs APIs.

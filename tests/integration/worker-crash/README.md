@@ -7,7 +7,7 @@ can kill it without gracefully releasing its lease. No library runtime changes.
 ## Local / CI command
 
 Use Node 24.15.0, Bun 1.4.2, repository dependencies, and a Linux Docker runner.
-Install the isolated pinned test dependencies (native PgClient 4.0.5 and Vitest
+Install the isolated pinned test dependencies (native PgClient 4.1.0 and Vitest
 4.1.11). Root package pins and published package files do not change:
 
 ```sh
@@ -40,7 +40,7 @@ bun run test:postgresql:crash --reporter=default --reporter=junit --outputFile.j
    Active claim; kill that worker with **SIGKILL**. Assert that its job remains
    unchanged and neither recovery nor a new claim is possible before lease expiry.
 3. Observe expiry using **PostgreSQL time**, not a fixed sleep or fake Effect clock.
-   Recover exactly one job through the public store API. Assert Pending, one stall,
+   Recover exactly one job through the queue-scoped public store API. Assert Pending, one stall,
    zero finalized attempts, cleared old ownership.
 4. A replacement worker claims with a different token and higher version, and
    re-invokes the handler with the same business idempotency key. While it holds
@@ -61,7 +61,7 @@ one finalized attempt. No fixed latency threshold is used.
 Every suite creates its own randomly named/labelled PostgreSQL container with a
 random loopback-only port, 2 CPUs, 1 GiB RAM and 256 MiB shared memory. It accepts no
 database URL or environment-based target. Setup/observation use a private admin;
-workers and the parent's backend use a DML-only runtime role. All connections have
+workers and the parent's configured jobs instance use a DML-only runtime role. All connections have
 finite query/connect budgets; each test/hook has a 60-second Vitest deadline.
 
 Credentials are stored only in mode-0600 files under a unique

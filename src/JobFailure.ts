@@ -22,7 +22,7 @@ export type JobFailure = typeof JobFailure.Type
 export const JobFailure = Schema.Union([
   Schema.TaggedStruct("Retry", {
     code: FailureCode,
-    notAfter: EpochMillis.pipe(Schema.optional)
+    retryBefore: EpochMillis.pipe(Schema.optional)
   }),
   Schema.TaggedStruct("Dead", { code: FailureCode }),
   Schema.TaggedStruct("Isolate", { code: FailureCode }),
@@ -36,15 +36,15 @@ const failures = Data.taggedEnum<JobFailure>()
  * @category errors
  */
 export class InvalidJobFailure extends Data.TaggedError("InvalidJobFailure")<{
-  readonly field: "notAfter"
+  readonly field: "retryBefore"
 }> {}
 const checked = <A extends JobFailure>(value: A): A => {
   if (
     value._tag === "Retry" &&
-    value.notAfter !== undefined &&
-    !Schema.is(EpochMillis)(value.notAfter)
+    value.retryBefore !== undefined &&
+    !Schema.is(EpochMillis)(value.retryBefore)
   ) {
-    throw new InvalidJobFailure({ field: "notAfter" })
+    throw new InvalidJobFailure({ field: "retryBefore" })
   }
   return Object.freeze(value)
 }
@@ -55,8 +55,9 @@ const checked = <A extends JobFailure>(value: A): A => {
  * @category constructors
  */
 export const JobFailures = Object.freeze({
-  /** Persisted fixed-delay retry within attempt bounds; next availability >= notAfter becomes Dead. */
-  Retry: (input: { readonly code: FailureCode; readonly notAfter?: number }) =>
+  /** Retry within policy bounds; next availability >= retryBefore becomes Dead.
+   * This cutoff limits retry scheduling, not initial availability or handler execution. */
+  Retry: (input: { readonly code: FailureCode; readonly retryBefore?: number }) =>
     checked(failures.Retry(input)),
   /** Known terminal failure with no further retry. */
   Dead: (input: { readonly code: FailureCode }) => checked(failures.Dead(input)),

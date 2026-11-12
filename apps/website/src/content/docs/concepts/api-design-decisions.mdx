@@ -10,42 +10,28 @@ That adds a little setup; it avoids guessing what a failed request actually did.
 Durable state belongs to storage, not a long-lived process: the same execution
 model supports permanent workers and bounded, short-lived invocations.
 
-:::note[API version]
-This page uses `Job.make`, slot-bound `JobProducer` declarations and the
-`JobRegistry` handler installation contract.
-:::
-
 ## Contracts, handlers and slots
 
-### Why separate the contract from its handler?
+`Job.make({ name, version?, payload })` returns a lazy Effect with typed declaration
+errors. Yield it once during application initialization. The frozen result contains
+only the queue-independent versioned contract; it has no handler, routing, policy or
+enqueue methods. Schema encoding and decoding services remain explicit on later
+operations. Incompatible payload changes require a new version and its Schema.
 
-The API server needs to know what a job means, not how the worker sends email.
-`Job.make` declares `name`, `queue`, `version` and the payload Schema, with an
-optional complete `defaultPolicy`. Handler implementations are installed separately
-through `handlerLayer(execute, decodePayload)`. Keeping provider code outside the
-definition lets producers share contracts without importing worker dependencies.
-Constructors return lazy Effects with typed configuration failures. Yield setup once
-at application initialization and share the resulting definitions with producers,
-handlers and the worker catalog; encoding and decoding services remain on later operations.
+Declare handlers separately with `JobGroup.make(name, definitions)` and compose an
+immutable catalog using `JobApi.make(name).pipe(JobApi.addGroup(group))`. Install a
+complete group using `JobApiBuilder.group(catalog, groupName, handlers =>
+handlers.handle(alias, handler))`. Missing aliases and ambiguous group names cannot
+prove completeness. Install every catalog group before constructing the worker.
+Reuse the same group references: each declaration owns its distinct Context key.
 
-### Why a handler registry?
+A handler receives decoded payload plus metadata and returns an Effect. There is
+no mutable registry, consumer plan or separately supplied decoder. Schema owns the
+decoded/encoded boundary. Catalog contracts identify work by `(name, version)`;
+a claim additionally identifies its selected logical queue.
 
-Each definition installs its decoder and handler in `JobRegistry` through an
-Effect Layer. Duplicate catalog registrations fail during installation; Schema
-and handler services remain explicit Layer requirements. Applications assemble
-the handlers their worker needs. This is not a compile-time proof that every
-persisted catalog identity has a handler.
-
-Catalog identity is **`(queue, name, version)`**. A registry is not a Kafka consumer
-group or BullMQ Pro Group: it adds no independent subscription, execution ordering
-or tenant fairness.
-
-### Why producer slots, not just a job ID?
-
-An order can produce a confirmation and an invoice. Each consequence needs its own
-stable identity: **`(operation, operationId, slot)`**, within one jobs storage.
-Using only the request ID would collapse them; inventing unrelated job IDs on each
-request retry would duplicate them. Two slots may also produce the same job name.
+An order can produce a confirmation and an invoice. Each consequence needs the
+stable producer identity `(operation, operationId, slot)` within one jobs storage.
 Slots describe consequences, not concurrency permits or workflow dependencies.
 
 ```ts
@@ -53,129 +39,82 @@ const MailQueue = Queue.make("mail")
 const PriorityMailQueue = Queue.make("mail.priority")
 const Confirmation = yield* Job.make({
   name: "order.confirmation",
-  queue: MailQueue,
-  payload: Schema.Struct({ orderId: Schema.String }),
-  defaultPolicy: Policy.defaultPolicy
-})
-
-const PlaceOrder = yield* Producer.make({
-  operation: "orders.place",
-  slots: { confirmation: Confirmation }
-})
-const request = {
-  operationId: "place-041",
-  payload: { orderId: "041" }
-} as const
-```
-
-### Why bind the queue and allow a policy override?
-
-They solve different problems:
-
-| Setting         | Job definition                                        | Enqueue                                                          |
-| --------------- | ----------------------------------------------------- | ---------------------------------------------------------------- |
-| `queue`         | One fixed destination, part of catalog identity       | No queue override                                                |
-| `defaultPolicy` | Optional complete policy                              | Policy required unless a complete default is definitely provided |
-| `policy`        | Resolved with `Policy.make` or `Policy.defaultPolicy` | A complete replacement, never a partial merge                    |
-
-An unrestricted queue override could send work somewhere no intended worker drains.
-Choose a different job definition and bind it explicitly when another queue is
-needed. A changed queue is a changed catalog identity, not a duplicate configuration
-override. This priority definition deliberately has no default policy:
-
-```ts
-const PriorityConfirmation = yield* Job.make({
-  name: "order.confirmation",
-  queue: PriorityMailQueue,
   payload: Schema.Struct({ orderId: Schema.String })
 })
-const RoutedOrder = yield* Producer.make({
-  operation: "orders.place-priority",
-  slots: { confirmation: PriorityConfirmation }
-})
-const priorityPolicy = Policy.make({
-  retryDelay: Duration.seconds(2),
-  maxAttempts: 4
-})
+const PlaceOrder = yield* Producer.make("orders.place").pipe(
+  Producer.withSlot("confirmation", Confirmation, { queue: MailQueue })
+)
+const request = { operationId: "place-041", payload: { orderId: "041" } }
+yield* PlaceOrder.enqueue({ slot: "confirmation", ...request })
+```
 
-yield* RoutedOrder.enqueue("confirmation", {
+`Producer.make` and `Producer.withSlot` compose lazy Effects with typed validation.
+The empty producer is valid but has no legal enqueue slot. Additions are immutable,
+preserve payload and Schema service inference, and reject duplicate slot names.
+
+## Routing and first-write policy
+
+A binding with `{ queue }` fixes its route and forbids any enqueue `queue` field.
+A binding with `{ queues: [first, ...rest] }` declares a closed nonempty choice and
+requires an explicit member queue-name string on every enqueue, even for a single
+choice. There is no implicit default queue or unrestricted route override.
+
+```ts
+const priorityPolicy = yield* Policy.make({
+  retry: Retry.exponential(Duration.seconds(2)).pipe(
+    Retry.capped(Duration.minutes(1)),
+    Retry.maxFinalizedAttempts(4)
+  )
+})
+const RoutedOrder = yield* Producer.make("orders.place").pipe(
+  Producer.withSlot("confirmation", Confirmation, {
+    queues: [MailQueue, PriorityMailQueue],
+    policy: priorityPolicy
+  })
+)
+yield* RoutedOrder.enqueue({
+  slot: "confirmation",
   ...request,
-  policy: priorityPolicy
+  queue: "mail.priority"
 })
 ```
 
-The default belongs to the definition; an override belongs to this production.
-Neither policy nor availability changes an existing matching job. The two
-operations above intentionally have different producer identities.
+A slot's omitted policy resolves to the library default. An enqueue policy is a
+complete replacement, never a partial merge. Matching duplicates preserve the first
+durable queue, policy, availability and artifact bytes. The producer tuple locates
+the consequence; `(name, version)` and canonical semantic payload establish whether
+it is the same consequence. A different selected queue is execution configuration,
+not a content conflict. Changed name, version or semantic payload fails with
+`JobIntegrityConflict`; it never rewrites accepted work.
 
-## Production and identity
-
-### Why require a transaction for `enqueue`?
+## Transaction ownership and uncertainty
 
 Saving an order and publishing work in separate commits leaves a crash window.
-`enqueue` joins the active transaction of the **configured client**; it never
-silently opens another connection. The same database URL is not enough.
-
-`jobs` below is the configured PostgreSQL integration. `saveOrder` is application
-work using that same client and active transaction—not an independently run Promise.
+`enqueue` joins the active transaction of the configured client. The same database
+URL does not establish transaction identity. `jobs` below is the configured
+PostgreSQL integration; `saveOrder` uses that exact client and active transaction.
 
 ```ts
-// Avoid: the order may commit, then enqueue may fail.
-yield* jobs.withTransaction(() => saveOrder)
-yield* Confirmation.enqueueStandalone({
-  ...request,
-  producer: yield* PlaceOrder.identity({ operationId: request.operationId, slot: "confirmation" })
-})
-```
-
-```ts
-// Together: commit both database writes, or roll back both.
 yield* jobs.withTransaction(() =>
   Effect.gen(function* () {
     yield* saveOrder
-    return yield* PlaceOrder.enqueue("confirmation", request)
+    return yield* PlaceOrder.enqueue({ slot: "confirmation", ...request })
   })
 )
 ```
 
-`enqueueStandalone` is for work with no accompanying business write. It owns its
-transaction and rejects an active one from the configured client, rather than
-committing a consequence inside a parent that could later roll back.
+`enqueueStandalone` owns a bounded transaction for work without an accompanying
+business write and rejects an active transaction of the configured client.
 `enqueueInTransaction` retains an explicit capability path for qualified adapters.
+Authority is checked before payload preparation. Joined results remain provisional
+until the outer owner acknowledges COMMIT. Lost acknowledgement remains Unknown;
+a missing application receipt does not authorize replay.
 
-### Why conflict instead of ignoring or replacing duplicates?
-
-The producer tuple locates the consequence; queue, name, version and canonical payload
-semantics establish whether it is **the same** consequence. A matching retry returns
-`AlreadyPresent` with the first library-assigned `jobId`.
-
-```ts
-yield* PlaceOrder.enqueue("confirmation", request)
-// Same identity, different content: JobIntegrityConflict, not an update.
-yield* PlaceOrder.enqueue("confirmation", { ...request, payload: { orderId: "042" } })
-```
-
-Silently ignoring the second call could report success for work never scheduled;
-latest-wins could change what an earlier accepted request meant. Debounce and
-throttle are useful for coalescing updates, but are a different contract.
-An integrity conflict must abort the business transaction; the PostgreSQL adapter
-prevents a caught conflict from committing partial domain writes.
-
-Policy and availability are excluded from semantic equality: a matching
-duplicate keeps its **first configuration and artifact bytes**. Otherwise a
-deployment-default change could turn a harmless request retry into a conflict or
-move existing work. Re-enqueue is not a rescheduling API.
-
-### Why not promise exactly-once?
-
-Atomic enqueue protects database writes, not an external email or payment.
-A worker can complete the external call and disappear before recording success.
-Use a stable provider idempotency key, such as `context.jobId`, with stable content
-and within the provider's retention window, or reconcile through the domain.
-
-`Inserted` and `AlreadyPresent` describe production, not execution. Joined results
-remain provisional until the outer transaction acknowledges COMMIT. A lost COMMIT
-response remains unknown; absence of an application receipt is not permission to replay.
+`Inserted` and `AlreadyPresent` describe production, not execution. Atomic enqueue
+protects database writes, not external mail or payments. Use a stable provider key,
+such as `context.jobId`, with stable content and an adequate retention window, or
+reconcile through the application's authoritative domain records. Removing retained
+identity evidence ends the storage deduplication window.
 
 ## Execution and failures
 
@@ -240,8 +179,8 @@ An unknown **storage write** needs a different response: reconcile the original
 claim token or exact finalization request. Do not immediately rerun a successful
 handler merely because its completion write lost a response.
 
-`attemptsMade` counts confirmed Complete/Retry/Dead/Isolate transitions, not
-all invocations. `context.attemptNumber` is `attemptsMade + 1` and may repeat after unknown outcomes; it is
+`finalizedAttempts` counts confirmed Complete/Retry/Dead/Isolate transitions, not
+all invocations. `context.nextFinalizationNumber` is `finalizedAttempts + 1` and may repeat after unknown outcomes; it is
 not an idempotency key. A separate `maxStalledCount` bounds uncertain recovery.
 
 ### Why fixed leases instead of heartbeats?
@@ -261,9 +200,9 @@ if it were safely unexecuted; scoped polling first allows a finite shared grace 
 
 A retry may be due after its invocation has ended, especially in runtimes such as
 workerd. `Effect.retry` keeps its delay inside the invocation; that schedule
-disappears if the process or isolate stops. `JobPolicy` describes durable fixed-delay retry
-rules; the worker persists the next availability without exponential backoff or jitter, so another
-invocation or worker can continue it. The host still owns wakeups; persistence does
+disappears if the process or isolate stops. `JobRetryPolicy` describes durable fixed or exponential retry rules with optional cap
+and proportional jitter. The worker persists the selected next availability, so
+another invocation or worker can continue it without drawing a replacement delay. The host still owns wakeups; persistence does
 not keep an invocation alive. Local retries remain useful when safe to repeat.
 
 ## Payload and ownership boundaries

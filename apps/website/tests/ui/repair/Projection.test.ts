@@ -1,3 +1,4 @@
+import { definitions } from "../../../../playground-worker/tests/scenarios/Setup.js"
 import { describe, expect, it } from "vitest"
 import { Effect } from "effect"
 import * as Codec from "effect-jobs/JobPayloadCodec"
@@ -6,8 +7,6 @@ import { keysLayer } from "../../../../playground-worker/src/scenarios/PrivateDo
 import * as Projection from "../../../../playground-worker/src/server/read/JobDetailsProjection.js"
 import * as Diff from "../../../../playground/src/features/jobs/repair/PayloadDiff.js"
 import * as Fixture from "../../../../playground-worker/tests/repairs/Fixtures.js"
-
-import { definitions } from "../../../../playground-worker/tests/scenarios/Setup.js"
 
 describe("truthful allowlisted detail projection", () => {
   it("validates canonical unencrypted wire and rejects foreign/corrupt bytes", async () => {
@@ -68,7 +67,10 @@ describe("truthful allowlisted detail projection", () => {
     )
     const detail = {
       ...Fixture.detail,
-      job: { ...Fixture.detail.job, catalog: definitions.PrivateDataExport.catalog }
+      job: {
+        ...Fixture.detail.job,
+        catalog: definitions.catalogFor(definitions.PrivateDataExport)
+      }
     }
     // If wire validation accidentally invokes decryption, the missing key service
     // fails this test. The wire is the ACTUAL encrypted codec output above.
@@ -90,16 +92,18 @@ describe("truthful allowlisted detail projection", () => {
         .correctedRedrive.reason
     ).toBe("encrypted-correction-unavailable")
   })
-  it("reports absent attempts, creation and result rather than synthesizing them", () => {
+  it("reports absent attempts and result without overriding persisted creation time", () => {
     expect(Projection.retainedFields).toEqual({
-      createdAt: null,
       result: { _tag: "Unavailable", reason: "not-stored" }
     })
     expect(Fixture.detail.history.attempts).toBeNull()
   })
   it("keeps encrypted correction unavailable when the original envelope is absent", () => {
     const detail = {
-      job: { ...Fixture.detail.job, catalog: definitions.PrivateDataExport.catalog }
+      job: {
+        ...Fixture.detail.job,
+        catalog: definitions.catalogFor(definitions.PrivateDataExport)
+      }
     }
     expect(
       Projection.eligibility(

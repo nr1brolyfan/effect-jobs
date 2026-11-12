@@ -3,7 +3,9 @@ import assert from "node:assert/strict"
 export const assertComplete = (result, root) => {
   assert.equal(result.success, true)
   const expected = [
-    "tests/postgresql/Backend.test.ts",
+    "tests/postgresql/Jobs.test.ts",
+    "tests/postgresql/CreationTime.test.ts",
+    "tests/postgresql/Observability.test.ts",
     "tests/postgresql/Schema.test.ts",
     "tests/postgresql/operators/Operators.test.ts",
     "tests/qualification/d6-pg/qualification.test.ts"

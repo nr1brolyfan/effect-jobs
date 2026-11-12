@@ -11,8 +11,8 @@
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
-import { join, resolve } from "node:path"
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
+import { join, relative, resolve } from "node:path"
 import * as ts from "typescript/unstable/ast"
 import { publicModules } from "../../../scripts/SourceExports.mjs"
 
@@ -24,8 +24,11 @@ assert(
   "Usage: node tests/docs/api/Qualify.mjs [--comment-only-base <commit>]"
 )
 const base = args[1] ?? null
-const work = join(root, ".toolchain/api-docs")
-mkdirSync(work, { recursive: true })
+const evidence = join(root, ".toolchain/api-docs")
+mkdirSync(evidence, { recursive: true })
+// A same-version local tarball can change during redesign. Never let npm reuse
+// an earlier consumer's package-lock/node_modules for a different artifact.
+const work = mkdtempSync(join(evidence, "run-"))
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
 const modules = publicModules(manifest)
 const modulesByName = new Map(modules.map((entry) => [entry.name, entry]))
@@ -98,8 +101,8 @@ for (const module of modules) {
   if (name === "JobPayload") {
     symbols.push("protected")
   }
-  if (name === "JobWorkerRuntime") {
-    symbols.push("DrainResult", "DrainResults")
+  if (name === "JobWorker") {
+    symbols.push("DrainResult")
   }
   if (name === "JobWorker") {
     symbols.push(
@@ -119,7 +122,7 @@ for (const module of modules) {
     }
   }
 }
-assert(examples.length === 9, "Expected the public constructor/codec/runtime examples")
+assert(examples.length === 8, "Expected the public constructor/codec/runtime examples")
 const compilerOptions = {
   target: "ES2022",
   module: "NodeNext",
@@ -138,72 +141,73 @@ import assert from "node:assert/strict"
 import { Effect } from "effect"
 import * as Definition from "./Job.ts"
 import * as Producer from "./JobProducer.ts"
-import * as Consumer from "./JobConsumer.ts"
 import * as Policy from "./JobPolicy.ts"
-import * as Runtime from "./JobWorkerRuntime.ts"
+import * as Runtime from "./JobWorker.ts"
 import * as Storage from "./PostgreSqlSchema.ts"
 import * as Payload from "./JobPayload.ts"
 import * as Codec from "./JobPayloadCodec.ts"
-import { ClaimResults, ClaimReconciliations, FinalizationResults, FinalizationReconciliations } from "effect-jobs/JobStore"
+import { ClaimResult, ClaimReconciliation, FinalizationResult, FinalizationReconciliation } from "effect-jobs/JobStore"
 import type { JobStoreService } from "effect-jobs/JobStore"
-const definitionSetup = await Effect.runPromise(Definition.setup)
-assert.equal(definitionSetup.definition.queue.name, "billing")
-const producerSetup = await Effect.runPromise(Producer.setup)
-assert.equal(producerSetup.producer.slots.delivery, producerSetup.definition)
-assert.equal((await Effect.runPromise(producerSetup.producer.identity({ operationId: "request-123", slot: "delivery" }))).operationId, "request-123")
-assert.equal(Policy.policy.retrySchedule.delayMillis, 5000)
-assert.equal(Policy.policy.completedRetention._tag, "Duration")
+const definition = await Effect.runPromise(Definition.definition)
+assert.equal(definition.name, "invoice.generate")
+assert.deepEqual(Object.keys(definition).sort(), ["name", "payload", "version"])
+const producer = await Effect.runPromise(Producer.setup)
+assert.equal(producer.operation, "invoice.create")
+assert.equal(producer.slots.generate.job.name, "invoice.generate")
+const resolvedPolicy = await Effect.runPromise(Policy.policy)
+assert.equal(resolvedPolicy.retrySchedule.delayMillis, 1000)
+assert.equal(resolvedPolicy.retrySchedule._tag, "BackoffV1")
+assert.equal(resolvedPolicy.maxFinalizedAttempts, 5)
+assert.equal(resolvedPolicy.completedRetention._tag, "Duration")
 assert(Storage.ddl.includes('CREATE TABLE "app_jobs"."jobs"'))
 assert(Payload.protectedValue)
 assert.deepEqual(await Effect.runPromise(Codec.roundTrip), { amount: 1.5 })
-const plan = await Effect.runPromise(Consumer.plan)
-assert.equal(plan.consumers[0]?.localConcurrency, 2)
 let claims = 0
 const unused = () => Effect.die("empty-store example must not execute/finalize")
 const store: JobStoreService = {
-  claim: () => Effect.sync(() => { claims++; return ClaimResults.Empty() }),
-  reconcileClaim: () => Effect.succeed(ClaimReconciliations.NotOwned()),
-  release: () => Effect.succeed(FinalizationResults.Applied()),
+  claim: () => Effect.sync(() => { claims++; return ClaimResult.Empty() }),
+  reconcileClaim: () => Effect.succeed(ClaimReconciliation.NotOwned()),
+  release: () => Effect.succeed(FinalizationResult.Applied()),
   finalize: unused,
-  reconcileFinalization: () => Effect.succeed(FinalizationReconciliations.OwnershipLost()),
+  reconcileFinalization: () => Effect.succeed(FinalizationReconciliation.OwnershipLost()),
   recoverExpired: () => Effect.succeed(0)
 }
 assert.equal(claims, 0)
-const runtimeSetup = await Effect.runPromise(Runtime.setup)
-assert.deepEqual(await Effect.runPromise(runtimeSetup.runOnce(store)), { _tag: "Idle", claimed: 0, recovered: 0 })
+assert.deepEqual(await Effect.runPromise(Runtime.runOnce({ store, operationResponseBudgetMillis: 100 })), { _tag: "Idle", claimed: 0, recovered: 0 })
 assert.equal(claims, 1)
 console.log("JSDoc constructor/codec/finite empty-store drain examples PASS")
 `
 // Fixed extraction order makes checks fail visibly if the example inventory changes.
-assert.deepEqual(examples.map(({ name }) => name).sort(), [
+assert.deepEqual(examples.map((example) => example.name).sort(), [
   "Job.ts",
-  "JobConsumer.ts",
   "JobPayload.ts",
   "JobPayloadCodec.ts",
   "JobPolicy.ts",
   "JobProducer.ts",
-  "JobWorkerRuntime.ts",
+  "JobWorker.ts",
   "PostgreSqlJobs.ts",
   "PostgreSqlSchema.ts"
 ])
 const exportedNames = {
-  Job: "setup",
+  Job: "definition",
   JobProducer: "setup",
-  JobConsumer: "plan",
   JobPolicy: "policy",
-  JobWorkerRuntime: "setup",
+  JobWorker: "runOnce",
   PostgreSqlSchema: "ddl",
   JobPayload: "protectedValue",
   JobPayloadCodec: "roundTrip",
   PostgreSqlJobs: "enqueueInside"
 }
-const localImport = (name, built) => {
-  const module = modulesByName.get(name)
-  assert(module, `Unknown public module: ${name}`)
-  return `"../../../${built ? module.import : module.source}"`
-}
 const prepare = (directory, source, built = false) => {
   mkdirSync(directory, { recursive: true })
+  const rewriteSourceImports = (code) =>
+    code.replace(/"effect-jobs\/([^"/]+)"/g, (_match, name) => {
+      const module = modulesByName.get(name)
+      assert(module, `Unknown public module: ${name}`)
+      return JSON.stringify(
+        relative(directory, join(root, built ? module.import : module.source))
+      )
+    })
   for (const example of examples) {
     const binding = exportedNames[example.name.slice(0, -3)]
     let code = example.code.replace(
@@ -211,19 +215,13 @@ const prepare = (directory, source, built = false) => {
       `export const ${binding}`
     )
     if (source) {
-      code = code.replace(/"effect-jobs\/([^"/]+)"/g, (_match, name) =>
-        localImport(name, built)
-      )
+      code = rewriteSourceImports(code)
     }
     writeFileSync(join(directory, example.name), code)
   }
   writeFileSync(
     join(directory, "check.ts"),
-    source
-      ? checks.replace(/"effect-jobs\/([^"/]+)"/g, (_match, name) =>
-          localImport(name, built)
-        )
-      : checks
+    source ? rewriteSourceImports(checks) : checks
   )
   writeFileSync(
     join(directory, "tsconfig.json"),
@@ -257,7 +255,7 @@ writeFileSync(
       private: true,
       dependencies: {
         "effect-jobs": `file:${process.env.EFFECT_JOBS_ARCHIVE ?? join(work, `effect-jobs-${manifest.version}.tgz`)}`,
-        effect: "4.0.5",
+        effect: "4.1.0",
         typescript: "7.0.2",
         "@types/node": "26.4.1"
       }
@@ -271,11 +269,8 @@ const packedManifest = JSON.parse(
   readFileSync(join(installed, "node_modules/effect-jobs/package.json"), "utf8")
 )
 assert.equal(packedManifest.version, manifest.version)
-assert.equal(packedManifest.peerDependencies.effect, "4.0.5")
-assert.equal(
-  packedManifest.peerDependencies["drizzle-orm"],
-  "1.0.0-rc.5-ab785fc || 1.0.0-rc.5-169397b"
-)
+assert.equal(packedManifest.peerDependencies.effect, "4.1.0")
+assert.equal(packedManifest.peerDependencies["drizzle-orm"], "1.0.0-rc.5")
 assert(
   !readdirSync(join(installed, "node_modules")).includes("drizzle-orm"),
   "Core examples must retain absent optional peer"
@@ -285,6 +280,7 @@ for (const runtime of ["node", "bun"]) {
   run(runtime, ["check.ts"], installed)
 }
 const receipt = {
+  directory: work,
   base,
   inventory,
   sourceHashes,
@@ -302,6 +298,7 @@ const receipt = {
     "Empty test store proves finite drain/composition only; no PostgreSQL atomicity or handler delivery qualification. Drizzle upstream declarations remain separately limited."
 }
 writeFileSync(join(work, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n")
+writeFileSync(join(evidence, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n")
 console.log(
-  `9 extracted JSDoc examples: source and current packed strict types, Node/Bun runtime PASS; ${inventory.length} subpaths inventoried`
+  `${examples.length} extracted JSDoc examples: source and current packed strict types, Node/Bun runtime PASS; ${inventory.length} subpaths inventoried`
 )

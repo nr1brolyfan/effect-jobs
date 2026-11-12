@@ -22,9 +22,9 @@ export const payload = (
     const catalog = detail.job.catalog
     const definition = definitions.definitions.find(
       (entry) =>
-        entry.catalog.name === catalog.name &&
-        entry.catalog.queue === catalog.queue &&
-        entry.catalog.version === catalog.version
+        entry.name === catalog.name &&
+        definitions.catalogFor(entry).queue === catalog.queue &&
+        entry.version === catalog.version
     )
     if (!definition) {
       return unavailable("unsupported-catalog")
@@ -56,7 +56,7 @@ export const payload = (
         return unavailable("invalid-artifact")
       }
       encryption =
-        String(definition.catalog.name) === "playground.synthetic-document-export"
+        String(definition.name) === "playground.synthetic-document-export"
           ? "SyntheticDocumentV1"
           : "PrivateDocumentV1"
     }
@@ -85,9 +85,9 @@ export const eligibility = (
 ) => {
   const selected = definitions.definitions.find(
     (entry) =>
-      entry.catalog.name === detail.job.catalog.name &&
-      entry.catalog.queue === detail.job.catalog.queue &&
-      entry.catalog.version === detail.job.catalog.version
+      entry.name === detail.job.catalog.name &&
+      definitions.catalogFor(entry).queue === detail.job.catalog.queue &&
+      entry.version === detail.job.catalog.version
   )
   const entry = (reason: JobRepairReason | null) => ({ enabled: reason === null, reason })
   const state = detail.job.state
@@ -134,6 +134,5 @@ export const eligibility = (
 }
 
 export const retainedFields = {
-  createdAt: null,
   result: { _tag: "Unavailable" as const, reason: "not-stored" as const }
 }

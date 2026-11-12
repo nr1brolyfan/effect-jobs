@@ -1,3 +1,4 @@
+import * as NativeTransaction from "../NativeTransaction.js"
 // @effect-diagnostics unstableApiUsage:off
 import { Cause, Effect, Layer, Option, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
@@ -134,7 +135,8 @@ const makeAdapter = (schema: string, category: "LocalOperator" | "SyntheticSeed"
           // Separately acknowledged immutable admission. Never claim a missing
           // receipt means rollback or authorizes execution on the next request.
           const admission = yield* controls(
-            sql.withTransaction(
+            NativeTransaction.withTransaction(
+              sql,
               Effect.gen(function* () {
                 const { current, row } = yield* lock(access, ref)
                 const [prior] = yield* query(
@@ -172,7 +174,8 @@ const makeAdapter = (schema: string, category: "LocalOperator" | "SyntheticSeed"
             )
           )
           return yield* controls(
-            sql.withTransaction(
+            NativeTransaction.withTransaction(
+              sql,
               Effect.gen(function* () {
                 const { current, row } = yield* lock(access, ref)
                 const stored =
@@ -456,7 +459,8 @@ const makeAdapter = (schema: string, category: "LocalOperator" | "SyntheticSeed"
         }),
       lookup: (access, input, operation) =>
         controls(
-          sql.withTransaction(
+          NativeTransaction.withTransaction(
+            sql,
             Effect.gen(function* () {
               const request = yield* decode(JobRepairReceiptRequest, input)
               yield* lock(access, request.sandbox)

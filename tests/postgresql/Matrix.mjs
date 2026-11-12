@@ -170,6 +170,7 @@ for (const selected of runtime === "all" ? ["node", "bun"] : [runtime]) {
             ...process.env,
             D6_RESOURCE_DIRECTORY: directory,
             OPERATORS_PG_CONFIG_FILE: operators,
+            CREATION_TIME_PRIVATE_CONFIG: operators,
             PG_EXPECT_RUNTIME: selected,
             D6_EXPECT_RUNTIME: selected
           }

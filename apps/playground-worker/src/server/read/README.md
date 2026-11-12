@@ -2,7 +2,7 @@
 
 This is an application-owned read-only SQL adapter for the frozen playground
 contracts, not a library admin API. `JobStoreService` only exposes worker claim,
-release/finalization/reconciliation/recovery; `PostgreSqlJobs.Backend` adds
+release/finalization/reconciliation/recovery; `PostgreSqlJobs.Service` adds
 producer, readiness and cleanup. None supplies a sandbox list/detail read model.
 There are no lifecycle writes, payload table reads or automatic decryption here.
 
@@ -51,7 +51,7 @@ It never exposes ciphertext, fingerprints, tokens, private documents or arbitrar
 payload previews. DB output is decoded with excess-property rejection, including
 nested relations. No observation is inferred from lifecycle state: fake provider
 ledger/observations require their separate app-owned adapter and explicit source.
-Historical timeline, attempt history, progress and createdAt are unavailable.
+Creation time comes from durable `created_at` in epoch milliseconds; legacy rows remain null. Historical attempt history and progress are unavailable.
 `available_at <= dbNow` denotes due Pending/RetryScheduled rows, not guaranteed
 execution; `lease_expires_at <= dbNow` identifies expiry candidates for Active,
 not permission to recover/write. Neither lease values nor extra views are in

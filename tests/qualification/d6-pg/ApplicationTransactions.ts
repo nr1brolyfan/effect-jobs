@@ -1,4 +1,4 @@
-/** Application-owned pg manager. Not a library backend or a copy of auth's executor. */
+/** Application-owned pg manager. Not a library jobs or a copy of auth's executor. */
 import { Context, Data, Effect, Exit, Option } from "effect"
 import { Pool, type PoolClient, type QueryResultRow } from "pg"
 

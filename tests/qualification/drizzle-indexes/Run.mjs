@@ -33,7 +33,7 @@ writeFileSync(
       type: "module",
       dependencies: {
         "effect-jobs": `file:${archive}`,
-        effect: "4.0.5",
+        effect: "4.1.0",
         "drizzle-orm": drizzleVersion,
         "drizzle-kit": "1.0.0-rc.5-5935859"
       }

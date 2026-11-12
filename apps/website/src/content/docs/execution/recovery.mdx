@@ -29,7 +29,7 @@ Handlers receive application context, not the lease token or finalizer.
 ## Recover in bounded steps
 
 A finite drain performs bounded expiry recovery before claiming. Recovery clears
-ownership and increments `stalledCount`, leaving `attemptsMade` unchanged. It
+ownership and increments `stalledCount`, leaving `finalizedAttempts` unchanged. It
 returns the job to `Pending` while the stored stall budget permits; exceeding that
 budget makes it `Dead`. Recovery is not confirmation that a previous effect failed.
 

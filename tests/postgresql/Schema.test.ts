@@ -32,6 +32,7 @@ describe("optional fixed Drizzle declarations", () => {
       "state",
       "available_at",
       "updated_at",
+      "created_at",
       "attempts_made",
       "stalled_count",
       "lifecycle_version",

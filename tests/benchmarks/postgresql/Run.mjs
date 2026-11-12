@@ -1,9 +1,47 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto"
-import { execFileSync, spawn } from "node:child_process"
+import { execFileSync, spawn, spawnSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { ownedContainer, parseOptions } from "./Support.mjs"
+
+// Stream the complete tracked working-tree/index diff, including changes larger
+// than execFileSync's output buffer. Await child close on success, error or abort.
+const trackedDiffDigest = (cwd, signal) =>
+  new Promise((resolve, reject) => {
+    const hash = createHash("sha256")
+    let bytes = 0
+    let failure
+    const diffProcess = spawn("git", ["diff", "HEAD"], {
+      cwd,
+      signal,
+      timeout: 15000,
+      killSignal: "SIGKILL",
+      stdio: ["ignore", "pipe", "pipe"]
+    })
+    diffProcess.stdout.on("data", (chunk) => {
+      bytes += chunk.length
+      hash.update(chunk)
+    })
+    diffProcess.stderr.resume()
+    diffProcess.once("error", (error) => {
+      failure = error
+    })
+    diffProcess.once("close", (code, signal) => {
+      if (failure) {
+        reject(failure)
+      } else if (code !== 0) {
+        reject(
+          Object.assign(new Error("Tracked diff metadata failed"), {
+            status: code,
+            signal
+          })
+        )
+      } else {
+        resolve({ sha256: hash.digest("hex"), bytes })
+      }
+    })
+  })
 
 const root = fileURLToPath(new URL("../../../", import.meta.url))
 const options = parseOptions(process.argv.slice(2))
@@ -41,8 +79,31 @@ if (!options.run) {
   let child
   let interrupted = false
   let completed = false
+  let stage = "build"
+  const metadataAbort = new AbortController()
+  const preparation = (label, command, args, cwd) => {
+    stage = label
+    const result = spawnSync(command, args, {
+      cwd,
+      timeout: 120000,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    })
+    const output = String(result.stdout ?? "") + String(result.stderr ?? "")
+    writeFileSync(
+      join(directory, `${label}.log`),
+      output.replaceAll(password, "[REDACTED]")
+    )
+    if (result.error) {
+      throw result.error
+    }
+    if (result.status !== 0) {
+      throw Object.assign(new Error("Preparation failed"), { status: result.status })
+    }
+  }
   const stop = () => {
     interrupted = true
+    metadataAbort.abort()
     child?.kill("SIGTERM")
   }
   const removeOwned = () => {
@@ -66,39 +127,85 @@ if (!options.run) {
   process.once("SIGINT", stop)
   process.once("SIGTERM", stop)
   try {
-    execFileSync("bun", ["run", "build"], { cwd: root, timeout: 120000, stdio: "pipe" })
+    preparation("build", "bun", ["run", "build"], root)
+    // Copy the freshly built library into the isolated application graph. File
+    // links would resolve its Schema peer from the source checkout instead.
+    preparation(
+      "install",
+      "npm",
+      ["ci", "--ignore-scripts", "--no-audit", "--no-fund"],
+      fileURLToPath(new URL("./", import.meta.url))
+    )
+    stage = "installed-byte-check"
+    const installed = fileURLToPath(new URL("node_modules/effect-jobs/", import.meta.url))
+    const current = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
+    for (const target of Object.values(current.exports)) {
+      const path = target.import.slice(2)
+      if (!readFileSync(join(installed, path)).equals(readFileSync(join(root, path)))) {
+        throw new Error("Installed benchmark library differs from current build")
+      }
+    }
     if (interrupted) {
       throw new Error("Interrupted")
     }
-    const image = JSON.parse(docker("image", "inspect", options.image))[0]
+    stage = "image-inspect"
+    const image = JSON.parse(
+      docker(
+        "image",
+        "inspect",
+        "--format",
+        '{"Id":{{json .Id}},"RepoDigests":{{json .RepoDigests}}}',
+        options.image
+      )
+    )
     const hash = (path) => createHash("sha256").update(readFileSync(path)).digest("hex")
+    stage = "metadata-head"
+    const head = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: root,
+      encoding: "utf8",
+      timeout: 15000
+    }).trim()
+    stage = "metadata-tracked-diff"
+    const trackedDiff = await trackedDiffDigest(root, metadataAbort.signal)
+    stage = "metadata-harness-hashes"
+    const harnessHashes = Object.fromEntries(
+      ["Run", "Support", "Definitions", "Workload"].map((name) => [
+        name,
+        hash(fileURLToPath(new URL(`${name}.mjs`, import.meta.url)))
+      ])
+    )
+    stage = "metadata-runtime-hashes"
+    const runtimeHashes = Object.fromEntries(
+      [
+        "Job",
+        "JobProducer",
+        "JobGroup",
+        "JobApi",
+        "JobApiBuilder",
+        "JobWorker",
+        "JobStorage",
+        "JobPolicy",
+        "postgresql/PostgreSqlNative",
+        "postgresql/internal/Store"
+      ].map((name) => [name, hash(join(root, `dist/${name}.js`))])
+    )
+    stage = "metadata-dependency-lock"
+    const dependencyLockSha256 = hash(
+      fileURLToPath(new URL("package-lock.json", import.meta.url))
+    )
+    stage = "metadata-write"
     writeFileSync(
       join(directory, "metadata.json"),
       JSON.stringify(
         {
           options,
           node: process.version,
-          head: execFileSync("git", ["rev-parse", "HEAD"], {
-            cwd: root,
-            encoding: "utf8"
-          }).trim(),
-          diffSha256: createHash("sha256")
-            .update(execFileSync("git", ["diff", "HEAD"], { cwd: root }))
-            .digest("hex"),
-          harnessHashes: Object.fromEntries(
-            ["Run", "Support", "Workload"].map((name) => [
-              name,
-              hash(fileURLToPath(new URL(`${name}.mjs`, import.meta.url)))
-            ])
-          ),
-          runtimeHashes: Object.fromEntries(
-            ["JobPolicy", "postgresql/PostgreSqlNative", "postgresql/internal/Store"].map(
-              (name) => [name, hash(join(root, `dist/${name}.js`))]
-            )
-          ),
-          dependencyLockSha256: hash(
-            fileURLToPath(new URL("package-lock.json", import.meta.url))
-          ),
+          head,
+          diffSha256: trackedDiff.sha256,
+          trackedDiffBytes: trackedDiff.bytes,
+          harnessHashes,
+          runtimeHashes,
+          dependencyLockSha256,
           imageId: image.Id,
           imageDigests: image.RepoDigests,
           limits: { cpus: 2, memoryBytes: 1073741824, sharedMemoryBytes: 268435456 }
@@ -107,6 +214,7 @@ if (!options.run) {
         2
       )
     )
+    stage = "container-create"
     writeFileSync(
       environment,
       `POSTGRES_USER=soak\nPOSTGRES_DB=effect_jobs_soak\nPOSTGRES_PASSWORD=${password}\n`,
@@ -151,6 +259,7 @@ if (!options.run) {
       }),
       { mode: 0o600 }
     )
+    stage = "workload"
     console.log(`Owned soak started; artifacts: ${directory}`)
     await new Promise((resolve, reject) => {
       child = spawn(
@@ -182,7 +291,17 @@ if (!options.run) {
       }
     })
     completed = !interrupted
-  } catch {
+  } catch (error) {
+    writeFileSync(
+      join(directory, "runner-failure.json"),
+      JSON.stringify({
+        status: "incomplete",
+        stage,
+        failureClass: error instanceof Error ? error.name : "Unknown",
+        exit: typeof error.status === "number" ? error.status : null,
+        code: typeof error.code === "string" ? error.code : null
+      })
+    )
     console.error(`Soak incomplete; no capacity claim. Artifacts: ${directory}`)
     process.exitCode = 1
   } finally {

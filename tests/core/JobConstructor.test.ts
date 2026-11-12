@@ -1,114 +1,57 @@
 import { Effect, Exit, Schema } from "effect"
 import { expect, it } from "vitest"
 import * as Job from "../../src/Job.js"
-import * as Policy from "../../src/JobPolicy.js"
-import * as Queue from "../../src/JobQueue.js"
-import type { JobPayloadEncoder } from "../../src/JobContract.js"
 
-const queue = Queue.make("billing")
-
-it("reads each option once during execution and creates a fresh definition per run", () => {
-  const reads = {
-    name: 0,
-    queue: 0,
-    payload: 0,
-    version: 0,
-    defaultPolicy: 0,
-    encodePayload: 0
-  }
-  let nextName = "invoice.send"
-  let nextVersion = 2
-  let encodes = 0
-  const encode: JobPayloadEncoder = () =>
-    Effect.sync(() => {
-      encodes++
-      return {
-        formatVersion: 1,
-        payloadBytes: new Uint8Array(),
-        semanticProjectionBytes: new Uint8Array()
-      }
-    })
+it("reads each contract option only at execution and takes fresh frozen snapshots", () => {
+  const reads = { name: 0, version: 0, payload: 0 }
+  let name = "before"
+  let version = 1
   const options = {
     get name() {
       reads.name++
-      return nextName
+      return name
     },
-    get queue() {
-      reads.queue++
-      return queue
+    get version() {
+      reads.version++
+      return version
     },
     get payload() {
       reads.payload++
       return Schema.String
-    },
-    get version() {
-      reads.version++
-      return nextVersion++
-    },
-    get defaultPolicy() {
-      reads.defaultPolicy++
-      return Policy.defaultPolicy
-    },
-    get encodePayload() {
-      reads.encodePayload++
-      return encode
     }
   }
   const setup = Job.make(options)
-  expect(Object.values(reads)).toEqual([0, 0, 0, 0, 0, 0])
   expect(Effect.isEffect(setup)).toBe(true)
-  nextName = "invoice.ready"
+  expect(Object.values(reads)).toEqual([0, 0, 0])
+  name = "after"
+  version = 2
   const first = Effect.runSync(setup)
-  expect(first.name).toBe("invoice.ready")
-  expect(first.version).toBe(2)
-  expect(first.catalog).toEqual({ queue: "billing", name: "invoice.ready", version: 2 })
-  expect(Object.values(reads)).toEqual([1, 1, 1, 1, 1, 1])
-  nextName = "invoice.next"
+  expect(first).toEqual({ name: "after", version: 2, payload: Schema.String })
+  expect(Object.values(reads)).toEqual([1, 1, 1])
+  name = "next"
+  version = 3
   const second = Effect.runSync(setup)
-  expect(second.name).toBe("invoice.next")
-  expect(second.version).toBe(3)
-  expect(first.name).toBe("invoice.ready")
+  expect(second).toEqual({ name: "next", version: 3, payload: Schema.String })
+  expect(first.name).toBe("after")
   expect(second).not.toBe(first)
-  expect(second.catalog).not.toBe(first.catalog)
-  expect(second.defaultPolicy).not.toBe(first.defaultPolicy)
-  expect(Object.values(reads)).toEqual([2, 2, 2, 2, 2, 2])
-  expect(encodes).toBe(0)
-  expect(Object.isFrozen(options)).toBe(false)
+  expect(Object.values(reads)).toEqual([2, 2, 2])
   expect(Object.isFrozen(first)).toBe(true)
-  expect(Object.isFrozen(first.catalog)).toBe(true)
+  expect(Object.isFrozen(options)).toBe(false)
 })
 
-it("snapshots all policy branches at execution without freezing caller-owned values", () => {
-  const policy = {
-    ...Policy.defaultPolicy,
-    retrySchedule: { ...Policy.defaultPolicy.retrySchedule },
-    completedRetention: { ...Policy.defaultPolicy.completedRetention },
-    deadRetention: { ...Policy.defaultPolicy.deadRetention }
-  }
-  const setup = Job.make({
-    queue,
-    name: "invoice.send",
-    payload: Schema.String,
-    defaultPolicy: policy
+it("preserves getter defects rather than misclassifying them as invalid configuration", () => {
+  const defect = new Error("synthetic caller getter")
+  const pending = Job.make({
+    get name(): string {
+      throw defect
+    },
+    payload: Schema.String
   })
-  policy.retrySchedule.delayMillis = 6000
-  policy.maxAttempts = 4
-  const first = Effect.runSync(setup)
-  policy.retrySchedule.delayMillis = 7000
-  policy.maxAttempts = 5
-  const second = Effect.runSync(setup)
-  expect(first.defaultPolicy.retrySchedule.delayMillis).toBe(6000)
-  expect(first.defaultPolicy.maxAttempts).toBe(4)
-  expect(second.defaultPolicy.retrySchedule.delayMillis).toBe(7000)
-  expect(second.defaultPolicy.maxAttempts).toBe(5)
-  for (const part of ["retrySchedule", "completedRetention", "deadRetention"] as const) {
-    expect(first.defaultPolicy[part]).not.toBe(policy[part])
-    expect(second.defaultPolicy[part]).not.toBe(first.defaultPolicy[part])
-    expect(Object.isFrozen(first.defaultPolicy[part])).toBe(true)
-    expect(Object.isFrozen(policy[part])).toBe(false)
+  const exit = Effect.runSyncExit(pending)
+  expect(Exit.isFailure(exit)).toBe(true)
+  if (Exit.isFailure(exit)) {
+    expect(exit.cause.reasons).toEqual([expect.objectContaining({ _tag: "Die", defect })])
   }
-  expect(Object.isFrozen(first.defaultPolicy)).toBe(true)
-  expect(Object.isFrozen(policy)).toBe(false)
 })
 
 it.each([
@@ -122,7 +65,6 @@ it.each([
   "fails invalid configuration in the typed channel without exposing input",
   (invalid) => {
     const setup = Job.make({
-      queue,
       name: "invoice.send",
       payload: Schema.String,
       ...invalid
@@ -138,18 +80,14 @@ it.each([
         expect(reason.error).toBeInstanceOf(Job.InvalidJobDefinition)
         expect(Object.keys(reason.error).sort()).toEqual(["_tag", "expected"])
         expect(JSON.stringify(reason.error)).not.toContain("PRIVATE")
-        expect(reason.error.expected).toBe(
-          invalid.defaultPolicy === undefined
-            ? "valid queue/name/version and payload Schema"
-            : "complete valid defaultPolicy"
-        )
+        expect(reason.error.expected).toBe("name, version and payload Schema only")
       }
     }
   }
 )
 
 it("revalidates on every execution and recovers after caller configuration is corrected", () => {
-  const options = { queue, name: "invoice.send", payload: Schema.String, version: 1 }
+  const options = { name: "invoice.send", payload: Schema.String, version: 1 }
   const setup = Job.make(options)
   options.version = 0
   const rejected = Effect.runSyncExit(setup)

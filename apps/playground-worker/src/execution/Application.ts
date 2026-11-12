@@ -10,17 +10,17 @@ import * as Commands from "../persistence/commands/Persistence.js"
 import * as Executor from "./Executor.js"
 
 /** Inert composition for the shared registrar. The application supplies one qualified
- * scoped PgClient/SqlClient and backend plus stable synthetic DocumentKeys.
+ * scoped PgClient/SqlClient and jobs plus stable synthetic DocumentKeys.
  * Never acquire fresh encryption keys per event: retained jobs require the original keys.
  * This Layer neither starts a worker nor registers/runs migrations.
  */
 export const layerNoDeps = (schema: string) =>
   Layer.unwrap(
     Effect.gen(function* () {
-      const backend = yield* PostgreSqlJobs
+      const jobs = yield* PostgreSqlJobs
       const commands = Commands.layerNoDeps.pipe(
         Layer.provide(Authority.transactionsLayerNoDeps(schema)),
-        Layer.provide(Layer.succeed(JobEnqueue, backend.producer))
+        Layer.provide(Layer.succeed(JobEnqueue, jobs.producer))
       )
       return Layer.mergeAll(
         Authority.authorityLayerNoDeps(schema),
@@ -30,6 +30,6 @@ export const layerNoDeps = (schema: string) =>
           Layer.provide(OperatorTransactions.layerNoDeps(schema))
         ),
         Executor.workerLayerNoDeps(schema)
-      ).pipe(Layer.provide(Layer.succeed(JobEnqueue, backend.producer)))
+      ).pipe(Layer.provide(Layer.succeed(JobEnqueue, jobs.producer)))
     })
   )

@@ -1,4 +1,4 @@
-// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this checked example.
+// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this checked example.
 // @effect-diagnostics unstableApiUsage:off
 // #region imports
 import { Effect, Schema } from "effect"
@@ -34,7 +34,8 @@ export const placeOrder = (externalInput: unknown) =>
         yield* db.insert(orders).values({ ...input, invoiceRequested: false })
 
         // Commit the order and its confirmation instruction together.
-        return yield* PlaceOrder.enqueue("send-confirmation", {
+        return yield* PlaceOrder.enqueue({
+          slot: "send-confirmation",
           operationId: input.operationId,
           payload: { orderId: input.orderId }
         })

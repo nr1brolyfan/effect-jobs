@@ -19,6 +19,7 @@ import { Application } from "../../src/server/Services.js"
 import * as Event from "../../src/execution/Event.js"
 import * as Plan from "../../src/scenarios/Plan.js"
 import * as Definitions from "../../src/scenarios/Definitions.js"
+import * as Retry from "effect-jobs/JobRetryPolicy"
 export const seed = (
   config: Event.Config,
   ref: SandboxRef,
@@ -30,9 +31,9 @@ export const seed = (
     Effect.void,
     Effect.gen(function* () {
       const definitions = yield* Definitions.Definitions
-      const backend = yield* PostgreSqlJobs
+      const jobs = yield* PostgreSqlJobs
       const sql = yield* SqlClient
-      const id = yield* backend.withTransaction(() =>
+      const id = yield* jobs.withTransaction(() =>
         Effect.gen(function* () {
           const [clock] = yield* sql.unsafe<{ now: string }>(
             "SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now"
@@ -50,7 +51,7 @@ export const seed = (
           )
           const result = yield* Plan.enqueue({
             ...job!,
-            policy: Policy.make({ retryDelay: Duration.seconds(600) })
+            policy: yield* Policy.make({ retry: Retry.fixed(Duration.seconds(600)) })
           })
           yield* sql.unsafe(
             `INSERT INTO "${config.schema}".associations VALUES ($1,$2,$3,'{}'::jsonb)`,
@@ -65,9 +66,9 @@ export const seed = (
       )
       if (state !== "Pending") {
         const definition = definitions.definitions[workload]!
-        const claim = yield* backend.store.claim({
-          queue: definition.queue.name,
-          supportedCatalog: [definition.catalog],
+        const claim = yield* jobs.store.claim({
+          queue: definitions.catalogFor(definition).queue,
+          supportedCatalog: [definitions.catalogFor(definition)],
           leaseToken: crypto.randomUUID()
         })
         if (claim._tag !== "Claimed" || claim.claim.snapshot.jobId !== id) {
@@ -84,7 +85,7 @@ export const seed = (
                   _tag: state === "Dead" ? ("Dead" as const) : ("Isolate" as const),
                   code: Schema.decodeSync(FailureCode)("fixture_terminal")
                 }
-          const result = yield* backend.store.finalize({
+          const result = yield* jobs.store.finalize({
             ownership: claim.claim.ownership,
             before: claim.claim.snapshot,
             finalization

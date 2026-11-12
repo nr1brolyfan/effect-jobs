@@ -12,7 +12,7 @@ import { Effect, Layer, Redacted, Schema } from "effect"
 import * as Pg from "@effect/sql-pg/PgClient"
 import { SqlClient } from "effect/sql/SqlClient"
 import * as Native from "effect-jobs/PostgreSqlNative"
-import * as Backend from "effect-jobs/PostgreSqlJobs"
+import * as Jobs from "effect-jobs/PostgreSqlJobs"
 import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import {
@@ -93,7 +93,7 @@ const keys = (config: Config) =>
     return { encryption, fingerprint, cursor }
   })
 
-// One native client/backend per serialized event. Scope closes before return.
+// One native client/jobs per serialized event. Scope closes before return.
 export const run = <A, E>(
   config: Config,
   kick: Effect.Effect<void>,
@@ -102,7 +102,7 @@ export const run = <A, E>(
     E,
     | Application.Application
     | SqlClient
-    | Backend.PostgreSqlJobs
+    | Jobs.PostgreSqlJobs
     | DocumentKeys
     | CommandPersistence
     | JobWorker
@@ -122,7 +122,7 @@ export const run = <A, E>(
         connectTimeout: "2 seconds",
         idleTimeout: "1 second"
       })
-      const backend = yield* Backend.make({
+      const jobs = yield* Jobs.make({
         schema: config.schema,
         operationResponseBudgetMillis: 500
       }).pipe(
@@ -131,12 +131,12 @@ export const run = <A, E>(
           Native.make({ client, operationTimeoutMillis: 2000 })
         )
       )
-      yield* backend.ready
+      yield* jobs.ready
       const stable = yield* keys(config)
       const authority = (yield* Authority.make(config.schema, client).pipe(
         Effect.provideService(SqlClient, client),
         Effect.provideService(Definitions.Definitions, definitions),
-        Effect.provideService(JobEnqueue, backend.producer),
+        Effect.provideService(JobEnqueue, jobs.producer),
         Effect.provideService(DocumentKeys, stable)
       )).authority
       const activeAuthority = Layer.succeed(SandboxAuthority, {
@@ -145,10 +145,10 @@ export const run = <A, E>(
       })
       const commands = Commands.layerNoDeps.pipe(
         Layer.provide(Authority.transactionsLayerNoDeps(config.schema)),
-        Layer.provide(Layer.succeed(JobEnqueue, backend.producer))
+        Layer.provide(Layer.succeed(JobEnqueue, jobs.producer))
       )
       const worker = Executor.workerLayerNoDeps(config.schema).pipe(
-        Layer.provide(Layer.succeed(Backend.PostgreSqlJobs, backend))
+        Layer.provide(Layer.succeed(Jobs.PostgreSqlJobs, jobs))
       )
       const read = Read.layerNoDeps(mapping(config.schema)).pipe(
         Layer.provide(ReadDatabase.layerNoDeps),
@@ -199,7 +199,7 @@ export const run = <A, E>(
         Effect.provideService(Definitions.Definitions, definitions),
         Effect.provideService(SqlClient, client),
         Effect.provideService(Pg.PgClient, client),
-        Effect.provideService(Backend.PostgreSqlJobs, backend),
+        Effect.provideService(Jobs.PostgreSqlJobs, jobs),
         Effect.provideService(DocumentKeys, stable)
       )
     })

@@ -1,6 +1,6 @@
 // @effect-diagnostics unstableApiUsage:off
 import * as Cloudflare from "@alchemy.run/cloudflare"
-import * as Test from "alchemy/Test/Bun"
+import * as Test from "@alchemy.run/test/Bun"
 import { Pool } from "pg"
 import { migrations } from "../../src/persistence/MigrationRegistry.js"
 import WebSocket from "ws"

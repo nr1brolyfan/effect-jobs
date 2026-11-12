@@ -3,9 +3,10 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@effect/sql-pg": "4.0.5",
-    "effect": "4.0.5",
-    "pg": "8.23.0"
+    "@effect/sql-pg": "4.1.0",
+    "effect": "4.1.0",
+    "pg": "8.23.0",
+    "effect-jobs": "file:../../.."
   },
   "scripts": {
     "test": "node --test Support.test.mjs",

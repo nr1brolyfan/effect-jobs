@@ -3,26 +3,36 @@ import * as Lifecycle from "../../JobLifecycle.js"
 import { JobStoreProtocolError } from "../../JobStore.js"
 import type { ClaimedJob } from "../../JobStore.js"
 import { JobLineage } from "../../JobOperators.js"
-import { EpochMillis } from "../../JobPolicy.js"
+import { EpochMillis, PersistedJobPolicy } from "../../JobPolicy.js"
 import type { TransactionQuery } from "../PostgreSqlTransaction.js"
 
 /** pg int8 is text by default; accept only exact bounded decimal integer values. */
 export const integer = (value: unknown): unknown =>
   typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value) ? Number(value) : value
 export const snapshot = (row: Record<string, unknown>) =>
-  Lifecycle.validateSnapshot({
-    jobId: row.id,
-    policy: row.policy,
-    state: row.state,
-    availableAt: integer(row.available_at),
-    updatedAt: integer(row.updated_at),
-    attemptsMade: integer(row.attempts_made),
-    stalledCount: integer(row.stalled_count),
-    lifecycleVersion: integer(row.lifecycle_version),
-    leaseToken: row.lease_token,
-    leaseExpiresAt: row.lease_expires_at === null ? null : integer(row.lease_expires_at),
-    completedAt: row.completed_at === null ? null : integer(row.completed_at),
-    lastFailureCode: row.last_failure_code
+  Result.gen(function* () {
+    const policy = yield* Result.mapError(
+      Schema.decodeUnknownResult(PersistedJobPolicy, { onExcessProperty: "error" })(
+        row.policy
+      ),
+      () => new Lifecycle.JobLifecycleError({ reason: "invalid-snapshot" })
+    )
+    return yield* Lifecycle.validateSnapshot({
+      jobId: row.id,
+      policy,
+      state: row.state,
+      availableAt: integer(row.available_at),
+      updatedAt: integer(row.updated_at),
+      createdAt: row.created_at === null ? null : integer(row.created_at),
+      finalizedAttempts: integer(row.attempts_made),
+      stalledCount: integer(row.stalled_count),
+      lifecycleVersion: integer(row.lifecycle_version),
+      leaseToken: row.lease_token,
+      leaseExpiresAt:
+        row.lease_expires_at === null ? null : integer(row.lease_expires_at),
+      completedAt: row.completed_at === null ? null : integer(row.completed_at),
+      lastFailureCode: row.last_failure_code
+    })
   })
 export const claimArtifact = (
   row: Record<string, unknown>,
@@ -38,7 +48,7 @@ export const claimArtifact = (
         operationId: row.operation_id,
         slot: row.slot
       },
-      policy: row.policy,
+      policy: stored.policy,
       ...(row.initial_available_at === null
         ? {}
         : { availableAt: integer(row.initial_available_at) }),
@@ -96,7 +106,7 @@ export const writeSnapshot = (
       row.state,
       row.availableAt,
       row.updatedAt,
-      row.attemptsMade,
+      row.finalizedAttempts,
       row.stalledCount,
       row.lifecycleVersion,
       row.leaseToken,

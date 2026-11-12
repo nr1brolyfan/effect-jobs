@@ -151,8 +151,8 @@ export interface ProducerIdentity<
 }
 
 /**
- * Validates operation and nonempty unique slots synchronously; throws
- * JobDeclarationError. The lazy producer factory shares its pure classifier.
+ * Validates operation and unique slots synchronously; throws
+ * JobDeclarationError. Empty slots are valid during immutable assembly.
  *
  * @category operations
  */

@@ -45,7 +45,7 @@ to behave identically between Drizzle and the native client.
 `makeJobTables` from `effect-jobs/PostgreSqlDrizzleSchema` returns
 `{ mapping, jobs, payloads }`. It accepts `schema`, `jobsTable`, `payloadsTable`
 and optional `extraIndexes(jobs)` for additive Drizzle indexes. Feed its `mapping`
-to the backend; keep the required fixed columns, constraints and indexes.
+to storage; keep the required fixed columns, constraints and indexes.
 The application owns unique schema-wide names for its extra indexes.
 
 Generate and apply migrations with your application tooling. The SQL helper

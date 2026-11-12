@@ -1,3 +1,5 @@
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 import { Cause, Effect, Layer, Match } from "effect"
 import * as FailureCode from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
@@ -127,36 +129,22 @@ export const executeSyntheticExport = Effect.fn("Playground.executeSyntheticExpo
   }
 )
 
-// Proposal for HandlerRegistry.ts; importing this module installs nothing.
+// Complete group implementation; importing this module installs nothing.
 // Provide the same FakeProvider Layer and DocumentKeys Layer for all handlers.
 export const layerNoDeps = Layer.unwrap(
   Effect.map(Definitions.Definitions, (definitions) =>
-    Layer.mergeAll(
-      definitions.WelcomeEmail.handlerLayer(
-        execute("welcome-email"),
-        Codec.decodeJobPayload
-      ),
-      definitions.ImageProcessing.handlerLayer(
-        execute("image-processing"),
-        Codec.decodeJobPayload
-      ),
-      definitions.WebhookDelivery.handlerLayer(
-        execute("webhook-delivery"),
-        Codec.decodeJobPayload
-      ),
-      definitions.SyntheticDocumentExport.handlerLayer(
-        executeSyntheticExport,
-        Codec.decodeJobPayload
-      ),
-      definitions.PrivateDataExport.handlerLayer(executeExport, Codec.decodeJobPayload),
-      definitions.CatalogSync.handlerLayer(
-        execute("catalog-sync"),
-        Codec.decodeJobPayload
-      ),
-      definitions.SimulatedPayment.handlerLayer(
-        execute("simulated-payment"),
-        Codec.decodeJobPayload
-      )
+    JobApiBuilder.group(
+      JobApi.make(definitions.group.name).pipe(JobApi.addGroup(definitions.group)),
+      definitions.group.name,
+      (handlers) =>
+        handlers
+          .handle("welcomeEmail", execute("welcome-email"))
+          .handle("imageProcessing", execute("image-processing"))
+          .handle("webhookDelivery", execute("webhook-delivery"))
+          .handle("syntheticDocumentExport", executeSyntheticExport)
+          .handle("privateDataExport", executeExport)
+          .handle("catalogSync", execute("catalog-sync"))
+          .handle("simulatedPayment", execute("simulated-payment"))
     )
   )
 )

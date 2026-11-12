@@ -77,7 +77,7 @@ for (const name of ["OperatorProbe", "NativeDrizzleOperators", "QuotaProbe"]) {
 }
 process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY = mkdtempSync(`${evidence}/artifact-`)
 const packed = run("pack", ["node", "scripts/pack-release.mjs"]).output.trim()
-delete process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY
+Reflect.deleteProperty(process.env, "EFFECT_JOBS_ARTIFACT_DIRECTORY")
 const inventory = run("inventory", ["tar", "-tzf", packed]).output.split("\n")
 if (inventory.some((path) => /package\/(apps|packages|node_modules)\//.test(path))) {
   throw new Error("Private app leaked into library")

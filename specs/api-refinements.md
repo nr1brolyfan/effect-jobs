@@ -1,105 +1,81 @@
 # Job API refinements
 
-`Job.make` returns a lazy `Effect<JobDefinition<...>, InvalidJobDefinition>`
-with constructor R=never. All six overloads retain their exact success types. It
-defaults omitted version to exactly `1` and uses the standard encoder
-unless `encodePayload` is supplied. Returned identity always contains a validated
-concrete version. Literal inference preserves omission and explicit versions;
-optional version variables conservatively include `1`. Incompatible payload
-changes need an explicit new version and its decoder. The handler decoder remains
-explicit. `JobPolicy.defaultPolicy` is deeply frozen and readonly; `make()` has the
-same defaults and never freezes/mutates caller options.
+`Job.make({ name, version?, payload })` returns a lazy
+`Effect<JobDefinition<Payload, Name, Version>, InvalidJobDefinition>` with no
+constructor services. Omitted version is exactly `1`; optional version variables
+include `1`. A job contains only its name, version and payload Schema. Routing,
+policy and production methods belong to the producer. The standard artifact codec
+is fixed; Schema owns transformations and encryption.
 
 ## Lazy setup and shared application definitions
 
-`JobPayload.encrypted`, `Job.make` and `JobProducer.make` each have one public
-Effect constructor. Expected configuration errors are `InvalidEncryptedSchema`,
-`InvalidJobDefinition` and `JobDeclarationError`, respectively. Construction starts
-no encoding/decoding, key lookup, SQL, worker or background activity. Schema
-encoding/decoding requirements remain on the returned Codec and subsequent
-operations, rather than the constructor's R channel.
+`JobPayload.encrypted`, `Job.make`, `JobProducer.make` and `JobPolicy.make`
+validate in their typed Effect channels. `JobProducer.withSlot` composes the
+producer Effect through `Effect.flatMap`. Calling these constructors starts no
+validation, encoding, key lookup, SQL, worker or background activity. Each
+execution reads and snapshots caller configuration into fresh owned values;
+previous snapshots remain unchanged. Encoding/decoding services stay on the
+subsequent operations. Encrypted callbacks retain their original receiver.
 
-Each execution reads and snapshots its caller configuration, validates it, and
-creates fresh output. Calling a factory alone does no validation or registration.
-Reexecuting observes current input; previously returned snapshots remain owned by
-that execution. Job policy and producer slot records are copied/frozen without
-mutating caller objects. Encrypted setup captures schema, envelope and callback
-references at execution; callbacks retain their original receiver, whose arbitrary
-internal mutable state is application-owned.
+Compose setup once in an application-owned Effect/Layer, and reuse the same
+memoized definitions graph for producers, catalogs and handler installation.
+Pure `JobGroup` and `JobApi` declarations stay synchronous and inert. There is
+no hidden `runSync` adapter or public mutable registry.
 
-Compose encrypted fields, schemas, jobs, producers, handlers and catalogs in one
-explicit setup Effect/Layer per application installation. Reuse one definitions
-Layer reference within a live memoized graph. Enqueue and handler installation
-use those same values, and request paths do not rerun setup. Portable imports
-remain inert. Host startup explicitly handles setup failure before exposing
-callbacks; it must not hide a private runtime in an internal constructor.
+## Names, bindings and policy
 
-`validateOperationId` and producer `identity` also validate lazily in Effect,
-with their precise bounded errors and no services. Identity reads operationId
-and slot once per execution and never normalizes ID bytes. Bound enqueue keeps
-`InvalidJobInput`; Policy and PostgreSqlNative constructors retain their existing
-synchronous contracts, and `defaultPolicy` remains a prevalidated frozen value.
-
-## Names, bindings and definition policy
-
-`Job.make({ name, queue, version?, payload, defaultPolicy?, encodePayload? })`
-uses a stable machine contract name, not a display label or generated job ID.
-Catalog identity is `(queue, name, version)`. Existing name VALUES and versions
-are unchanged by this field rename. There are no public `kind` aliases.
-
-Physical PostgreSQL remains `jobs.kind TEXT NOT NULL`; Drizzle exposes
-`name: text("kind").notNull()`. Required indexes/constraints and migration/readiness
-remain unchanged. Row adapters map physical kind to public name. No PostgreSQL
-migration, row rewrite or reset is required. Changing identifier VALUES is a
-separate catalog change. Signed playground cursor filters retain the durable
-`kind` key through an explicit Schema encoding map; public filters use `name`.
-Operator/repair discriminants and `redrive_kind` keep their meanings.
-
-A producer uses a nonempty immutable record of slot-to-job bindings:
+The public contract spelling is `name`. Physical PostgreSQL remains `jobs.kind`;
+Drizzle exposes `name: text("kind").notNull()`. Signed cursor encodings keep their
+durable `kind` key through an explicit Schema map. Identifier values are unchanged;
+no row rewrite, migration or reset follows from the public spelling.
 
 ```ts
 const DefinitionsProgram = Effect.gen(function* () {
-  const PlaceOrderProducer = yield* JobProducer.make({
-    operation: "order.place",
-    slots: { confirmation: SendOrderConfirmation, invoice: CreateOrderInvoice }
-  })
-  return { PlaceOrderProducer }
+  const invoice = yield* Job.make({ name: "invoice.generate", payload: Invoice })
+  const producer = yield* JobProducer.make("order.place").pipe(
+    JobProducer.withSlot("invoice", invoice, { queue: BillingQueue })
+  )
+  return { invoice, producer }
 })
-// Consume the built shared setup rather than reconstructing it per request.
-definitions.PlaceOrderProducer.enqueue("confirmation", {
+// Use the installed definitions rather than rerunning setup per request.
+definitions.producer.enqueue({
+  slot: "invoice",
   operationId: "submission-1",
-  payload: { orderId: "order-1" }
+  payload: { invoiceId: "invoice-1" }
 })
 ```
 
-The selected slot determines decoded payload, Schema EncodingServices and policy
-optionality. Bound enqueue delegates the existing ambient transaction, never
-begins/commits/replays one. Different jobs/queues and several slots bound to one
-job are supported. Empty/invalid maps, dynamic IDs and slots fail at their proper
-boundaries. `identity({ operationId, slot })` stays structural low-level access,
-not a global proof of the slot/job association. Job-level standalone and explicit
-transaction primitives remain available.
+Empty producer declarations are valid and have no legal typed enqueue slot.
+Each `withSlot` addition snapshots only its new binding, preserves earlier values
+and exact payload/service types, and rejects known duplicate names statically and
+every duplicate through `JobDeclarationError` when setup executes. There is no
+record constructor, `build`, `replaceSlot`, producer `identity` method or job-level
+enqueue method. Low-level `ProducerIdentity` remains a structural persistence
+contract; it does not prove a slot association.
 
-Keep producer declarations near their owning business use case. Share one only
-when multiple callers execute that same operation; shared contracts must not
-import producer applications, handlers, providers or composition roots.
+A fixed `{ queue }` binding forbids an enqueue `queue` property, including
+`undefined`. A nonempty `{ queues: [first, ...rest] }` binding requires a member
+queue-name string on every enqueue, including singleton choices. Both/missing
+routing declarations, duplicate names and `defaultQueue` fail typed setup.
+Routing and complete optional policy replacements are snapshotted before
+asynchronous encoding, after transaction authority checks. Omitted policy uses
+`defaultPolicy`; workers use only persisted policy. Matching duplicates compare
+job name/version and semantic payload, excluding queue/policy/availability, and
+retain the first complete durable configuration and artifact. Changed job/version
+or semantic content conflicts. This does not provide exactly-once external work.
 
-A definitely provided complete `defaultPolicy` makes enqueue policy optional on
-all entrypoints. Absent or optional/dynamic defaults keep it statically required.
-An explicit complete policy replaces the whole default, never merges fields.
-JS/dynamic missing/invalid policy is rejected. The library validates and snapshots
-policy without freezing/mutating caller objects. First insertion persists the
-resolved policy; duplicates retain first policy and availability even after
-default changes. Workers execute only stored policy. Changing defaults alone
-needs no catalog version bump and changes no retained/pending row. There is no
-queue/global fallback hierarchy. FixedDelayV1 remains unchanged.
+`JobApi.make(name).pipe(JobApi.addGroup(group), ...)` declares an immutable catalog.
+`JobApiBuilder.group(api, name, handlers => handlers.handle(alias, handler))`
+requires complete handler coverage. Worker construction requires all catalog group
+installations and one configured `JobStorage`, with shared queue concurrency and
+one response budget. Queue-scoped recovery and read-only bounded `JobSchedule`
+remain explicit; polling shutdown has finite grace. There are no public Consumer,
+Registry, Plan or old Runtime compatibility exports.
 
-Catalog identity selects the contract/handler; producer identity
-`(operation, operationId, slot)` selects the consequence globally within one jobs
-storage. Same tuple/catalog/semantic payload returns first ID. Changed payload,
-job, queue or version conflicts; distinct operationId means new work. Different
-slots may intentionally carry different recipients to the same job. This is not
-exactly-once external email, slot ordering or a workflow DAG.
+Retry configuration uses the typed `Policy.make({ retry })` construction in
+[retry-policy.md](retry-policy.md). Stored `maxAttempts`/`attempts_made` keys map to
+public `maxFinalizedAttempts`/`finalizedAttempts`. Upgrade readers before producing
+new BackoffV1/ProportionalV1 rows; old fixed-delay rows retain their semantics.
 
 ## Diagnostic codes
 
@@ -170,14 +146,14 @@ useful for already-protected envelopes and custom codecs.
 ## Native transactions
 
 `PostgreSqlNative.layer({ client, operationTimeoutMillis })` supplies the adapter
-for the application's SAME native `PgClient@4.0.5`. `PostgreSqlJobs.layerNoDeps`
-provides `PostgreSqlJobs` and generic `JobEnqueue`. Public
+for the application's SAME native `PgClient@4.1.0`. `PostgreSqlJobs.layerNoDeps`
+provides `PostgreSqlJobs`, `JobEnqueue`, `JobOperators`, `JobStorage` and `JobSchedule`. Public
 `client.withTransaction(body)` owns the transaction; Drizzle schema/queries run
 in that same client/Context. `db.transaction` retains its upstream type limitation
-and is excluded from positive qualification, without a local type correction. `job.enqueue(input)` requires it; it has no transaction
+and is excluded from positive qualification, without a local type correction. `producer.enqueue(input)` requires it; it has no transaction
 argument or implicit fallback. Jobs/domain/receipts must share the same source.
 
-`backend.withTransaction(() => job.enqueue(input))` delegates explicit manager
+`jobs.withTransaction(() => producer.enqueue(input))` delegates explicit manager
 join-or-establish and supplies the producer service. `enqueueStandalone(input)`
 owns bounded preparation plus atomic job/payload/dedup insertion, rejects an active
 configured-client transaction and resolves after acknowledged commit. Unknown
@@ -189,7 +165,7 @@ Nested transactions/options/isolation are not automatically Drizzle-equivalent.
 A+B strict/exactOptional source checks use approved dependency skipLibCheck:true;
 C remains separately recorded known upstream FAIL and is nonblocking.
 
-Generic producer errors are bounded `JobBackendError` values with transaction
+Generic producer errors are bounded `JobPersistenceError` values with transaction
 misuse reason and `NotCommitted | Unknown` knowledge. Schema services remain in
 E/R composition. The native adapter's structural input type does not qualify other
 SQL drivers. Explicit-handle adapters retain `enqueueInTransaction` and their
@@ -208,14 +184,14 @@ validation. Drizzle/application migration generation owns these extra indexes.
 `PostgreSqlSchema.migration` remains baseline-only and readiness does not require
 application indexes. No dashboard/query/index performance recommendation is implied.
 
-Qualification uses pinned ORM `1.0.0-rc.5-169397b` and migration tool
+The earlier index qualification used ORM `1.0.0-rc.5-169397b` and migration tool
 `drizzle-kit@1.0.0-rc.5-5935859`: generated DDL/snapshot contains custom and mandatory
 indexes; unchanged repeated generation proposes no drop. Upstream full strict
 Drizzle declaration failure remains separately reported, not declared fixed.
 
 ## Finite local qualification
 
-The existing `verify`, backend, installed and release guards remain required.
+The existing `verify`, persistence, installed and release guards remain required.
 `qualify:drizzle:native` adds packed native ambient/standalone real-PG checks on
 Node and Bun; `qualify:drizzle:indexes` records migration/snapshot evidence;
 `qualify:api:installed` checks new public types and local encrypted service behavior.

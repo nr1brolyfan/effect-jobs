@@ -13,12 +13,13 @@ import {
 const job = Effect.runSync(
   Job.make({
     name: "identity.test",
-    queue: Queue.make("identity"),
     payload: Schema.String
   })
 )
 const producer = Effect.runSync(
-  Producer.make({ operation: "identity.test", slots: { run: job } })
+  Producer.make("identity.test").pipe(
+    Producer.withSlot("run", job, { queue: Queue.make("identity") })
+  )
 )
 
 describe("lazy typed identity", () => {
@@ -39,21 +40,41 @@ describe("lazy typed identity", () => {
   it("reads input once at execution and takes a fresh snapshot on reexecution", () => {
     let reads = 0
     let operationId = "before"
+    const seen: Array<{
+      readonly operation: string
+      readonly operationId: string
+      readonly slot: string
+    }> = []
     const input = {
       get operationId() {
         reads++
         return operationId
       },
-      slot: "run" as const
+      slot: "run" as const,
+      payload: "fixture"
     }
-    const pending = producer.identity(input)
+    const pending = producer.enqueue(input).pipe(
+      Effect.provideService(
+        JobEnqueue,
+        JobEnqueue.of({
+          enqueue: (prepared) =>
+            Effect.map(prepared, (value) => {
+              seen.push(value.producer)
+              return { _tag: "Inserted" as const, jobId: "fixture" as never }
+            }),
+          enqueueStandalone: () => Effect.die("unexpected standalone")
+        })
+      )
+    )
     expect(reads).toBe(0)
     operationId = " é "
-    const first = Effect.runSync(pending)
+    Effect.runSync(pending)
+    const first = seen[0]!
     expect(first).toEqual({ operation: "identity.test", operationId: " é ", slot: "run" })
     expect(reads).toBe(1)
     operationId = "é"
-    const second = Effect.runSync(pending)
+    Effect.runSync(pending)
+    const second = seen[1]!
     expect(second.operationId).toBe("é")
     expect(first.operationId).toBe(" é ")
     expect(second).not.toBe(first)
@@ -67,36 +88,43 @@ describe("lazy typed identity", () => {
     })
   })
 
-  it("keeps invalid operation ID precedence over an undeclared slot", () => {
+  it("rejects removed public identity helpers and undeclared slots before preparation", () => {
+    expect(producer).not.toHaveProperty("identity")
+    const service = JobEnqueue.of({
+      enqueue: (prepared) =>
+        Effect.as(prepared, { _tag: "Inserted" as const, jobId: "fixture" as never }),
+      enqueueStandalone: () => Effect.die("unexpected standalone")
+    })
+    const rejected = producer.enqueue({
+      operationId: "valid",
+      slot: "absent",
+      payload: "fixture"
+    } as never)
     expect(
       Effect.runSync(
-        Effect.flip(producer.identity({ operationId: "", slot: "absent" } as never))
+        Effect.flip(rejected).pipe(Effect.provideService(JobEnqueue, service))
       )
-    ).toMatchObject({ _tag: "InvalidOperationId" })
-    expect(
-      Effect.runSync(
-        Effect.flip(producer.identity({ operationId: "valid", slot: "absent" } as never))
-      )
-    ).toMatchObject({ _tag: "JobDeclarationError", field: "slots" })
+    ).toMatchObject({ _tag: "InvalidJobInput", field: "producer" })
   })
 
-  it("the actual report caller returns InvalidJobInput in Effect for an empty ID", () => {
+  it("the actual report caller returns typed InvalidOperationId before persistence for an empty ID", () => {
     const pending = enqueueReport("", { reportId: "r", rows: [] })
     expect(Effect.isEffect(pending)).toBe(true)
-    // Validation rejects before asking for the backend, encoding or starting a transaction.
+    // The authority-owning service evaluates preparation before encoding or SQL.
     expect(
       Effect.runSync(
         Effect.flip(pending).pipe(
           Effect.provideService(
             JobEnqueue,
             JobEnqueue.of({
-              enqueue: () => Effect.die("unexpected backend call"),
+              enqueue: (prepared) =>
+                Effect.flatMap(prepared, () => Effect.die("unexpected persistence call")),
               enqueueStandalone: () => Effect.die("unexpected backend call")
             })
           ),
           Effect.provide(ReportDefinitionsLayer)
         )
       )
-    ).toMatchObject({ _tag: "InvalidJobInput", field: "producer" })
+    ).toMatchObject({ _tag: "InvalidOperationId", rule: "utf8-length" })
   })
 })

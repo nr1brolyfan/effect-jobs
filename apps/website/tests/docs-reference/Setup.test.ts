@@ -1,9 +1,8 @@
 import { Effect, Layer, Schema } from "effect"
 import { expect, it } from "vitest"
-import * as Registry from "effect-jobs/JobRegistry"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
-import { EnqueueResults } from "effect-jobs/JobContract"
+import { EnqueueResult } from "effect-jobs/JobContract"
 import { JobId } from "effect-jobs/JobId"
 import {
   ReportDefinitions,
@@ -52,37 +51,52 @@ it("shares one initialized report graph across handler installation and repeated
         })
       )
     ),
-    Layer.provideMerge(Registry.layer),
     Layer.provideMerge(DefinitionsLayer)
   )
   const payload = { reportId: "shared-report", rows: [{ product: "widget", units: 1 }] }
   await Effect.runPromise(
     Effect.gen(function* () {
       const definitions = yield* ReportDefinitions
-      const registry = yield* Registry.JobRegistry
-      const handler = registry.find(definitions.GenerateReport.catalog)
+      const handlers = yield* definitions.GenerateJobs.handlers
+      const handler = handlers.report
       expect(handler).toBeDefined()
       const encoded = yield* Codec.encodeJobPayload(
         definitions.GenerateReport.payload,
         payload
       )
-      yield* handler!.execute(encoded, {
+      yield* handler!(encoded, {
         jobId: Schema.decodeSync(JobId)("report-job"),
-        catalog: definitions.GenerateReport.catalog,
+        catalog: {
+          queue: "reports",
+          name: definitions.GenerateReport.name,
+          version: definitions.GenerateReport.version
+        },
         producer: {
           operation: "report.request",
           operationId: "request",
           slot: "generate"
         },
-        attemptNumber: 1
+        nextFinalizationNumber: 1
       })
       yield* enqueueReport("request", payload)
       yield* enqueueReport("request", payload)
       expect(catalogs).toHaveLength(2)
-      expect(catalogs[0]).toBe(definitions.GenerateReport.catalog)
-      expect(catalogs[1]).toBe(definitions.GenerateReport.catalog)
-      expect(definitions.RequestReport.slots.generate).toBe(definitions.GenerateReport)
-      expect(definitions.GeneratedReport.slots.deliver).toBe(definitions.DeliverReport)
+      expect(catalogs[0]).toEqual({
+        queue: "reports",
+        name: definitions.GenerateReport.name,
+        version: definitions.GenerateReport.version
+      })
+      expect(catalogs[1]).toEqual({
+        queue: "reports",
+        name: definitions.GenerateReport.name,
+        version: definitions.GenerateReport.version
+      })
+      expect(definitions.RequestReport.slots.generate.job).toEqual(
+        definitions.GenerateReport
+      )
+      expect(definitions.GeneratedReport.slots.deliver.job).toEqual(
+        definitions.DeliverReport
+      )
     }).pipe(
       Effect.provide(graph),
       Effect.provideService(
@@ -92,7 +106,7 @@ it("shares one initialized report graph across handler installation and repeated
             prepared.pipe(
               Effect.map((job) => {
                 catalogs.push(job.catalog)
-                return EnqueueResults.Inserted({
+                return EnqueueResult.Inserted({
                   jobId: Schema.decodeSync(JobId)("report-job")
                 })
               })
@@ -115,8 +129,8 @@ it("creates independently owned report definitions when setup is executed again"
   expect(second.GenerateReport).not.toBe(first.GenerateReport)
   expect(second.DeliverReport).not.toBe(first.DeliverReport)
   expect(second.RequestReport).not.toBe(first.RequestReport)
-  expect(first.RequestReport.slots.generate).toBe(first.GenerateReport)
-  expect(second.RequestReport.slots.generate).toBe(second.GenerateReport)
-  expect(first.GeneratedReport.slots.deliver).toBe(first.DeliverReport)
-  expect(second.GeneratedReport.slots.deliver).toBe(second.DeliverReport)
+  expect(first.RequestReport.slots.generate.job).toEqual(first.GenerateReport)
+  expect(second.RequestReport.slots.generate.job).toEqual(second.GenerateReport)
+  expect(first.GeneratedReport.slots.deliver.job).toEqual(first.DeliverReport)
+  expect(second.GeneratedReport.slots.deliver.job).toEqual(second.DeliverReport)
 })

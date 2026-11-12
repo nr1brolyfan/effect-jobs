@@ -13,6 +13,7 @@ import {
   resolveFinalization
 } from "../../src/internal/lifecycle/Reconciliation.js"
 import type { ClaimRequest, FinalizationRequest } from "../../src/JobStore.js"
+import type { JobPolicyIncompatible } from "../../src/JobContract.js"
 
 export class Connection extends Context.Service<Connection, {}>()(
   "tests/lifecycle/Connection"
@@ -23,7 +24,7 @@ declare const claim: ClaimRequest
 declare const finalization: FinalizationRequest
 export const claimed: Effect.Effect<
   ClaimResult,
-  "provider-failure" | JobStoreProtocolError,
+  "provider-failure" | JobStoreProtocolError | JobPolicyIncompatible,
   Connection
 > = store.claim(claim)
 export const finalized: Effect.Effect<
@@ -63,3 +64,9 @@ export const incomplete: FinalizationRequest = {
   ownership: finalization.ownership,
   finalization: finalization.finalization
 }
+
+// Additive metadata: older custom snapshot producers may omit it, PG always fills it.
+declare const snapshot: import("../../src/JobLifecycle.js").JobSnapshot
+export const creationTime: number | null | undefined = snapshot.createdAt
+// @ts-expect-error Creation metadata is read-only.
+snapshot.createdAt = 123

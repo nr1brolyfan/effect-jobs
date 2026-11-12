@@ -12,7 +12,7 @@ import type {
   ApplicationAdapter,
   TransactionQuery
 } from "../../../src/postgresql/PostgreSqlTransaction.js"
-import { defaultPolicy } from "../../../src/JobPolicy.js"
+import { defaultPolicy, PersistedJobPolicy } from "../../../src/JobPolicy.js"
 import { DocumentKeys, EncryptedDocument, keys } from "../codec/EncryptedFixture.js"
 
 const expected = Schema.decodeSync(JobOperatorExpected)({
@@ -21,17 +21,20 @@ const expected = Schema.decodeSync(JobOperatorExpected)({
   lifecycleVersion: 4
 })
 const definition = {
-  catalog: { queue: "billing", name: "invoice", version: 1 },
+  name: "invoice",
+  version: 1,
   payload: Schema.Struct({ value: Schema.String })
 }
+const catalog = { queue: "billing", name: definition.name, version: definition.version }
 const producer = { operation: "repair", operationId: "new", slot: "replacement" }
 const row = () => ({
   id: "source",
   state: "Dead",
   lifecycle_version: 4,
-  policy: defaultPolicy,
+  policy: Schema.encodeSync(PersistedJobPolicy)(defaultPolicy),
   available_at: 100,
   updated_at: 100,
+  created_at: null,
   attempts_made: 3,
   stalled_count: 0,
   lease_token: null,
@@ -136,13 +139,14 @@ test.each(["Dead", "Isolated"] as const)(
     expect(calls[0]!.sql).not.toContain("JOIN")
     const values = calls.find((c) => c.sql.startsWith('INSERT INTO "jobs"'))!.values!
     expect(values.slice(7)).toEqual([
-      JSON.stringify(defaultPolicy),
+      JSON.stringify(Schema.encodeSync(PersistedJobPolicy)(defaultPolicy)),
       200,
       200,
       200,
       "source",
       "source",
-      "CorrectedRedrive"
+      "CorrectedRedrive",
+      true
     ])
     expect(new TextDecoder().decode(calls.at(-1)!.values![2] as Uint8Array)).toBe(
       '{"value":"fixed"}'
@@ -158,7 +162,6 @@ test.each([
   { operation: "BAD" },
   { initial_available_at: -1 },
   { lease_token: "owned" },
-  { policy: { ...defaultPolicy, leaseDurationMillis: 30001 } },
   { original_source_job_id: "other", source_job_id: "wrong", redrive_kind: "Redrive" },
   { original_source_job_id: "source", source_job_id: "source", redrive_kind: "Redrive" },
   { original_source_job_id: "other", redrive_kind: null }
@@ -179,16 +182,75 @@ test.each([
   expect(calls.some((c) => c.sql.startsWith("SELECT floor"))).toBe(false)
 })
 
+test.each(["Redrive", "CorrectedRedrive"] as const)(
+  "%s accepts a queue-independent contract and preserves the source route",
+  async (mode) => {
+    const encoded = await Effect.runPromise(
+      encodeJobPayload(definition.payload, { value: "original" })
+    )
+    const source = {
+      ...row(),
+      queue: "retained-route",
+      format_version: encoded.formatVersion,
+      payload: encoded.payloadBytes,
+      projection: encoded.semanticProjectionBytes
+    }
+    const before = structuredClone(source)
+    const { calls, service } = fixture(source)
+    const contract = {
+      name: definition.name,
+      version: definition.version,
+      payload: definition.payload
+    }
+    const request = { expected, producer }
+    const result = await Effect.runPromise(
+      mode === "Redrive"
+        ? service.redrive(contract, request)
+        : service.correctedRedrive(contract, { ...request, payload: { value: "fixed" } })
+    )
+    expect(result.inserted).toBe(true)
+    const inserted = calls.find((call) => call.sql.startsWith('INSERT INTO "jobs"'))!
+    expect(inserted.values!.slice(4, 7)).toEqual(["retained-route", "invoice", 1])
+    expect(source).toEqual(before)
+    expect(calls.some((call) => call.sql.startsWith("UPDATE"))).toBe(false)
+  }
+)
+
+test.each([9, 10, 11])(
+  "distinguishes stored policy reserve %s from invalid artifact data",
+  async (reserve) => {
+    const { calls, service } = fixture({
+      ...row(),
+      policy: {
+        ...Schema.encodeSync(PersistedJobPolicy)(defaultPolicy),
+        leaseDurationMillis: defaultPolicy.attemptTimeoutMillis + reserve
+      }
+    })
+    const result = await Effect.runPromiseExit(
+      service.correctedRedrive(definition, {
+        expected,
+        producer,
+        payload: { value: "fixed" }
+      })
+    )
+    if (reserve < 10) {
+      expect(failure(result)).toMatchObject({ value: { reason: "policy-incompatible" } })
+      expect(calls.every((call) => call.sql.startsWith("SELECT"))).toBe(true)
+      expect(calls.some((call) => call.sql.startsWith("SELECT floor"))).toBe(false)
+    } else {
+      expect(Exit.isSuccess(result)).toBe(true)
+      expect(calls.some((call) => call.sql.startsWith('INSERT INTO "jobs"'))).toBe(true)
+    }
+  }
+)
+
 test("replacement enforces schema, canonical bounds, catalog and original producer without insertion", async () => {
   for (const [def, request] of [
     [definition, { expected, producer, payload: { value: 12 } }],
     [definition, { expected, producer, payload: { value: "ok", excess: true } }],
     [definition, { expected, producer, payload: { value: "x".repeat(65537) } }],
     [
-      {
-        ...definition,
-        catalog: { ...definition.catalog, version: 2 }
-      },
+      { ...definition, version: 2 },
       { expected, producer, payload: { value: "ok" } }
     ],
     [
@@ -246,8 +308,9 @@ test.each(["source", "kind", "absent", "inconsistent", "semantic"])(
           return [
             {
               id: "child",
-              ...definition.catalog,
-              kind: definition.catalog.name,
+              queue: catalog.queue,
+              kind: catalog.name,
+              version: catalog.version,
               format_version: 1,
               projection:
                 variant === "semantic"
@@ -283,8 +346,9 @@ test.each(["source", "kind", "absent", "inconsistent", "semantic"])(
         query,
         '"jobs"',
         '"payloads"',
-        { catalog: definition.catalog, producer, policy: defaultPolicy, encoded },
+        { catalog, producer, policy: defaultPolicy, encoded },
         200,
+        100,
         undefined,
         {
           originalSourceJobId: expected.jobId,
@@ -321,8 +385,9 @@ test("exact lineage duplicate accepts deleted live reference without reassignmen
         return [
           {
             id: "child",
-            ...definition.catalog,
-            kind: definition.catalog.name,
+            queue: catalog.queue,
+            kind: catalog.name,
+            version: catalog.version,
             format_version: 1,
             projection: encoded.semanticProjectionBytes,
             original_source_job_id: "source",
@@ -333,14 +398,14 @@ test("exact lineage duplicate accepts deleted live reference without reassignmen
       })
   }
   const prepared = {
-    catalog: definition.catalog,
+    catalog,
     producer,
     policy: defaultPolicy,
     encoded
   }
   expect(
     await Effect.runPromise(
-      insertOrCompareAt(query, '"jobs"', '"payloads"', prepared, 200, undefined, {
+      insertOrCompareAt(query, '"jobs"', '"payloads"', prepared, 200, 100, undefined, {
         originalSourceJobId: expected.jobId,
         sourceJobId: expected.jobId,
         kind: "CorrectedRedrive"
@@ -351,7 +416,7 @@ test("exact lineage duplicate accepts deleted live reference without reassignmen
   expect(
     failure(
       await Effect.runPromiseExit(
-        insertOrCompare(query, '"jobs"', '"payloads"', prepared)
+        insertOrCompare(query, '"jobs"', '"payloads"', prepared, 100)
       )
     )
   ).toMatchObject({ value: { _tag: "JobIntegrityConflict" } })
