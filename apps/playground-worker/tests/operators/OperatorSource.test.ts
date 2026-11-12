@@ -21,9 +21,9 @@ const payload = {
   order: "demo-order-a" as const
 }
 const row = (encoded: EncodedJobPayload, definition = definitions.WelcomeEmail) => ({
-  queue: definition.catalog.queue,
-  kind: definition.catalog.name,
-  version: definition.catalog.version,
+  queue: definitions.catalogFor(definition).queue,
+  kind: definition.name,
+  version: definition.version,
   format_version: encoded.formatVersion,
   payload: encoded.payloadBytes,
   projection: encoded.semanticProjectionBytes
@@ -35,8 +35,8 @@ describe("private redrive source authority", () => {
       Effect.gen(function* () {
         const encoded = yield* Codec.encodeJobPayload(Definitions.Payload, payload)
         const valid = row(encoded)
-        expect((yield* Source.validate(valid, ref)).catalog).toEqual(
-          definitions.WelcomeEmail.catalog
+        expect(definitions.catalogFor(yield* Source.validate(valid, ref))).toEqual(
+          definitions.catalogFor(definitions.WelcomeEmail)
         )
         for (const foreign of [
           { sandboxId: "private-b", generation: 1 },
@@ -76,9 +76,9 @@ describe("private redrive source authority", () => {
             })
             const input = {
               ...row(encoded),
-              queue: definition.catalog.queue,
-              kind: definition.catalog.name,
-              version: definition.catalog.version
+              queue: definitions.catalogFor(definition).queue,
+              kind: definition.name,
+              version: definition.version
             }
             const result = yield* Effect.exit(Source.validate(input, ref))
             expect(Exit.isSuccess(result)).toBe(tenant === payload.tenant)

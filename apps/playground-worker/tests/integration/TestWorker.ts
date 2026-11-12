@@ -1,7 +1,7 @@
 // @effect-diagnostics anyUnknownInErrorContext:off
 // Standalone test-host FFI: Core's upstream error channel is any.
 import * as Cloudflare from "@alchemy.run/cloudflare"
-import * as Core from "alchemy/Test/Core"
+import * as Core from "@alchemy.run/test/Core"
 import { Effect, Exit, Scope } from "effect"
 import { createInterface } from "node:readline"
 import ProductionStack from "../../alchemy.run.js"

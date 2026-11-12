@@ -1,6 +1,7 @@
-import { Cause, Effect } from "effect"
+import { Cause, Effect, Schema } from "effect"
+import { PersistedJobPolicy } from "../../../src/JobPolicy.js"
 import { expect, it } from "vitest"
-import { ClaimResults } from "../../../src/JobStore.js"
+import { ClaimResult } from "../../../src/JobStore.js"
 import { makeStore } from "../../../src/postgresql/internal/Store.js"
 import {
   PostgreSqlFailure,
@@ -18,11 +19,12 @@ const row = () => {
   const artifact = prepared()
   return {
     id: snapshot.jobId,
-    policy: snapshot.policy,
+    policy: Schema.encodeSync(PersistedJobPolicy)(snapshot.policy),
     state: snapshot.state,
     available_at: snapshot.availableAt,
     updated_at: snapshot.updatedAt,
-    attempts_made: snapshot.attemptsMade,
+    created_at: null,
+    attempts_made: snapshot.finalizedAttempts,
     stalled_count: snapshot.stalledCount,
     lifecycle_version: snapshot.lifecycleVersion,
     lease_token: null,
@@ -101,7 +103,9 @@ it.each(failures)(
     // Effect's handling of compound Causes; no database/commit guarantee is inferred.
     const expected = await Effect.runPromiseExit(
       Effect.failCause(cause).pipe(
-        Effect.catchTag("PostgreSqlFailure", () => Effect.succeed(ClaimResults.Unknown()))
+        Effect.catchTags({
+          PostgreSqlFailure: () => Effect.succeed(ClaimResult.Unknown())
+        })
       )
     )
     expect(actual).toEqual(expected)

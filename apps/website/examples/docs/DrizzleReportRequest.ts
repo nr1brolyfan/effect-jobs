@@ -1,4 +1,4 @@
-// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this checked example.
+// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this checked example.
 // @effect-diagnostics unstableApiUsage:off
 import { Context, Effect, Layer, Schema } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
@@ -48,17 +48,17 @@ const DatabaseLayer = Layer.effect(Database, Drizzle.makeWithDefaults())
 const ReportJobsLayer = Layer.unwrap(
   Effect.gen(function* () {
     const pg = yield* PgClient.PgClient
-    const backend = yield* PostgreSqlJobs.make({
+    const jobs = yield* PostgreSqlJobs.make({
       operationResponseBudgetMillis: 100
     }).pipe(
       Effect.provide(
         PostgreSqlNative.layer({ client: pg, operationTimeoutMillis: 2_000 })
       )
     )
-    yield* backend.ready
+    yield* jobs.ready
     return Layer.mergeAll(
-      Layer.succeed(PostgreSqlJobs.PostgreSqlJobs, backend),
-      Layer.succeed(JobEnqueue, backend.producer)
+      Layer.succeed(PostgreSqlJobs.PostgreSqlJobs, jobs),
+      Layer.succeed(JobEnqueue, jobs.producer)
     )
   })
 )

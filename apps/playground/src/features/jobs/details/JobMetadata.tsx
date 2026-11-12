@@ -29,7 +29,10 @@ export function JobScheduling(props: { readonly detail: JobDetail }) {
               />
             )
           },
-          { label: "Created", value: <Absent reason="Creation time is not stored" /> }
+          {
+            label: "Created",
+            value: <DetailTime value={props.detail.createdAt} label="Creation time" />
+          }
         ]}
       />
     </Panel>
@@ -64,7 +67,7 @@ export function JobMetadata(inputProps: { readonly detail: JobDetail }) {
             <h2 {...stylex.props(styles.heading)}>Execution policy</h2>
             <PropertyGrid
               items={[
-                { label: "Attempt limit", value: policy.maxAttempts },
+                { label: "Finalized attempt limit", value: policy.maxFinalizedAttempts },
                 { label: "Recovery limit", value: policy.maxStalledCount },
                 {
                   label: "Attempt timeout",
@@ -75,9 +78,30 @@ export function JobMetadata(inputProps: { readonly detail: JobDetail }) {
                   value: formatDuration(policy.leaseDurationMillis)
                 },
                 {
-                  label: "Retry delay",
+                  label:
+                    policy.retrySchedule._tag === "FixedDelayV1"
+                      ? "Retry delay"
+                      : "Retry base delay",
                   value: formatDuration(policy.retrySchedule.delayMillis)
                 },
+                ...(policy.retrySchedule._tag === "FixedDelayV1"
+                  ? []
+                  : [
+                      { label: "Retry factor", value: policy.retrySchedule.factor },
+                      {
+                        label: "Retry cap",
+                        value: formatDuration(policy.retrySchedule.maxDelayMillis)
+                      },
+                      {
+                        label: "Retry jitter",
+                        value:
+                          policy.retrySchedule.jitter === "Full"
+                            ? "Full"
+                            : policy.retrySchedule.jitter === "ProportionalV1"
+                              ? "80–120% (bounded)"
+                              : "None"
+                      }
+                    ]),
                 {
                   label: "Completed retention",
                   value:

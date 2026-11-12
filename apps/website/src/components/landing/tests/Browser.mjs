@@ -69,9 +69,8 @@ try {
   await expect(page.locator("[data-toggle]")).toBeDisabled()
   await expect(system).toHaveAttribute("data-playing", "false")
   await expect(page.locator("[data-code]")).toContainText("yield* ReportDefinitions")
-  await expect(page.locator("[data-code]")).toContainText(
-    'RequestReport.enqueue("generate"'
-  )
+  await expect(page.locator("[data-code]")).toContainText("RequestReport.enqueue({")
+  await expect(page.locator("[data-code]")).toContainText('slot: "generate"')
   await expect(page.locator("[data-step]")).toHaveText("Step 1 / 12")
   const expectedStates = [
     ["Pending", "Awaiting request", "Awaiting request", "Awaiting request"],
@@ -258,9 +257,8 @@ try {
   await expect(staticPage.locator("[data-code]")).toContainText(
     "yield* ReportDefinitions"
   )
-  await expect(staticPage.locator("[data-code]")).toContainText(
-    'RequestReport.enqueue("generate"'
-  )
+  await expect(staticPage.locator("[data-code]")).toContainText("RequestReport.enqueue({")
+  await expect(staticPage.locator("[data-code]")).toContainText('slot: "generate"')
   await expect(staticPage.locator(".playback")).toBeHidden()
   await expect(staticPage.locator('a[href="/docs/start/first-job"]')).toBeVisible()
   await staticPage.screenshot({ path: resolve(evidence, "no-js.png"), fullPage: true })

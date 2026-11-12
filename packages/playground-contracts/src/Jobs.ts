@@ -2,7 +2,7 @@ import { Schema } from "effect"
 import { JobId } from "effect-jobs/JobId"
 import { CatalogIdentity, ProducerIdentity } from "effect-jobs/JobIdentity"
 import { Counter, JobState } from "effect-jobs/JobLifecycle"
-import { EpochMillis, PersistedJobPolicy } from "effect-jobs/JobPolicy"
+import { EpochMillis, JobPolicy } from "effect-jobs/JobPolicy"
 import { FailureCode } from "effect-jobs/JobFailure"
 import {
   JsonValue,
@@ -41,7 +41,7 @@ export const JobSummary = Schema.Struct({
   availableAt: EpochMillis,
   updatedAt: EpochMillis,
   completedAt: EpochMillis.pipe(Schema.NullOr),
-  attemptsMade: Counter,
+  finalizedAttempts: Counter,
   stalledCount: Counter,
   lifecycleVersion: Counter,
   lastFailureCode: FailureCode.pipe(Schema.NullOr)
@@ -210,10 +210,10 @@ export const JobDetail = Schema.Struct({
   sandbox: SandboxRef,
   job: JobSummary,
   producer: ProducerIdentity,
-  policy: PersistedJobPolicy,
+  policy: JobPolicy,
   relations: ApplicationRelations,
   observation: Observation.pipe(Schema.optional),
-  createdAt: Schema.Null,
+  createdAt: EpochMillis.pipe(Schema.NullOr),
   payload: JobPayloadView,
   result: Schema.TaggedStruct("Unavailable", { reason: Schema.Literal("not-stored") }),
   history: JobHistory,

@@ -54,7 +54,7 @@ export const dashboard = profiles.map((profile, index) => ({
           profile.state === "Cancelled"
             ? now
             : null,
-        attemptsMade: profile.attempts,
+        finalizedAttempts: profile.attempts,
         stalledCount: profile.stalls,
         lifecycleVersion:
           profile.label === "pending" || profile.label === "delayed" ? 0 : 2,
@@ -77,7 +77,7 @@ export const dashboard = profiles.map((profile, index) => ({
         operationId: `synthetic-fixture-${index}`,
         slot: "welcome-email"
       },
-      policy: Policy.make(),
+      policy: Policy.defaultPolicy,
       relations: { syntheticActor: "demo-customer", syntheticOrderId: "demo-order-a" },
       ...(profile.label === "unknown"
         ? { observation: { source: "mock", observedAt: now, outcome: "unknown" } }

@@ -1,4 +1,4 @@
-// Native SQL APIs are pinned to @effect/sql-pg 4.0.5.
+// Native SQL APIs are pinned to @effect/sql-pg 4.1.0.
 // @effect-diagnostics unstableApiUsage:off
 import { Config, Effect, Layer } from "effect"
 import { NodeRuntime } from "@effect/platform-node"

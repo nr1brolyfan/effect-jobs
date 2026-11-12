@@ -48,7 +48,7 @@ it.each([
   null,
   {},
   { ...prepared(), policy: {} },
-  { ...prepared(), policy: { ...policy, maxAttempts: 4 } },
+  { ...prepared(), policy: { ...policy, maxFinalizedAttempts: 4 } },
   { ...prepared(), catalog: { queue: "invalid queue", name: "invoice", version: 1 } },
   {
     ...prepared(),
@@ -88,7 +88,7 @@ it("rejects stale ownership and invalid snapshot, with no partial fallback", () 
     Result.isFailure(
       validateClaimArtifact({
         ...claim,
-        snapshot: { ...claim.snapshot, attemptsMade: -1 }
+        snapshot: { ...claim.snapshot, finalizedAttempts: -1 }
       })
     )
   ).toBe(true)

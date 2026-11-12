@@ -1,0 +1,71 @@
+{
+  "baseline": "c17ae371cd8e467c236720e0ec3c8a999a07cd67",
+  "stages": [
+    {
+      "sourcePath": "orders/apps/api/src/orders/PlaceOrder.ts",
+      "region": "request",
+      "beforeSourcePath": "orders/apps/api/src/orders/Orders.ts",
+      "beforeRegion": "request",
+      "role": "Producer",
+      "added": [1, 2, 4, 5, 6, 7, 9, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21, 22, 23],
+      "beforeSha256": "3377f5d8311a6ba8d7e095977c5812d17473391e2fadb44a2bba2b6a27e14046",
+      "afterSha256": "3951e0c9921b3c0adec6df9f3fa6ef269e41a16c3084597bbad609a1d541610d",
+      "historicalBefore": "// The application has already validated and authorized this submission.\nexport const placeOrder = (input: OrderSubmission) =>\n  Effect.gen(function* () {\n    const db = yield* Database\n    const emails = yield* TransactionalEmails\n\n    // Save the order to the database.\n    yield* db.insert(orders).values({ ...input, invoiceRequested: false })\n\n    // After saving to the database, send the confirmation email.\n    yield* emails.sendOrderConfirmation(input.orderId)\n  })",
+      "historicalAfter": "// Admission/authorization belongs to the application before this boundary.\nexport const placeOrder = (externalInput: unknown) =>\n  Effect.gen(function* () {\n    const input = yield* Schema.decodeUnknownEffect(OrderSubmission)(externalInput, {\n      onExcessProperty: \"error\"\n    })\n    const { PlaceOrder } = yield* ApiDefinitions\n    const db = yield* Database\n    const pg = yield* PgClient.PgClient\n\n    return yield* pg.withTransaction(\n      Effect.gen(function* () {\n        // Create a new order; a duplicate operationId rejects the transaction.\n        yield* db.insert(orders).values({ ...input, invoiceRequested: false })\n\n        // Commit the order and its confirmation instruction together.\n        return yield* PlaceOrder.enqueue(\"send-confirmation\", {\n          operationId: input.operationId,\n          payload: { orderId: input.orderId }\n        })\n      })\n    )\n  })"
+    },
+    {
+      "sourcePath": "orders/packages/orders/src/contracts/jobs.ts",
+      "region": "shared-contract",
+      "appendRegion": "invoice-contracts",
+      "beforeSourcePath": "orders/packages/orders/src/contracts/jobs.ts",
+      "beforeRegion": "shared-contract",
+      "role": "Shared contract",
+      "added": [26, 27, 28, 29, 31, 32, 33, 34],
+      "beforeSha256": "323d496353ed20e95fb7cc12d806f97a7eb366674d5db5ba6b637b22613f541c",
+      "afterSha256": "992bda6371ca3ef3a7d166f0507a967cb2a7b11d2338471bbc5f282aab30ff53",
+      "historicalBefore": "import { Context, Duration, Effect, Layer, Schema } from \"effect\"\nimport * as Job from \"effect-jobs/Job\"\nimport * as JobQueue from \"effect-jobs/JobQueue\"\nimport * as JobPolicy from \"effect-jobs/JobPolicy\"\n\nexport const OrderPolicy = JobPolicy.make({\n  maxAttempts: 3,\n  retryDelay: Duration.seconds(5)\n})\n\nexport const OrdersQueue = JobQueue.make(\"orders\")\n\nexport const OrderId = Schema.String.pipe(\n  Schema.check(Schema.isPattern(/^[a-z0-9-]{1,64}$/))\n)\n\nexport const SendOrderConfirmation = Job.make({\n  queue: OrdersQueue,\n  name: \"orders.send-confirmation\",\n  payload: Schema.Struct({ orderId: OrderId }),\n  defaultPolicy: OrderPolicy\n})",
+      "historicalAfter": "import { Context, Duration, Effect, Layer, Schema } from \"effect\"\nimport * as Job from \"effect-jobs/Job\"\nimport * as JobQueue from \"effect-jobs/JobQueue\"\nimport * as JobPolicy from \"effect-jobs/JobPolicy\"\n\nexport const OrderPolicy = JobPolicy.make({\n  maxAttempts: 3,\n  retryDelay: Duration.seconds(5)\n})\n\nexport const OrdersQueue = JobQueue.make(\"orders\")\n\nexport const OrderId = Schema.String.pipe(\n  Schema.check(Schema.isPattern(/^[a-z0-9-]{1,64}$/))\n)\n\nexport const SendOrderConfirmation = Job.make({\n  queue: OrdersQueue,\n  name: \"orders.send-confirmation\",\n  payload: Schema.Struct({ orderId: OrderId }),\n  defaultPolicy: OrderPolicy\n})\n\nexport const CreateOrderInvoice = Job.make({\n  queue: OrdersQueue,\n  name: \"orders.create-invoice\",\n  payload: Schema.Struct({ orderId: OrderId }),\n  defaultPolicy: OrderPolicy\n})\n\nexport const SendInvoice = Job.make({\n  queue: OrdersQueue,\n  name: \"orders.send-invoice\",\n  payload: Schema.Struct({ invoiceId: OrderId }),\n  defaultPolicy: OrderPolicy\n})"
+    },
+    {
+      "sourcePath": "orders/apps/api/src/orders/PlaceOrderWithInvoice.ts",
+      "region": "operation",
+      "beforeSourcePath": "orders/apps/api/src/orders/PlaceOrder.ts",
+      "beforeRegion": "operation",
+      "role": "Producer",
+      "added": [2, 4],
+      "beforeSha256": "b16025703e145dbd2cc6f8d8d4626865ead1c1f3be1a3cad849234e7580299f2",
+      "afterSha256": "cae3be2c8fb3fb0e6847db2fe9a3640273e6dce0460025f4dae67d0c9e131af3",
+      "historicalBefore": "// Built once by ApiDefinitionsLayer from the shared OrderJobs service.\nexport const PlaceOrderDefinition = Effect.map(\n  ApiDefinitions,\n  (definitions) => definitions.PlaceOrder\n)",
+      "historicalAfter": "// Built once by ApiDefinitionsLayer from the shared OrderJobs service.\nexport const PlaceOrderWithInvoiceDefinition = Effect.map(\n  ApiDefinitions,\n  (definitions) => definitions.PlaceOrderWithInvoice\n)"
+    },
+    {
+      "sourcePath": "orders/apps/api/src/orders/PlaceOrderWithInvoice.ts",
+      "region": "request",
+      "beforeSourcePath": "orders/apps/api/src/orders/PlaceOrder.ts",
+      "beforeRegion": "request",
+      "role": "Producer",
+      "added": [
+        2, 8, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 27, 28, 29, 31, 32, 38, 39, 40,
+        41, 42, 44, 45, 46, 47, 48, 49, 50, 51, 52, 54
+      ],
+      "beforeSha256": "3951e0c9921b3c0adec6df9f3fa6ef269e41a16c3084597bbad609a1d541610d",
+      "afterSha256": "573e81287b9862e15a7678970e5f82a9ae811fc1d68ce49a38d7bd33ac25d93a",
+      "historicalBefore": "// Admission/authorization belongs to the application before this boundary.\nexport const placeOrder = (externalInput: unknown) =>\n  Effect.gen(function* () {\n    const input = yield* Schema.decodeUnknownEffect(OrderSubmission)(externalInput, {\n      onExcessProperty: \"error\"\n    })\n    const { PlaceOrder } = yield* ApiDefinitions\n    const db = yield* Database\n    const pg = yield* PgClient.PgClient\n\n    return yield* pg.withTransaction(\n      Effect.gen(function* () {\n        // Create a new order; a duplicate operationId rejects the transaction.\n        yield* db.insert(orders).values({ ...input, invoiceRequested: false })\n\n        // Commit the order and its confirmation instruction together.\n        return yield* PlaceOrder.enqueue(\"send-confirmation\", {\n          operationId: input.operationId,\n          payload: { orderId: input.orderId }\n        })\n      })\n    )\n  })",
+      "historicalAfter": "// Admission/authorization belongs to the application before this boundary.\nexport const placeOrderWithInvoice = (externalInput: unknown) =>\n  Effect.gen(function* () {\n    const input = yield* Schema.decodeUnknownEffect(OrderSubmission)(externalInput, {\n      onExcessProperty: \"error\"\n    })\n\n    const { PlaceOrderWithInvoice } = yield* ApiDefinitions\n    const db = yield* Database\n    const pg = yield* PgClient.PgClient\n\n    return yield* pg.withTransaction(\n      Effect.gen(function* () {\n        // Persist the order; on replay, reuse and check the existing submission.\n        yield* db\n          .insert(orders)\n          .values({ ...input, invoiceRequested: true })\n          .onConflictDoNothing({ target: orders.operationId })\n\n        // Check all business fields, including the original invoice choice.\n        const [saved] = yield* db\n          .select()\n          .from(orders)\n          .where(eq(orders.operationId, input.operationId))\n          .limit(1)\n\n        if (!matchesSubmission(saved, input, true)) {\n          return yield* new OrderConflict()\n        }\n\n        // Enqueue both independent consequences atomically with the order.\n        const confirmation = yield* PlaceOrderWithInvoice.enqueue(\"send-confirmation\", {\n          operationId: input.operationId,\n          payload: { orderId: input.orderId }\n        })\n\n        const invoice = yield* PlaceOrderWithInvoice.enqueue(\"create-invoice\", {\n          operationId: input.operationId,\n          payload: { orderId: input.orderId }\n        })\n\n        // Retain the committed operation-to-job mapping for reconciliation.\n        yield* db\n          .insert(orderReceipts)\n          .values({\n            operationId: input.operationId,\n            confirmationJobId: confirmation.jobId,\n            invoiceJobId: invoice.jobId\n          })\n          .onConflictDoNothing({ target: orderReceipts.operationId })\n\n        return { confirmation, invoice }\n      })\n    )\n  })"
+    },
+    {
+      "sourcePath": "orders/apps/worker/src/main.ts",
+      "region": "composition",
+      "beforeSourcePath": "orders/apps/worker/src/main.ts",
+      "beforeRegion": "confirmation-composition",
+      "role": "Composition",
+      "added": [
+        1, 3, 5, 8, 9, 10, 11, 12, 18, 21, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
+      ],
+      "beforeSha256": "ff279b104cc9c3f2a101a134b759c987b2243203eef05d308444ea5a1500a16e",
+      "afterSha256": "1c5d9f3bd8b542b6cc0930858077a62f2975d1f645ea5cad65f1ad691968b52a",
+      "historicalBefore": "export const ConfirmationWorkerLayer = Layer.unwrap(\n  Effect.gen(function* () {\n    const { SendOrderConfirmation } = yield* OrderJobs\n    const backend = yield* PostgreSqlJobs.PostgreSqlJobs\n    return JobWorker.layer(backend.store, {\n      catalog: [SendOrderConfirmation],\n      operationResponseBudgetMillis: 100\n    }).pipe(\n      Layer.provide(ConfirmationHandlerLayer),\n      Layer.provide(SyntheticMail.layer),\n      Layer.provide(JobRegistry.layer)\n    )\n  })\n)\nexport const confirmationConsumer = JobConsumer.make(OrdersQueue, {\n  localConcurrency: 2,\n  claimLimitPerRun: 20,\n  recoveryLimitPerRun: 20\n})\nexport const drainConfirmations = Effect.gen(function* () {\n  const configured = yield* confirmationConsumer\n  return yield* JobWorkerRuntime.drain(configured)\n}).pipe(Effect.provide(ConfirmationWorkerLayer))",
+      "historicalAfter": "export const WorkerLayer = Layer.unwrap(\n  Effect.gen(function* () {\n    const { SendOrderConfirmation, CreateOrderInvoice, SendInvoice } = yield* OrderJobs\n    const backend = yield* PostgreSqlJobs.PostgreSqlJobs\n    return JobWorker.layer(backend.store, {\n      catalog: [SendOrderConfirmation, CreateOrderInvoice, SendInvoice],\n      operationResponseBudgetMillis: 100\n    }).pipe(\n      Layer.provide([\n        ConfirmationHandlerLayer,\n        InvoiceHandlerLayer,\n        InvoiceDeliveryHandlerLayer\n      ]),\n      Layer.provide(SyntheticMail.layer),\n      Layer.provide(JobRegistry.layer)\n    )\n  })\n)\nexport const consumer = JobConsumer.make(OrdersQueue, {\n  localConcurrency: 2,\n  claimLimitPerRun: 20,\n  recoveryLimitPerRun: 20\n})\nexport const drainOrders = Effect.gen(function* () {\n  const configured = yield* consumer\n  return yield* JobWorkerRuntime.drain(configured)\n}).pipe(Effect.provide(WorkerLayer))\n\nexport const pollOrders = Effect.gen(function* () {\n  const configured = yield* consumer\n  const plan = yield* JobConsumer.plan(configured)\n  return yield* Effect.never.pipe(\n    Effect.provide(PollingJobWorker.layerForPlan(plan).pipe(Layer.provide(WorkerLayer)))\n  )\n}).pipe(Effect.scoped)"
+    }
+  ]
+}

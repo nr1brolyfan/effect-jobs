@@ -1,13 +1,11 @@
-// Native SQL APIs are intentionally pinned to @effect/sql-pg 4.0.5.
+// Native SQL APIs are intentionally pinned to @effect/sql-pg 4.1.0.
 // @effect-diagnostics unstableApiUsage:off
 import { Effect, Layer, Match } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
-import * as JobConsumer from "effect-jobs/JobConsumer"
-import * as JobRegistry from "effect-jobs/JobRegistry"
 import * as JobWorker from "effect-jobs/JobWorker"
-import * as JobWorkerRuntime from "effect-jobs/JobWorkerRuntime"
-import * as PollingJobWorker from "effect-jobs/PollingJobWorker"
+import * as JobStorage from "effect-jobs/JobStorage"
+import * as JobPolling from "effect-jobs/JobPolling"
 import { JobFailures } from "effect-jobs/JobFailure"
 import { Database, generatedReports } from "./DrizzleReportRequest.js"
 import {
@@ -31,18 +29,19 @@ export const recordGeneratedReport = (generatedJobId: string, payload: ReportPay
   Effect.gen(function* () {
     const { GeneratedReport } = yield* ReportDefinitions
     const db = yield* Database
-    const backend = yield* PostgreSqlJobs.PostgreSqlJobs
-    yield* backend.withTransaction(() =>
+    const jobs = yield* PostgreSqlJobs.PostgreSqlJobs
+    yield* jobs.withTransaction(() =>
       Effect.gen(function* () {
         yield* db
           .insert(generatedReports)
           .values({ reportId: payload.reportId, generatedBy: generatedJobId })
           .onConflictDoNothing({ target: generatedReports.reportId })
 
-        yield* GeneratedReport.enqueue("deliver", {
+        yield* GeneratedReport.enqueue({
+          slot: "deliver",
           operationId: generatedJobId,
           payload,
-          policy: ReportPolicy
+          policy: yield* ReportPolicy
         })
       })
     )
@@ -69,14 +68,14 @@ const ReportHandoffLayer = Layer.effect(
     const definitions = yield* ReportDefinitions
     const client = yield* PgClient.PgClient
     const db = yield* Database
-    const backend = yield* PostgreSqlJobs.PostgreSqlJobs
+    const jobs = yield* PostgreSqlJobs.PostgreSqlJobs
     return ReportHandoff.of({
       record: (jobId, payload) =>
         recordGeneratedReport(jobId, payload).pipe(
           Effect.provideService(ReportDefinitions, definitions),
           Effect.provideService(PgClient.PgClient, client),
           Effect.provideService(Database, db),
-          Effect.provideService(PostgreSqlJobs.PostgreSqlJobs, backend)
+          Effect.provideService(PostgreSqlJobs.PostgreSqlJobs, jobs)
         )
     })
   })
@@ -99,36 +98,28 @@ const localDeliveryLayer = (directory: string) =>
   ).pipe(Layer.provide(NodeReportFiles.layer(`${directory}/delivered`)))
 
 // #region worker
-export const makeWorkerLayer = (backend: PostgreSqlJobs.Backend, directory: string) =>
+export const makeWorkerLayer = (jobs: PostgreSqlJobs.Service, directory: string) =>
   Layer.unwrap(
     Effect.map(ReportDefinitions, (definitions) =>
-      JobWorker.layer(backend.store, {
-        catalog: [definitions.GenerateReport, definitions.DeliverReport],
-        operationResponseBudgetMillis: 100
+      JobWorker.layer(definitions.ApplicationJobs, {
+        queues: [{ queue: ReportsQueue, concurrency: 2 }]
       }).pipe(
         Layer.provide(ReportHandlerLayer),
         Layer.provide(DeliveryHandlerLayer),
         Layer.provide(ReportHandoffLayer),
         Layer.provide(localDeliveryLayer(directory)),
-        Layer.provide(JobRegistry.layer),
+        Layer.provide(Layer.succeed(JobStorage.JobStorage, jobs.storage)),
         Layer.provide(NodeReportFiles.layer(directory))
       )
     )
   )
 
-export const reportConsumer = JobConsumer.make(ReportsQueue, {
-  localConcurrency: 2,
-  claimLimitPerRun: 20,
-  recoveryLimitPerRun: 20
-})
-
 export const drainReports = (directory: string) =>
   Effect.gen(function* () {
-    const backend = yield* PostgreSqlJobs.PostgreSqlJobs
-    yield* backend.ready
-    const consumer = yield* reportConsumer
-    return yield* JobWorkerRuntime.drain(consumer).pipe(
-      Effect.provide(makeWorkerLayer(backend, directory))
+    const jobs = yield* PostgreSqlJobs.PostgreSqlJobs
+    yield* jobs.ready
+    return yield* JobWorker.drain(ReportsQueue, { maxJobs: 20, recoveryLimit: 20 }).pipe(
+      Effect.provide(makeWorkerLayer(jobs, directory))
     )
   })
 // #endregion worker
@@ -136,13 +127,13 @@ export const drainReports = (directory: string) =>
 // #region polling
 export const pollReports = (directory: string) =>
   Effect.gen(function* () {
-    const backend = yield* PostgreSqlJobs.PostgreSqlJobs
-    yield* backend.ready
-    const consumer = yield* reportConsumer
-    const plan = yield* JobConsumer.plan(consumer)
-    const PollingLayer = PollingJobWorker.layerForPlan(plan).pipe(
-      Layer.provide(makeWorkerLayer(backend, directory))
-    )
+    const jobs = yield* PostgreSqlJobs.PostgreSqlJobs
+    yield* jobs.ready
+    const PollingLayer = JobPolling.layer([ReportsQueue], {
+      maxJobs: 20,
+      recoveryLimit: 20,
+      shutdownGraceMillis: 30_000
+    }).pipe(Layer.provide(makeWorkerLayer(jobs, directory)))
     return yield* Effect.never.pipe(Effect.provide(PollingLayer))
   }).pipe(Effect.scoped)
 // Application shutdown interrupts polling by closing this Scope.

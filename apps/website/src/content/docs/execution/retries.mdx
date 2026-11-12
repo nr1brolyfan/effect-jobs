@@ -18,13 +18,13 @@ Handlers return success or fail with a value from `JobFailures`. Map application
 errors through ordinary Effect composition; keep raw provider messages out of
 failure codes. Define bounded diagnostic codes with `FailureCode.define`.
 
-| Handler result                           | Durable action when fenced finalization succeeds                                  |
-| ---------------------------------------- | --------------------------------------------------------------------------------- |
-| Success                                  | `Completed`                                                                       |
-| `JobFailures.Retry({ code, notAfter? })` | `RetryScheduled`, or `Dead` when the retry budget/cutoff prevents another attempt |
-| `JobFailures.Dead({ code })`             | `Dead`; no scheduled retry                                                        |
-| `JobFailures.Isolate({ code })`          | `Isolated`; investigate the artifact or invariant                                 |
-| `JobFailures.OutcomeUnknown({ code })`   | No confirmed finalization; leave recovery to the bounded lease protocol           |
+| Handler result                              | Durable action when fenced finalization succeeds                                  |
+| ------------------------------------------- | --------------------------------------------------------------------------------- |
+| Success                                     | `Completed`                                                                       |
+| `JobFailures.Retry({ code, retryBefore? })` | `RetryScheduled`, or `Dead` when the retry budget/cutoff prevents another attempt |
+| `JobFailures.Dead({ code })`                | `Dead`; no scheduled retry                                                        |
+| `JobFailures.Isolate({ code })`             | `Isolated`; investigate the artifact or invariant                                 |
+| `JobFailures.OutcomeUnknown({ code })`      | No confirmed finalization; leave recovery to the bounded lease protocol           |
 
 Use `Retry` only when the application's effect contract makes another attempt
 safe. A defect, interruption, timeout or mixed Cause is not automatically mapped
@@ -44,19 +44,24 @@ independent idempotency/reconciliation contract for that key and request body.
 
 ## Store the policy once
 
-`JobPolicy.make` resolves a complete immutable policy at enqueue. Its defaults are:
+`JobPolicy.make` is a lazy typed Effect that resolves a complete immutable policy.
+Attach the resolved value to a producer slot or supply it as a complete enqueue
+override. Its defaults are:
 
-| Option            | Default                                                       |
-| ----------------- | ------------------------------------------------------------- |
-| `maxAttempts`     | 3 finalized attempts, including the first                     |
-| `retryDelay`      | Fixed 5 seconds                                               |
-| `maxStalledCount` | 1 expired-lease recovery before the next makes the job `Dead` |
-| `attemptTimeout`  | 30 seconds                                                    |
-| `leaseDuration`   | Fixed, non-renewable 90 seconds                               |
+| Option                 | Default                                                       |
+| ---------------------- | ------------------------------------------------------------- |
+| `maxFinalizedAttempts` | 3 finalized attempts, including the first                     |
+| `retry`                | Fixed 5 seconds                                               |
+| `maxStalledCount`      | 1 expired-lease recovery before the next makes the job `Dead` |
+| `attemptTimeout`       | 30 seconds                                                    |
+| `leaseDuration`        | Fixed, non-renewable 90 seconds                               |
 
-This is a fixed-delay schedule, not exponential backoff. A confirmed retry uses
-database time plus the stored delay. If that next availability is **at or after**
-`notAfter`, the job becomes `Dead`. The cutoff limits scheduling; it is not a
+Compose `JobRetryPolicy.fixed(duration)` or `exponential(base)` with
+`capped(duration)`, `jittered()` and `maxFinalizedAttempts(limit)` as needed.
+A confirmed retry uses database time plus its bounded computed delay. The chosen
+availability is persisted before another worker can continue; reconciliation does
+not redraw jitter. Retry arithmetic rejects overflow rather than clamping it. If that next availability is **at or after**
+`retryBefore`, the job becomes `Dead`. The cutoff limits scheduling; it is not a
 promise to stop an already running handler at that timestamp.
 
 The attempt timeout must be strictly shorter than the lease. The runtime deadline
@@ -73,10 +78,10 @@ stable report request ID and operation. Preserve that identity across worker
 invocations, check the provider's actual idempotency scope and retention window,
 and reconcile its authoritative result after response loss.
 
-Do not use `context.attemptNumber` as an external idempotency key. It is
-`attemptsMade + 1` and can repeat after an unknown outcome. Confirmed finalizations
+Do not use `context.nextFinalizationNumber` as an external idempotency key. It is
+`finalizedAttempts + 1` and can repeat after an unknown outcome. Confirmed finalizations
 increment attempts; expired-lease recovery increments `stalledCount` instead.
-Consequently `maxAttempts` does not bound every handler invocation.
+Consequently `maxFinalizedAttempts` does not bound every handler invocation.
 
 Enqueue deduplication compares the producer tuple and semantic payload inside
 jobs storage. It neither deduplicates an external upload nor proves that a report

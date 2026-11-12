@@ -65,9 +65,9 @@ export const validate = (row: Readonly<Record<string, unknown>>, current: Sandbo
     )
     const definition = definitions.definitions.find(
       (candidate) =>
-        candidate.catalog.queue === catalog.queue &&
-        candidate.catalog.name === catalog.name &&
-        candidate.catalog.version === catalog.version
+        definitions.catalogFor(candidate).queue === catalog.queue &&
+        candidate.name === catalog.name &&
+        candidate.version === catalog.version
     )
     if (!definition) {
       return yield* new OperatorSourceRejected({ reason: "unsupported-catalog" })

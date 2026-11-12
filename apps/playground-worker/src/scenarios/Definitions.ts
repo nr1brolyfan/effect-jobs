@@ -1,5 +1,8 @@
 import { Context, Effect, Layer, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
+import * as JobGroup from "effect-jobs/JobGroup"
+import type { JobPolicy } from "effect-jobs/JobPolicy"
+import { defaultPolicy } from "effect-jobs/JobPolicy"
 import * as JobProducer from "effect-jobs/JobProducer"
 import * as JobQueue from "effect-jobs/JobQueue"
 import * as Catalogs from "@effect-jobs/playground-contracts/ScenarioCatalogs"
@@ -46,55 +49,82 @@ export const make = Effect.gen(function* () {
   const commerce = JobQueue.make(Catalogs.CatalogSync.catalog.queue)
   const privateData = JobQueue.make(Catalogs.PrivateDataExport.catalog.queue)
   const WelcomeEmail = yield* Job.make({
-    queue: communications,
     name: Catalogs.WelcomeEmail.catalog.name,
     payload: Payload
   })
   const ImageProcessing = yield* Job.make({
-    queue: media,
     name: Catalogs.ImageProcessing.catalog.name,
     payload: Payload
   })
   const WebhookDelivery = yield* Job.make({
-    queue: communications,
     name: Catalogs.WebhookDelivery.catalog.name,
     payload: Payload
   })
   const PrivateDataExport = yield* Job.make({
-    queue: privateData,
     name: Catalogs.PrivateDataExport.catalog.name,
     payload: ExportPayload
   })
   const CatalogSync = yield* Job.make({
-    queue: commerce,
     name: Catalogs.CatalogSync.catalog.name,
     payload: Payload
   })
   const SimulatedPayment = yield* Job.make({
-    queue: commerce,
     name: Catalogs.SimulatedPayment.catalog.name,
     payload: Payload
   })
   const SyntheticDocumentExport = yield* Job.make({
-    queue: privateData,
     name: Catalogs.SyntheticDocumentExport.catalog.name,
     payload: SyntheticExportPayload
   })
-  const Producer = yield* JobProducer.make({
-    operation,
-    slots: {
-      "welcome-email": WelcomeEmail,
-      "image-processing": ImageProcessing,
-      "webhook-delivery": WebhookDelivery,
-      "private-data-export": PrivateDataExport,
-      "catalog-sync": CatalogSync,
-      "simulated-payment": SimulatedPayment
-    }
+  const makeProducer = (policy: JobPolicy = defaultPolicy) =>
+    JobProducer.make(operation).pipe(
+      JobProducer.withSlot("welcome-email", WelcomeEmail, {
+        queue: communications,
+        policy
+      }),
+      JobProducer.withSlot("image-processing", ImageProcessing, { queue: media, policy }),
+      JobProducer.withSlot("webhook-delivery", WebhookDelivery, {
+        queue: communications,
+        policy
+      }),
+      JobProducer.withSlot("private-data-export", SyntheticDocumentExport, {
+        queue: privateData,
+        policy
+      }),
+      JobProducer.withSlot("catalog-sync", CatalogSync, { queue: commerce, policy }),
+      JobProducer.withSlot("simulated-payment", SimulatedPayment, {
+        queue: commerce,
+        policy
+      })
+    )
+  const Producer = yield* makeProducer()
+  const ShowcaseProducer = yield* JobProducer.make("playground.synthetic-showcase").pipe(
+    JobProducer.withSlot("encrypted-document", SyntheticDocumentExport, {
+      queue: privateData
+    })
+  )
+  const routes = [
+    { job: WelcomeEmail, queue: communications },
+    { job: ImageProcessing, queue: media },
+    { job: WebhookDelivery, queue: communications },
+    { job: PrivateDataExport, queue: privateData },
+    { job: CatalogSync, queue: commerce },
+    { job: SimulatedPayment, queue: commerce },
+    { job: SyntheticDocumentExport, queue: privateData }
+  ] as const
+  const catalogFor = (job: (typeof routes)[number]["job"]) => ({
+    queue: routes.find((route) => route.job === job)!.queue.name,
+    name: job.name,
+    version: job.version
   })
-
-  const ShowcaseProducer = yield* JobProducer.make({
-    operation: "playground.synthetic-showcase",
-    slots: { "encrypted-document": SyntheticDocumentExport }
+  const group = JobGroup.make("playground-scenarios", {
+    welcomeEmail: WelcomeEmail,
+    imageProcessing: ImageProcessing,
+    webhookDelivery: WebhookDelivery,
+    privateDataExport: PrivateDataExport,
+    catalogSync: CatalogSync,
+    simulatedPayment: SimulatedPayment,
+    syntheticDocumentExport: SyntheticDocumentExport
   })
 
   const definitions = [
@@ -118,6 +148,11 @@ export const make = Effect.gen(function* () {
     SimulatedPayment,
     SyntheticDocumentExport,
     Producer,
+    makeProducer,
+    routes,
+    PrivateDataQueue: privateData,
+    catalogFor,
+    group,
     ShowcaseProducer,
     definitions
   }

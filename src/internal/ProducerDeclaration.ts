@@ -38,11 +38,6 @@ export const declaration = (input: {
       new JobDeclarationError({ field: "operation", value: input.operation, expected })
     )
   }
-  if (input.slots.length === 0) {
-    return Result.fail(
-      new JobDeclarationError({ field: "slots", expected: "at least one unique slot" })
-    )
-  }
   const seen = new Set<string>()
   for (const [index, slot] of input.slots.entries()) {
     if (!Schema.is(declarationName)(slot)) {

@@ -23,7 +23,7 @@ only their separate exact receipt ports can reconcile it.
 ## Application migration setup
 
 Apply `MigrationRegistry.migrations(schema)` in application-owned migration
-transactions before backend readiness. Historical v1-v5 generators/bytes are
+transactions before persistence readiness. Historical v1-v5 generators/bytes are
 preserved; v6 first applies mapped core lineage and then app repair schema.
 After v6, explicitly run `MigrationRegistry.backfillSyntheticTenants(schema)`
 inside the same native migration client/transaction. The hook validates exact
@@ -34,7 +34,7 @@ retained tenant exists. New private and trusted encrypted seed associations writ
 validated tenant directly.
 
 The migration hook is setup code, never a request/event migration. No imports
-create pools, start workers or run DDL. The native repair adapter and core backend
+create pools, start workers or run DDL. The native repair adapter and core persistence
 must share the exact scoped SqlClient used by `Event.run`.
 
 ## Finite qualification

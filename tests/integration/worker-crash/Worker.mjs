@@ -2,14 +2,13 @@
 import { readFileSync } from "node:fs"
 import pg from "pg"
 import { Effect, Layer } from "effect"
-import * as Codec from "../../../dist/JobPayloadCodec.js"
-import * as Registry from "../../../dist/JobRegistry.js"
 import * as Worker from "../../../dist/JobWorker.js"
-import * as Consumer from "../../../dist/JobConsumer.js"
-import * as Runtime from "../../../dist/JobWorkerRuntime.js"
-import { definition, queue, makeBackend } from "./Scenario.mjs"
+import * as Storage from "../../../dist/JobStorage.js"
+import * as JobApiBuilder from "../../../dist/JobApiBuilder.js"
+import { api, queue, makeJobs } from "./Scenario.mjs"
 
-const { connection } = JSON.parse(readFileSync(process.argv[2], "utf8"))
+const configuration = JSON.parse(readFileSync(process.argv[2], "utf8"))
+const connection = configuration.connection
 const hold = process.argv[3] === "hold"
 const send = (message) => process.send?.(message)
 const provider = new pg.Pool({
@@ -31,12 +30,12 @@ process.on("message", (message) => {
 })
 let composition
 try {
-  composition = await makeBackend(connection)
-  const { backend, runtime } = composition
+  composition = await makeJobs(connection)
+  const { jobs, runtime } = composition
   const store = {
-    ...backend.store,
+    ...jobs.store,
     claim: (request) =>
-      backend.store.claim(request).pipe(
+      jobs.store.claim(request).pipe(
         Effect.tap((result) =>
           Effect.sync(() => {
             if (result._tag === "Claimed") {
@@ -50,8 +49,8 @@ try {
         )
       )
   }
-  const handler = definition.handlerLayer(
-    ({ payload }) =>
+  const handler = JobApiBuilder.group(api, "crash", (handlers) =>
+    handlers.handle("delivery", (input) =>
       Effect.gen(function* () {
         // Separate committed provider ledger, outside the queue transaction. The key is
         // the business consequence, never the attempt/lease/process ID.
@@ -59,30 +58,27 @@ try {
           provider.query(
             `INSERT INTO crash_provider.effects (idempotency_key,requests)
       VALUES ($1,1) ON CONFLICT (idempotency_key) DO UPDATE SET requests=crash_provider.effects.requests+1`,
-            [payload.consequenceId]
+            [input.payload.consequenceId]
           )
         )
         yield* Effect.sync(() => send({ type: "effect-committed" }))
         if (hold) {
           yield* Effect.promise(() => resumed)
         }
-      }),
-    Codec.decodeJobPayload
-  )
-  const consumer = await runtime.runPromise(
-    Consumer.make(queue, {
-      localConcurrency: 1,
-      claimLimitPerRun: 1,
-      recoveryLimitPerRun: 1
-    })
+      })
+    )
   )
   const result = await runtime.runPromise(
-    Runtime.drain(consumer).pipe(
+    Worker.drain(queue, { maxJobs: 1, recoveryLimit: 1 }).pipe(
       Effect.provide(
-        Worker.layer(store, {
-          catalog: [definition],
-          operationResponseBudgetMillis: 1000
-        }).pipe(Layer.provide(handler), Layer.provide(Registry.layer))
+        Worker.layer(api, { queues: [{ queue, concurrency: 1 }] }).pipe(
+          Layer.provide(
+            Layer.mergeAll(
+              handler,
+              Storage.layer({ store, operationResponseBudgetMillis: 1000 })
+            )
+          )
+        )
       )
     )
   )

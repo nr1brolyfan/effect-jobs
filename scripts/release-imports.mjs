@@ -10,7 +10,7 @@ export const releaseImports = (sources) => {
   const directory = resolve(import.meta.dirname, "../.toolchain/release-graph")
   const config = resolve(directory, "tsconfig.json")
   const files = Object.fromEntries(
-    sources.map(({ filename, source }) => [resolve(directory, filename), source])
+    sources.map((entry) => [resolve(directory, entry.filename), entry.source])
   )
   files[config] = JSON.stringify({
     compilerOptions: { allowJs: true, noResolve: true, noLib: true },
@@ -21,7 +21,7 @@ export const releaseImports = (sources) => {
     using snapshot = api.updateSnapshot({ openProjects: [config] })
     const program = snapshot.getProject(config).program
     assert.deepEqual(program.getSyntacticDiagnostics(), [], "Invalid archive syntax")
-    return sources.map(({ filename }) => {
+    return sources.map((entry) => {
       const imports = []
       const add = (literal) => {
         if (
@@ -46,10 +46,10 @@ export const releaseImports = (sources) => {
         }
         node.forEachChild(visit)
       }
-      const sourceFile = program.getSourceFile(resolve(directory, filename))
-      assert(sourceFile, `Missing archive source ${filename}`)
+      const sourceFile = program.getSourceFile(resolve(directory, entry.filename))
+      assert(sourceFile, `Missing archive source ${entry.filename}`)
       visit(sourceFile)
-      return { filename, imports }
+      return { filename: entry.filename, imports }
     })
   } finally {
     api.close()

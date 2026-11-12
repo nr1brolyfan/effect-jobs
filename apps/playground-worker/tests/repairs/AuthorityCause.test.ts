@@ -50,6 +50,7 @@ const fixture = (failure?: Cause.Cause<SqlError>, rollbackFails = false) =>
       executeValuesUnprepared: () => Effect.die("Unexpected values")
     }
     const sql = yield* SqlClient.make({
+      driver: "test",
       acquirer: Effect.succeed(connection),
       compiler: PgClient.makeCompiler(),
       spanAttributes: []
@@ -61,10 +62,11 @@ const fixture = (failure?: Cause.Cause<SqlError>, rollbackFails = false) =>
         throw new Error("Unexpected JSON fragment")
       },
       listen: () => Effect.die("Unexpected LISTEN"),
-      notify: () => Effect.die("Unexpected NOTIFY")
+      notify: () => Effect.die("Unexpected NOTIFY"),
+      poolStats: Effect.die("Unexpected pool stats")
     } satisfies Pick<
       PgClient.PgClient,
-      PgClient.TypeId | "config" | "json" | "listen" | "notify"
+      PgClient.TypeId | "config" | "json" | "listen" | "notify" | "poolStats"
     >)
     const services = yield* Authority.make("authority_cause", pg).pipe(
       Effect.provideService(SqlClient.SqlClient, sql),

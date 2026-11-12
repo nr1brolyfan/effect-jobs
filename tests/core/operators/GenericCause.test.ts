@@ -17,7 +17,7 @@ import {
   JobOperators
 } from "../../../src/JobOperators.js"
 import type { JobOperatorsService } from "../../../src/JobOperators.js"
-import type { JobBackendError } from "../../../src/JobEnqueue.js"
+import type { JobPersistenceError } from "../../../src/JobEnqueue.js"
 import type {
   JobOperatorTransition,
   JobRedriveResult
@@ -31,7 +31,8 @@ const expected = Schema.decodeSync(JobOperatorExpected)({
   lifecycleVersion: 4
 })
 const definition = {
-  catalog: { queue: "billing", name: "invoice", version: 1 },
+  name: "invoice",
+  version: 1,
   payload: Schema.Struct({ value: Schema.String })
 }
 const request = {
@@ -46,11 +47,11 @@ const adapter: ApplicationAdapter = {
 }
 const options = { operationResponseBudgetMillis: 100 }
 const invoke = (
-  service: JobOperatorsService<JobBackendError>,
+  service: JobOperatorsService<JobPersistenceError>,
   method: Method
 ): Effect.Effect<
   JobOperatorTransition | JobRedriveResult,
-  JobBackendError | JobOperatorRejected | JobPayloadCodecError | JobIntegrityConflict
+  JobPersistenceError | JobOperatorRejected | JobPayloadCodecError | JobIntegrityConflict
 > =>
   method === "correctedRedrive"
     ? service.correctedRedrive(definition, { ...request, payload: { value: "fixed" } })
@@ -99,7 +100,7 @@ const cases: ReadonlyArray<readonly [string, Cause.Cause<OperatorError>]> = [
 ]
 
 // Inject the raw operator result only; exercise the real public composition and
-// translation. The original encrypted-decoder probe covers the unmocked backend.
+// translation. The original encrypted-decoder probe covers the unmocked jobs.
 const run = async (
   path: (typeof paths)[number],
   method: Method,
@@ -110,8 +111,8 @@ const run = async (
   const program =
     path === "layerNoDeps"
       ? operation.pipe(Effect.provide(Jobs.layerNoDeps(options)))
-      : Effect.flatMap(Jobs.make(options), (backend) =>
-          backend.withTransaction(() => operation)
+      : Effect.flatMap(Jobs.make(options), (jobs) =>
+          jobs.withTransaction(() => operation)
         )
   return Effect.runPromiseExit(
     program.pipe(Effect.provideService(PostgreSqlApplication, adapter))
@@ -145,20 +146,20 @@ for (const path of paths) {
           const error = before.error
           if (error instanceof PostgreSqlFailure) {
             expect(reason.error).toMatchObject({
-              _tag: "JobBackendError",
+              _tag: "JobPersistenceError",
               reason: "storage-failure",
               commitKnowledge: error.commitKnowledge
             })
           } else if (error instanceof PostgreSqlInvalidHandle) {
             expect(reason.error).toMatchObject({
-              _tag: "JobBackendError",
+              _tag: "JobPersistenceError",
               commitKnowledge: "NotCommitted",
               reason:
                 error.reason === "active-transaction"
                   ? "active-transaction"
                   : error.reason === "inactive-handle"
                     ? "transaction-required"
-                    : "unqualified-backend"
+                    : "unqualified-storage"
             })
           } else {
             expect(reason.error).toBe(error)
@@ -182,7 +183,7 @@ for (const path of paths) {
           policy: defaultPolicy,
           availableAt: 100,
           updatedAt: 200,
-          attemptsMade: 0,
+          finalizedAttempts: 0,
           stalledCount: 0,
           leaseToken: null,
           leaseExpiresAt: null,

@@ -1,49 +1,53 @@
 ---
 title: Installation
-description: Install the published Effect 4.0.5 alpha without peer bypasses.
+description: Install the local Effect 4.1.0 candidate without peer bypasses.
 sidebar:
   order: 2
 ---
 
-These docs target the published `effect-jobs@0.1.0-alpha.2` release.
-Install the exact alpha and its supported Effect peer from your application directory:
+These docs target the local `effect-jobs@0.1.0-alpha.2` candidate, qualified with
+Effect 4.1.0. They do not qualify the currently published registry artifact.
+Build and pack the candidate checkout with `bun run build` and `npm pack --ignore-scripts`,
+then install that exact tarball and its supported Effect peer from your application directory:
 
 ```sh
-npm install effect-jobs@0.1.0-alpha.2 effect@4.0.5
+npm install --save-exact /path/to/effect-jobs-0.1.0-alpha.2.tgz effect@4.1.0
 ```
 
-No force install, peer override or dependency patch is part of this setup.
+Keep these versions exact in the application manifest so subsequent installs do
+not widen the qualified Effect/SQL peer graph. No force install, peer override
+or dependency patch is part of this setup.
 
 ## Choose the database integration
 
-PostgreSQL is the current durable backend. For the native Effect SQL route, add
+PostgreSQL is the current durable storage. For the native Effect SQL route, add
 the matching client and driver:
 
 ```sh
-npm install @effect/sql-pg@4.0.5 pg@8.23.0
+npm install --save-exact @effect/sql-pg@4.1.0 pg@8.23.0
 ```
 
 For optional native Drizzle query building and schema declarations:
 
 ```sh
-npm install drizzle-orm@1.0.0-rc.5-ab785fc
+npm install --save-exact drizzle-orm@1.0.0-rc.5
 ```
 
-The other qualified Drizzle peer is `1.0.0-rc.5-169397b`. This is an exact peer
-set, not support for arbitrary Drizzle releases. Use public
+The exact qualified Drizzle peer is `1.0.0-rc.5`, not an arbitrary release
+range. Use public
 `PgClient.withTransaction` with queries in the same Effect context; see
 [native Drizzle integration](/docs/persistence/drizzle).
 
 | Component                    | Supported qualification scope                                                                                         |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Effect and native SQL client | Exact `4.0.5`                                                                                                         |
+| Effect and native SQL client | Exact `4.1.0`                                                                                                         |
 | Node.js                      | `24.15.0` qualification; package engine `>=24.15.0 <25`                                                               |
 | Bun                          | `1.4.2` qualification                                                                                                 |
 | Persistence                  | PostgreSQL with application-owned pools and migrations                                                                |
 | Declaration checks           | Own strict/exact-optional source checks; separately recorded upstream Drizzle declaration failures remain unresolved. |
 
 Other runtimes, driver versions and production deployment are not established by
-these examples. The queue's portable core does not imply a qualified backend on
+these examples. The queue's portable core does not imply a qualified storage on
 every platform.
 
 ## Import focused modules

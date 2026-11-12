@@ -1,7 +1,7 @@
 /** Ambient transaction-only manual operators. Applications own authority and receipts. */
 import { Context, Data, Schema } from "effect"
 import type { Effect } from "effect"
-import type { JobBackendError } from "./JobEnqueue.js"
+import type { JobPersistenceError } from "./JobEnqueue.js"
 import type { JobDefinition } from "./Job.js"
 import type { JobIntegrityConflict, JobPayloadCodecError } from "./JobContract.js"
 import { JobId } from "./JobId.js"
@@ -81,6 +81,7 @@ export class JobOperatorRejected extends Data.TaggedError("JobOperatorRejected")
     | "unsupported-catalog"
     | "arithmetic-bound"
     | "lineage-conflict"
+    | "policy-incompatible"
 }> {}
 /** All successes are provisional until the outer owner commits. @category models */
 export interface JobOperatorsService<E = never, R = never> {
@@ -90,16 +91,18 @@ export interface JobOperatorsService<E = never, R = never> {
   readonly cancel: (
     expected: JobOperatorExpected
   ) => Effect.Effect<JobOperatorTransition, E | JobOperatorRejected, R>
+  /** Validate against the kind/version contract; successors retain the source queue. */
   readonly redrive: <S extends Schema.Top>(
-    definition: Pick<JobDefinition<S>, "catalog" | "payload">,
+    definition: Pick<JobDefinition<S>, "name" | "version" | "payload">,
     request: JobRedriveRequest
   ) => Effect.Effect<
     JobRedriveResult,
     E | JobOperatorRejected | JobPayloadCodecError | JobIntegrityConflict,
     R | S["DecodingServices"]
   >
+  /** Replace domain data through the standard codec without selecting a new route. */
   readonly correctedRedrive: <S extends Schema.Top>(
-    definition: Pick<JobDefinition<S>, "catalog" | "payload">,
+    definition: Pick<JobDefinition<S>, "name" | "version" | "payload">,
     request: JobCorrectedRedriveRequest<S["Type"]>
   ) => Effect.Effect<
     JobRedriveResult,
@@ -110,5 +113,5 @@ export interface JobOperatorsService<E = never, R = never> {
 /** Trusted application composition, not caller authentication. @category services */
 export class JobOperators extends Context.Service<
   JobOperators,
-  JobOperatorsService<JobBackendError>
+  JobOperatorsService<JobPersistenceError>
 >()("effect-jobs/JobOperators") {}

@@ -11,10 +11,10 @@ one. The application must also make its report and receipt writes idempotent.
 
 ## Name the business consequence
 
-Yield `JobProducer.make({ operation, slots })` once during application setup in an application domain
+Yield `JobProducer.make(operation).pipe(JobProducer.withSlot(slot, job, routing))` once during application setup in an application domain
 module and share it between callers. For reports, an operation such as
 `report.request` declares the slot `generate`. Construct each
-identity with `producer.identity({ operationId, slot })`.
+identity through `producer.enqueue({ slot, operationId, payload })`.
 
 The unique key is **`(operation, operationId, slot)` within one configured
 storage**. It is not scoped by job name or version. Multiple slots can enqueue
@@ -42,19 +42,19 @@ slots; a slot itself never establishes a dependency between jobs.
 
 ## Interpret the result
 
-| Same producer identity, incoming content         | Result                                      |
-| ------------------------------------------------ | ------------------------------------------- |
-| No retained identity                             | `Inserted` with a library-generated job ID. |
-| Matching catalog and semantic payload            | `AlreadyPresent` with the original job ID.  |
-| Changed queue, name, version or semantic payload | `JobIntegrityConflict`; no overwrite.       |
+| Same producer identity, incoming content  | Result                                      |
+| ----------------------------------------- | ------------------------------------------- |
+| No retained identity                      | `Inserted` with a library-generated job ID. |
+| Matching catalog and semantic payload     | `AlreadyPresent` with the original job ID.  |
+| Changed name, version or semantic payload | `JobIntegrityConflict`; no overwrite.       |
 
 Concurrent producers are protected by storage uniqueness and conflict comparison,
 not a check-then-insert in application code. READ COMMITTED is required so the
 comparison statement can see a concurrent committed winner. If cleanup removes
-evidence during comparison, the backend conservatively conflicts rather than
+evidence during comparison, storage conservatively conflicts rather than
 recreating it in that transaction.
 
-For a matching duplicate, **the first policy and initial availability win**.
+For a matching duplicate, **the first queue, policy and initial availability win**.
 Changing deployment defaults or supplying a different schedule does not update
 an existing job or create a content conflict. Duplicate enqueue is not debounce,
 reschedule or last-write-wins. Omitted initial availability uses database time
@@ -86,6 +86,7 @@ after an unknown outcome and is not an external idempotency key.
 See [atomic receipt writes](/docs/persistence/transactions/) and
 [unknown execution outcomes](/docs/execution/recovery/).
 
-`producer.enqueue(slot, input)` enforces the bound job/payload/default policy.
-`identity` remains a structural escape to explicit lower-level calls, without
-a global slot-to-job proof. Different queues under the same tuple conflict.
+`producer.enqueue({ slot, operationId, payload, ...options })` enforces the
+bound job, exact payload and routing choice. Different selected queues under the
+same matching tuple return the original row; a matching duplicate never reroutes
+accepted work. Job contracts expose no enqueue or producer-identity escape.

@@ -1,12 +1,12 @@
 import { Context, Effect, Layer } from "effect"
 import * as JobProducer from "effect-jobs/JobProducer"
-import { OrderJobs } from "#orders/contracts/jobs"
+import { OrderJobs, OrdersQueue, OrderPolicy } from "#orders/contracts/jobs"
 const workerDefinitions = Effect.gen(function* () {
+  const policy = yield* OrderPolicy
   const { SendInvoice } = yield* OrderJobs
-  const InvoiceCreated = yield* JobProducer.make({
-    operation: "invoice.create",
-    slots: { "send-invoice": SendInvoice }
-  })
+  const InvoiceCreated = yield* JobProducer.make("invoice.create").pipe(
+    JobProducer.withSlot("send-invoice", SendInvoice, { queue: OrdersQueue, policy })
+  )
   return { InvoiceCreated }
 })
 export class WorkerDefinitions extends Context.Service<

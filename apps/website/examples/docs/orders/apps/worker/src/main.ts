@@ -1,14 +1,12 @@
-// Platform and native SQL APIs are intentionally pinned to Effect 4.0.5 here.
+// Platform and native SQL APIs are intentionally pinned to Effect 4.1.0 here.
 // @effect-diagnostics unstableApiUsage:off
 import { Config, Effect, Layer } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import { NodeRuntime } from "@effect/platform-node"
 import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
-import * as JobRegistry from "effect-jobs/JobRegistry"
 import * as JobWorker from "effect-jobs/JobWorker"
-import * as JobConsumer from "effect-jobs/JobConsumer"
-import * as JobWorkerRuntime from "effect-jobs/JobWorkerRuntime"
-import * as PollingJobWorker from "effect-jobs/PollingJobWorker"
+import * as JobStorage from "effect-jobs/JobStorage"
+import * as JobPolling from "effect-jobs/JobPolling"
 import { ApplicationLayer } from "#database/Database"
 import { OrderJobs, OrdersQueue } from "#orders/contracts/jobs"
 import { ConfirmationHandlerLayer } from "#worker/orders/jobs/SendConfirmation"
@@ -19,37 +17,30 @@ import * as SyntheticMail from "#worker/orders/SyntheticMail"
 // #region confirmation-composition
 export const ConfirmationWorkerLayer = Layer.unwrap(
   Effect.gen(function* () {
-    const { SendOrderConfirmation } = yield* OrderJobs
-    const backend = yield* PostgreSqlJobs.PostgreSqlJobs
-    return JobWorker.layer(backend.store, {
-      catalog: [SendOrderConfirmation],
-      operationResponseBudgetMillis: 100
+    const { ConfirmationApi } = yield* OrderJobs
+    const jobs = yield* PostgreSqlJobs.PostgreSqlJobs
+    return JobWorker.layer(ConfirmationApi, {
+      queues: [{ queue: OrdersQueue, concurrency: 2 }]
     }).pipe(
       Layer.provide(ConfirmationHandlerLayer),
       Layer.provide(SyntheticMail.layer),
-      Layer.provide(JobRegistry.layer)
+      Layer.provide(Layer.succeed(JobStorage.JobStorage, jobs.storage))
     )
   })
 )
-export const confirmationConsumer = JobConsumer.make(OrdersQueue, {
-  localConcurrency: 2,
-  claimLimitPerRun: 20,
-  recoveryLimitPerRun: 20
-})
-export const drainConfirmations = Effect.gen(function* () {
-  const configured = yield* confirmationConsumer
-  return yield* JobWorkerRuntime.drain(configured)
+export const drainConfirmations = JobWorker.drain(OrdersQueue, {
+  maxJobs: 20,
+  recoveryLimit: 20
 }).pipe(Effect.provide(ConfirmationWorkerLayer))
 // #endregion confirmation-composition
 
 // #region composition
 export const WorkerLayer = Layer.unwrap(
   Effect.gen(function* () {
-    const { SendOrderConfirmation, CreateOrderInvoice, SendInvoice } = yield* OrderJobs
-    const backend = yield* PostgreSqlJobs.PostgreSqlJobs
-    return JobWorker.layer(backend.store, {
-      catalog: [SendOrderConfirmation, CreateOrderInvoice, SendInvoice],
-      operationResponseBudgetMillis: 100
+    const { ApplicationJobs } = yield* OrderJobs
+    const jobs = yield* PostgreSqlJobs.PostgreSqlJobs
+    return JobWorker.layer(ApplicationJobs, {
+      queues: [{ queue: OrdersQueue, concurrency: 2 }]
     }).pipe(
       Layer.provide([
         ConfirmationHandlerLayer,
@@ -57,27 +48,25 @@ export const WorkerLayer = Layer.unwrap(
         InvoiceDeliveryHandlerLayer
       ]),
       Layer.provide(SyntheticMail.layer),
-      Layer.provide(JobRegistry.layer)
+      Layer.provide(Layer.succeed(JobStorage.JobStorage, jobs.storage))
     )
   })
 )
-export const consumer = JobConsumer.make(OrdersQueue, {
-  localConcurrency: 2,
-  claimLimitPerRun: 20,
-  recoveryLimitPerRun: 20
-})
-export const drainOrders = Effect.gen(function* () {
-  const configured = yield* consumer
-  return yield* JobWorkerRuntime.drain(configured)
+export const drainOrders = JobWorker.drain(OrdersQueue, {
+  maxJobs: 20,
+  recoveryLimit: 20
 }).pipe(Effect.provide(WorkerLayer))
 
-export const pollOrders = Effect.gen(function* () {
-  const configured = yield* consumer
-  const plan = yield* JobConsumer.plan(configured)
-  return yield* Effect.never.pipe(
-    Effect.provide(PollingJobWorker.layerForPlan(plan).pipe(Layer.provide(WorkerLayer)))
-  )
-}).pipe(Effect.scoped)
+export const pollOrders = Effect.never.pipe(
+  Effect.provide(
+    JobPolling.layer([OrdersQueue], {
+      maxJobs: 20,
+      recoveryLimit: 20,
+      shutdownGraceMillis: 30_000
+    }).pipe(Layer.provide(WorkerLayer))
+  ),
+  Effect.scoped
+)
 // #endregion composition
 
 const ClientLayer = PgClient.layerConfig({

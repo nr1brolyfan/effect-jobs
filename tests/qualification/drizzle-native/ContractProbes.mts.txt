@@ -2,7 +2,9 @@ import * as Pg from "@effect/sql-pg/PgClient"
 import * as Drizzle from "drizzle-orm/effect-postgres"
 import { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 import { integer, pgTable, text } from "drizzle-orm/pg-core"
-import { Context, Data, Effect } from "effect"
+import * as Producer from "effect-jobs/JobProducer"
+import * as Queue from "effect-jobs/JobQueue"
+import { Context, Data, Effect, Schema } from "effect"
 import type { SqlError } from "effect/sql/SqlError"
 import * as Native from "effect-jobs/PostgreSqlNative"
 import * as Storage from "effect-jobs/PostgreSqlJobs"
@@ -42,7 +44,7 @@ export const transactionProgram = Effect.gen(function* () {
 export const joinedProgram = Effect.gen(function* () {
   const client = yield* Pg.PgClient
   const db = yield* Drizzle.makeWithDefaults()
-  const backend = yield* Storage.make({
+  const jobs = yield* Storage.make({
     schema: "proof",
     operationResponseBudgetMillis: 100
   }).pipe(
@@ -52,7 +54,7 @@ export const joinedProgram = Effect.gen(function* () {
     )
   )
   return yield* client.withTransaction(
-    backend.withTransaction(() =>
+    jobs.withTransaction(() =>
       Effect.gen(function* () {
         const caller = yield* Caller
         if (caller.name === "reject") { return yield* new CallerError() }
@@ -114,3 +116,11 @@ export const invalidInputProgram = Effect.gen(function* () {
   // @ts-expect-error -- ORACLE: typed insert rejects a string id.
   return yield* db.insert(users).values({ id: "wrong", name: "fixture" })
 })
+
+const fixed = Effect.runSync(Producer.make("proof.fixed").pipe(Producer.withSlot("job", { name: "proof.job", version: 1, payload: Schema.String }, { queue: Queue.make("proof") })))
+// @ts-expect-error -- ORACLE: the removed object override must stay forbidden in installed declarations.
+export const badQueueObject = fixed.enqueue({ slot: "job", operationId: "one", payload: "one", queue: Queue.make("proof") })
+const selectable = Effect.runSync(Producer.make("proof.selectable").pipe(Producer.withSlot("job", { name: "proof.job", version: 1, payload: Schema.String }, { queues: [Queue.make("proof")] })))
+// @ts-expect-error -- ORACLE: a singleton choice still requires explicit selection.
+export const missingQueueChoice = selectable.enqueue({ slot: "job", operationId: "one", payload: "one" })
+export const selectedQueue = selectable.enqueue({ slot: "job", operationId: "one", payload: "one", queue: "proof" })

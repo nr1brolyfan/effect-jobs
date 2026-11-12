@@ -12,6 +12,7 @@ import { JobFailures, type JobFailure } from "../../src/JobFailure.js"
 import { JobId } from "../../src/JobId.js"
 import type { CatalogIdentity, ProducerIdentity } from "../../src/JobIdentity.js"
 import * as JobPolicy from "../../src/JobPolicy.js"
+import * as Retry from "../../src/JobRetryPolicy.js"
 import type { JobsTransaction, JobTransactionsService } from "../../src/JobTransaction.js"
 import {
   insertPrepared,
@@ -41,14 +42,16 @@ export const wrongCatalog: CatalogIdentity<"billing", "email", 1> = {
   // @ts-expect-error Wrong catalog version literal.
   version: 2
 }
-export const policy = JobPolicy.make({ retryDelay: Duration.seconds(5) })
+export const policy = Effect.runSync(
+  JobPolicy.make({ retry: Retry.fixed(Duration.seconds(5)) })
+)
 // @ts-expect-error Public duration inputs are not raw milliseconds.
-export const rawDuration = JobPolicy.make({ retryDelay: 5000 })
+export const rawDuration = Retry.fixed(5000)
 // @ts-expect-error Resolved durable policy cannot omit retention.
 export const incompletePolicy: JobPolicy.JobPolicy = {
   leaseDurationMillis: 90000,
   attemptTimeoutMillis: 30000,
-  maxAttempts: 3,
+  maxFinalizedAttempts: 3,
   maxStalledCount: 1,
   retrySchedule: { _tag: "FixedDelayV1", delayMillis: 5000 }
 }
@@ -73,20 +76,36 @@ export const overrideId: EnqueueInput<string> = {
 export const outcome: JobFailure = JobFailures.OutcomeUnknown({
   code: FailureCodes.define({ value: "lost_response" }).value
 })
+export const retryCutoff = JobFailures.Retry({
+  code: FailureCodes.define({ value: "temporary" }).value,
+  retryBefore: 1000
+})
+export const removedRetryCutoff = JobFailures.Retry({
+  code: FailureCodes.define({ value: "temporary" }).value,
+  // @ts-expect-error Removed spelling; retryBefore is a scheduling cutoff, not an execution deadline.
+  notAfter: 1000
+})
 // @ts-expect-error Arbitrary domain errors are not library handler failures.
 export const domainFailure: JobFailure = { _tag: "DomainError", code: "x" }
 declare const handlerInput: HandlerInput<string>
+// @ts-expect-error The ordinal describes the next finalization, not every invocation.
+export const removedOrdinal = handlerInput.context.attemptNumber
+declare const snapshot: import("../../src/JobLifecycle.js").JobSnapshot
+// @ts-expect-error Physical attempts_made maps to finalizedAttempts, not the removed public field.
+export const removedCounter = snapshot.attemptsMade
 // @ts-expect-error Handler context has no transaction or finalization authority.
 export const noTransaction = handlerInput.context.transaction
 // @ts-expect-error Callback capability cannot be fabricated structurally.
 export const fabricated: JobsTransaction = {}
-export class Backend extends Context.Service<Backend, {}>()("tests/contracts/Backend") {}
-declare const tx: JobsTransaction<"backend-error", Backend>
+export class TransactionContext extends Context.Service<TransactionContext, {}>()(
+  "tests/contracts/TransactionContext"
+) {}
+declare const tx: JobsTransaction<"jobs-error", TransactionContext>
 declare const prepared: PreparedJob
 export const enqueue: Effect.Effect<
   unknown,
-  "backend-error" | import("../../src/JobTransaction.js").JobEnqueueError,
-  Backend
+  "jobs-error" | import("../../src/JobTransaction.js").JobEnqueueError,
+  TransactionContext
 > = insertPrepared(tx, prepared)
 type ExpectFalse<A extends false> = A
 // Type-level negative assertions avoid intentionally emitting Effect diagnostics.
@@ -94,10 +113,10 @@ export type MissingRequirement = ExpectFalse<
   typeof enqueue extends Effect.Effect<unknown, unknown> ? true : false
 >
 export type MissingError = ExpectFalse<
-  typeof enqueue extends Effect.Effect<unknown, never, Backend> ? true : false
+  typeof enqueue extends Effect.Effect<unknown, never, TransactionContext> ? true : false
 >
-declare const manager: JobTransactionsService<"manager-error", Backend>
-export const managed: Effect.Effect<string, "manager-error", Backend> =
+declare const manager: JobTransactionsService<"manager-error", TransactionContext>
+export const managed: Effect.Effect<string, "manager-error", TransactionContext> =
   manager.withTransaction(() => Effect.succeed("ok"))
 export type Unmanaged = ExpectFalse<
   typeof managed extends Effect.Effect<string, "manager-error"> ? true : false
@@ -108,7 +127,7 @@ export const wrongFormat: EncodedJobPayload = { ...encoded, formatVersion: 2 }
 // @ts-expect-error Prepared artifacts have no generated candidate ID.
 export const candidateId: PreparedJob = { ...prepared, jobId: id }
 export const joined = withJoinedTransaction(
-  () => Effect.fail("backend-error" as const),
+  () => Effect.fail("jobs-error" as const),
   (joinedTx) => insertPrepared(joinedTx, prepared)
 )
 export class EncodeService extends Context.Service<EncodeService, {}>()(

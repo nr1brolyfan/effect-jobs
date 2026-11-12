@@ -214,7 +214,7 @@ try {
         )
         const snippets = [...source.matchAll(/```ts\n([\s\S]*?)\n```/g)]
         const panels = page.locator(".expressive-code")
-        await expect(panels).toHaveCount(7)
+        await expect(panels).toHaveCount(snippets.length)
         await expect(page.locator("job-visual")).toHaveCount(0)
         for (let index = 0; index < snippets.length; index++) {
           const lines = await panels

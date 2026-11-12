@@ -17,7 +17,7 @@ const items = Array.from({ length: 13 }, (_, index) => {
     availableAt: 1_700_000_000_000,
     updatedAt: 1_700_000_001_000,
     completedAt: state === "Completed" || state === "Dead" ? 1_700_000_001_000 : null,
-    attemptsMade: state === "Pending" ? 0 : 1
+    finalizedAttempts: state === "Pending" ? 0 : 1
   }
 })
 export const page = Schema.decodeUnknownSync(JobPage)(

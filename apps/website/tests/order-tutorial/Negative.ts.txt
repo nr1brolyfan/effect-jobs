@@ -1,19 +1,16 @@
 import { Effect, Layer } from "effect"
 import { ApiDefinitions } from "./apps/api/src/orders/Definitions.js"
-import { OrderJobs, OrderPolicy } from "./packages/orders/src/contracts/jobs.js"
 import { ConfirmationHandlerLayer } from "./apps/worker/src/orders/jobs/SendConfirmation.js"
 
 export const checks = Effect.gen(function* () {
   const { PlaceOrder } = yield* ApiDefinitions
-  const { SendOrderConfirmation } = yield* OrderJobs
-  const identity = yield* PlaceOrder.identity({ operationId: "submission", slot: "send-confirmation" })
   // @ts-expect-error the introductory producer has no create-invoice slot
-  const invalidSlot = PlaceOrder.identity({ operationId: "submission", slot: "create-invoice" })
+  const invalidSlot = PlaceOrder.enqueue({ slot: "create-invoice", operationId: "submission", payload: { orderId: "order-1" } })
   // @ts-expect-error payload identity must be a string
-  const invalidPayload = SendOrderConfirmation.enqueue({ producer: identity, payload: { orderId: 1 }, policy: OrderPolicy })
+  const invalidPayload = PlaceOrder.enqueue({ slot: "send-confirmation", operationId: "submission", payload: { orderId: 1 } })
   // @ts-expect-error enqueue still requires JobEnqueue
-  const missingProducer: Effect.Effect<unknown, unknown> = SendOrderConfirmation.enqueue({ producer: identity, payload: { orderId: "order-1" }, policy: OrderPolicy })
-  // @ts-expect-error the handler requires its registry and TransactionalEmails
+  const missingProducer: Effect.Effect<unknown, unknown> = PlaceOrder.enqueue({ slot: "send-confirmation", operationId: "submission", payload: { orderId: "order-1" } })
+  // @ts-expect-error the handler requires TransactionalEmails
   const missingEmails: Layer.Layer<never> = ConfirmationHandlerLayer
   return { invalidSlot, invalidPayload, missingProducer, missingEmails }
 })

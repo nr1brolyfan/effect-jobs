@@ -14,7 +14,7 @@ export const makeServer = () => {
     jobId: Schema.decodeSync(JobId)(`read-job-${String(index).padStart(3, "0")}`),
     state: "Pending" as const,
     completedAt: null,
-    attemptsMade: 0
+    finalizedAttempts: 0
   }))
   const requests: Array<ListJobs> = []
   const client: Client = {

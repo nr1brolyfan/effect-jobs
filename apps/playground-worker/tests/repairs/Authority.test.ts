@@ -125,6 +125,7 @@ const fixture = Effect.gen(function* () {
     gate.release(1)
   )
   const client = yield* SqlClient.make({
+    driver: "test",
     acquirer,
     compiler: PgClient.makeCompiler(),
     spanAttributes: []

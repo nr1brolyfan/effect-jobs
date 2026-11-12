@@ -54,7 +54,7 @@ registration, exact source identity and active lifetime. Query-only objects,
 foreign sources and inactive handles fail with `InvalidHandle`; no fallback
 connection is borrowed. After validation, it calls the existing internal
 `withJoinedTransaction` capability factory. The callback receives a fresh
-`JobsTransaction`; definition enqueue uses that capability and the real
+`JobsTransaction`; producer enqueue uses that capability and the real
 `PreparedJob`/codec seam. Callback exit invalidates it on success, typed failure,
 defect and interruption. Nested callback lifetimes are independent. A capability
 cannot be kept in an application-lifetime Layer. This is correctness for trusted
@@ -133,7 +133,7 @@ The finite suite checks:
 
 - Actual test-process runtime and installed driver/Effect pins, plus server pin.
 - Pure imports/construction/Layer scope; application pool remains usable.
-- Invoice + real definition enqueue + encoded immutable payload + receipt commit
+- Invoice + real producer enqueue + encoded immutable payload + receipt commit
   together; exactly one borrow/BEGIN/COMMIT and no savepoint or DDL.
 - Actual PG CHECK failures at invoice, jobs, payload and receipt insert boundaries
   roll back all prior writes; callback is invoked exactly once.

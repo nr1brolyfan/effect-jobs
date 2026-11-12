@@ -158,9 +158,9 @@ migration tool before application startup. Migration DDL is separate from Drizzl
 application queries; imports and readiness checks never migrate storage. Keep
 receipt-to-job references protected by your application cleanup policy.
 
-This path is scoped to Effect 4.0.5, `@effect/sql-pg` 4.0.5 and the two
-[qualified Drizzle snapshots](/docs/persistence/drizzle). `db.transaction` is excluded
-from this supported route. No per-request pool or backend construction is needed.
+This path is scoped to the local candidate with Effect 4.1.0, `@effect/sql-pg` 4.1.0 and
+[qualified Drizzle 1.0.0-rc.5](/docs/persistence/drizzle). `db.transaction` is excluded
+from this supported route. No per-request pool or jobs construction is needed.
 
 </details>
 
@@ -236,7 +236,7 @@ contract. This is application orchestration, not a built-in DAG or slot ordering
 
 ## When the job is the whole transaction
 
-Use `SendOrderConfirmation.enqueueStandalone(input)` for independent production with no
+Use `PlaceOrder.enqueueStandalone({ slot: "send-confirmation", operationId, payload: { orderId } })` for independent production with no
 application write that must commit beside it. It owns a bounded transaction and
 resolves after acknowledged commit. It rejects an active transaction of its
 configured client.

@@ -68,7 +68,7 @@ sending real emails. You do not need a provider account or credentials.
 
 First, give the API and worker a shared description of the work. The payload
 contains the order ID, so the worker knows which order to confirm. `name` selects
-the stable contract and handler; `queue` groups work for a consumer. Declaring
+the stable contract and handler; `queue` routes work to a configured worker. Declaring
 this contract starts no processing, and the omitted version is `1`.
 
 We'll also choose a default policy here: three finalized attempts with a fixed
@@ -210,7 +210,7 @@ A real provider may have sent email before a timeout: queue deduplication cannot
 prove exactly-once delivery. Its adapter needs idempotency or reconciliation.
 Defects and interruption remain distinct from these typed outcomes.
 
-To make it run, install the handler Layer and the registry,
+To make it run, install the complete group handler Layer and storage,
 then explicitly run a bounded drain with the same application services. The API
 imports only shared contracts and database code; it never imports this handler or
 a mail adapter. API and worker are roles that can also share one host process.
@@ -252,7 +252,7 @@ finite acquisition/control/release deadlines. This supported native route uses
 
 Apply `migrationSql` from `packages/database/src/Migrations.ts` through your
 migration tool before starting either role. This is migration DDL; application
-queries remain Drizzle queries. Imports and `backend.ready` do not create tables.
+queries remain Drizzle queries. Imports and `jobs.ready` do not create tables.
 Retain orders, receipts and their referenced jobs for the required reconciliation
 and deduplication window; application cleanup must coordinate these references.
 
@@ -485,9 +485,9 @@ follow acceptance; keep that outcome uncertain and reconcile the provider.
 The small shared policy allows three finalized attempts with a fixed five-second
 retry delay. Its other defaults are a 30-second attempt timeout, a 90-second lease,
 one stalled recovery, 90-day Completed retention and infinite Dead retention.
-`defaultPolicy` supplies that complete policy when enqueue omits one. A complete
-override replaces the entire default; without a definitely provided default,
-policy stays required. Optional/dynamic defaults are typed conservatively.
+A producer slot supplies that complete policy when enqueue omits one. A complete
+enqueue override replaces the entire slot policy. Omitted slot policies resolve
+to the deeply frozen library default during producer setup.
 
 <CodeExample
   sourcePath="orders/apps/api/src/orders/InvoiceDelivery.ts"
@@ -495,7 +495,7 @@ policy stays required. Optional/dynamic defaults are typed conservatively.
   role="Producer"
 />
 
-Changing a definition default from three attempts to five affects new insertions
+Changing a slot policy from three attempts to five affects new insertions
 only. Matching duplicates keep their first policy and availability, including
 after a deployment changes defaults. The worker executes stored configuration;
 a default change alone needs no job version bump and changes no pending row. Attempt numbers can repeat after

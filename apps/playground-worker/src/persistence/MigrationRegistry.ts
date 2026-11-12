@@ -30,6 +30,7 @@ export const migrations = (schema: string): ReadonlyArray<MigrationDescriptor> =
     Operators.proposal(schema)
   const repairs =
     Jobs.lineageMigration(Jobs.tables({ schema })) + Repairs.proposal(schema)
+  const creationTime = Jobs.creationTimeMigration(Jobs.tables({ schema }))
   return Object.freeze([
     {
       id: "playground-v1",
@@ -60,6 +61,11 @@ export const migrations = (schema: string): ReadonlyArray<MigrationDescriptor> =
       id: "playground-job-repairs-v6",
       sql: repairs,
       checksum: createHash("sha256").update(repairs).digest("hex")
+    },
+    {
+      id: "playground-job-creation-time-v7",
+      sql: creationTime,
+      checksum: createHash("sha256").update(creationTime).digest("hex")
     }
   ])
 }

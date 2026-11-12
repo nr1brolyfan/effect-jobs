@@ -2,7 +2,7 @@ import * as PostgreSqlSchema from "effect-jobs/PostgreSqlSchema"
 
 // #region migration
 // Apply once through application-owned migrations, before serving requests.
-// This is SQL generation, never executed by module import or backend.ready.
+// This is SQL generation, never executed by module import or jobs.ready.
 export const migrationSql = `${PostgreSqlSchema.migration()}
 CREATE TABLE report_requests (
   operation_id text PRIMARY KEY,

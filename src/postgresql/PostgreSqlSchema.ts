@@ -5,7 +5,7 @@ import { Data } from "effect"
 import { createHash } from "node:crypto"
 
 /**
- * Thrown for invalid table configuration or returned for invalid backend budget.
+ * Thrown for invalid table configuration or returned for invalid storage budget.
  *
  * @category errors
  */
@@ -30,7 +30,7 @@ export interface TableOptions {
   readonly payloadsTable?: string
 }
 /**
- * Complete storage mapping shared by backend and application migration generation.
+ * Complete storage mapping shared by runtime configuration and application migration generation.
  *
  * @category models
  */
@@ -94,7 +94,7 @@ const lineageConstraints = (
 /**
  * Returns DDL for the configured jobs and immutable payload tables and indexes.
  * The application creates the schema and runs migrations; runtime never invokes DDL.
- * Use the same mapping for backend construction.
+ * Use the same mapping for jobs construction.
  *
  * @example
  * ```ts
@@ -117,6 +117,7 @@ export const migration = (mapping: Tables = tables()): string => {
   policy jsonb NOT NULL, initial_available_at bigint,
   state text NOT NULL CHECK (state IN ('Pending','Active','RetryScheduled','Completed','Dead','Isolated','Cancelled')),
   available_at bigint NOT NULL, updated_at bigint NOT NULL,
+  created_at bigint,
   attempts_made bigint NOT NULL DEFAULT 0 CHECK (attempts_made >= 0),
   stalled_count bigint NOT NULL DEFAULT 0 CHECK (stalled_count >= 0),
   lifecycle_version bigint NOT NULL DEFAULT 0 CHECK (lifecycle_version >= 0),
@@ -197,3 +198,11 @@ export const lineageMigration = (mapping: Tables = tables()): string => {
   ADD CONSTRAINT "${prefix}_source_fk" FOREIGN KEY (source_job_id) REFERENCES ${jobs}(id) ON DELETE SET NULL;
 CREATE INDEX "${prefix}_source" ON ${jobs} (source_job_id) WHERE source_job_id IS NOT NULL;`
 }
+
+/** Adds truthful creation metadata without inventing times for existing rows.
+ * Applications run this once in their own migration transaction. Runtime never
+ * migrates; readiness requires this nullable bigint column before use.
+ * @category operations
+ */
+export const creationTimeMigration = (mapping: Tables = tables()): string =>
+  `ALTER TABLE ${relations(mapping).jobs} ADD COLUMN created_at bigint;`

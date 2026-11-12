@@ -25,7 +25,7 @@ production qualification.
 
 Ship one npm package, `effect-jobs`, with focused public subpaths. Keep the core
 independent of PostgreSQL and Drizzle imports; isolate PostgreSQL persistence
-behind a backend subpath with optional backend peers. Do not split core, worker,
+behind a persistence subpath with optional persistence peers. Do not split core, worker,
 and PostgreSQL into separate npm packages for the initial release.
 
 The catalog supports application-defined jobs from the outset. This does not
@@ -43,7 +43,7 @@ require effect-auth to expose its own catalog to arbitrary application jobs.
 - Bounded worker drain and explicit scoped Node/Bun polling.
 
 Imports must not start workers. Applications explicitly compose persistence,
-handler, and runtime Layers. Core imports must work without backend peers.
+handler, and runtime Layers. Core imports must work without persistence peers.
 
 ### Ownership boundary
 
@@ -55,7 +55,7 @@ or a dual-write migration.
 
 ### Deferred features
 
-Additional backends, recurring schedules,
+Additional storage implementations, recurring schedules,
 dashboards, flows, pause/resume/cancel/redrive APIs, and a ready-made Cloudflare
 coordinator are outside the first release. Bounded drain alone is not a
 Cloudflare support claim.
@@ -76,7 +76,7 @@ import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
 
 A focused extraction limits simultaneous protocol changes and preserves the
 existing transaction-bound producer guarantees. A single package avoids
-premature release/version coordination while subpaths isolate backend loading.
+premature release/version coordination while subpaths isolate persistence loading.
 
 D1 approves scope and ownership, not the illustrative method signatures from
 the discussion. Envelope and handler inputs, IDs/deduplication, failure policy,
@@ -134,28 +134,46 @@ names the business operation, `operationId` identifies its particular instance,
 and `slot` identifies one consequence. Multiple slots may produce the same job
 name. Applications should namespace operation names.
 
-Declare a producer near its application-owned use case. Share the declaration
-only among callers that execute that same operation. The accepted API direction is:
+Declare a producer once in an application-owned domain module and import it from
+all callers. The contract-first redesign refines the accepted API direction to
+bind each slot to its job, route and default policy:
 
 ```ts
-const DefinitionsProgram = Effect.gen(function* () {
-  const IssueInvoiceProducer = yield* JobProducer.make({
-    operation: "billing.issue-invoice",
-    slots: { "generate-pdf": GeneratePdf, "send-email": SendInvoice }
-  })
-  return { IssueInvoiceProducer }
-})
-// GeneratePdf and SendInvoice come from the same application setup graph.
-// Build it once at application initialization, then use its producer:
-const enqueued = definitions.IssueInvoiceProducer.enqueue("generate-pdf", {
+const IssueInvoiceProducer =
+  yield *
+  JobProducer.make("billing.issue-invoice").pipe(
+    JobProducer.withSlot("generate-pdf", GenerateInvoicePdf, { queue: BillingQueue }),
+    JobProducer.withSlot("send-email", SendInvoiceEmail, { queue: BillingQueue })
+  )
+
+const produce = IssueInvoiceProducer.enqueue({
   operationId,
+  slot: "generate-pdf",
   payload: { invoiceId }
 })
 ```
 
-The factory returns a lazy Effect producing immutable configuration, with
-`JobDeclarationError` in E and no constructor services. An application may expose
-that configuration through its own shared definitions service and Layer.
+The owner accepted fixed versus explicitly selectable routing. A slot declared
+with `{ queue: JobQueue }` is fixed; enqueue forbids any `queue` property, including
+an equal name/object or `undefined`. A slot declared with
+`{ queues: [JobQueue, ...JobQueue[]] }` requires an explicit queue-name string from
+that closed list, including singleton lists. Both/missing declarations, empty or
+duplicate-name lists and `defaultQueue` fail in the typed channel when setup executes. No fallback or implicit first choice exists. All three enqueue paths
+preserve per-slot payload/choice/Schema-service correlation, including discriminated
+union inputs. Bare uncorrelated union slots do not establish a valid input.
+
+`policy` remains independently optional and replaces the complete resolved value.
+Routing validation produces safe typed `InvalidJobInput` before encoding/insertion,
+after transaction authority/lifetime checks. Assembly snapshots only the new binding,
+list and members without freezing caller-owned objects. Selected queue and policy
+are captured before asynchronous encoding. Neither selection nor policy changes
+identity or moves matching duplicates; the first whole configuration and artifact
+remain authoritative, without checking retained routing against a new deployment list.
+No mandatory tenant field, per-tenant queue or DO topology is introduced. Shared
+queues by work class are an application default; tenant access and unique operation
+IDs, physical routing and deployment resource sharing remain application-owned.
+
+The factory returns a lazy typed Effect producing immutable configuration; it performs no work until evaluated. Applications share it through an explicit definitions Layer.
 `operation` retains its literal type; `slot` is inferred as the union of declared
 literals. `operationId` is a bounded opaque string; application-branded strings
 are accepted without requiring an additional library brand. Validate external
@@ -177,15 +195,18 @@ The owner subsequently accepted these identifier boundaries and diagnostics:
 - Tests must cover these boundaries and actionable diagnostics. These accepted
   rules do not claim that runtime validation has already been implemented.
 
-Use typed bound `enqueue(slot, input)` for normal production.
-`identity({ operationId, slot })` returns an Effect with
-`InvalidOperationId | JobDeclarationError`, retaining literal operation and slot
-types. It validates one input snapshot at each execution and remains structural
-low-level access, not proof of a slot-to-job binding. Fluent `forOperation(...).slot(...)` is unnecessary. Do not introduce a mutable
-builder or global registry to detect semantically similar names. Where multiple
+Use slot-bound enqueue with `operationId` and decoded payload; runtime IDs are
+validated in the Effect error channel. The owner accepted immutable pipeable
+assembly: `JobProducer.make(operation).pipe(JobProducer.withSlot(name, job, options), ...)`.
+There is no finalization/build step or slot-replacement API. Empty declarations
+are permitted but have no statically legal enqueue slot. Each addition returns a
+new producer, snapshots its new binding and preserves earlier bindings. Known
+duplicate names fail statically; every duplicate fails through the typed setup error channel.
+The former record constructor is removed, not retained as an overload. Do not
+introduce a mutable builder or global registry to detect semantically similar names. Where multiple
 callers share the same production logic, use an ordinary application-domain
 function for the shared business logic. Binding slot to job definition is already
-provided by the typed slot record; forwarding wrappers are not mandatory.
+provided by immutable typed slot assembly; forwarding wrappers are not mandatory.
 
 ### Job IDs and enqueue results
 
@@ -208,14 +229,14 @@ mandatory generic event ID; event IDs remain domain-owned.
 
 The accepted public API is specified in [api-refinements.md](api-refinements.md).
 `Job.make` uses `name`; physical PostgreSQL `kind` is unchanged. Producers bind
-slot records to jobs near the owning use case. A definitely provided complete
-`defaultPolicy` makes enqueue policy optional; explicit overrides replace it and
-matching duplicates keep the first stored policy. No exponential retry is added.
+slots to jobs and routing near the owning use case. Omitted policy resolves to the
+library default; explicit complete overrides replace it and matching duplicates keep
+the first stored policy. Composable retry policy is specified in retry-policy.md.
 
 ### Equality and transaction guarantees
 
-For the same producer identity, compare catalog identity and domain payload
-semantics, including protected-field fingerprints. Changed catalog identity or
+For the same producer identity, compare job name/version and domain payload
+semantics, including protected-field fingerprints. Changed name/version or
 content produces a typed integrity error. The library-generated job ID is not a
 new candidate input to compare. There is no payload overwrite, debounce, or
 last-write-wins behavior.
@@ -226,13 +247,13 @@ equality remains subject to D5.
 
 The owner subsequently refined D3: policy and initial availability are immutable
 after creation but are not part of duplicate semantic equality. For a matching
-duplicate, retain the first stored policy and availability, even if the caller
+duplicate, retain the first stored queue, policy and availability, even if the caller
 supplies different values on a production retry. This is first-write-wins for
 execution configuration only, not for payload content. Changed deployment
 defaults must not mutate existing jobs or turn otherwise matching retries into
 integrity conflicts.
 
-`availableAt` is optional. If omitted on first insertion, the backend assigns it
+`availableAt` is optional. If omitted on first insertion, the persistence assigns it
 using database time. A matching duplicate never resets it to a new current time.
 A supplied past timestamp is valid and makes the job immediately eligible;
 a future timestamp postpones eligibility, not guarantees execution at that time.
@@ -277,7 +298,9 @@ Choose ordinary Effect composition in the handler adapter rather than a separate
 `classifyError` callback in handler configuration. Domain services retain their
 domain errors. The application-owned adapter maps those errors into explicit job
 failures, for example using `Effect.mapError` and exhaustive matching, before
-installing the handler through `handlerLayer(execute)`.
+installing the complete group through `JobApiBuilder.group(catalog, name, build)`.
+Pure `JobApi` catalogs aggregate declared groups; workers require every group
+installation and use one shared engine and configured queue concurrency.
 
 Both proposed variants can preserve exhaustive typing, shared mapping, and
 domain independence. Variant A avoids an extra library classification mechanism
@@ -313,12 +336,12 @@ Only explicit bounded failure codes are persisted, not arbitrary error messages
 or raw `Cause.pretty`. Preserve the existing persisted FixedDelayV1 retry and
 bounded recovery protocol during extraction rather than adding exponential retry.
 The owner subsequently accepted preserving the existing attempt-counting protocol:
-`context.attemptNumber = attemptsMade + 1`. Claim/release do not increment
-`attemptsMade`; a confirmed, fenced Complete/Retry/Dead/Isolate transition
+`context.nextFinalizationNumber = finalizedAttempts + 1`. Claim/release do not increment
+`finalizedAttempts`; a confirmed, fenced Complete/Retry/Dead/Isolate transition
 increments it exactly once. An unknown outcome leaves it unchanged; recovery
 uses a separate `stalledCount` and limit. Thus the exposed one-based attempt number
 may repeat after an unknown outcome and recovery. It is neither an external
-idempotency key nor a count of all handler invocations. `maxAttempts` bounds
+idempotency key nor a count of all handler invocations. `maxFinalizedAttempts` bounds
 finalized attempts, while `maxStalledCount` separately bounds uncertain recovery.
 This accepts counter semantics, not unpresented exact time-boundary comparisons.
 
@@ -330,8 +353,8 @@ The owner subsequently accepted preserving these exact time boundaries:
 - `attemptTimeoutMillis < leaseDurationMillis` is required.
 - A claim or reconciled lease is usable only with remaining lease time
   `>= attemptTimeoutMillis + operationResponseBudgetMillis`.
-- A retry whose computed next availability is `>= notAfter` becomes Dead rather
-  than being scheduled. `notAfter` limits retry scheduling, not handler execution
+- A retry whose computed next availability is `>= retryBefore` becomes Dead rather
+  than being scheduled. `retryBefore` limits retry scheduling, not handler execution
   or initial availability.
 - Durable transitions use one database-time snapshot rather than process time.
   Tests must exercise equality and immediately neighboring values.
@@ -355,7 +378,7 @@ internal tagged retry/retention objects or use choice callbacks.
   retention is infinite. Retention is measured from terminal completion, not an
   absolute timestamp. `availableAt` remains a separate enqueue input.
 - The helper resolves a complete validated policy, including cross-field checks,
-  and the backend persists those resolved values in its versioned internal
+  and the persistence persists those resolved values in its versioned internal
   representation. Updated defaults do not alter already stored jobs.
 - Purging Completed jobs can remove deduplication evidence after the retention
   period. Infinite retention avoids automatic expiry but can grow storage.
@@ -363,15 +386,18 @@ internal tagged retry/retention objects or use choice callbacks.
 Illustrative public input:
 
 ```ts
-const policy = JobPolicy.make({
-  maxAttempts: 3,
-  retryDelay: Duration.seconds(5),
-  completedRetention: Duration.days(90),
-  deadRetention: Duration.infinity
-})
+const policy =
+  yield *
+  JobPolicy.make({
+    retry: JobRetryPolicy.fixed(Duration.seconds(5)).pipe(
+      JobRetryPolicy.maxFinalizedAttempts(3)
+    ),
+    completedRetention: Duration.days(90),
+    deadRetention: Duration.infinity
+  })
 ```
 
-`JobPolicy.make()` also resolves the documented defaults. This decision changes
+Evaluating `JobPolicy.make()` also resolves the documented defaults. This decision changes
 the earlier proposal requiring explicit retention; it does not introduce
 exponential retry, automatic Isolated cleanup, or unlimited Pending/Active cleanup.
 
@@ -381,8 +407,7 @@ The owner accepted these execution defaults (public names remain illustrative):
 {
   leaseDuration: Duration.seconds(90),
   attemptTimeout: Duration.seconds(30),
-  retryDelay: Duration.seconds(5),
-  maxAttempts: 3,
+  retry: JobRetryPolicy.fixed(Duration.seconds(5)).pipe(JobRetryPolicy.maxFinalizedAttempts(3)),
   maxStalledCount: 1
 }
 ```
@@ -393,10 +418,17 @@ exceeding the stored limit ends the job as Dead. Unknown outcomes can repeat an
 attempt number and lead to additional handler invocations. An attempt timeout
 does not prove that external effects did not occur.
 
-The owner reaffirmed fixed-delay retry for this extraction. Exponential backoff
-with jitter is recorded as a future strategy, not activated implementation scope.
-Its multiplier, cap, jitter distribution and persisted/versioned representation
-must be specified and qualified separately before adding it.
+Fixed-delay-only retry was the extraction baseline. On 2026-10-30 the owner
+accepted the composable `JobRetryPolicy` API with `maxFinalizedAttempts` and explicit
+`Policy.make({ retry })` assembly, and authorized direct local implementation.
+The API, full-jitter arithmetic, versioned persistence, compatibility and rollout
+contract are specified in [retry policy](retry-policy.md). The 2026-10-31 refinement
+keeps builders pure/unvalidated, validates complete policy in the typed Effect
+channel, and selects 80–120% proportional jitter with a hard bounded sampling
+interval. Superseded configuration inputs are removed rather than deprecated:
+retry delays and limits are expressed only through `JobRetryPolicy` combinators.
+Existing stored Full jitter and persisted counters are not reinterpreted. This extends retries,
+not unknown-outcome recovery, and does not authorize publication or deployment.
 
 ## D5 — explicit application-owned protection and codec boundaries
 
@@ -582,7 +614,7 @@ capability ceremony for the qualified Effect-native PostgreSQL/Drizzle path.
 The owner explicitly accepted this complete scope; no compatibility/migration or
 deprecation machinery is required. Other D1–D8 safety properties remain in force.
 
-`definition.enqueue(input)` resolves the generic `JobEnqueue` Effect service.
+`producer.enqueue(input)` resolves the generic `JobEnqueue` Effect service.
 The configured native adapter uses the exact application's `PgClient.transactionService`.
 An active transaction of that SAME client is required; missing/foreign context
 fails before preparation. There is no implicit BEGIN, second connection, commit,
@@ -592,9 +624,9 @@ schema/query building in that same Effect/Context. `db.transaction` retains an
 upstream error-type limitation and is excluded from the positive route.
 
 `PostgreSqlJobs.layerNoDeps` provides storage plus this producer service.
-`backend.withTransaction(() => definition.enqueue(input))` delegates explicit
+`jobs.withTransaction(() => producer.enqueue(input))` delegates explicit
 join-or-establish behavior to the application's manager and supplies the service.
-`definition.enqueueStandalone(input)` owns a bounded transaction for preparation,
+`producer.enqueueStandalone(input)` owns a bounded transaction for preparation,
 job/payload insertion and deduplication, and resolves after acknowledged commit.
 It rejects an active transaction of the configured client and never independently
 commits a consequence inside its parent's business transaction.
@@ -607,12 +639,14 @@ connection/xid, concurrent isolation/deduplication, caller interruption, wrong s
 standalone failure/active rejection and synthetic response loss after durable COMMIT.
 This is not a network/server-crash guarantee.
 
-Only `PgClient@4.0.5` with native Drizzle `1.0.0-rc.5-ab785fc` or
-`1.0.0-rc.5-169397b` is qualified by the
-native adapter within the scope of the current [release qualification](release-qualification.md).
+The current local Effect 4.1 dependency target is `PgClient@4.1.0` with native Drizzle
+`1.0.0-rc.5`; its exact source/packed qualification is recorded in
+[release qualification](release-qualification.md). The earlier hash-suffixed
+snapshot evidence remains historical and does not qualify this release by itself.
 A+B strict/exactOptional source contracts remain required with approved dependency
-`skipLibCheck:true`. C remains separately reported known upstream FAIL and is
-nonblocking, never C PASS. Nested transactions/options/isolation are not
+`skipLibCheck:true`. Full foreign declaration audits are reported separately for
+the actual dependency graph; old snapshot exceptions do not automatically apply.
+Nested transactions/options/isolation are not
 automatically Drizzle-equivalent; no new savepoint/manager API is introduced.
 Its structural client type is an integration port, not a blanket
 guarantee for other drivers. The application owns pool lifetime, migrations and
@@ -654,11 +688,11 @@ that atomically compose domain, audit, job, and receipt writes.
 Provide optional Drizzle schema declarations with configurable namespace and
 table names. The library defines required columns, constraints, and indexes;
 arbitrary per-column remapping is not required. Core does not depend on Drizzle.
-Backend and migration configuration must agree on the same storage mapping.
+Persistence and migration configuration must agree on the same storage mapping.
 
 Owner decision (2026-10-05): the optional Drizzle integration uses the same
-Effect-native `drizzle-orm` version as effect-auth, currently
-`1.0.0-rc.5-169397b`, rather than `0.45.1`. Qualify the actual schema/driver APIs,
+Effect-native `drizzle-orm` version as effect-auth, now selected as
+`1.0.0-rc.5`, rather than `0.45.1`. Qualify the actual schema/driver APIs,
 transaction boundary, and installed consumer with that exact version; do not
 merely widen peer metadata, force installation, or downgrade the auth consumer.
 Drizzle remains optional and outside the core dependency graph.
@@ -682,7 +716,7 @@ const JobsLayer = PostgreSqlJobs.layer({
 
 Applications generate and run migrations. Runtime must not create, migrate, or
 rebuild tables automatically. Concrete DDL, schema readiness checks, mapping
-types, and backend constructors still need specification and qualification.
+types, and persistence constructors still need specification and qualification.
 Optional Drizzle integration must not impose Drizzle on applications using a
 different migration tool.
 
@@ -720,7 +754,7 @@ retention checks. An application with domain references must supply a coordinate
 adapter rather than assume generic cleanup knows those references.
 
 Do not introduce generic retention holds or their additional persistence and
-lifecycle machinery in V1. The adapter is a qualified backend integration, not
+lifecycle machinery in V1. The adapter is a qualified persistence integration, not
 an arbitrary SQL callback claimed to be safe merely because it implements a port.
 
 ### Terminal-state rules

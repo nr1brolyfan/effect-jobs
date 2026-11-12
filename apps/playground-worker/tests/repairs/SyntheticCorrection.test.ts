@@ -25,9 +25,9 @@ describe("authenticated synthetic document correction", () => {
         const bytes = new Uint8Array(artifact.payloadBytes)
         const row = {
           ...Fixture.sourceRow,
-          queue: definitions.SyntheticDocumentExport.catalog.queue,
-          kind: definitions.SyntheticDocumentExport.catalog.name,
-          version: definitions.SyntheticDocumentExport.catalog.version,
+          queue: definitions.catalogFor(definitions.SyntheticDocumentExport).queue,
+          kind: definitions.catalogFor(definitions.SyntheticDocumentExport).name,
+          version: definitions.catalogFor(definitions.SyntheticDocumentExport).version,
           format_version: 1,
           payload: bytes,
           projection: artifact.semanticProjectionBytes,
@@ -86,7 +86,10 @@ describe("authenticated synthetic document correction", () => {
           Exit.isFailure(
             yield* Effect.exit(
               Source.replacement(
-                { ...row, kind: definitions.PrivateDataExport.catalog.name },
+                {
+                  ...row,
+                  kind: definitions.catalogFor(definitions.PrivateDataExport).name
+                },
                 Fixture.ref,
                 wire
               )
@@ -97,7 +100,7 @@ describe("authenticated synthetic document correction", () => {
           ...Fixture.detail,
           job: {
             ...Fixture.detail.job,
-            catalog: definitions.SyntheticDocumentExport.catalog
+            catalog: definitions.catalogFor(definitions.SyntheticDocumentExport)
           }
         }
         const view = yield* Projection.payload(detail, row, definitions)

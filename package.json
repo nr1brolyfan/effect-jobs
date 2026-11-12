@@ -8,6 +8,18 @@
   "sideEffects": false,
   "packageManager": "bun@1.4.2",
   "exports": {
+    "./JobSchedule": {
+      "types": "./dist/JobSchedule.d.ts",
+      "import": "./dist/JobSchedule.js"
+    },
+    "./JobStorage": {
+      "types": "./dist/JobStorage.d.ts",
+      "import": "./dist/JobStorage.js"
+    },
+    "./JobGroup": {
+      "types": "./dist/JobGroup.d.ts",
+      "import": "./dist/JobGroup.js"
+    },
     "./PostgreSqlJobs": {
       "types": "./dist/postgresql/PostgreSqlJobs.d.ts",
       "import": "./dist/postgresql/PostgreSqlJobs.js"
@@ -28,13 +40,9 @@
       "types": "./dist/JobWorker.d.ts",
       "import": "./dist/JobWorker.js"
     },
-    "./JobWorkerRuntime": {
-      "types": "./dist/JobWorkerRuntime.d.ts",
-      "import": "./dist/JobWorkerRuntime.js"
-    },
-    "./PollingJobWorker": {
-      "types": "./dist/PollingJobWorker.d.ts",
-      "import": "./dist/PollingJobWorker.js"
+    "./JobPolling": {
+      "types": "./dist/JobPolling.d.ts",
+      "import": "./dist/JobPolling.js"
     },
     ".": {
       "types": "./dist/index.d.ts",
@@ -60,14 +68,6 @@
       "types": "./dist/JobProducer.d.ts",
       "import": "./dist/JobProducer.js"
     },
-    "./JobRegistry": {
-      "types": "./dist/JobRegistry.d.ts",
-      "import": "./dist/JobRegistry.js"
-    },
-    "./JobConsumer": {
-      "types": "./dist/JobConsumer.d.ts",
-      "import": "./dist/JobConsumer.js"
-    },
     "./JobPayload": {
       "types": "./dist/JobPayload.d.ts",
       "import": "./dist/JobPayload.js"
@@ -87,6 +87,10 @@
     "./JobPolicy": {
       "types": "./dist/JobPolicy.d.ts",
       "import": "./dist/JobPolicy.js"
+    },
+    "./JobRetryPolicy": {
+      "types": "./dist/JobRetryPolicy.d.ts",
+      "import": "./dist/JobRetryPolicy.js"
     },
     "./JobFailure": {
       "types": "./dist/JobFailure.d.ts",
@@ -115,6 +119,14 @@
     "./JobOperators": {
       "types": "./dist/JobOperators.d.ts",
       "import": "./dist/JobOperators.js"
+    },
+    "./JobApi": {
+      "types": "./dist/JobApi.d.ts",
+      "import": "./dist/JobApi.js"
+    },
+    "./JobApiBuilder": {
+      "types": "./dist/JobApiBuilder.d.ts",
+      "import": "./dist/JobApiBuilder.js"
     }
   },
   "files": [
@@ -124,11 +136,14 @@
     "CHANGELOG.md",
     "specs/architecture-decisions.md",
     "specs/core-contract.md",
-    "specs/postgresql-backend.md",
     "specs/drizzle-compatibility.md",
     "specs/release-qualification.md",
     "specs/api-refinements.md",
-    "specs/operator-contract.md"
+    "specs/operator-contract.md",
+    "specs/postgresql-jobs.md",
+    "specs/retry-policy.md",
+    "docs/observability.md",
+    "docs/observability-checklist.md"
   ],
   "scripts": {
     "toolchain:setup": "effect-tsgo patch --typescript --oxlint",
@@ -151,7 +166,7 @@
     "qualify:docs:readme": "node tests/docs/readme/Run.mjs",
     "check:docs:api": "node tests/docs/api/Qualify.mjs",
     "test:release-imports": "node --test tests/qualification/ReleaseImports.mjs",
-    "verify": "bun run workspace:prepare && bun run check && bun run lint && bun run format:check && bun run playground:build && bun run test && bun run test:release-imports && bun run check:docs:api",
+    "verify": "bun run workspace:prepare && bun run check && bun run lint && bun run format:check && bun run playground:build && bun run test && bun run test:release-imports && bun run check:docs:api && bun run check:docs:observability",
     "release:pack": "node scripts/pack-release.mjs",
     "release:check": "node scripts/check-release.mjs",
     "qualify:release": "node scripts/qualify-release.mjs",
@@ -182,11 +197,14 @@
     "test:browser:install": "playwright install --with-deps chromium",
     "test:website:provider": "node apps/website/tests/modernization/ProviderLifecycle.ts",
     "check:capnp-runtime": "bun run --cwd apps/playground-worker check:capnp-runtime",
-    "test:playground:native": "bun run --cwd apps/playground-worker test:native"
+    "test:playground:native": "bun run --cwd apps/playground-worker test:native",
+    "check:docs:observability": "tsc --project ai-docs/tsconfig.observability.json --noEmit",
+    "qualify:observability": "node tests/qualification/observability/Run.mjs",
+    "qualify:cloudflare:alchemy": "bun run --cwd examples/cloudflare-alchemy qualify"
   },
   "peerDependencies": {
-    "drizzle-orm": "1.0.0-rc.5-ab785fc || 1.0.0-rc.5-169397b",
-    "effect": "4.0.5"
+    "drizzle-orm": "1.0.0-rc.5",
+    "effect": "4.1.0"
   },
   "peerDependenciesMeta": {
     "drizzle-orm": {
@@ -194,16 +212,16 @@
     }
   },
   "devDependencies": {
-    "@effect/ai-openrouter": "4.0.5",
-    "@effect/platform-node": "4.0.5",
-    "@effect/platform-node-shared": "4.0.5",
-    "@effect/sql-pg": "4.0.5",
+    "@effect/ai-openrouter": "4.1.0",
+    "@effect/platform-node": "4.1.0",
+    "@effect/platform-node-shared": "4.1.0",
+    "@effect/sql-pg": "4.1.0",
     "@effect/tsgo": "0.48.0",
     "@types/node": "26.4.1",
     "@types/pg": "8.20.0",
     "axe-core": "4.11.0",
-    "drizzle-orm": "1.0.0-rc.5-ab785fc",
-    "effect": "4.0.5",
+    "drizzle-orm": "1.0.0-rc.5",
+    "effect": "4.1.0",
     "oxfmt": "0.71.0",
     "oxlint": "1.86.0",
     "oxlint-tsgolint": "7.0.2003",
@@ -239,16 +257,16 @@
   ],
   "overrides": {
     "vite": "8.3.4",
-    "alchemy": "2.0.0-beta.84",
-    "@alchemy.run/cloudflare": "2.0.0-beta.84",
-    "@alchemy.run/cloudflare-runtime": "2.0.0-beta.84",
-    "@alchemy.run/domain": "2.0.0-beta.84",
-    "@alchemy.run/frontend-frameworks": "2.0.0-beta.84",
-    "@alchemy.run/sql": "2.0.0-beta.84",
-    "@effect/platform-bun": "4.0.5",
-    "@effect/platform-node": "4.0.5",
-    "@effect/platform-node-shared": "4.0.5",
-    "@effect/sql-d1": "4.0.5",
-    "@effect/sql-pg": "4.0.5"
+    "alchemy": "2.0.0-beta.85",
+    "@alchemy.run/cloudflare": "2.0.0-beta.85",
+    "@alchemy.run/cloudflare-runtime": "2.0.0-beta.85",
+    "@alchemy.run/domain": "2.0.0-beta.85",
+    "@alchemy.run/frontend-frameworks": "2.0.0-beta.85",
+    "@alchemy.run/sql": "2.0.0-beta.85",
+    "@effect/platform-bun": "4.1.0",
+    "@effect/platform-node": "4.1.0",
+    "@effect/platform-node-shared": "4.1.0",
+    "@effect/sql-d1": "4.1.0",
+    "@effect/sql-pg": "4.1.0"
   }
 }

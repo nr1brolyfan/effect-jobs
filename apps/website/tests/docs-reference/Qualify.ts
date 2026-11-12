@@ -107,11 +107,11 @@ try {
         type: "module",
         dependencies: {
           "effect-jobs": `file:${archive}`,
-          effect: "4.0.5",
-          "drizzle-orm": "1.0.0-rc.5-ab785fc",
-          "@effect/sql-pg": "4.0.5",
-          "@effect/platform-node": "4.0.5",
-          "@effect/platform-node-shared": "4.0.5",
+          effect: "4.1.0",
+          "drizzle-orm": "1.0.0-rc.5",
+          "@effect/sql-pg": "4.1.0",
+          "@effect/platform-node": "4.1.0",
+          "@effect/platform-node-shared": "4.1.0",
           typescript: "7.0.2",
           "@types/node": "26.4.1"
         }

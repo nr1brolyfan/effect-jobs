@@ -1,5 +1,5 @@
 import * as Cloudflare from "@alchemy.run/cloudflare"
-import * as Test from "alchemy/Test/Bun"
+import * as Test from "@alchemy.run/test/Bun"
 import { afterAll, expect } from "bun:test"
 import { Effect } from "effect"
 import { Pool } from "pg"

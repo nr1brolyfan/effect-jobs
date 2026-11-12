@@ -7,7 +7,7 @@
     "moduleResolution": "NodeNext",
     "paths": {
       "drizzle-orm": ["./node_modules/drizzle-orm/index.d.ts"],
-      "drizzle-orm/*": ["./node_modules/drizzle-orm/*/index.d.ts"]
+      "drizzle-orm/*": ["./node_modules/drizzle-orm/*.d.ts"]
     },
     "strict": true,
     "exactOptionalPropertyTypes": true,

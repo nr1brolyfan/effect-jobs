@@ -101,7 +101,7 @@ if (suppliedArchive === undefined) {
     run("pack", "node", ["scripts/pack-release.mjs"])
   } finally {
     if (previousDirectory === undefined) {
-      delete process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY
+      Reflect.deleteProperty(process.env, "EFFECT_JOBS_ARTIFACT_DIRECTORY")
     } else {
       process.env.EFFECT_JOBS_ARTIFACT_DIRECTORY = previousDirectory
     }
@@ -114,7 +114,7 @@ const archive =
 const entries = run("inventory", "tar", ["-tzf", archive]).trim().split("\n")
 assert(
   entries.every((entry) =>
-    /^package\/(dist\/|specs\/|package.json$|README.md$|CHANGELOG.md$|LICENSE$)/.test(
+    /^package\/(dist\/|specs\/|docs\/observability(?:-checklist)?\.md$|package.json$|README.md$|CHANGELOG.md$|LICENSE$)/.test(
       entry
     )
   )
@@ -141,7 +141,7 @@ writeFileSync(
       type: "module",
       dependencies: {
         "effect-jobs": `file:${archive}`,
-        effect: "4.0.5",
+        effect: "4.1.0",
         typescript: "7.0.2",
         "@types/node": "26.4.1"
       }
@@ -197,7 +197,8 @@ assert.throws(() => require.resolve("pg"))
 assert(Schema.is(JobDetail)(Fixtures.detail))
 assert(Schema.is(JobPage)(Fixtures.page))
 const { ScenarioJob, ScenarioProducer } = await Effect.runPromise(ScenarioDefinitions.pipe(Effect.provide(ScenarioDefinitionsLayer)))
-assert.equal(ScenarioProducer.slots.execute, ScenarioJob)
+assert.deepEqual(ScenarioProducer.slots.execute.job, ScenarioJob)
+assert.equal(ScenarioProducer.slots.execute.job.payload, ScenarioJob.payload)
 const payload = Schema.decodeUnknownSync(ScenarioJob.payload)({ sandbox: Fixtures.sandbox.ref, scenario: "success", sequence: 1 })
 const encoded = await Effect.runPromise(encodeJobPayload(ScenarioJob.payload, payload))
 assert.deepEqual(await Effect.runPromise(decodeJobPayload(ScenarioJob.payload, encoded)), payload)
@@ -207,7 +208,7 @@ const page = await Effect.runPromise(Effect.flatMap(JobsRead, (service) => servi
 assert.deepEqual(page, Fixtures.page)
 const changes = await Effect.runPromise(Effect.flatMap(Changes, (service) => service.read(access, { sandbox: access.sandbox.ref })).pipe(Effect.provide(MockLayer.layer), Effect.provide(TestClock.layer())))
 assert.equal(changes.mode, "poll-only")
-console.log("packed contracts: strict types, real library codec, absent backend peers, mock reads PASS")
+console.log("packed contracts: strict types, real library codec, absent jobs peers, mock reads PASS")
 `
 )
 for (const runtime of ["node", "bun"]) {
@@ -256,7 +257,7 @@ const receipt = {
     "pack inventory and byte equality",
     "independent strict packed contracts compile",
     "Node and Bun codec/mock smoke",
-    "browser bundle without backend peers"
+    "browser bundle without jobs peers"
   ],
   notTested: [
     "PostgreSQL",

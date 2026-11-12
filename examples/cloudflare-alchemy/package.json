@@ -1,0 +1,41 @@
+{
+  "name": "@effect-jobs/example-cloudflare-alchemy",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.12.1",
+  "scripts": {
+    "check": "tsc -p tsconfig.json",
+    "build": "node tests/Build.mjs",
+    "test": "node .toolchain/Policy.mjs && node tests/Run.mjs && node tests/FullApp.mjs",
+    "test:postgresql": "node tests/PostgreSql.mjs",
+    "dev": "alchemy dev",
+    "qualify": "npm run check && npm run lint && npm run build && npm run test",
+    "lint": "../../node_modules/.bin/oxlint --deny-warnings src tests alchemy.run.ts"
+  },
+  "dependencies": {
+    "alchemy": "2.0.0-beta.85",
+    "@alchemy.run/cloudflare": "2.0.0-beta.85",
+    "@alchemy.run/domain": "2.0.0-beta.85",
+    "@alchemy.run/frontend-frameworks": "2.0.0-beta.85",
+    "@effect/platform-bun": "4.1.0",
+    "@effect/platform-node": "4.1.0",
+    "@effect/platform-node-shared": "4.1.0",
+    "@effect/sql-pg": "4.1.0",
+    "effect": "4.1.0",
+    "effect-jobs": "file:../..",
+    "pg": "8.23.0",
+    "vite": "8.1.0",
+    "ws": "8.21.0",
+    "@effect/sql-d1": "4.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261108.1",
+    "@types/node": "26.4.1",
+    "typescript": "6.0.3",
+    "esbuild": "0.28.2",
+    "miniflare": "5.20261006.1-alpha"
+  },
+  "overrides": {
+    "@effect/sql-d1": "4.1.0"
+  }
+}

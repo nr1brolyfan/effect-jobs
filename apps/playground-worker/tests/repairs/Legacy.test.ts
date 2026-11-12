@@ -2,6 +2,7 @@ import { runPromise } from "../scenarios/Setup.js"
 import { describe, expect, it } from "vitest"
 import { Effect, Layer, Schema } from "effect"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
+import * as Storage from "effect-jobs/JobStorage"
 import * as Tables from "effect-jobs/PostgreSqlSchema"
 import {
   JobOperatorCommand,
@@ -38,17 +39,22 @@ const access = {
   }
 }
 const unexpected = () => Effect.die("Legacy redrive must not invoke core")
-const backend = Layer.mock(PostgreSqlJobs, {
+const store = {
+  claim: unexpected,
+  reconcileClaim: unexpected,
+  release: unexpected,
+  finalize: unexpected,
+  reconcileFinalization: unexpected,
+  recoverExpired: unexpected
+}
+const jobs = Layer.mock(PostgreSqlJobs, {
+  operationResponseBudgetMillis: 100,
+  storage: Effect.runSync(Storage.make({ store, operationResponseBudgetMillis: 100 })),
+  health: { sample: unexpected },
+  schedule: { read: unexpected },
   tables: Tables.tables(),
   producer: { enqueue: unexpected, enqueueStandalone: unexpected },
-  store: {
-    claim: unexpected,
-    reconcileClaim: unexpected,
-    release: unexpected,
-    finalize: unexpected,
-    reconcileFinalization: unexpected,
-    recoverExpired: unexpected
-  },
+  store,
   cleanup: { cleanup: unexpected },
   operators: {
     retryNow: unexpected,
@@ -79,7 +85,7 @@ const make = (stored: StoredOperatorReceipt | null = null) =>
       lookup: () => Effect.succeed(stored)
     })
     const service = yield* Legacy.make.pipe(
-      Effect.provide(Layer.merge(backend, transactions))
+      Effect.provide(Layer.merge(jobs, transactions))
     )
     return { service, saved }
   })

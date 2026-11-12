@@ -39,7 +39,7 @@ operator guard; the diagram grants no mutation authority.
 not finalize an ordinary retry. The row remains Active pending recovery or
 reconciliation. Defects, interruption and timeouts also do not prove a safe Retry.
 
-Expired-lease recovery increments `stalledCount`, not `attemptsMade`. Within the
+Expired-lease recovery increments `stalledCount`, not `finalizedAttempts`. Within the
 stored budget it returns the job to Pending; exceeding that budget makes it Dead.
 This mechanism does not prove that repeating the external effect is harmless.
 Handlers must preserve the same external identity and reconcile uncertain results.
@@ -47,11 +47,11 @@ Handlers must preserve the same external identity and reconcile uncertain result
 ## Counters and clocks
 
 Claiming does not consume a finalized attempt. Confirmed Complete, Retry, Dead or
-Isolate finalization increments `attemptsMade` once. Handler `attemptNumber` is
-`attemptsMade + 1`, so it can repeat after uncertainty; use `context.jobId`, not
+Isolate finalization increments `finalizedAttempts` once. Handler `nextFinalizationNumber` is
+`finalizedAttempts + 1`, so it can repeat after uncertainty; use `context.jobId`, not
 the attempt number, as a stable per-job external idempotency key.
 
-The backend uses database time. Due means `availableAt <= dbNow`; ownership is
+Storage uses database time. Due means `availableAt <= dbNow`; ownership is
 valid only while `leaseExpiresAt > dbNow`. Leases do not renew. Fencing rejects
 stale finalization; it cannot undo an external effect already performed.
 

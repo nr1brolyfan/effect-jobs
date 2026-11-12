@@ -10,7 +10,7 @@ const definitions = Effect.runSync(WorkerDefinitions.make)
 describe("portable scenario boundary", () => {
   it("uses the same catalog identities as worker execution", () => {
     expect(Catalogs.definitions.map((definition) => definition.catalog)).toEqual(
-      definitions.definitions.map((definition) => definition.catalog)
+      definitions.definitions.map(definitions.catalogFor)
     )
   })
 

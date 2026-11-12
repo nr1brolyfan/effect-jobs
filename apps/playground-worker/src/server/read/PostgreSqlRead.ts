@@ -1,4 +1,5 @@
 import { Cause, Context, Effect, Layer, Schema } from "effect"
+import { PersistedJobPolicy } from "effect-jobs/JobPolicy"
 import {
   JobDetail,
   JobDetailRequest,
@@ -45,8 +46,9 @@ const ProblemRows = listRows(JobProblemRow)
 const BaseDetail = Schema.Struct({
   sandbox: JobDetail.fields.sandbox,
   job: JobDetail.fields.job,
+  createdAt: JobDetail.fields.createdAt,
   producer: JobDetail.fields.producer,
-  policy: JobDetail.fields.policy,
+  policy: PersistedJobPolicy,
   relations: JobDetail.fields.relations
 })
 const KeyedHistory = Schema.Struct({
@@ -63,7 +65,7 @@ const DetailRows = Schema.Array(
     }).pipe(Schema.NullOr),
     provider: Schema.Struct({
       accepted: Schema.Boolean,
-      invocations: JobSummary.fields.attemptsMade
+      invocations: JobSummary.fields.finalizedAttempts
     }).pipe(Schema.NullOr),
     lineage: JobDetail.fields.lineage,
     format_version: Schema.Unknown,

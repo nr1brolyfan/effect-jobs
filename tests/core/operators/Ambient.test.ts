@@ -19,7 +19,8 @@ const expected = Schema.decodeSync(JobOperatorExpected)({
   lifecycleVersion: 4
 })
 const definition = {
-  catalog: { queue: "billing", name: "invoice", version: 1 },
+  name: "invoice",
+  version: 1,
   payload: Schema.Struct({ value: Schema.String })
 }
 const unavailable: ApplicationAdapter = {
@@ -94,9 +95,10 @@ test("redrive uses copied bytes, no handler and one post-validation DB sample", 
               redrive_kind: null,
               state: "Dead",
               lifecycle_version: 4,
-              policy: Policy.defaultPolicy,
+              policy: Schema.encodeSync(Policy.PersistedJobPolicy)(Policy.defaultPolicy),
               available_at: 100,
               updated_at: 100,
+              created_at: null,
               attempts_made: 3,
               stalled_count: 0,
               lease_token: null,

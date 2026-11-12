@@ -4,7 +4,7 @@ import * as PgClient from "@effect/sql-pg/PgClient"
 import { eq } from "drizzle-orm"
 import { pgTable, text, integer } from "drizzle-orm/pg-core"
 import * as JobSchema from "effect-jobs/PostgreSqlDrizzleSchema"
-import { JobBackendError } from "effect-jobs/JobEnqueue"
+import { JobPersistenceError } from "effect-jobs/JobEnqueue"
 import {
   ReportsLayer,
   Database,
@@ -14,7 +14,7 @@ import {
   reportRequests,
   reportRequestReceipts
 } from "../../examples/docs/DrizzleReportRequest.js"
-// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this qualification.
+// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this qualification.
 // @effect-diagnostics unstableApiUsage:off
 // Only the exact disposable container/port owned by Qualify.mjs is used.
 
@@ -139,7 +139,7 @@ await Effect.runPromise(
       )
       // Synthetic response loss AFTER a real durable COMMIT, not a network test.
       let invocations = 0
-      const unknown = new JobBackendError({
+      const unknown = new JobPersistenceError({
         reason: "storage-failure",
         commitKnowledge: "Unknown"
       })

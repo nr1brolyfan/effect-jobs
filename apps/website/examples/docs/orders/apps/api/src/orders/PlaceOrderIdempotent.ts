@@ -1,4 +1,4 @@
-// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this checked example.
+// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this checked example.
 // @effect-diagnostics unstableApiUsage:off
 // Advanced application replay: validate retained business fields and keep a receipt.
 // #region imports
@@ -48,7 +48,8 @@ export const placeOrderIdempotent = (externalInput: unknown) =>
         }
 
         // Enqueue the consequence and record its receipt in this same transaction.
-        const confirmation = yield* PlaceOrder.enqueue("send-confirmation", {
+        const confirmation = yield* PlaceOrder.enqueue({
+          slot: "send-confirmation",
           operationId: input.operationId,
           payload: { orderId: input.orderId }
         })

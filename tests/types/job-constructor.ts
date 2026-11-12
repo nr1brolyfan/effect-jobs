@@ -1,155 +1,54 @@
-import { Context, Effect, Layer, Schema } from "effect"
+import { Context, Effect, Schema } from "effect"
 import * as Job from "../../src/Job.js"
-import * as Policy from "../../src/JobPolicy.js"
-import * as Queue from "../../src/JobQueue.js"
-import type { JobEnqueue } from "../../src/JobEnqueue.js"
-import type { JobRegistry } from "../../src/JobRegistry.js"
-import type { JobPayloadDecoder } from "../../src/JobContract.js"
-
-class EncodeKeys extends Context.Service<EncodeKeys, {}>()(
-  "tests/job-constructor/EncodeKeys"
-) {}
-class DecodeKeys extends Context.Service<DecodeKeys, {}>()(
-  "tests/job-constructor/DecodeKeys"
-) {}
-class HandlerService extends Context.Service<HandlerService, {}>()(
-  "tests/job-constructor/Handler"
-) {}
+class Encoding extends Context.Service<Encoding, {}>()("types/contract/Encoding") {}
+class Decoding extends Context.Service<Decoding, {}>()("types/contract/Decoding") {}
 declare const payload: Schema.Codec<
   { readonly total: number },
   string,
-  DecodeKeys,
-  EncodeKeys
+  Decoding,
+  Encoding
 >
-declare const decode: JobPayloadDecoder
 declare const version: 2 | undefined
-declare const optionalPolicy: Policy.JobPolicy | undefined
-const queue = Queue.make("billing")
-const base = { name: "invoice.send", queue, payload } as const
-export const explicitDefault = Job.make({
-  ...base,
-  version: 2,
-  defaultPolicy: Policy.defaultPolicy
-})
-export const omittedDefault = Job.make({ ...base, defaultPolicy: Policy.defaultPolicy })
-export const optionalVersionDefault = Job.make({
-  ...base,
-  version,
-  defaultPolicy: Policy.defaultPolicy
-})
-export const explicitOptional = Job.make({
-  ...base,
-  version: 2,
-  defaultPolicy: optionalPolicy
-})
-export const omittedOptional = Job.make(base)
-export const optionalVersionOptional = Job.make({
-  ...base,
-  version,
-  defaultPolicy: optionalPolicy
-})
-
+export const explicit = Job.make({ name: "invoice.send", version: 2, payload })
+export const omitted = Job.make({ name: "invoice.send", payload })
+export const optional = Job.make({ name: "invoice.send", version, payload })
 type Assert<T extends true> = T
 type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false
-type Definition<
-  V extends number,
-  D extends Policy.JobPolicy | undefined
-> = Job.JobDefinition<typeof payload, "invoice.send", V, "billing", D>
-export type ExplicitDefault = Assert<
+export type Explicit = Assert<
   Equal<
-    typeof explicitDefault,
-    Effect.Effect<Definition<2, Policy.JobPolicy>, Job.InvalidJobDefinition>
-  >
->
-export type OmittedDefault = Assert<
-  Equal<
-    typeof omittedDefault,
-    Effect.Effect<Definition<1, Policy.JobPolicy>, Job.InvalidJobDefinition>
-  >
->
-export type OptionalVersionDefault = Assert<
-  Equal<
-    typeof optionalVersionDefault,
-    Effect.Effect<Definition<1 | 2, Policy.JobPolicy>, Job.InvalidJobDefinition>
-  >
->
-export type ExplicitOptional = Assert<
-  Equal<
-    typeof explicitOptional,
-    Effect.Effect<Definition<2, Policy.JobPolicy | undefined>, Job.InvalidJobDefinition>
-  >
->
-export type OmittedOptional = Assert<
-  Equal<
-    typeof omittedOptional,
-    Effect.Effect<Definition<1, Policy.JobPolicy | undefined>, Job.InvalidJobDefinition>
-  >
->
-export type OptionalVersionOptional = Assert<
-  Equal<
-    typeof optionalVersionOptional,
+    typeof explicit,
     Effect.Effect<
-      Definition<1 | 2, Policy.JobPolicy | undefined>,
+      Job.JobDefinition<typeof payload, "invoice.send", 2>,
       Job.InvalidJobDefinition
     >
   >
 >
-export type ConstructorError = Assert<
-  Equal<Effect.Error<typeof explicitDefault>, Job.InvalidJobDefinition>
->
-export type ConstructorServices = Assert<
-  Equal<Effect.Services<typeof explicitDefault>, never>
->
-
-export const setup = Effect.gen(function* () {
-  const job = yield* omittedDefault
-  const input = {
-    producer: { operation: "invoice.create", operationId: "request-1", slot: "send" },
-    payload: { total: 1 }
-  }
-  const enqueued = job.enqueue(input)
-  const handler = job.handlerLayer(() => Effect.asVoid(HandlerService), decode)
-  const noDefault = yield* omittedOptional
-  // @ts-expect-error Policy is required when the default is absent.
-  const missingPolicy = noDefault.enqueue(input)
-  const maybeDefault = yield* explicitOptional
-  // @ts-expect-error Policy is required when the default is optional.
-  const optionalMissingPolicy = maybeDefault.enqueue(input)
-  // @ts-expect-error Schema Type is the decoded domain, not the encoded string.
-  const encodedPayload = job.enqueue({ ...input, payload: "persisted" })
-  const maybeVersion = yield* optionalVersionDefault
-  // @ts-expect-error Optional versions include the omitted default 1.
-  const onlyTwo: 2 = maybeVersion.version
-  // @ts-expect-error Catalog queue literal remains correlated with this definition.
-  const anotherQueue: "mail" = job.catalog.queue
-  // @ts-expect-error The definition remains immutable.
-  job.name = "invoice.next"
-  void onlyTwo
-  void anotherQueue
-  return { job, enqueued, handler, missingPolicy, optionalMissingPolicy, encodedPayload }
-})
-
-export type EnqueueServices = Assert<
+export type Omitted = Assert<
   Equal<
-    Effect.Services<Effect.Success<typeof setup>["enqueued"]>,
-    JobEnqueue | EncodeKeys
+    Effect.Success<typeof omitted>,
+    Job.JobDefinition<typeof payload, "invoice.send", 1>
   >
 >
-export type HandlerServices = Assert<
+export type Optional = Assert<
   Equal<
-    Layer.Services<Effect.Success<typeof setup>["handler"]>,
-    JobRegistry | DecodeKeys | HandlerService
+    Effect.Success<typeof optional>,
+    Job.JobDefinition<typeof payload, "invoice.send", 1 | 2>
   >
 >
-export type ConstructorNotInfallible = Assert<
-  Equal<typeof omittedDefault extends Effect.Effect<unknown> ? true : false, false>
->
-export type EnqueueNotClosed = Assert<
-  Equal<
-    Effect.Success<typeof setup>["enqueued"] extends Effect.Effect<unknown, never>
-      ? true
-      : false,
-    false
-  >
->
+export type Services = Assert<Equal<Effect.Services<typeof explicit>, never>>
+// @ts-expect-error Constructor must execute before exposing its contract.
+export const eager = explicit.name
+export const resolved = Effect.runSync(explicit)
+// @ts-expect-error Contracts contain no routing.
+export const removedQueue = resolved.queue
+// @ts-expect-error Contracts contain no policy.
+export const removedPolicy = resolved.defaultPolicy
+// @ts-expect-error Production belongs to Producer.
+export const removedEnqueue = resolved.enqueue
+// @ts-expect-error Contracts remain immutable.
+resolved.name = "different"
+// @ts-expect-error Historical public kind spelling is absent.
+export const invalidKind = Job.make({ kind: "old", payload })
+// @ts-expect-error Routing is not a contract constructor option.
+export const invalidQueue = Job.make({ name: "invoice.send", payload, queue: "billing" })

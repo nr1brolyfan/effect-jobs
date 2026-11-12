@@ -8,11 +8,15 @@ index, autovacuum or default-policy changes. No external service is called.
 
 Prerequisites: pinned repository Node 24.15.0/Bun 1.4.2, repository dependencies,
 Docker, and `postgres:16.15-alpine` already present locally. Images are never pulled
-automatically. Install the isolated native-driver fixture once:
+automatically. The runner builds then frozen-installs its isolated native-driver
+and library graph, with a byte guard against the current build:
 
 ```sh
 npm ci --prefix tests/benchmarks/postgresql --ignore-scripts --no-audit --no-fund
 bun run test:soak
+# Built-library declaration/routing and bounded recovery check (no database).
+bun run build
+node node_modules/vitest/vitest.mjs run tests/benchmarks/postgresql/Definitions.test.mjs
 # Plan only: no build, Docker calls or database connection.
 bun run soak:postgresql
 # 12-second wiring check, including short-retention cleanup.
@@ -25,13 +29,17 @@ bun run soak:postgresql --run --duration 3600 --rate 100 --history 100000
 
 Other options: `--workers` (1–8), `--image` (explicit official version). Unrecognized
 options, nonfinite durations and estimated runs exceeding one million jobs are
-rejected. Root dependency pins and the npm package contents are unchanged; this
-development harness has its own pinned lockfile/native client.
+rejected. The isolated driver fixture follows the selected Effect/sql-pg 4.1.0
+graph and has its own pinned lockfile/native client. No database tuning or
+production defaults are changed by the harness.
 
 ## Workload
 
 - Four paced producer lanes, three independent worker instances, two queues and
-  two kinds per queue. Each worker has concurrency four per queue and finite drains.
+  two queue-independent Job contracts routed to both queues. Shared lazy setup
+  builds fixed-route producer slots and one complete handler catalog. Each worker
+  has concurrency four per queue shared across drains, with at most 20 claims and
+  20 queue-scoped recoveries per drain.
   All share a 32-connection native workload pool in **one Node process**; this does
   not qualify separate-process deployment or multi-host coordination.
 - 1 KiB payload data, schema encoding/decoding and SHA-256 work, with synthetic
@@ -79,7 +87,10 @@ Each run prints its unique `/tmp/opencode/effect-jobs-soak-*` directory:
 
 - `metadata.json`: options, source HEAD/tracked diff hash, harness/runtime hashes,
   dependency lock hash, Node version, exact Docker image ID/digests and limits.
-  Harness hashes include new files not represented by `git diff`.
+  Harness hashes include the shared declarations and new files not represented by `git diff`.
+- `build.log`, `install.log`: bounded preparation output, including failures before
+  a workload starts. `runner-failure.json` records the exact runner phase and exit
+  status without replacing the workload's own failure receipt.
 - `postgres-settings.json`: server version, durability/autovacuum settings.
 - `samples.ndjson`: cumulative and interval p50/p95/p99/max operation histograms,
   confirmed completion and insertion counters, due backlog count/oldest age,

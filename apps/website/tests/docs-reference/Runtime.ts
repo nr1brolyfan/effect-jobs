@@ -3,8 +3,9 @@ import { mkdtemp, readFile, readdir, rm } from "node:fs/promises"
 import { join } from "node:path"
 import { Effect, Layer, Schema, Exit, Cause } from "effect"
 import * as Codec from "effect-jobs/JobPayloadCodec"
-import * as Registry from "effect-jobs/JobRegistry"
-import * as Consumer from "effect-jobs/JobConsumer"
+import * as Api from "effect-jobs/JobApi"
+import * as Worker from "effect-jobs/JobWorker"
+import * as Storage from "effect-jobs/JobStorage"
 import * as Files from "../../examples/docs/NodeReportFiles.js"
 import {
   ReportDefinitions,
@@ -23,7 +24,8 @@ import {
 } from "../../examples/docs/ReportWorkflow.js"
 
 const definitions = await Effect.runPromise(reportDefinitions)
-const { GenerateReport, DeliverReport } = definitions
+const { GenerateReport, DeliverReport, GenerateJobs, DeliverJobs, ApplicationJobs } =
+  definitions
 const DefinitionsLayer = Layer.succeed(ReportDefinitions, definitions)
 
 const payload = {
@@ -57,9 +59,13 @@ assert.equal(
 assert.equal(renderReport(payload), 'product,units\r\n"a,""b",3\r\n"\'=SUM(A1)",1\r\n')
 const context = {
   jobId: Schema.decodeSync((await import("effect-jobs/JobId")).JobId)("job-1"),
-  catalog: GenerateReport.catalog,
+  catalog: {
+    queue: "reports",
+    name: GenerateReport.name,
+    version: GenerateReport.version
+  },
   producer: { operation: "report.request", operationId: "op-1", slot: "generate" },
-  attemptNumber: 1
+  nextFinalizationNumber: 1
 }
 const directory = await mkdtemp(join(import.meta.dirname, "reports-"))
 let handoffs = 0
@@ -74,15 +80,14 @@ const HandoffLayer = Layer.succeed(
 )
 try {
   const program = Effect.gen(function* () {
-    const registry = yield* Registry.JobRegistry
-    const handler = registry.find(GenerateReport.catalog)
+    const handlers = yield* GenerateJobs.handlers
+    const handler = handlers.report
     assert(handler, "handler must be installed before execution")
-    yield* handler.execute(encoded, context)
-    yield* handler.execute(encoded, context)
+    yield* handler(encoded, context)
+    yield* handler(encoded, context)
   }).pipe(
     Effect.provide(
       ReportHandlerLayer.pipe(
-        Layer.provideMerge(Registry.layer),
         Layer.provide(DefinitionsLayer),
         Layer.provide(HandoffLayer),
         Layer.provide(Files.layer(directory))
@@ -98,12 +103,11 @@ try {
   assert.deepEqual(await readdir(directory), ["report-1.csv"])
   const failed = await Effect.runPromiseExit(
     Effect.gen(function* () {
-      const registry = yield* Registry.JobRegistry
-      return yield* registry.find(GenerateReport.catalog)!.execute(encoded, context)
+      const handlers = yield* GenerateJobs.handlers
+      return yield* handlers.report(encoded, context)
     }).pipe(
       Effect.provide(
         ReportHandlerLayer.pipe(
-          Layer.provideMerge(Registry.layer),
           Layer.provide(DefinitionsLayer),
           Layer.provide(HandoffLayer),
           Layer.provide(
@@ -123,34 +127,60 @@ try {
     )._tag,
     "Retry"
   )
-  const duplicate = await Effect.runPromiseExit(
-    Consumer.make(ReportsQueue, {
-      localConcurrency: 2,
-      claimLimitPerRun: 20,
-      recoveryLimitPerRun: 20
-    }).pipe(Effect.flatMap((c) => Consumer.plan(c, c)))
+  assert.throws(
+    // Runtime bypass preserves the catalog's duplicate-group negative control.
+    () => ApplicationJobs.pipe(Api.addGroup(GenerateJobs) as never),
+    (error: unknown) =>
+      error instanceof Api.InvalidJobApi && error.reason === "duplicate-group"
   )
-  assert(Exit.isFailure(duplicate))
-  assert.equal(
-    Schema.decodeUnknownSync(Schema.Struct({ _tag: Schema.String }))(
-      Cause.squash(duplicate.cause)
-    )._tag,
-    "DuplicateJobConsumer"
+  const unexpectedStorage = () =>
+    Effect.die("duplicate queues must fail before storage activity")
+  const duplicateQueue = await Effect.runPromiseExit(
+    Worker.make(Api.make("duplicate-queue-control").pipe(Api.addGroup(GenerateJobs)), {
+      queues: [{ queue: ReportsQueue }, { queue: ReportsQueue }]
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          Layer.succeed(Storage.JobStorage, {
+            operationResponseBudgetMillis: 100,
+            store: {
+              claim: unexpectedStorage,
+              reconcileClaim: unexpectedStorage,
+              release: unexpectedStorage,
+              finalize: unexpectedStorage,
+              reconcileFinalization: unexpectedStorage,
+              recoverExpired: unexpectedStorage
+            }
+          }),
+          Layer.succeed(GenerateJobs.handlers, {
+            report: () => Effect.die("duplicate queues must fail before invocation")
+          })
+        )
+      )
+    )
   )
+  assert(Exit.isFailure(duplicateQueue))
+  const duplicateReason = Cause.squash(duplicateQueue.cause)
+  assert(duplicateReason instanceof Worker.JobWorkerConfigurationError)
+  assert.equal(duplicateReason.field, "queues")
   for (const [failure, expected] of [
     [new DeliveryBusy(), "Retry"],
     [new DeliveryUncertain(), "OutcomeUnknown"]
   ] as const) {
     const result = await Effect.runPromiseExit(
       Effect.gen(function* () {
-        const registry = yield* Registry.JobRegistry
-        return yield* registry
-          .find(DeliverReport.catalog)!
-          .execute(encoded, { ...context, catalog: DeliverReport.catalog })
+        const handlers = yield* DeliverJobs.handlers
+        return yield* handlers.report(encoded, {
+          ...context,
+          catalog: {
+            queue: "reports",
+            name: DeliverReport.name,
+            version: DeliverReport.version
+          }
+        })
       }).pipe(
         Effect.provide(
           DeliveryHandlerLayer.pipe(
-            Layer.provideMerge(Registry.layer),
             Layer.provide(DefinitionsLayer),
             Layer.provide(
               Layer.succeed(
@@ -174,5 +204,5 @@ try {
   await rm(directory, { recursive: true, force: true })
 }
 console.log(
-  "payload/CSV/atomic-file/repeated-handler/retry/duplicate-plan negative controls PASS"
+  "payload/CSV/atomic-file/repeated-handler/retry/duplicate-catalog/duplicate-queue negative controls PASS"
 )

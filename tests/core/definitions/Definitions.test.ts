@@ -1,13 +1,12 @@
 import * as FailureCodes from "../../../src/FailureCode.js"
 import { Cause, Context, Effect, Exit, Layer, Schema, SchemaGetter } from "effect"
 import { describe, expect, it } from "vitest"
-import * as Job from "../../../src/Job.js"
-import * as JobConsumer from "../../../src/JobConsumer.js"
+import * as Job from "./ProtocolJob.js"
 import * as JobProducer from "../../../src/JobProducer.js"
 import * as JobQueue from "../../../src/JobQueue.js"
-import * as JobRegistry from "../../../src/JobRegistry.js"
+import * as JobRegistry from "./ProtocolRegistry.js"
 import {
-  EnqueueResults,
+  EnqueueResult,
   JobPayloadCodecError,
   type EncodedJobPayload,
   type HandlerContext,
@@ -17,13 +16,18 @@ import {
 } from "../../../src/JobContract.js"
 import { JobFailures } from "../../../src/JobFailure.js"
 import { JobId } from "../../../src/JobId.js"
-import { InvalidOperationId, JobDeclarationError } from "../../../src/JobIdentity.js"
+import {
+  InvalidOperationId,
+  JobDeclarationError,
+  OperationId,
+  validateOperationId
+} from "../../../src/JobIdentity.js"
 import * as JobPolicy from "../../../src/JobPolicy.js"
 import type { JobsTransaction, JobEnqueueError } from "../../../src/JobTransaction.js"
 import { withJoinedTransaction } from "../../../src/internal/JobTransaction.js"
 
 const queue = JobQueue.make("billing")
-const policy = JobPolicy.make()
+const policy = JobPolicy.defaultPolicy
 const jobId = Schema.decodeSync(JobId)("generated-id")
 // Deliberately opaque test fixtures: only forwarding is qualified here, not codec bytes.
 const encoded: EncodedJobPayload = {
@@ -42,63 +46,59 @@ const job = Effect.runSync(
   })
 )
 const producer = Effect.runSync(
-  JobProducer.make({
-    operation: "billing.issue",
-    slots: { pdf: job, email: job }
-  })
+  JobProducer.make("billing.issue").pipe(
+    JobProducer.withSlot("pdf", job, { queue }),
+    JobProducer.withSlot("email", job, { queue })
+  )
 )
-const identity = Effect.runSync(
-  producer.identity({ operationId: "operation", slot: "pdf" })
-)
+const identity = { operation: producer.operation, operationId: "operation", slot: "pdf" }
 const input = { producer: identity, payload: { amount: 1.5 }, policy }
 const context: HandlerContext = {
   jobId,
   catalog: job.catalog,
   producer: identity,
-  attemptNumber: 1
+  nextFinalizationNumber: 1
 }
 const failure = <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.flip(effect)
 
 describe("immutable declarations", () => {
   it("copies and freezes slots without freezing or retaining caller configuration", () => {
-    const slots = { pdf: job, email: job }
-    const options = { operation: "billing.issue", slots }
-    const declaration = Effect.runSync(JobProducer.make(options))
-    slots.pdf = { ...job }
-    options.operation = "changed"
+    const slots = {
+      pdf: { job, queue: JobQueue.make<string>("billing") },
+      email: { job, queue }
+    }
+    const declaration = Effect.runSync(
+      JobProducer.make("billing.issue").pipe(
+        JobProducer.withSlot("pdf", slots.pdf.job, { queue: slots.pdf.queue }),
+        JobProducer.withSlot("email", slots.email.job, { queue: slots.email.queue })
+      )
+    )
+    slots.pdf = { job, queue: JobQueue.make("sms") }
     expect(declaration.operation).toBe("billing.issue")
-    expect(declaration.slots).toEqual({ pdf: job, email: job })
+    expect(Object.keys(declaration.slots)).toEqual(["pdf", "email"])
+    expect(declaration.slots.pdf.queue.name).toBe("billing")
     expect(Object.isFrozen(declaration)).toBe(true)
     expect(Object.isFrozen(declaration.slots)).toBe(true)
-    expect(
-      Object.isFrozen(
-        Effect.runSync(declaration.identity({ operationId: "op", slot: "pdf" }))
-      )
-    ).toBe(true)
-    expect(
-      Effect.runSync(
-        Effect.flip(declaration.identity({ operationId: "op", slot: "sms" } as never))
-      )
-    ).toBeInstanceOf(JobDeclarationError)
+    expect(Object.isFrozen(declaration.slots.pdf)).toBe(true)
   })
 
   it.each([
-    { operation: "Bad", slots: { pdf: job } },
-    { operation: "ok", slots: {} },
-    { operation: "ok", slots: { pdf: null } },
-    { operation: "ok", slots: { Bad: job } }
-  ])("validates declarations in the typed channel: %j", (options) => {
-    expect(
-      Effect.runSync(Effect.flip(JobProducer.make(options as never)))
-    ).toBeInstanceOf(JobDeclarationError)
+    { operation: "Bad", slots: { pdf: { job, queue } } },
+    { operation: "ok", slots: { "pdf!": { job, queue } } },
+    { operation: "ok", slots: { Bad: { job, queue } } }
+  ])("validates declarations synchronously: %j", (options) => {
+    const pending = Effect.forEach(Object.entries(options.slots), (entry) =>
+      JobProducer.make(options.operation).pipe(
+        JobProducer.withSlot(entry[0], entry[1].job, { queue: entry[1].queue })
+      )
+    )
+    expect(Effect.runSync(Effect.flip(pending))).toBeInstanceOf(JobDeclarationError)
   })
 
   it.each(["", "secret\u0000value", "\ud800", "x".repeat(257)])(
     "rejects private operation IDs without echo",
     (operationId) => {
-      const caught = Effect.runSync(
-        Effect.flip(producer.identity({ operationId, slot: "pdf" }))
-      )
+      const caught = Effect.runSync(Effect.flip(validateOperationId(operationId)))
       expect(caught).toBeInstanceOf(InvalidOperationId)
       expect(JSON.stringify(caught)).not.toContain("secret")
       expect(caught).not.toHaveProperty("operationId")
@@ -106,10 +106,7 @@ describe("immutable declarations", () => {
   )
 
   it("preserves exact IDs and validates queue/catalog boundaries", () => {
-    expect(
-      Effect.runSync(producer.identity({ operationId: " Opé ", slot: "email" }))
-        .operationId
-    ).toBe(" Opé ")
+    expect(Schema.decodeSync(OperationId)(" Opé ")).toBe(" Opé ")
     expect(() => JobQueue.make("Bad")).toThrow(JobQueue.InvalidJobQueue)
     expect(() => JobQueue.make("x".repeat(65))).toThrow(JobQueue.InvalidJobQueue)
     expect(
@@ -176,7 +173,7 @@ describe("explicit transaction enqueue", () => {
       withJoinedTransaction(
         (value) => {
           prepared = value
-          return Effect.succeed(EnqueueResults.Inserted({ jobId }))
+          return Effect.succeed(EnqueueResult.Inserted({ jobId }))
         },
         (tx) => definition.enqueueInTransaction(tx, mutable)
       )
@@ -187,18 +184,18 @@ describe("explicit transaction enqueue", () => {
       policy: { retrySchedule: { delayMillis: 5000 } }
     })
   })
-  it("forwards complete prepared input and returns the backend's provisional result", async () => {
+  it("forwards complete prepared input and returns the producer's provisional result", async () => {
     let prepared: PreparedJob | undefined
     const result = await Effect.runPromise(
       withJoinedTransaction(
         (value) => {
           prepared = value
-          return Effect.succeed(EnqueueResults.Inserted({ jobId }))
+          return Effect.succeed(EnqueueResult.Inserted({ jobId }))
         },
         (tx) => job.enqueueInTransaction(tx, { ...input, availableAt: 12 })
       )
     )
-    expect(result).toEqual(EnqueueResults.Inserted({ jobId }))
+    expect(result).toEqual(EnqueueResult.Inserted({ jobId }))
     expect(prepared).toEqual({
       catalog: job.catalog,
       producer: identity,
@@ -219,7 +216,7 @@ describe("explicit transaction enqueue", () => {
       withJoinedTransaction(
         (value) => {
           prepared = value
-          return Effect.succeed(EnqueueResults.AlreadyPresent({ jobId }))
+          return Effect.succeed(EnqueueResult.AlreadyPresent({ jobId }))
         },
         (tx) => job.enqueueInTransaction(tx, input)
       )
@@ -256,7 +253,10 @@ describe("explicit transaction enqueue", () => {
         },
         "producer"
       ],
-      [{ ...input, payload: "ok", policy: { ...policy, maxAttempts: 0 } }, "policy"],
+      [
+        { ...input, payload: "ok", policy: { ...policy, maxFinalizedAttempts: 0 } },
+        "policy"
+      ],
       [{ ...input, payload: "ok", availableAt: 0 }, "availableAt"]
     ] as const) {
       const error = await Effect.runPromise(
@@ -264,7 +264,7 @@ describe("explicit transaction enqueue", () => {
           withJoinedTransaction(
             () => {
               calls++
-              return Effect.succeed(EnqueueResults.Inserted({ jobId }))
+              return Effect.succeed(EnqueueResult.Inserted({ jobId }))
             },
             (tx) => definition.enqueueInTransaction(tx, invalid)
           )
@@ -276,7 +276,7 @@ describe("explicit transaction enqueue", () => {
     expect(calls).toBe(0)
   })
 
-  it("preserves codec and backend failures without insertion/reclassification", async () => {
+  it("preserves codec and jobs failures without insertion/reclassification", async () => {
     let inserts = 0
     const definition = Effect.runSync(
       Job.make({
@@ -293,7 +293,7 @@ describe("explicit transaction enqueue", () => {
         withJoinedTransaction(
           () => {
             inserts++
-            return Effect.succeed(EnqueueResults.Inserted({ jobId }))
+            return Effect.succeed(EnqueueResult.Inserted({ jobId }))
           },
           (tx) => definition.enqueueInTransaction(tx, { ...input, payload: "x" })
         )
@@ -305,15 +305,15 @@ describe("explicit transaction enqueue", () => {
       await Effect.runPromise(
         failure(
           withJoinedTransaction(
-            () => Effect.fail("backend-failure"),
+            () => Effect.fail("jobs-failure"),
             (tx) => job.enqueueInTransaction(tx, input)
           )
         )
       )
-    ).toBe("backend-failure")
+    ).toBe("jobs-failure")
   })
 
-  it("escaped and deferred enqueues cannot call a closed backend", async () => {
+  it("escaped and deferred enqueues cannot call a closed jobs", async () => {
     let escaped: JobsTransaction | undefined
     let deferred:
       | Effect.Effect<
@@ -326,7 +326,7 @@ describe("explicit transaction enqueue", () => {
       withJoinedTransaction(
         () => {
           calls++
-          return Effect.succeed(EnqueueResults.Inserted({ jobId }))
+          return Effect.succeed(EnqueueResult.Inserted({ jobId }))
         },
         (tx) =>
           Effect.sync(() => {
@@ -364,10 +364,10 @@ describe("local registry and Layer dependencies", () => {
     const schema = Schema.String.pipe(
       Schema.decodeTo(Schema.String, {
         encode: SchemaGetter.transformEffect((value: string) =>
-          Effect.map(Encoding, ({ prefix }) => prefix + value)
+          Effect.map(Encoding, (encoding) => encoding.prefix + value)
         ),
         decode: SchemaGetter.transformEffect((value: string) =>
-          Effect.map(Decoding, ({ suffix }) => value + suffix)
+          Effect.map(Decoding, (decoding) => value + decoding.suffix)
         )
       })
     )
@@ -391,7 +391,7 @@ describe("local registry and Layer dependencies", () => {
     )
     await Effect.runPromise(
       withJoinedTransaction(
-        () => Effect.succeed(EnqueueResults.Inserted({ jobId })),
+        () => Effect.succeed(EnqueueResult.Inserted({ jobId })),
         (tx) => definition.enqueueInTransaction(tx, { ...input, payload: "payload" })
       ).pipe(Effect.provideService(Encoding, { prefix: "encoded:" }))
     )
@@ -403,9 +403,9 @@ describe("local registry and Layer dependencies", () => {
     let received: string | undefined
     const installation = definition
       .handlerLayer(
-        ({ payload }) =>
+        (input) =>
           Effect.sync(() => {
-            received = payload
+            received = input.payload
           }),
         serviceDecode
       )
@@ -625,52 +625,5 @@ describe("local registry and Layer dependencies", () => {
       name: job.catalog.name,
       version: job.catalog.version
     })
-  })
-})
-
-describe("bounded consumer plans", () => {
-  const options = { localConcurrency: 1, claimLimitPerRun: 10, recoveryLimitPerRun: 10 }
-  it("creates frozen inert consumer/plan configuration", async () => {
-    const consumer = await Effect.runPromise(JobConsumer.make(queue, options))
-    const configured = await Effect.runPromise(JobConsumer.plan(consumer))
-    expect(consumer).toEqual({ queue, ...options })
-    expect(Object.isFrozen(consumer)).toBe(true)
-    expect(Object.isFrozen(configured)).toBe(true)
-    expect(Object.isFrozen(configured.consumers)).toBe(true)
-  })
-  it.each([
-    { ...options, localConcurrency: 0 },
-    { ...options, localConcurrency: 65 },
-    { ...options, claimLimitPerRun: 0 },
-    { ...options, claimLimitPerRun: 10001 },
-    { ...options, recoveryLimitPerRun: 0 },
-    { ...options, recoveryLimitPerRun: 10001 },
-    { ...options, localConcurrency: 1.5 },
-    { ...options, extra: true }
-  ])("rejects invalid options %j", async (invalid) => {
-    expect(await Effect.runPromise(failure(JobConsumer.make(queue, invalid)))).toEqual(
-      new JobConsumer.InvalidJobConsumer({ reason: "invalid-options" })
-    )
-  })
-  it("accepts upper bounds and detects duplicate logical queues", async () => {
-    const consumer = await Effect.runPromise(
-      JobConsumer.make(queue, {
-        localConcurrency: 64,
-        claimLimitPerRun: 10000,
-        recoveryLimitPerRun: 10000
-      })
-    )
-    const duplicate = await Effect.runPromise(
-      JobConsumer.make(JobQueue.make("billing"), options)
-    )
-    expect(
-      await Effect.runPromise(failure(JobConsumer.plan(consumer, duplicate)))
-    ).toMatchObject({ _tag: "DuplicateJobConsumer", queue: "billing" })
-    const other = await Effect.runPromise(
-      JobConsumer.make(JobQueue.make("other"), options)
-    )
-    expect(
-      (await Effect.runPromise(JobConsumer.plan(consumer, other))).consumers
-    ).toEqual([consumer, other])
   })
 })

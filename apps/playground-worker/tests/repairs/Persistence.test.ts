@@ -2,6 +2,7 @@ import { runPromise } from "../scenarios/Setup.js"
 import { describe, expect, it } from "vitest"
 import { Cause, Effect, Exit, Layer, Schema } from "effect"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
+import * as Storage from "effect-jobs/JobStorage"
 import * as PostgreSqlSchema from "effect-jobs/PostgreSqlSchema"
 import { JobRedriveResult } from "effect-jobs/JobOperators"
 import * as Codec from "effect-jobs/JobPayloadCodec"
@@ -75,18 +76,23 @@ const setup = (override: Partial<RepairTransaction> = {}) =>
       owned: (_access, _command, _digest, body) => body(tx),
       lookup: () => Effect.succeed(null)
     })
-    const unexpected = () => Effect.die("Unexpected backend operation")
+    const unexpected = () => Effect.die("Unexpected jobs operation")
+    const store = {
+      claim: unexpected,
+      reconcileClaim: unexpected,
+      release: unexpected,
+      finalize: unexpected,
+      reconcileFinalization: unexpected,
+      recoverExpired: unexpected
+    }
     const core = Layer.mock(PostgreSqlJobs, {
+      operationResponseBudgetMillis: 100,
+      storage: yield* Storage.make({ store, operationResponseBudgetMillis: 100 }),
+      health: { sample: unexpected },
+      schedule: { read: unexpected },
       tables: PostgreSqlSchema.tables(),
       producer: { enqueue: unexpected, enqueueStandalone: unexpected },
-      store: {
-        claim: unexpected,
-        reconcileClaim: unexpected,
-        release: unexpected,
-        finalize: unexpected,
-        reconcileFinalization: unexpected,
-        recoverExpired: unexpected
-      },
+      store,
       cleanup: { cleanup: unexpected },
       operators: {
         correctedRedrive: () =>

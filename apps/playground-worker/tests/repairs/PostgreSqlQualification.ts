@@ -66,7 +66,7 @@ export const qualify = (client: PgClient, schema: string) =>
           yield* Registry.backfillSyntheticTenants(schema)
         })
       )
-      const backend = yield* Jobs.make({
+      const jobs = yield* Jobs.make({
         schema,
         operationResponseBudgetMillis: 500
       }).pipe(
@@ -78,7 +78,7 @@ export const qualify = (client: PgClient, schema: string) =>
       const transactions = yield* Adapter.make(schema)
       const service = yield* Persistence.make.pipe(
         Effect.provideService(RepairTransactions, transactions),
-        Effect.provideService(Jobs.PostgreSqlJobs, backend),
+        Effect.provideService(Jobs.PostgreSqlJobs, jobs),
         Effect.provide(keysLayer)
       )
       const provider = yield* Provider.make(schema)
@@ -114,11 +114,12 @@ export const qualify = (client: PgClient, schema: string) =>
           }
           const inserted = yield* client.withTransaction(
             Effect.gen(function* () {
-              const result = yield* definitions.WelcomeEmail.enqueue({
-                producer,
+              const result = yield* definitions.Producer.enqueue({
+                operationId: producer.operationId,
+                slot: "welcome-email",
                 payload,
                 policy: Fixture.detail.policy
-              }).pipe(Effect.provideService(JobEnqueue, backend.producer))
+              }).pipe(Effect.provideService(JobEnqueue, jobs.producer))
               assert.equal(result._tag, "Inserted")
               if (result._tag !== "Inserted") {
                 return yield* Effect.die(new Error("Fresh producer identity required"))
@@ -142,9 +143,9 @@ export const qualify = (client: PgClient, schema: string) =>
               return result.jobId
             })
           )
-          const claimed = yield* backend.store.claim({
-            queue: definitions.WelcomeEmail.catalog.queue,
-            supportedCatalog: [definitions.WelcomeEmail.catalog],
+          const claimed = yield* jobs.store.claim({
+            queue: definitions.catalogFor(definitions.WelcomeEmail).queue,
+            supportedCatalog: [definitions.catalogFor(definitions.WelcomeEmail)],
             leaseToken: crypto.randomUUID()
           })
           assert.equal(claimed._tag, "Claimed")
@@ -169,7 +170,7 @@ export const qualify = (client: PgClient, schema: string) =>
               : { _tag: "Isolate", code: "fake_provider_response_lost" }
           )
           assert.equal(
-            (yield* backend.store.finalize({
+            (yield* jobs.store.finalize({
               ownership: claimed.claim.ownership,
               before: claimed.claim.snapshot,
               finalization
@@ -184,9 +185,9 @@ export const qualify = (client: PgClient, schema: string) =>
         })
       const complete = (jobId: string) =>
         Effect.gen(function* () {
-          const claimed = yield* backend.store.claim({
-            queue: definitions.WelcomeEmail.catalog.queue,
-            supportedCatalog: [definitions.WelcomeEmail.catalog],
+          const claimed = yield* jobs.store.claim({
+            queue: definitions.catalogFor(definitions.WelcomeEmail).queue,
+            supportedCatalog: [definitions.catalogFor(definitions.WelcomeEmail)],
             leaseToken: crypto.randomUUID()
           })
           assert.equal(claimed._tag, "Claimed")
@@ -195,7 +196,7 @@ export const qualify = (client: PgClient, schema: string) =>
           }
           assert.equal(claimed.claim.ownership.jobId, jobId)
           assert.equal(
-            (yield* backend.store.finalize({
+            (yield* jobs.store.finalize({
               ownership: claimed.claim.ownership,
               before: claimed.claim.snapshot,
               finalization: { _tag: "Complete" }

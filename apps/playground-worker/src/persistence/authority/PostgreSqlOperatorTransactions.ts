@@ -1,3 +1,4 @@
+import * as NativeTransaction from "../NativeTransaction.js"
 // @effect-diagnostics unstableApiUsage:off
 import { Effect, Layer, Option, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
@@ -118,7 +119,8 @@ export const make = (schema: string) =>
           // Persistent first admission is a separate acknowledged transaction. A
           // duplicate unresolved request can only look up its receipt, never execute.
           const fresh = yield* controls(
-            sql.withTransaction(
+            NativeTransaction.withTransaction(
+              sql,
               Effect.gen(function* () {
                 const { current } = yield* lock(access, command.sandbox)
                 const [prior] = yield* query(
@@ -154,7 +156,8 @@ export const make = (schema: string) =>
             )
           )
           return yield* controls(
-            sql.withTransaction(
+            NativeTransaction.withTransaction(
+              sql,
               Effect.gen(function* () {
                 const { row, current } = yield* lock(access, command.sandbox)
                 const stored = yield* receipt(command)
@@ -297,7 +300,8 @@ export const make = (schema: string) =>
         }),
       lookup: (access, input) =>
         controls(
-          sql.withTransaction(
+          NativeTransaction.withTransaction(
+            sql,
             Effect.gen(function* () {
               const request = yield* Schema.decodeUnknownEffect(
                 JobOperatorReceiptRequest

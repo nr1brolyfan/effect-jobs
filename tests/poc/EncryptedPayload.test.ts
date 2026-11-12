@@ -1,17 +1,29 @@
 import * as FailureCodes from "../../src/FailureCode.js"
 import assert from "node:assert/strict"
 import { createHmac, randomUUID } from "node:crypto"
-import { Context, Effect, Layer, Logger, Result, Schema, SchemaAST } from "effect"
+import {
+  Context,
+  Duration,
+  Effect,
+  Layer,
+  Logger,
+  Result,
+  Schema,
+  SchemaAST
+} from "effect"
 import { TestClock } from "effect/testing"
 import { it } from "vitest"
-import * as Job from "../../src/Job.js"
+import * as Job from "../core/definitions/ProtocolJob.js"
 import * as Queue from "../../src/JobQueue.js"
 import * as Codec from "../../src/JobPayloadCodec.js"
 import * as Policy from "../../src/JobPolicy.js"
 import { JobPayloadCodecError } from "../../src/JobContract.js"
 import { JobFailures } from "../../src/JobFailure.js"
-import { JobRegistry, layer as registryLayer } from "../../src/JobRegistry.js"
-import { canonicalText as canonicalTextResult } from "../../src/internal/codec/CanonicalJson.js"
+import {
+  JobRegistry,
+  layer as registryLayer
+} from "../core/definitions/ProtocolRegistry.js"
+import { canonicalText } from "../../src/internal/codec/CanonicalJson.js"
 import { project } from "../../src/internal/codec/ProtectedProjection.js"
 import { executionFor } from "../../src/internal/worker/Execution.js"
 import { harness } from "../core/worker/Harness.js"
@@ -23,22 +35,19 @@ import {
 } from "./EncryptedPayload.js"
 import type { EncryptionCodec } from "./EncryptedPayload.js"
 import type { EncodedJobPayload, PreparedJob } from "../../src/JobContract.js"
+import * as Retry from "../../src/JobRetryPolicy.js"
 
-// This test fixture deliberately extracts a successful synchronous Result.
-const canonicalText = (...args: Parameters<typeof canonicalTextResult>) =>
-  Result.getOrThrow(canonicalTextResult(...args))
-
+type EnvelopeValue = typeof Envelope.Type
 const Envelope = Schema.Struct({
   keyId: Schema.String,
   ciphertext: Schema.String,
   fingerprint: Schema.String
 })
+type DocumentEncoded = typeof Document.Encoded
 const Document = Schema.Struct({
   recipient: Schema.NonEmptyString,
   amount: Schema.FiniteFromString.pipe(Schema.check(Schema.isGreaterThan(0)))
 })
-type DocumentEncoded = typeof Document.Encoded
-type EnvelopeValue = typeof Envelope.Type
 interface Keys {
   readonly seal: (
     value: DocumentEncoded
@@ -75,7 +84,7 @@ const keyFixture = (namespace: string) => {
             "sha256",
             `synthetic-stable-fingerprint-key:${namespace}`
           )
-            .update(canonicalText(value, 65_536, "payload-too-large"))
+            .update(Result.getOrThrow(canonicalText(value, 65_536, "payload-too-large")))
             .digest("hex")
         })
       }),
@@ -185,7 +194,7 @@ it("native structs, optional fields, arrays and discriminated unions retain inde
     Schema.Struct({ document: PrivateDocument, personal }),
     Schema.Struct({
       nested: Schema.Struct({ document: PrivateDocument }),
-      absent: Schema.optional(personal)
+      absent: personal.pipe(Schema.optional)
     }),
     Schema.Array(PrivateDocument),
     Schema.Union([
@@ -210,9 +219,9 @@ it("native structs, optional fields, arrays and discriminated unions retain inde
       )
       const projection = yield* project(SchemaAST.toEncoded(schema.ast), encoded)
       assert.equal(
-        canonicalText(projection, 65_536, "projection-too-large").includes(
-          "synthetic-recipient"
-        ),
+        Result.getOrThrow(
+          canonicalText(projection, 65_536, "projection-too-large")
+        ).includes("synthetic-recipient"),
         false
       )
     }
@@ -266,7 +275,9 @@ it("encoded protected projection remains stable across random ciphertext and key
       const ast = SchemaAST.toEncoded(Payload.ast)
       const projection = (wire: typeof Payload.Encoded) =>
         project(ast, wire).pipe(
-          Effect.map((value) => canonicalText(value, 65_536, "projection-too-large"))
+          Effect.map((value) =>
+            Result.getOrThrow(canonicalText(value, 65_536, "projection-too-large"))
+          )
         )
       assert.equal(yield* projection(first), yield* projection(second))
       assert.deepEqual(yield* Schema.decodeEffect(Payload, strict)(first), input)
@@ -303,12 +314,14 @@ const definition = Effect.runSync(
   })
 )
 const artifact = (wire: unknown): EncodedJobPayload => {
-  const json = canonicalText(wire, 65_536, "payload-too-large")
+  const json = Result.getOrThrow(canonicalText(wire, 65_536, "payload-too-large"))
   return {
     formatVersion: 1,
     payloadBytes: new TextEncoder().encode(json),
     semanticProjectionBytes: new TextEncoder().encode(
-      canonicalText({ data: wire, protected: {} }, 65_536, "projection-too-large", -1)
+      Result.getOrThrow(
+        canonicalText({ data: wire, protected: {} }, 65_536, "projection-too-large", -1)
+      )
     )
   }
 }
@@ -367,16 +380,16 @@ for (const mode of [
             operationId: "synthetic-operation",
             slot: "document"
           },
-          policy: Policy.make(),
+          policy: Policy.defaultPolicy,
           encoded
         }
         const test = harness([prepared])
         yield* Layer.build(
           definition.handlerLayer(
-            ({ payload }) =>
+            (received) =>
               Effect.sync(() => {
                 handlerCalls++
-                assert.deepEqual(payload, input)
+                assert.deepEqual(received.payload, input)
               }),
             Codec.decodeJobPayload
           )
@@ -403,14 +416,14 @@ for (const mode of [
           test.rows[0]!.snapshot.state,
           mode === "valid" ? "Completed" : "Isolated"
         )
-        assert.equal(test.rows[0]!.snapshot.attemptsMade, 1)
+        assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 1)
         if (mode !== "valid") {
           assert.equal(test.rows[0]!.snapshot.lastFailureCode, "invalid_claimed_artifact")
         }
         if (mode === "unavailable") {
           keys.outage(false)
           yield* TestClock.adjust("2 minutes")
-          assert.equal(yield* test.store.recoverExpired(1), 0)
+          assert.equal(yield* test.store.recoverExpired(definition.queue.name, 1), 0)
           const afterRecovery = yield* test.store.claim({
             queue: definition.queue.name,
             supportedCatalog: [definition.catalog],
@@ -435,8 +448,8 @@ for (const mode of [
   })
 }
 
-for (const maxAttempts of [1, 3]) {
-  it(`proposal control: explicit transient decode Retry with maxAttempts=${maxAttempts}`, async () => {
+for (const maxFinalizedAttempts of [1, 3]) {
+  it(`proposal control: explicit transient decode Retry with maxFinalizedAttempts=${maxFinalizedAttempts}`, async () => {
     const keys = keyFixture("receipt")
     let handlerCalls = 0
     await Effect.runPromise(
@@ -452,7 +465,11 @@ for (const maxAttempts of [1, 3]) {
               operationId: "synthetic-operation",
               slot: "document"
             },
-            policy: Policy.make({ maxAttempts }),
+            policy: yield* Policy.make({
+              retry: Retry.fixed(Duration.seconds(5)).pipe(
+                Retry.maxFinalizedAttempts(maxFinalizedAttempts)
+              )
+            }),
             encoded
           }
         ])
@@ -502,9 +519,9 @@ for (const maxAttempts of [1, 3]) {
         )
         assert.equal(
           test.rows[0]!.snapshot.state,
-          maxAttempts === 1 ? "Dead" : "RetryScheduled"
+          maxFinalizedAttempts === 1 ? "Dead" : "RetryScheduled"
         )
-        assert.equal(test.rows[0]!.snapshot.attemptsMade, 1)
+        assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 1)
         assert.equal(test.rows[0]!.snapshot.stalledCount, 0)
         assert.equal(test.rows[0]!.snapshot.lastFailureCode, "payload_key_unavailable")
         assert.equal(handlerCalls, 0)
@@ -515,7 +532,7 @@ for (const maxAttempts of [1, 3]) {
           supportedCatalog: [definition.catalog],
           leaseToken: "00000000-0000-4000-8000-000000000002"
         })
-        if (maxAttempts === 1) {
+        if (maxFinalizedAttempts === 1) {
           assert.equal(resumed._tag, "Empty")
         } else {
           assert.equal(resumed._tag, "Claimed")
@@ -529,7 +546,7 @@ for (const maxAttempts of [1, 3]) {
             )
           }
           assert.equal(test.rows[0]!.snapshot.state, "Completed")
-          assert.equal(test.rows[0]!.snapshot.attemptsMade, 2)
+          assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 2)
           assert.equal(handlerCalls, 1)
         }
       }).pipe(
@@ -578,7 +595,7 @@ export const enqueueTypeProbe = (
       operationId: "synthetic-operation",
       slot: "document"
     },
-    policy: Policy.make()
+    policy: Policy.defaultPolicy
   })
 export type EnqueueServices = True<
   Equal<Effect.Services<ReturnType<typeof enqueueTypeProbe>>, ReceiptKeys>

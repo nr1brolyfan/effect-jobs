@@ -3,32 +3,21 @@ import * as Job from "../../src/Job.js"
 import * as Producer from "../../src/JobProducer.js"
 import * as Queue from "../../src/JobQueue.js"
 import type { JobDeclarationError } from "../../src/JobIdentity.js"
-
-const job = Effect.runSync(
-  Job.make({
-    queue: Queue.make("typed"),
-    name: "setup.run",
-    payload: Schema.String
-  })
+const job = Effect.runSync(Job.make({ name: "setup.run", payload: Schema.String }))
+export const setup = Producer.make("typed.run").pipe(
+  Producer.withSlot("execute", job, { queue: Queue.make("typed") })
 )
-export const setup = Producer.make({ operation: "typed.run", slots: { execute: job } })
 type Assert<T extends true> = T
 type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false
-export type ExactSetupError = Assert<
-  Equal<Effect.Error<typeof setup>, JobDeclarationError>
+export type Error = Assert<
+  Equal<Effect.Error<typeof setup>, JobDeclarationError | Producer.InvalidProducerBinding>
 >
-export type NoSetupServices = Assert<Equal<Effect.Services<typeof setup>, never>>
-export type ExactSetupSuccess = Assert<
-  Equal<
-    Effect.Success<typeof setup>,
-    Producer.JobProducer<"typed.run", { readonly execute: typeof job }>
-  >
->
-// @ts-expect-error Producer setup must execute before its slots are available.
+export type Services = Assert<Equal<Effect.Services<typeof setup>, never>>
+// @ts-expect-error Setup must execute before slots are available.
 export const eager = setup.slots
-const producer = Effect.runSync(setup)
-export const literalOperation: "typed.run" = producer.operation
-export const exactJob: typeof job = producer.slots.execute
-// @ts-expect-error Undeclared slots remain absent after effectful setup.
-export const unknownSlot = producer.slots.missing
+const resolved = Effect.runSync(setup)
+export const operation: "typed.run" = resolved.operation
+export const exactJob: typeof job = resolved.slots.execute.job
+// @ts-expect-error Unknown slots remain absent.
+export const removedSlot = resolved.slots.missing

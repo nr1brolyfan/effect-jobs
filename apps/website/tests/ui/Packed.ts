@@ -8,15 +8,26 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   writeFileSync
 } from "node:fs"
-import { join, resolve } from "node:path"
+import { dirname, join, resolve } from "node:path"
+import { findPackageJSON } from "node:module"
+import { pathToFileURL } from "node:url"
 import { tmpdir } from "node:os"
 
 const root = resolve(import.meta.dirname, "../../../..")
 const evidenceRoot = join(root, ".multica/ui-packed")
 mkdirSync(evidenceRoot, { recursive: true })
 const evidence = mkdtempSync(join(evidenceRoot, "run-"))
+// A local archive can change without changing its package version or filename.
+// Give each qualification run a fresh cache so installed-byte guards see its tar.
+const installCacheDirectory = join(evidence, "bun-install-cache")
+mkdirSync(installCacheDirectory)
+const installEnvironment: NodeJS.ProcessEnv = {
+  ...process.env,
+  BUN_INSTALL_CACHE_DIR: installCacheDirectory
+}
 const commandResults: Array<{ readonly name: string; readonly exitCode: number }> = []
 const run = (
   name: string,
@@ -133,7 +144,13 @@ const artifactLock = (template: string) =>
     })
     .join("\n")
 if (process.argv.includes("--write-consumer-lock")) {
-  run("lock-authoring", "bun", ["install", "--ignore-scripts"], consumer)
+  run(
+    "lock-authoring",
+    "bun",
+    ["install", "--ignore-scripts"],
+    consumer,
+    installEnvironment
+  )
   cpSync(join(consumer, "bun.lock"), join(fixture, "consumer.lock"))
   console.log(
     "Authored the isolated consumer lock; run again without --write-consumer-lock to qualify fresh installation"
@@ -144,12 +161,49 @@ if (process.argv.includes("--write-consumer-lock")) {
     join(consumer, "bun.lock"),
     artifactLock(readFileSync(lockTemplatePath, "utf8"))
   )
-  run("install", "bun", ["install", "--frozen-lockfile", "--ignore-scripts"], consumer)
+  run(
+    "install",
+    "bun",
+    ["install", "--frozen-lockfile", "--ignore-scripts"],
+    consumer,
+    installEnvironment
+  )
   assert.equal(
     readFileSync(join(consumer, "bun.lock"), "utf8"),
     artifactLock(readFileSync(lockTemplatePath, "utf8"))
   )
 }
+const effectManifest = JSON.parse(
+  readFileSync(join(consumer, "node_modules/effect/package.json"), "utf8")
+)
+const atomReactManifest = JSON.parse(
+  readFileSync(join(consumer, "node_modules/@effect/atom-react/package.json"), "utf8")
+)
+assert.equal(effectManifest.version, "4.1.0")
+assert.equal(atomReactManifest.version, "4.1.0")
+// The same alpha version may already exist in the registry with older contracts.
+// The consumer's ordinary dependency override binds every internal dependency
+// to this exact candidate archive; verify the contracts package's actual resolver.
+const canonicalJobsManifest = realpathSync(
+  join(consumer, "node_modules/effect-jobs/package.json")
+)
+const contractsBase = pathToFileURL(
+  join(consumer, "node_modules/@effect-jobs/playground-contracts/package.json")
+)
+const resolvedContractsJobs = findPackageJSON("effect-jobs", contractsBase)
+assert(resolvedContractsJobs, "Contracts must resolve the candidate library")
+const contractsJobsManifest = realpathSync(resolvedContractsJobs)
+assert.equal(
+  contractsJobsManifest,
+  canonicalJobsManifest,
+  "Contracts must resolve the exact root candidate, not a same-version registry release"
+)
+const resolvedContractsEffect = findPackageJSON("effect", contractsBase)
+assert(resolvedContractsEffect, "Contracts must resolve the selected Effect peer")
+assert.equal(
+  realpathSync(resolvedContractsEffect),
+  realpathSync(join(consumer, "node_modules/effect/package.json"))
+)
 const reduxDeclaration = readFileSync(
   join(consumer, "node_modules/@reduxjs/toolkit/dist/index.d.ts")
 )
@@ -164,10 +218,15 @@ assert.equal(reduxManifest.version, "2.13.0")
 for (const entry of inventory.filter(
   (path) => path.startsWith("package/dist/") && !path.endsWith("/")
 )) {
-  assert.deepEqual(
-    readFileSync(join(consumer, "node_modules/effect-jobs", entry.slice(8))),
-    readFileSync(join(root, entry.slice(8)))
-  )
+  for (const installed of [
+    join(consumer, "node_modules/effect-jobs"),
+    dirname(contractsJobsManifest)
+  ]) {
+    assert.deepEqual(
+      readFileSync(join(installed, entry.slice(8))),
+      readFileSync(join(root, entry.slice(8)))
+    )
+  }
 }
 // Preserve relative imports, including browser-consumed scenario Schemas.
 // Copy source inputs only; dependencies are independently installed above.
@@ -301,7 +360,7 @@ assert.equal(controller.snapshot().page!.items[0]!.jobId, "installed-job-21")
 await Effect.runPromise(controller.command("scenario", "disabled", "success", 1).pipe(Effect.provide(layer)))
 assert.equal(controller.snapshot().pending, undefined)
 controller.dispose()
-console.log("installed UI state and disabled mock command PASS; no backend peers")
+console.log("installed UI state and disabled mock command PASS; no jobs peers")
 `
 )
 // Type-check the generated caller too, keeping strict/exact-optional own-code checks.
@@ -379,6 +438,9 @@ const receipt = {
   reduxVersion: reduxManifest.version,
   reduxDeclarationSha256: createHash("sha256").update(reduxDeclaration).digest("hex"),
   strictDeclarationGate: typeFailure ? "FAIL (see types.log)" : "PASS",
+  foreignStrictDiagnostics: diagnostics,
+  resolution: { canonicalJobsManifest, contractsJobsManifest },
+  installCacheDirectory,
   evidence,
   baseHead: run("head", "git", ["rev-parse", "HEAD"]).trim(),
   baseTree: run("tree", "git", ["rev-parse", "HEAD^{tree}"]).trim(),
@@ -402,12 +464,14 @@ const receipt = {
   tools: {
     node: process.version,
     bun: run("bun-version", "bun", ["--version"]).trim(),
-    effect: "4.0.5",
+    effect: effectManifest.version,
+    atomReact: atomReactManifest.version,
     typescript: "7.0.2"
   },
   commandResults,
   checks: [
-    "packed dist byte equality",
+    "packed dist byte equality from both root and contracts resolution",
+    "contracts resolves exact candidate archive and selected shared Effect peer",
     "no apps/private packages in library archive",
     "independent strict own-code UI types without aliases; full declaration gate separately reported",
     "actual UI browser bundle",

@@ -9,7 +9,7 @@ import type { JobPolicy } from "./JobPolicy.js"
 
 /**
  * Handler metadata without SQL, lease tokens or finalization authority.
- * attemptNumber is one-based and may repeat after unknown outcomes and recovery.
+ * nextFinalizationNumber is one-based and may repeat after unknown outcomes and recovery.
  *
  * @category models
  */
@@ -17,8 +17,8 @@ export interface HandlerContext {
   readonly jobId: JobId
   readonly catalog: CatalogIdentity
   readonly producer: ProducerIdentity
-  /** attemptsMade + 1; may repeat after unknown outcomes and stalled recovery. */
-  readonly attemptNumber: number
+  /** finalizedAttempts + 1; may repeat after unknown outcomes and stalled recovery. */
+  readonly nextFinalizationNumber: number
 }
 /**
  * Decoded Schema payload plus library metadata; handler dependencies use Effect services.
@@ -31,24 +31,17 @@ export interface HandlerInput<Payload> {
 }
 /**
  * Decoded payload, stable producer identity and resolved policy. No caller job ID.
- * Matching duplicates retain the original policy and availability.
+ * Matching duplicates retain the original queue, policy and availability.
  *
  * @category models
  */
-export type EnqueueOptions<Payload, Default extends JobPolicy | undefined = undefined> = {
+export interface EnqueueInput<Payload> {
+  readonly producer: ProducerIdentity
   readonly payload: Payload
+  readonly policy: JobPolicy
   /** Omitted means database time on first insertion, never on matching duplicate. */
   readonly availableAt?: number
-} & ([Default] extends [JobPolicy]
-  ? { readonly policy?: JobPolicy }
-  : { readonly policy: JobPolicy })
-/** Decoded enqueue options plus the explicit producer identity.
- * @category models
- */
-export type EnqueueInput<
-  Payload,
-  Default extends JobPolicy | undefined = undefined
-> = EnqueueOptions<Payload, Default> & { readonly producer: ProducerIdentity }
+}
 /**
  * Inserted or AlreadyPresent with the durable job ID. Success inside a joined
  * transaction is provisional until the application owner commits.
@@ -64,7 +57,7 @@ export type EnqueueResult = Data.TaggedEnum<{
  *
  * @category constructors
  */
-export const EnqueueResults = Data.taggedEnum<EnqueueResult>()
+export const EnqueueResult = Data.taggedEnum<EnqueueResult>()
 
 /**
  * Current canonical encoded payload/projection format discriminator.
@@ -133,7 +126,7 @@ export type JobPayloadDecoder = <S extends Schema.Top>(
   encoded: EncodedJobPayload
 ) => Effect.Effect<S["Type"], JobPayloadCodecError, S["DecodingServices"]>
 /**
- * Producer-to-backend artifact and first configuration; the backend assigns the ID.
+ * Prepared production artifact and first configuration; persistence assigns the ID.
  *
  * @category models
  */
@@ -153,12 +146,19 @@ export class InvalidJobInput extends Data.TaggedError("InvalidJobInput")<{
   readonly field: "catalog" | "producer" | "policy" | "availableAt" | "payload"
 }> {}
 /**
- * Same producer tuple with different catalog or semantic payload. Propagate the
+ * Same producer tuple with different kind/version or semantic payload. Propagate the
  * failure to the transaction owner; do not commit partial domain writes.
  *
  * @category errors
  */
 export class JobIntegrityConflict extends Data.TaggedError("JobIntegrityConflict")<{}> {}
+/** New production cannot reserve its attempt timeout and this storage's response budget.
+ * Matching duplicates still retain their original policy. No payload data is exposed.
+ * @category errors
+ */
+export class JobPolicyIncompatible extends Data.TaggedError(
+  "JobPolicyIncompatible"
+)<{}> {}
 /**
  * Bounded codec failure reason without raw payload or Schema diagnostic inputs.
  *

@@ -1,11 +1,12 @@
 import { define as defineFailureCodes } from "./FailureCode.js"
 /**
- * Pure lifecycle transition plans; backends own atomic fencing and database-time writes.
+ * Pure lifecycle transition plans; Persistence implementations own atomic fencing and database-time writes.
  */
 import { Data, Result, Schema } from "effect"
 import { JobId } from "./JobId.js"
 import { FailureCode, JobFailure } from "./JobFailure.js"
-import { EpochMillis, PersistedJobPolicy, maximumMillis } from "./JobPolicy.js"
+import { EpochMillis, JobPolicy, maximumMillis } from "./JobPolicy.js"
+import * as Retry from "./internal/policy/Retry.js"
 
 /**
  * Nonnegative safe integer Schema for durable counters, not a policy limit.
@@ -28,7 +29,7 @@ export const LeaseToken = Schema.String.pipe(
   )
 )
 /**
- * Bounded backend recovery/cleanup batch Schema: integer 1–500.
+ * Bounded storage recovery/cleanup batch Schema: integer 1–500.
  *
  * @category schemas
  */
@@ -69,11 +70,14 @@ export const JobOwnership = Schema.Struct({
 
 const SnapshotStruct = Schema.Struct({
   jobId: JobId,
-  policy: PersistedJobPolicy,
+  policy: JobPolicy,
   state: JobState,
   availableAt: EpochMillis,
   updatedAt: EpochMillis,
-  attemptsMade: Counter,
+  /** Initial durable insertion, in Unix epoch milliseconds. Null for migrated rows;
+   * omitted only by older/custom snapshot producers for source compatibility. */
+  createdAt: EpochMillis.pipe(Schema.NullOr, Schema.optionalKey),
+  finalizedAttempts: Counter,
   stalledCount: Counter,
   lifecycleVersion: Counter,
   leaseToken: LeaseToken.pipe(Schema.NullOr),
@@ -88,7 +92,7 @@ export const JobSnapshot = SnapshotStruct.pipe(
   Schema.check(
     Schema.makeFilter(
       (row) =>
-        row.attemptsMade <= row.policy.maxAttempts &&
+        row.finalizedAttempts <= row.policy.maxFinalizedAttempts &&
         row.stalledCount <= row.policy.maxStalledCount + 1 &&
         (row.state === "Active"
           ? row.leaseToken !== null &&
@@ -103,7 +107,7 @@ export const JobSnapshot = SnapshotStruct.pipe(
           row.state === "RetryScheduled" ||
           row.state === "Active"
         ) ||
-          (row.attemptsMade < row.policy.maxAttempts &&
+          (row.finalizedAttempts < row.policy.maxFinalizedAttempts &&
             row.stalledCount <= row.policy.maxStalledCount))
     )
   )
@@ -116,7 +120,9 @@ export const JobFinalization = Schema.Union([
   Schema.TaggedStruct("Complete", {}),
   Schema.TaggedStruct("Retry", {
     code: FailureCode,
-    notAfter: EpochMillis.pipe(Schema.optional)
+    /** Worker-selected sample retained across uncertain finalization/reconciliation. */
+    jitterSample: Retry.JitterSample.pipe(Schema.optional),
+    retryBefore: EpochMillis.pipe(Schema.optional)
   }),
   Schema.TaggedStruct("Dead", { code: FailureCode }),
   Schema.TaggedStruct("Isolate", { code: FailureCode })
@@ -224,16 +230,17 @@ export const usableLease = (
     operationResponseBudgetMillis
 
 /**
- * One-based attemptsMade + 1; may repeat after unknown outcomes and recovery.
+ * One-based finalizedAttempts + 1; may repeat after unknown outcomes and recovery.
  * Not an invocation count or external idempotency key.
  *
  * @category operations
  */
-export const attemptNumber = (row: JobSnapshot): number => row.attemptsMade + 1
+export const nextFinalizationNumber = (row: JobSnapshot): number =>
+  row.finalizedAttempts + 1
 
 /**
  * Plans a due Pending/RetryScheduled claim (availableAt <= dbNow) with a fixed lease.
- * Does not increment attempts; the backend must lock/CAS and commit atomically.
+ * Does not increment attempts; storage must lock/CAS and commit atomically.
  *
  * @category operations
  */
@@ -291,7 +298,7 @@ export const ownershipOf = (
 
 /**
  * Plans release only before execution and while the exact lease remains owned.
- * Clears ownership without incrementing attempts; backend commits the plan atomically.
+ * Clears ownership without incrementing attempts; storage commits the plan atomically.
  *
  * @category operations
  */
@@ -327,8 +334,8 @@ export const release = (
 
 /**
  * Plans one fenced Complete/Retry/Dead/Isolate transition and increments attempts once.
- * Uses first stored fixed delay; next availability >= notAfter or exhausted attempts
- * becomes Dead. notAfter limits retry scheduling, not handler execution.
+ * Uses the first stored retry policy; next availability >= retryBefore or exhausted attempts
+ * becomes Dead. retryBefore limits retry scheduling, not handler execution.
  *
  * @category operations
  */
@@ -351,26 +358,47 @@ export const finalize = (
       return yield* Result.fail(invalid("ownership-lost"))
     }
     const lifecycleVersion = yield* increment(row.lifecycleVersion)
-    const attemptsMade = yield* increment(row.attemptsMade)
+    const finalizedAttempts = yield* increment(row.finalizedAttempts)
+    const shouldSchedule =
+      finalization._tag === "Retry" && finalizedAttempts < row.policy.maxFinalizedAttempts
+    if (
+      shouldSchedule &&
+      finalization._tag === "Retry" &&
+      row.policy.retrySchedule._tag === "BackoffV1" &&
+      row.policy.retrySchedule.jitter !== "None" &&
+      finalization.jitterSample === undefined
+    ) {
+      return yield* Result.fail(invalid("invalid-command"))
+    }
+    const delay =
+      shouldSchedule && finalization._tag === "Retry"
+        ? Retry.delay(
+            row.policy.retrySchedule,
+            finalizedAttempts,
+            finalization.jitterSample
+          )
+        : undefined
     const nextAvailableAt =
-      finalization._tag === "Retry"
-        ? yield* addTimestamp(dbNow, row.policy.retrySchedule.delayMillis)
-        : row.availableAt
+      delay === undefined
+        ? row.availableAt
+        : delay === 0
+          ? dbNow
+          : yield* addTimestamp(dbNow, delay)
     const state =
       finalization._tag === "Complete"
         ? "Completed"
         : finalization._tag === "Isolate"
           ? "Isolated"
           : finalization._tag === "Dead" ||
-              attemptsMade >= row.policy.maxAttempts ||
-              (finalization.notAfter !== undefined &&
-                nextAvailableAt >= finalization.notAfter)
+              finalizedAttempts >= row.policy.maxFinalizedAttempts ||
+              (finalization.retryBefore !== undefined &&
+                nextAvailableAt >= finalization.retryBefore)
             ? "Dead"
             : "RetryScheduled"
     return {
       ...row,
       state,
-      attemptsMade,
+      finalizedAttempts,
       lifecycleVersion,
       availableAt: nextAvailableAt,
       updatedAt: dbNow,
@@ -383,7 +411,7 @@ export const finalize = (
 
 /**
  * Plans recovery at leaseExpiresAt <= dbNow. Increments stalls, not attempts;
- * exceeding maxStalledCount makes the job Dead. Backend owns bounded atomic recovery.
+ * exceeding maxStalledCount makes the job Dead. Persistence owns bounded atomic recovery.
  *
  * @category operations
  */
@@ -436,7 +464,7 @@ export const finalizationFromFailure = (
 
 /**
  * Pure terminal-retention eligibility at expiry <= dbNow. Pending, Active,
- * RetryScheduled, Isolated and Cancelled are excluded. Application/backend must coordinate
+ * RetryScheduled, Isolated and Cancelled are excluded. Application/persistence must coordinate
  * domain references and deletion atomically; this result is not deletion authority.
  *
  * @category operations

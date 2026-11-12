@@ -1,6 +1,7 @@
 import { Effect, Layer } from "effect"
 import { eq } from "drizzle-orm"
-import * as JobPayloadCodec from "effect-jobs/JobPayloadCodec"
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 import * as FailureCode from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
 import { Database } from "#database/Database"
@@ -16,37 +17,45 @@ const Codes = FailureCode.define({
 // #region handler
 export const InvoiceDeliveryHandlerLayer = Layer.unwrap(
   Effect.map(OrderJobs, (jobs) =>
-    jobs.SendInvoice.handlerLayer(
-      Effect.fn("Orders.sendInvoice")(function* (input) {
-        const db = yield* Database
-        const emails = yield* TransactionalEmails
+    JobApiBuilder.group(
+      JobApi.make(jobs.DeliveryJobs.name).pipe(JobApi.addGroup(jobs.DeliveryJobs)),
+      jobs.DeliveryJobs.name,
+      (handlers) =>
+        handlers.handle(
+          "delivery",
+          Effect.fn("Orders.sendInvoice")(function* (input) {
+            const db = yield* Database
+            const emails = yield* TransactionalEmails
 
-        const [invoice] = yield* db
-          .select()
-          .from(invoices)
-          .where(eq(invoices.invoiceId, input.payload.invoiceId))
-          .limit(1)
-          .pipe(Effect.mapError(() => JobFailures.Retry({ code: Codes.read })))
+            const [invoice] = yield* db
+              .select()
+              .from(invoices)
+              .where(eq(invoices.invoiceId, input.payload.invoiceId))
+              .limit(1)
+              .pipe(Effect.mapError(() => JobFailures.Retry({ code: Codes.read })))
 
-        if (!invoice) {
-          return yield* Effect.fail(JobFailures.Isolate({ code: Codes.missing }))
-        }
+            if (!invoice) {
+              return yield* Effect.fail(JobFailures.Isolate({ code: Codes.missing }))
+            }
 
-        yield* emails
-          .send({
-            deliveryKey: input.context.jobId,
-            subject: "Synthetic order invoice",
-            body: invoice.document
+            yield* emails
+              .send({
+                deliveryKey: input.context.jobId,
+                subject: "Synthetic order invoice",
+                body: invoice.document
+              })
+              .pipe(
+                Effect.catchTags({
+                  EmailBusy: () =>
+                    Effect.fail(JobFailures.Retry({ code: EmailCodes.busy })),
+                  EmailUncertain: () =>
+                    Effect.fail(
+                      JobFailures.OutcomeUnknown({ code: EmailCodes.uncertain })
+                    )
+                })
+              )
           })
-          .pipe(
-            Effect.catchTags({
-              EmailBusy: () => Effect.fail(JobFailures.Retry({ code: EmailCodes.busy })),
-              EmailUncertain: () =>
-                Effect.fail(JobFailures.OutcomeUnknown({ code: EmailCodes.uncertain }))
-            })
-          )
-      }),
-      JobPayloadCodec.decodeJobPayload
+        )
     )
   )
 )

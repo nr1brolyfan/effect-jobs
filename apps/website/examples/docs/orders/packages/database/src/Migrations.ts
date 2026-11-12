@@ -1,7 +1,7 @@
 import * as PostgreSqlSchema from "effect-jobs/PostgreSqlSchema"
 
 // Application-owned DDL. Run with the host migration tool before serving work.
-// No migration executes at import or during backend.ready.
+// No migration executes at import or during jobs.ready.
 export const migrationSql = `${PostgreSqlSchema.migration()}
 CREATE TABLE orders (
   operation_id text PRIMARY KEY,

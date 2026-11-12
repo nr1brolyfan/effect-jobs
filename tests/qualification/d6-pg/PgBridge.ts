@@ -1,8 +1,9 @@
 /** Qualification prototype only. No pool construction, DDL, transaction control or replay. */
 import { randomUUID } from "node:crypto"
-import { Context, Effect, Layer } from "effect"
+import { Context, Effect, Layer, Schema } from "effect"
+import { PersistedJobPolicy } from "../../../src/JobPolicy.js"
 import {
-  EnqueueResults,
+  EnqueueResult,
   JobIntegrityConflict,
   type PreparedJob
 } from "../../../src/JobContract.js"
@@ -41,28 +42,30 @@ const insert = (handle: App.Handle, prepared: PreparedJob) =>
         producer.operationId,
         producer.slot,
         JSON.stringify(catalog),
-        JSON.stringify(prepared.policy)
+        JSON.stringify(Schema.encodeSync(PersistedJobPolicy)(prepared.policy))
       ]
     )
     if (rows.length === 0) {
       const existing = yield* handle.query<{
         id: JobId
-        catalog: string
+        name: string
+        version: number
         projection: Buffer
       }>(
-        `SELECT j.id,j.catalog,p.projection FROM d6_fixture.jobs j JOIN d6_fixture.job_payloads p ON p.job_id=j.id
+        `SELECT j.id,j.catalog::jsonb->>'name' AS name,(j.catalog::jsonb->>'version')::integer AS version,p.projection FROM d6_fixture.jobs j JOIN d6_fixture.job_payloads p ON p.job_id=j.id
        WHERE operation=$1 AND operation_id=$2 AND slot=$3`,
         [producer.operation, producer.operationId, producer.slot]
       )
       const prior = existing[0]
       if (
         prior === undefined ||
-        prior.catalog !== JSON.stringify(catalog) ||
+        prior.name !== catalog.name ||
+        prior.version !== catalog.version ||
         !prior.projection.equals(Buffer.from(encoded.semanticProjectionBytes))
       ) {
         return yield* new JobIntegrityConflict()
       }
-      return EnqueueResults.AlreadyPresent({ jobId: prior.id })
+      return EnqueueResult.AlreadyPresent({ jobId: prior.id })
     }
     yield* handle.query(
       "INSERT INTO d6_fixture.job_payloads (job_id,payload,projection) VALUES ($1,$2,$3)",
@@ -72,7 +75,7 @@ const insert = (handle: App.Handle, prepared: PreparedJob) =>
         Buffer.from(encoded.semanticProjectionBytes)
       ]
     )
-    return EnqueueResults.Inserted({ jobId: id })
+    return EnqueueResult.Inserted({ jobId: id })
   })
 
 export const make = Effect.gen(function* () {

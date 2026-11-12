@@ -1,7 +1,7 @@
 // @effect-diagnostics anyUnknownInErrorContext:off
-// Standalone tooling FFI: Alchemy Test/Core exposes an upstream any error channel.
+// Standalone tooling FFI: Alchemy test/Core exposes an upstream any error channel.
 import * as Cloudflare from "@alchemy.run/cloudflare"
-import * as Core from "alchemy/Test/Core"
+import * as Core from "@alchemy.run/test/Core"
 import { State } from "alchemy/State"
 import { Effect, Exit, Scope } from "effect"
 import { createHash } from "node:crypto"

@@ -21,6 +21,9 @@ const groups = {
       "Job",
       "JobQueue",
       "JobProducer",
+      "JobGroup",
+      "JobApi",
+      "JobApiBuilder",
       "JobIdentity",
       "JobId",
       "JobContract",
@@ -32,24 +35,25 @@ const groups = {
     title: "Payloads and policy",
     intro:
       "Schema owns the encoded/domain boundary. Protected markers and encrypted transformations do not supply cryptographic keys or algorithms. Persisted policy is first-write-wins; a matching duplicate does not refresh its retention or retry budget.",
-    modules: ["JobPayload", "JobPayloadCodec", "JobPolicy", "JobFailure", "FailureCode"]
+    modules: [
+      "JobPayload",
+      "JobPayloadCodec",
+      "JobPolicy",
+      "JobRetryPolicy",
+      "JobFailure",
+      "FailureCode"
+    ]
   },
   workers: {
     title: "Handlers and workers",
     intro:
-      "Install handlers in a shared registry before constructing a worker. A finite drain and a scoped polling Layer are separate operations. Local permits bound claims for one worker; they do not provide global concurrency or exactly-once external delivery.",
-    modules: [
-      "JobRegistry",
-      "JobConsumer",
-      "JobWorker",
-      "JobWorkerRuntime",
-      "PollingJobWorker"
-    ]
+      "Install every catalog group before constructing a worker. A finite drain and a scoped polling Layer are separate operations. Local permits bound claims for one worker; they do not provide global concurrency or exactly-once external delivery.",
+    modules: ["JobStorage", "JobWorker", "JobPolling", "JobSchedule"]
   },
   lifecycle: {
     title: "Lifecycle and operator ports",
     intro:
-      "These are backend and application integration contracts. Handlers receive payload and metadata, never lease tokens or finalization authority. Database time and exact ownership fencing remain backend responsibilities. OutcomeUnknown is an attempt outcome, not a durable state.",
+      "These are storage and application integration contracts. Handlers receive payload and metadata, never lease tokens or finalization authority. Database time and exact ownership fencing remain storage responsibilities. OutcomeUnknown is an attempt outcome, not a durable state.",
     modules: ["JobLifecycle", "JobStore", "JobOperators"]
   },
   postgresql: {

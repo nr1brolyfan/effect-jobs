@@ -6,10 +6,10 @@
   "dependencies": {
     "@base-ui/react": "1.9.0",
     "@effect-jobs/playground-contracts": "file:./contracts.tgz",
-    "@effect/atom-react": "4.0.5",
+    "@effect/atom-react": "4.1.0",
     "@stylexjs/stylex": "0.19.1",
     "@tanstack/react-table": "8.21.3",
-    "effect": "4.0.5",
+    "effect": "4.1.0",
     "effect-jobs": "file:./effect-jobs.tgz",
     "lucide-react": "1.71.0",
     "react": "19.3.0",
@@ -26,6 +26,7 @@
   },
   "overrides": {
     "@reduxjs/toolkit": "2.13.0",
-    "vite": "8.3.4"
+    "vite": "8.3.4",
+    "effect-jobs": "file:./effect-jobs.tgz"
   }
 }

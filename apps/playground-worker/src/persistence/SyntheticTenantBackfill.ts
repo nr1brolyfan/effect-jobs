@@ -41,9 +41,9 @@ export const run = (schema: string) =>
           })
           const definition = definitions.definitions.find(
             (d) =>
-              d.catalog.queue === catalog.queue &&
-              d.catalog.name === catalog.name &&
-              d.catalog.version === catalog.version
+              definitions.catalogFor(d).queue === catalog.queue &&
+              d.name === catalog.name &&
+              d.version === catalog.version
           )
           if (!definition) {
             return null

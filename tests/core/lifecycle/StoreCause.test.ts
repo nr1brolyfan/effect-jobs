@@ -1,3 +1,4 @@
+import type { JobPolicyIncompatible } from "../../../src/JobContract.js"
 import assert from "node:assert/strict"
 import { Cause, Context, Effect, Exit } from "effect"
 import { expect, it } from "vitest"
@@ -55,7 +56,10 @@ const operations: ReadonlyArray<
       store: Store.JobStoreService<PostgreSqlError>
     ) => Effect.Effect<
       unknown,
-      PostgreSqlError | Store.JobStoreProtocolError | Store.JobOwnershipLost
+      | PostgreSqlError
+      | Store.JobStoreProtocolError
+      | Store.JobOwnershipLost
+      | JobPolicyIncompatible
     >
   ]
 > = [
@@ -150,11 +154,9 @@ it("preserves successful claim and reconciliation values without another transac
       })
   }
   const store = makeStore(adapter, "jobs", "payloads", 10)
-  expect(await Effect.runPromise(store.claim(request))).toEqual(
-    Store.ClaimResults.Empty()
-  )
+  expect(await Effect.runPromise(store.claim(request))).toEqual(Store.ClaimResult.Empty())
   expect(await Effect.runPromise(store.reconcileClaim(token))).toEqual(
-    Store.ClaimReconciliations.NotOwned()
+    Store.ClaimReconciliation.NotOwned()
   )
   expect(transactions).toBe(2)
 })

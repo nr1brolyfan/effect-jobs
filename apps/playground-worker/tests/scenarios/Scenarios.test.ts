@@ -4,15 +4,13 @@ import { describe, expect, it } from "vitest"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Lifecycle from "effect-jobs/JobLifecycle"
 import { JobId } from "effect-jobs/JobId"
-import * as Registry from "effect-jobs/JobRegistry"
 import * as Policy from "effect-jobs/JobPolicy"
 import {
-  EnqueueResults,
+  EnqueueResult,
   JobIntegrityConflict,
-  type PreparedJob,
-  type EnqueueResult
+  type PreparedJob
 } from "effect-jobs/JobContract"
-import { JobEnqueue, JobBackendError } from "effect-jobs/JobEnqueue"
+import { JobEnqueue, JobPersistenceError } from "effect-jobs/JobEnqueue"
 import { sandbox } from "@effect-jobs/playground-contracts/Fixtures"
 import { FakeProvider, RetryRejected } from "../../src/providers/FakeProvider.js"
 import * as Provider from "../../src/providers/FakeProviderLayer.js"
@@ -38,11 +36,11 @@ const unwrap = <A, E>(result: Result.Result<A, E>): A => {
 }
 const initial = (availableAt = 1000): Lifecycle.JobSnapshot => ({
   jobId,
-  policy: Policy.make(),
+  policy: Policy.defaultPolicy,
   state: "Pending",
   availableAt,
   updatedAt: 1000,
-  attemptsMade: 0,
+  finalizedAttempts: 0,
   stalledCount: 0,
   lifecycleVersion: 0,
   leaseToken: null,
@@ -52,6 +50,20 @@ const initial = (availableAt = 1000): Lifecycle.JobSnapshot => ({
 })
 
 describe("deterministic application planning", () => {
+  it("shares the named private-data queue with production and routing inventory", () => {
+    expect(definitions.PrivateDataQueue.name).toBe("playground-private")
+    expect(definitions.Producer.slots["private-data-export"].queue).toEqual(
+      definitions.PrivateDataQueue
+    )
+    for (const job of [
+      definitions.PrivateDataExport,
+      definitions.SyntheticDocumentExport
+    ]) {
+      expect(definitions.routes.find((route) => route.job === job)?.queue).toBe(
+        definitions.PrivateDataQueue
+      )
+    }
+  })
   it.each([
     ["success", "success"],
     ["deduplication", "success"],
@@ -68,8 +80,10 @@ describe("deterministic application planning", () => {
       )
       expect(
         planned.every(
-          ({ payload }) =>
-            payload.version === 1 && payload.seed === 123 && payload.behavior === expected
+          (job) =>
+            job.payload.version === 1 &&
+            job.payload.seed === 123 &&
+            job.payload.behavior === expected
         )
       ).toBe(true)
     }
@@ -86,9 +100,7 @@ describe("deterministic application planning", () => {
     const first = await runPromise(jobs())
     expect(await runPromise(jobs())).toEqual(first)
     expect(first.map((job) => job.workload)).toEqual(Definitions.Workload.literals)
-    expect(
-      new Set(definitions.definitions.map((definition) => definition.queue.name)).size
-    ).toBe(4)
+    expect(new Set(definitions.routes.map((route) => route.queue.name)).size).toBe(4)
     expect(new Set(first.map((job) => job.producer.slot)).size).toBe(6)
     expect((await runPromise(Plan.plan(command, sandbox.ref, 1)))[0]?.workload).toBe(
       "image-processing"
@@ -126,22 +138,24 @@ describe("deterministic application planning", () => {
     ).toBe(true)
     const recovered = unwrap(Lifecycle.recoverExpired(active, active.leaseExpiresAt!))
     expect(recovered.stalledCount).toBe(1)
-    expect(recovered.attemptsMade).toBe(0)
-    expect(Lifecycle.attemptNumber(recovered)).toBe(Lifecycle.attemptNumber(active))
+    expect(recovered.finalizedAttempts).toBe(0)
+    expect(Lifecycle.nextFinalizationNumber(recovered)).toBe(
+      Lifecycle.nextFinalizationNumber(active)
+    )
     expect(unwrap(Lifecycle.claim(recovered, "b", active.leaseExpiresAt!, 1)).state).toBe(
       "Active"
     )
   })
 
   it("decodes fixtures for every actual dashboard state and keeps unknown Active", () => {
-    expect(new Set(dashboard.map(({ detail }) => detail.job.state))).toEqual(
+    expect(new Set(dashboard.map((entry) => entry.detail.job.state))).toEqual(
       new Set(Lifecycle.JobState.literals)
     )
-    expect(dashboard.find(({ label }) => label === "unknown")?.detail.job.state).toBe(
+    expect(dashboard.find((entry) => entry.label === "unknown")?.detail.job.state).toBe(
       "Active"
     )
     expect(
-      dashboard.find(({ label }) => label === "delayed")?.detail.job.availableAt
+      dashboard.find((entry) => entry.label === "delayed")?.detail.job.availableAt
     ).toBeGreaterThan(1_800_000_000_000)
     expect(JSON.stringify(dashboard)).not.toMatch(
       /ciphertext|fingerprint|leaseToken|synthetic private export/
@@ -201,12 +215,11 @@ describe("fake provider ledger", () => {
         expect((yield* provider.inspect(input))?.effects).toBe(1)
         const lost = {
           ...input,
-          producer: Effect.runSync(
-            definitions.Producer.identity({
-              slot: input.producer.slot,
-              operationId: "lost"
-            })
-          ),
+          producer: {
+            operation: definitions.Producer.operation,
+            slot: input.producer.slot,
+            operationId: "lost"
+          },
           behavior: "accepted-response-lost" as const
         }
         const failure = yield* Effect.flip(provider.execute(lost))
@@ -239,12 +252,11 @@ describe("fake provider ledger", () => {
         const job = (yield* jobs())[0]!
         const inputs = Array.from({ length: 100 }, (_, index) => ({
           sandbox: job.payload.sandbox,
-          producer: Effect.runSync(
-            definitions.Producer.identity({
-              slot: job.producer.slot,
-              operationId: `independent-${index}`
-            })
-          ),
+          producer: {
+            operation: definitions.Producer.operation,
+            slot: job.producer.slot,
+            operationId: `independent-${index}`
+          },
           workload: job.workload,
           behavior: "success" as const,
           semanticProjection: new Uint8Array([index])
@@ -253,12 +265,11 @@ describe("fake provider ledger", () => {
         expect((yield* provider.inspect(inputs[99]!))?.effects).toBe(1)
         const overflow = {
           ...inputs[0]!,
-          producer: Effect.runSync(
-            definitions.Producer.identity({
-              slot: job.producer.slot,
-              operationId: "overflow"
-            })
-          )
+          producer: {
+            operation: definitions.Producer.operation,
+            slot: job.producer.slot,
+            operationId: "overflow"
+          }
         }
         expect((yield* Effect.flip(provider.execute(overflow)))._tag).toBe("LedgerFull")
         expect(yield* provider.inspect(overflow)).toBeUndefined()
@@ -279,24 +290,23 @@ describe("encrypted consumer payload and installed handlers", () => {
         FakeProvider,
         FakeProvider.of({
           execute: () => Effect.failCause(mixed),
-          inspect: () => Effect.succeed(undefined)
+          inspect: () => Effect.undefined
         })
       )
       const payload = (await runPromise(jobs()))[0]!.payload
-      const producer = Effect.runSync(
-        definitions.Producer.identity({
-          operationId: "mixed",
-          slot: "welcome-email"
-        })
-      )
+      const producer = {
+        operation: definitions.Producer.operation,
+        operationId: "mixed",
+        slot: "welcome-email"
+      }
       const result = await runPromiseExit(
         Handlers.execute("welcome-email")({
           payload,
           context: {
             jobId,
-            catalog: definitions.WelcomeEmail.catalog,
+            catalog: definitions.catalogFor(definitions.WelcomeEmail),
             producer,
-            attemptNumber: 1
+            nextFinalizationNumber: 1
           }
         }).pipe(Effect.provide(providerLayer))
       )
@@ -327,20 +337,19 @@ describe("encrypted consumer payload and installed handlers", () => {
     await runPromise(
       Effect.gen(function* () {
         const provider = yield* FakeProvider
-        const producer = Effect.runSync(
-          definitions.Producer.identity({
-            operationId: "wrong-tenant",
-            slot: "private-data-export"
-          })
-        )
+        const producer = {
+          operation: definitions.Producer.operation,
+          operationId: "wrong-tenant",
+          slot: "private-data-export"
+        }
         const result = yield* Effect.flip(
           Handlers.executeExport({
             payload: { ...payload, tenant: "demo-tenant-a" },
             context: {
               jobId,
-              catalog: definitions.PrivateDataExport.catalog,
+              catalog: definitions.catalogFor(definitions.PrivateDataExport),
               producer,
-              attemptNumber: 1
+              nextFinalizationNumber: 1
             }
           })
         )
@@ -355,27 +364,23 @@ describe("encrypted consumer payload and installed handlers", () => {
   it.each(["retry-then-success", "accepted-response-lost"] as const)(
     "executes %s through installed handlers and actual lifecycle plans",
     async (behavior) => {
-      const dependencies = Layer.mergeAll(
-        Provider.layer,
-        PrivateDocument.keysLayer,
-        Registry.layer
-      )
+      const dependencies = Layer.mergeAll(Provider.layer, PrivateDocument.keysLayer)
       await runPromise(
         Effect.gen(function* () {
-          const registry = yield* Registry.JobRegistry
+          const handlers = yield* definitions.group.handlers
           const provider = yield* FakeProvider
           const job = (yield* jobs())[0]!
           const payload = { ...job.payload, behavior }
           const encoded = yield* Codec.encodeJobPayload(Definitions.Payload, payload)
-          const handler = registry.find(definitions.WelcomeEmail.catalog)!
+          const handler = handlers.welcomeEmail
           const context = {
             jobId,
-            catalog: definitions.WelcomeEmail.catalog,
+            catalog: definitions.catalogFor(definitions.WelcomeEmail),
             producer: job.producer,
-            attemptNumber: 1
+            nextFinalizationNumber: 1
           }
           const active = unwrap(Lifecycle.claim(initial(), "a", 1000, 1))
-          const failure = yield* Effect.flip(handler.execute(encoded, context))
+          const failure = yield* Effect.flip(handler(encoded, context))
           expect(failure._tag).toBe(
             behavior === "retry-then-success" ? "Retry" : "OutcomeUnknown"
           )
@@ -394,10 +399,12 @@ describe("encrypted consumer payload and installed handlers", () => {
           const resumedAt =
             finalization === null ? active.leaseExpiresAt! : waiting.availableAt
           const resumed = unwrap(Lifecycle.claim(waiting, "b", resumedAt, 1))
-          expect(Lifecycle.attemptNumber(resumed)).toBe(finalization === null ? 1 : 2)
-          yield* handler.execute(encoded, {
+          expect(Lifecycle.nextFinalizationNumber(resumed)).toBe(
+            finalization === null ? 1 : 2
+          )
+          yield* handler(encoded, {
             ...context,
-            attemptNumber: Lifecycle.attemptNumber(resumed)
+            nextFinalizationNumber: Lifecycle.nextFinalizationNumber(resumed)
           })
           const completed = unwrap(
             Lifecycle.finalize(
@@ -476,16 +483,16 @@ describe("encrypted consumer payload and installed handlers", () => {
                 ) {
                   return Effect.fail(new JobIntegrityConflict())
                 }
-                return Effect.succeed(EnqueueResults.AlreadyPresent({ jobId }))
+                return Effect.succeed(EnqueueResult.AlreadyPresent({ jobId }))
               }
               stored.set(id, prepared)
-              return Effect.succeed(EnqueueResults.Inserted({ jobId }))
+              return Effect.succeed(EnqueueResult.Inserted({ jobId }))
             })
           ),
         enqueueStandalone: () =>
           Effect.fail(
-            new JobBackendError({
-              reason: "unqualified-backend",
+            new JobPersistenceError({
+              reason: "unqualified-storage",
               commitKnowledge: "NotCommitted"
             })
           )
@@ -505,7 +512,9 @@ describe("encrypted consumer payload and installed handlers", () => {
           ))._tag
         ).toBe("JobIntegrityConflict")
         const prepared = [...stored.values()][0]!
-        expect(prepared.catalog).toEqual(definitions.SyntheticDocumentExport.catalog)
+        expect(prepared.catalog).toEqual(
+          definitions.catalogFor(definitions.SyntheticDocumentExport)
+        )
         expect(
           yield* Codec.decodeJobPayload(
             definitions.SyntheticExportPayload,
@@ -518,16 +527,15 @@ describe("encrypted consumer payload and installed handlers", () => {
     )
   })
 
-  it("installs all six handlers through the public registry and maps known terminal/invariant outcomes", async () => {
-    const dependencies = Layer.mergeAll(
-      Provider.layer,
-      PrivateDocument.keysLayer,
-      Registry.layer
-    )
+  it("installs every group handler and maps known terminal/invariant outcomes", async () => {
+    const dependencies = Layer.mergeAll(Provider.layer, PrivateDocument.keysLayer)
     const installed = Handlers.layerNoDeps.pipe(Layer.provideMerge(dependencies))
     await runPromise(
       Effect.gen(function* () {
-        const registry = yield* Registry.JobRegistry
+        const handlers = yield* definitions.group.handlers
+        const aliases = Object.keys(definitions.group.definitions) as Array<
+          keyof typeof handlers
+        >
         const planned = yield* jobs()
         for (let index = 0; index < definitions.definitions.length; index++) {
           const definition = definitions.definitions[index]!
@@ -548,19 +556,21 @@ describe("encrypted consumer payload and installed handlers", () => {
                     Plan.exportPayload(job.payload)
                   )
                 : yield* Codec.encodeJobPayload(Definitions.Payload, job.payload)
-          yield* registry.find(definition.catalog)!.execute(encoded, {
+          const alias = aliases.find(
+            (alias) => definitions.group.definitions[alias].name === definition.name
+          )!
+          yield* handlers[alias](encoded, {
             jobId,
-            catalog: definition.catalog,
+            catalog: definitions.catalogFor(definition),
             producer:
               definition === definitions.SyntheticDocumentExport
-                ? Effect.runSync(
-                    definitions.Producer.identity({
-                      slot: job.producer.slot,
-                      operationId: "synthetic-document-fixture"
-                    })
-                  )
+                ? {
+                    operation: definitions.Producer.operation,
+                    slot: job.producer.slot,
+                    operationId: "synthetic-document-fixture"
+                  }
                 : job.producer,
-            attemptNumber: 1
+            nextFinalizationNumber: 1
           })
         }
         for (const [behavior, expected] of [
@@ -573,16 +583,15 @@ describe("encrypted consumer payload and installed handlers", () => {
             behavior
           })
           const failure = yield* Effect.flip(
-            registry.find(definitions.WelcomeEmail.catalog)!.execute(encoded, {
+            handlers.welcomeEmail(encoded, {
               jobId,
-              catalog: definitions.WelcomeEmail.catalog,
-              producer: Effect.runSync(
-                definitions.Producer.identity({
-                  slot: job.producer.slot,
-                  operationId: behavior
-                })
-              ),
-              attemptNumber: 1
+              catalog: definitions.catalogFor(definitions.WelcomeEmail),
+              producer: {
+                operation: definitions.Producer.operation,
+                slot: job.producer.slot,
+                operationId: behavior
+              },
+              nextFinalizationNumber: 1
             })
           )
           expect(failure._tag).toBe(expected)

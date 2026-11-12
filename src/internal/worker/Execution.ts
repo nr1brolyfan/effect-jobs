@@ -1,24 +1,37 @@
 import { define as defineFailureCodes } from "../../FailureCode.js"
-import { Cause, Effect, Exit, Result, Schema } from "effect"
+import { Cause, Data, Effect, Exit, Random, Result, Schema } from "effect"
 import { JobPayloadCodecError } from "../../JobContract.js"
 import { CatalogIdentity, ProducerIdentity } from "../../JobIdentity.js"
 import {
   JobFinalizations,
   JobOwnership,
   JobSnapshot,
-  attemptNumber,
+  nextFinalizationNumber,
   finalizationFromFailure
 } from "../../JobLifecycle.js"
-import { EpochMillis, PersistedJobPolicy } from "../../JobPolicy.js"
-import { observe } from "../../JobTelemetry.js"
-import type { JobHandler } from "../../JobRegistry.js"
+import { EpochMillis, JobPolicy } from "../../JobPolicy.js"
+import { observe, schedulingLag } from "../../JobTelemetry.js"
+import type { JobHandler } from "./Handler.js"
 import type { ClaimedJob, FinalizationRequest, JobStoreService } from "../../JobStore.js"
+import { FinalizationResult } from "../../JobStore.js"
 import type { JobFinalization } from "../../JobLifecycle.js"
+
+type AttemptResult = Data.TaggedEnum<{
+  InvalidOwnership: {}
+  Unsupported: {}
+  Abandoned: {}
+  Unknown: {}
+  Complete: {}
+  Retry: {}
+  Dead: {}
+  Isolate: {}
+}>
+const AttemptResult = Data.taggedEnum<AttemptResult>()
 
 const PreparedMetadata = Schema.Struct({
   catalog: CatalogIdentity,
   producer: ProducerIdentity,
-  policy: PersistedJobPolicy,
+  policy: JobPolicy,
   availableAt: EpochMillis.pipe(Schema.optional),
   encoded: Schema.Struct({
     formatVersion: Schema.Literal(1),
@@ -30,7 +43,7 @@ const PreparedMetadata = Schema.Struct({
     )
   })
 })
-const policyEquals = Schema.toEquivalence(PersistedJobPolicy)
+const policyEquals = Schema.toEquivalence(JobPolicy)
 
 const finalizationFor = (exit: Exit.Exit<void, unknown>): JobFinalization | null => {
   if (Exit.isSuccess(exit)) {
@@ -68,7 +81,7 @@ export const executionFor = <E>(
     )
     // Without trustworthy ownership and a full durable budget no write is safe.
     if (Result.isFailure(snapshot) || Result.isFailure(owner)) {
-      return Effect.void
+      return Effect.succeed(AttemptResult.InvalidOwnership())
     }
     const before = snapshot.success
     const ownership = owner.success
@@ -79,10 +92,18 @@ export const executionFor = <E>(
       before.leaseExpiresAt !== ownership.leaseExpiresAt ||
       before.lifecycleVersion !== ownership.lifecycleVersion
     ) {
-      return Effect.void
+      return Effect.succeed(AttemptResult.InvalidOwnership())
     }
 
-    const finalize = (finalization: JobFinalization) => {
+    const finalize = Effect.fnUntraced(function* (finalization: JobFinalization) {
+      yield* Effect.annotateCurrentSpan({ "jobs.attempt_phase": "finalization" })
+      const command =
+        finalization._tag === "Retry" &&
+        before.finalizedAttempts + 1 < before.policy.maxFinalizedAttempts &&
+        before.policy.retrySchedule._tag === "BackoffV1" &&
+        before.policy.retrySchedule.jitter !== "None"
+          ? JobFinalizations.Retry({ ...finalization, jitterSample: yield* Random.next })
+          : finalization
       const request: FinalizationRequest = Object.freeze({
         ownership: Object.freeze(ownership),
         before: Object.freeze({
@@ -94,7 +115,7 @@ export const executionFor = <E>(
             deadRetention: Object.freeze({ ...before.policy.deadRetention })
           })
         }),
-        finalization: Object.freeze(finalization)
+        finalization: Object.freeze(command)
       })
       const write = () =>
         Effect.suspend(() => store.finalize(request)).pipe(
@@ -104,7 +125,8 @@ export const executionFor = <E>(
           }),
           observe("finalize", "finalization")
         )
-      return Effect.gen(function* () {
+      return yield* Effect.gen(function* () {
+        yield* Effect.annotateCurrentSpan({ "jobs.requested": finalization._tag })
         const result = yield* write()
         if (result._tag === "Applied") {
           return result
@@ -123,9 +145,19 @@ export const executionFor = <E>(
         return reconciled._tag === "Applied"
           ? { _tag: "Applied" as const }
           : { _tag: "Unknown" as const }
-      }).pipe(observe("finalize", "protocol"), Effect.ignore)
-    }
+      }).pipe(
+        observe("finalize", "protocol"),
+        Effect.orElseSucceed(() => FinalizationResult.Unknown()),
+        Effect.map((result): AttemptResult =>
+          result._tag === "Unknown"
+            ? AttemptResult.Unknown()
+            : AttemptResult[finalization._tag]()
+        )
+      )
+    })
     return Effect.gen(function* () {
+      yield* Effect.annotateCurrentSpan({ "jobs.attempt_phase": "validation" })
+      yield* schedulingLag(before.updatedAt, before.availableAt)
       const prepared = yield* Schema.decodeUnknownEffect(PreparedMetadata)(
         claim.prepared,
         { onExcessProperty: "error" }
@@ -148,11 +180,11 @@ export const executionFor = <E>(
             entry.version === catalog.version
         )
       ) {
-        return
+        return AttemptResult.Unsupported()
       }
       const handler = find(catalog)
       if (handler === undefined) {
-        return
+        return AttemptResult.Unsupported()
       }
       if (
         encoded.payloadBytes.byteLength > 65_536 ||
@@ -166,23 +198,25 @@ export const executionFor = <E>(
         jobId: before.jobId,
         catalog: Object.freeze(catalog),
         producer: Object.freeze(producer),
-        attemptNumber: attemptNumber(before)
+        nextFinalizationNumber: nextFinalizationNumber(before)
       })
       const copied = {
         formatVersion: encoded.formatVersion,
         payloadBytes: new Uint8Array(encoded.payloadBytes),
         semanticProjectionBytes: new Uint8Array(encoded.semanticProjectionBytes)
       }
+      yield* Effect.annotateCurrentSpan({ "jobs.attempt_phase": "decode-and-handler" })
       const exit = yield* Effect.suspend(() => handler.execute(copied, context)).pipe(
         observe("execute", "handler"),
         Effect.exit
       )
       const finalization = finalizationFor(exit)
       if (finalization !== null) {
-        yield* finalize(finalization)
+        return yield* finalize(finalization)
       }
-    }).pipe(Effect.timeout(before.policy.attemptTimeoutMillis), Effect.ignore)
-  })
+      return AttemptResult.Unknown()
+    }).pipe(Effect.timeout(before.policy.attemptTimeoutMillis))
+  }).pipe(observe("attempt", "protocol"), Effect.asVoid, Effect.ignore)
 
 const internalCodes = defineFailureCodes({
   invalid_claimed_artifact: "invalid_claimed_artifact"

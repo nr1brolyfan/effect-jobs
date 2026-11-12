@@ -1,4 +1,4 @@
-// Native SQL APIs are intentionally pinned to Effect 4.0.5 by this checked example.
+// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this checked example.
 // @effect-diagnostics unstableApiUsage:off
 // Checked examples: run against an empty qualification database, outside a worker.
 // #region imports
@@ -6,6 +6,8 @@ import assert from "node:assert/strict"
 import { Effect, Result } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import { OrderJobs } from "#orders/contracts/jobs"
+import * as JobProducer from "effect-jobs/JobProducer"
+import { OrdersQueue } from "#orders/contracts/jobs"
 import { ApiDefinitions } from "#api/orders/Definitions"
 import { placeOrderWithInvoice } from "#api/orders/PlaceOrderWithInvoice"
 import { placeOrder } from "#api/orders/PlaceOrder"
@@ -77,10 +79,13 @@ export const payloadConflict = Effect.gen(function* () {
   const { PlaceOrderWithInvoice } = yield* ApiDefinitions
   const pg = yield* PgClient.PgClient
   const input = { operationId: "example-payload", payload: { orderId: "order-a" } }
-  yield* pg.withTransaction(PlaceOrderWithInvoice.enqueue("send-confirmation", input))
+  yield* pg.withTransaction(
+    PlaceOrderWithInvoice.enqueue({ ...input, slot: "send-confirmation" })
+  )
   const exit = yield* pg
     .withTransaction(
-      PlaceOrderWithInvoice.enqueue("send-confirmation", {
+      PlaceOrderWithInvoice.enqueue({
+        slot: "send-confirmation",
         ...input,
         payload: { orderId: "order-b" }
       })
@@ -99,19 +104,21 @@ export const catalogConflict = Effect.gen(function* () {
   const pg = yield* PgClient.PgClient
   const operationId = "example-catalog"
   yield* pg.withTransaction(
-    PlaceOrderWithInvoice.enqueue("send-confirmation", {
+    PlaceOrderWithInvoice.enqueue({
+      slot: "send-confirmation",
       operationId,
       payload: { orderId: "order-a" }
     })
   )
-  // Explicit low-level identity is structural, not a typed slot/job binding.
+  // A new deployment may change the slot contract; retained content still conflicts.
+  const changedProducer = yield* JobProducer.make("order.place").pipe(
+    JobProducer.withSlot("send-confirmation", SendInvoice, { queue: OrdersQueue })
+  )
   const exit = yield* pg
     .withTransaction(
-      SendInvoice.enqueue({
-        producer: yield* PlaceOrderWithInvoice.identity({
-          operationId,
-          slot: "send-confirmation"
-        }),
+      changedProducer.enqueue({
+        operationId,
+        slot: "send-confirmation",
         payload: { invoiceId: "order-a" }
       })
     )

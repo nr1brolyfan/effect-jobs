@@ -37,7 +37,7 @@ export const detail = Schema.decodeUnknownSync(JobDetail)({
     availableAt: 100,
     updatedAt: 900,
     completedAt: 900,
-    attemptsMade: 2,
+    finalizedAttempts: 2,
     stalledCount: 0,
     lifecycleVersion: 2,
     lastFailureCode: "fake_provider_terminal_rejected"
@@ -47,7 +47,7 @@ export const detail = Schema.decodeUnknownSync(JobDetail)({
     operationId: "test",
     slot: "welcome-email"
   },
-  policy: Policy.make(),
+  policy: Policy.defaultPolicy,
   relations: { syntheticActor: payload.actor, syntheticOrderId: payload.order },
   createdAt: null,
   payload: {

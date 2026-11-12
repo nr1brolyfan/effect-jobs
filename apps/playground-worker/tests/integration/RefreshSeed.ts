@@ -18,9 +18,9 @@ export const seed = (
     config,
     Effect.void,
     Effect.gen(function* () {
-      const backend = yield* PostgreSqlJobs
+      const jobs = yield* PostgreSqlJobs
       const sql = yield* SqlClient
-      return yield* backend.withTransaction(() =>
+      return yield* jobs.withTransaction(() =>
         Effect.gen(function* () {
           const authority = yield* sql.unsafe<{ now: string }>(
             `SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now FROM "${config.schema}".sandboxes WHERE sandbox_id=$1 AND generation=$2 AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint FOR UPDATE`,
@@ -29,26 +29,29 @@ export const seed = (
           if (!authority.length || !Number.isInteger(count) || count < 1 || count > 60) {
             return yield* Effect.die("invalid qualification seed")
           }
-          const ids: string[] = []
-          for (let index = 0; index < count; index++) {
-            const [job] = yield* Plan.plan(
-              {
-                sandbox: ref,
-                requestId: `refresh-${workload}-${index}`,
-                scenario: "success",
-                count: 1
-              },
-              ref,
-              workload,
-              Number(authority[0]!.now) + 3600000
-            )
-            const result = yield* Plan.enqueue(job!)
-            yield* sql.unsafe(
-              `INSERT INTO "${config.schema}".associations VALUES($1,$2,$3,'{}'::jsonb)`,
-              [ref.sandboxId, ref.generation, result.jobId]
-            )
-            ids.push(result.jobId)
-          }
+          const ids = yield* Effect.forEach(
+            Array.from({ length: count }, (_, index) => index),
+            (index) =>
+              Effect.gen(function* () {
+                const [job] = yield* Plan.plan(
+                  {
+                    sandbox: ref,
+                    requestId: `refresh-${workload}-${index}`,
+                    scenario: "success",
+                    count: 1
+                  },
+                  ref,
+                  workload,
+                  Number(authority[0]!.now) + 3600000
+                )
+                const result = yield* Plan.enqueue(job!)
+                yield* sql.unsafe(
+                  `INSERT INTO "${config.schema}".associations VALUES($1,$2,$3,'{}'::jsonb)`,
+                  [ref.sandboxId, ref.generation, result.jobId]
+                )
+                return result.jobId
+              })
+          )
           yield* sql.unsafe(
             `UPDATE "${config.schema}".sandboxes SET retained_jobs=retained_jobs+$2 WHERE sandbox_id=$1`,
             [ref.sandboxId, count]

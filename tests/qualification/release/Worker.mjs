@@ -1,3 +1,5 @@
+import * as JobApi from "effect-jobs/JobApi"
+import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 import assert from "node:assert/strict"
 import { inspect } from "node:util"
 import {
@@ -14,14 +16,12 @@ import {
 import { TestClock } from "effect/testing"
 import * as Job from "effect-jobs/Job"
 import * as Queue from "effect-jobs/JobQueue"
-import * as Producer from "effect-jobs/JobProducer"
 import * as Policy from "effect-jobs/JobPolicy"
 import * as Codec from "effect-jobs/JobPayloadCodec"
-import * as Consumer from "effect-jobs/JobConsumer"
-import * as Registry from "effect-jobs/JobRegistry"
+import * as Group from "effect-jobs/JobGroup"
 import * as Worker from "effect-jobs/JobWorker"
-import { drain } from "effect-jobs/JobWorkerRuntime"
-import { layerForPlan } from "effect-jobs/PollingJobWorker"
+import * as Storage from "effect-jobs/JobStorage"
+import * as Polling from "effect-jobs/JobPolling"
 import * as Lifecycle from "effect-jobs/JobLifecycle"
 import * as Store from "effect-jobs/JobStore"
 import { JobId } from "effect-jobs/JobId"
@@ -30,22 +30,15 @@ const sentinel = "PRIVATE_INSTALLED_PAYLOAD"
 const queue = Queue.make("installed")
 const definition = Effect.runSync(
   Job.make({
-    queue,
     name: "neutral",
     version: 1,
-    payload: Schema.Struct({ value: Schema.String }),
-    encodePayload: Codec.encodeJobPayload
+    payload: Schema.Struct({ value: Schema.String })
   })
 )
-const consumer = Effect.runSync(
-  Consumer.make(queue, {
-    localConcurrency: 1,
-    claimLimitPerRun: 1,
-    recoveryLimitPerRun: 1
-  })
-)
-const plan = Effect.runSync(Consumer.plan(consumer))
-const policy = Policy.make()
+const group = Group.make("installed", { neutral: definition })
+const catalog = { queue: queue.name, name: definition.name, version: definition.version }
+const limits = { maxJobs: 1, recoveryLimit: 1 }
+const policy = Policy.defaultPolicy
 const spans = []
 const tracer = Tracer.make({
   span(options) {
@@ -72,7 +65,7 @@ await Effect.runPromise(
             state: "Pending",
             availableAt: 100000,
             updatedAt: 100000,
-            attemptsMade: 0,
+            finalizedAttempts: 0,
             stalledCount: 0,
             lifecycleVersion: 0,
             leaseToken: null,
@@ -86,65 +79,76 @@ await Effect.runPromise(
         )
       )
       const ownership = Result.getOrThrow(Lifecycle.ownershipOf(snapshot))
-      const producer = yield* Producer.make({
-        operation: "installed.produce",
-        slots: { run: definition }
-      })
+
       const prepared = {
-        catalog: definition.catalog,
-        producer: yield* producer.identity({
+        catalog,
+        producer: {
+          operation: "installed.produce",
           operationId: "PRIVATE_INSTALLED_OPERATION",
           slot: "run"
-        }),
+        },
         policy,
         encoded
       }
+      /** @type {import("effect-jobs/JobStore").JobStoreService} */
       const store = {
         claim: (request) =>
           Effect.sync(() => {
             tokens.push(request.leaseToken)
             claims++
             return claims === 1
-              ? Store.ClaimResults.Claimed({
+              ? Store.ClaimResult.Claimed({
                   claim: {
                     snapshot: { ...snapshot, leaseToken: request.leaseToken },
                     ownership: { ...ownership, leaseToken: request.leaseToken },
                     prepared
                   }
                 })
-              : Store.ClaimResults.Empty()
+              : Store.ClaimResult.Empty()
           }),
         finalize: () =>
           Effect.sync(() => {
             finalized = true
-            return Store.FinalizationResults.Applied()
+            return Store.FinalizationResult.Applied()
           }),
         recoverExpired: () => Effect.succeed(0),
         reconcileClaim: () => Effect.die("unexpected reconciliation"),
         release: () => Effect.die("unexpected release"),
         reconcileFinalization: () => Effect.die("unexpected finalization reconciliation")
       }
-      yield* Layer.build(
-        definition.handlerLayer(
-          ({ payload }) =>
+      const handlers = JobApiBuilder.group(
+        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+        group.name,
+        (_handlers) =>
+          _handlers.handle("neutral", (input) =>
             Effect.sync(() => {
-              assert.equal(payload.value, sentinel)
+              assert.equal(input.payload.value, sentinel)
               executions++
-            }),
-          Codec.decodeJobPayload
+            })
+          )
+      )
+      const worker = yield* Worker.make(
+        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+        { queues: [{ queue }] }
+      ).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Storage.layer({ store, operationResponseBudgetMillis: 100 }),
+            handlers
+          )
         )
       )
-      const worker = yield* Worker.make(store, {
-        catalog: [definition],
-        operationResponseBudgetMillis: 100
-      })
-      yield* drain(consumer).pipe(Effect.provideService(Worker.JobWorker, worker))
+      yield* Worker.drain(queue, limits).pipe(
+        Effect.provideService(Worker.JobWorker, worker)
+      )
       assert.equal(executions, 1)
       assert.equal(finalized, true)
       const scope = yield* Scope.make()
       yield* Scope.provide(scope)(
         Layer.build(
-          layerForPlan(plan).pipe(Layer.provide(Layer.succeed(Worker.JobWorker, worker)))
+          Polling.layer([queue], limits).pipe(
+            Layer.provide(Layer.succeed(Worker.JobWorker, worker))
+          )
         )
       )
       yield* Effect.yieldNow
@@ -177,7 +181,7 @@ await Effect.runPromise(
       const claimSpan = spans.find((span) => span.name === "effect-jobs.claim")
       assert.deepEqual(claimSpan.status.exit, Exit.succeed(undefined))
     }).pipe(
-      Effect.provide(Layer.mergeAll(Registry.layer, TestClock.layer(), Logger.layer([]))),
+      Effect.provide(Layer.mergeAll(TestClock.layer(), Logger.layer([]))),
       Effect.provideService(Tracer.Tracer, tracer)
     )
   )

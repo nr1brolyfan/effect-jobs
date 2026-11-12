@@ -101,7 +101,7 @@ try {
         type: "module",
         dependencies: {
           "effect-jobs": `file:${archive}`,
-          effect: "4.0.5",
+          effect: "4.1.0",
           typescript: "7.0.2",
           "@types/node": "26.4.1",
           vitest: "4.1.11",

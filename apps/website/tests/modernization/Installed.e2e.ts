@@ -17,6 +17,15 @@ test("fresh packed Bun graph preserves exact-six foreign strict FAIL and indepen
     const receipt = JSON.parse(await readFile(receiptPath, "utf8")) as {
       readonly result: string
       readonly acceptedForeignDiagnosticContract: string
+      readonly tools: { readonly effect: string; readonly atomReact: string }
+      readonly resolution: {
+        readonly canonicalJobsManifest: string
+        readonly contractsJobsManifest: string
+      }
+      readonly foreignStrictDiagnostics: ReadonlyArray<{
+        readonly path: string
+        readonly code: string
+      }>
       readonly commandResults: ReadonlyArray<{
         readonly name: string
         readonly exitCode: number
@@ -24,6 +33,19 @@ test("fresh packed Bun graph preserves exact-six foreign strict FAIL and indepen
     }
     assert.equal(receipt.result, "FAIL")
     assert.equal(receipt.acceptedForeignDiagnosticContract, "exact-six FAIL")
+    assert.equal(receipt.tools.effect, "4.1.0")
+    assert.equal(receipt.tools.atomReact, "4.1.0")
+    assert.equal(
+      receipt.resolution.contractsJobsManifest,
+      receipt.resolution.canonicalJobsManifest
+    )
+    assert.equal(receipt.foreignStrictDiagnostics.length, 6)
+    assert(
+      receipt.foreignStrictDiagnostics.every(
+        (diagnostic) =>
+          diagnostic.path === "node_modules/@reduxjs/toolkit/dist/index.d.ts"
+      )
+    )
     for (const name of [
       "install",
       "own-types",
