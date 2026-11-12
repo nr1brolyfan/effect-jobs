@@ -140,7 +140,7 @@ const authoritySql = {
   withTransaction: () => Effect.failCause(mixed)
 }
 const services = await Effect.runPromise(
-  Authority.make("review").pipe(
+  Authority.make("review", authoritySql).pipe(
     Effect.provideService(SqlClient, authoritySql),
     Effect.provide(Layer.mock(JobEnqueue, {})),
     Effect.provide(Documents.keysLayer)

@@ -50,7 +50,7 @@ export const probe = (url, schema, alarm, checks = []) =>
       }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
       yield* backend.ready
       const sql = (text, params = []) => client.unsafe(text, params)
-      const services = yield* Authority.make(schema).pipe(
+      const services = yield* Authority.make(schema, client).pipe(
         Effect.provideService(JobEnqueue, backend.producer),
         Effect.provideService(SqlClient, client)
       )

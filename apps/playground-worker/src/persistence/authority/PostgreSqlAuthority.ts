@@ -2,6 +2,9 @@
 // @effect-diagnostics unstableApiUsage:off
 import { Cause, Effect, Layer, Option, Redacted, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
+import * as Pg from "@effect/sql-pg/PgClient"
+import * as Drizzle from "drizzle-orm/effect-postgres"
+import { and, eq } from "drizzle-orm"
 import { controls } from "./TransactionControls.js"
 import {
   SandboxAuthority,
@@ -11,12 +14,13 @@ import { SandboxView, limits } from "@effect-jobs/playground-contracts/Sandbox"
 import type { SandboxAccess, SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import {
   CommandTransactions,
-  CommandTransactionFailure,
-  StoredReceipt
+  CommandTransactionFailure
 } from "../commands/Transactions.js"
 import * as Tables from "./Schema.js"
 import * as Mode from "./PrivateMode.js"
 import * as Traffic from "../../scenarios/PrivateTraffic.js"
+import * as CommandTables from "./CommandTables.js"
+import * as CommandRows from "./CommandRows.js"
 
 export const viewerMillis = 15_000
 const dbTime = "floor(extract(epoch FROM clock_timestamp())*1000)::bigint"
@@ -32,20 +36,24 @@ const digest = (value: string) =>
       ).join(""),
     catch: () => fail("unavailable")
   })
-const view = (row: Record<string, unknown>, local = false) =>
-  Schema.decodeUnknownEffect(SandboxView)(
+const view = Effect.fnUntraced(function* (row: Record<string, unknown>, local = false) {
+  const generation = yield* CommandRows.decodeGeneration(row.generation)
+  const expiresAt = yield* CommandRows.decodeMillis(row.expires_at)
+  const capacity =
+    row.demo_owned === true
+      ? undefined
+      : {
+          mode: local ? ("local" as const) : ("bounded" as const),
+          retainedJobs: yield* CommandRows.decodeCount(row.retained_jobs),
+          admittedCommands: yield* CommandRows.decodeCount(
+            row.admitted_commands === undefined ? 0 : row.admitted_commands
+          )
+        }
+  return yield* Schema.decodeUnknownEffect(SandboxView)(
     {
-      ref: { sandboxId: row.sandbox_id, generation: Number(row.generation) },
-      expiresAt: Number(row.expires_at),
-      ...(row.demo_owned === true
-        ? {}
-        : {
-            capacity: {
-              mode: local ? "local" : "bounded",
-              retainedJobs: Number(row.retained_jobs),
-              admittedCommands: Number(row.admitted_commands ?? 0)
-            }
-          }),
+      ref: { sandboxId: row.sandbox_id, generation },
+      expiresAt,
+      ...(capacity === undefined ? {} : { capacity }),
       capabilities: {
         runScenario: row.demo_owned !== true,
         resetSandbox: row.demo_owned !== true,
@@ -56,10 +64,18 @@ const view = (row: Record<string, unknown>, local = false) =>
     },
     { onExcessProperty: "error" }
   ).pipe(Effect.mapError(() => fail("unavailable")))
+})
 
-export const make = (schema: string) =>
+export const make = (schema: string, client: Pg.PgClient) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
+    if (client !== sql) {
+      return yield* new CommandTransactionFailure({ commitKnowledge: "NotCommitted" })
+    }
+    const db = yield* Drizzle.makeWithDefaults().pipe(
+      Effect.provideService(Pg.PgClient, client)
+    )
+    const tables = CommandTables.make(schema)
     const local = yield* Mode.LocalPrivate
     const retainedMaximum = Mode.retainedMaximum(local)
     const admissionMaximum = Mode.admissionMaximum(local)
@@ -78,6 +94,27 @@ export const make = (schema: string) =>
             )
           )
         )
+    // Compile only: .toSQL() encodes bound parameters but performs no query or
+    // result mapping. The existing same-client query boundary owns execution.
+    const typed = (statement: {
+      readonly toSQL: () => { readonly sql: string; readonly params: unknown[] }
+    }) =>
+      Effect.gen(function* () {
+        if (Option.isNone(yield* Effect.serviceOption(client.transactionService))) {
+          return yield* new CommandTransactionFailure({ commitKnowledge: "NotCommitted" })
+        }
+        const compiled = yield* Effect.try({
+          try: () => statement.toSQL(),
+          catch: () => new CommandTransactionFailure({ commitKnowledge: "Unknown" })
+        })
+        return yield* query(compiled.sql, compiled.params)
+      })
+    const identity = (ref: SandboxRef, requestId: string, operation: string) => ({
+      sandboxId: ref.sandboxId,
+      generation: ref.generation,
+      operation,
+      requestId
+    })
     const described = (id: string) =>
       query(
         `SELECT s.*,((SELECT count(*) FROM ${t.admission} WHERE sandbox_id=s.sandbox_id)+(SELECT count(*) FROM "${schema}"."repair_admission" WHERE sandbox_id=s.sandbox_id)) AS admitted_commands FROM ${t.sandboxes} s WHERE sandbox_id=$1`,
@@ -90,7 +127,7 @@ export const make = (schema: string) =>
           [id]
         )
         const [clock] = yield* query(`SELECT ${dbTime} AS db_now`)
-        return rows.map((row) => ({ ...row, db_now: clock!.db_now }))
+        return rows.map((row) => ({ ...row, db_now: clock?.db_now }))
       })
     const guard = (rows: ReadonlyArray<Record<string, unknown>>, expected?: SandboxRef) =>
       Effect.gen(function* () {
@@ -98,13 +135,21 @@ export const make = (schema: string) =>
         if (!row) {
           return yield* fail("not-found")
         }
-        if (Number(row.expires_at) <= Number(row.db_now)) {
+        const expiresAt = yield* CommandRows.decodeMillis(row.expires_at)
+        const dbNow = yield* CommandRows.decodeMillis(row.db_now)
+        const generation = yield* CommandRows.decodeGeneration(row.generation)
+        if (expiresAt <= dbNow) {
           return yield* fail("sandbox-expired")
         }
-        if (expected && Number(row.generation) !== expected.generation) {
+        if (expected && generation !== expected.generation) {
           return yield* fail("stale-generation")
         }
-        return row
+        const guarded: Record<string, unknown> & {
+          readonly expires_at: number
+          readonly db_now: number
+          readonly generation: number
+        } = { ...row, expires_at: expiresAt, db_now: dbNow, generation }
+        return guarded
       })
     const publicEffect = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       effect.pipe(
@@ -202,18 +247,19 @@ export const make = (schema: string) =>
       describe: renew
     })
     const receipt = (ref: SandboxRef, requestId: string, operation: string) =>
-      query(
-        `SELECT receipt FROM ${t.receipts} WHERE sandbox_id=$1 AND generation=$2 AND operation=$3 AND request_id=$4`,
-        [ref.sandboxId, ref.generation, operation, requestId]
-      ).pipe(
-        Effect.flatMap((rows) =>
-          rows[0]
-            ? Schema.decodeUnknownEffect(StoredReceipt)(rows[0].receipt, {
-                onExcessProperty: "error"
-              }).pipe(Effect.mapError(() => fail("unavailable")))
-            : Effect.succeed(null)
-        )
-      )
+      typed(
+        db
+          .select({ receipt: tables.receipts.receipt })
+          .from(tables.receipts)
+          .where(
+            and(
+              eq(tables.receipts.sandboxId, ref.sandboxId),
+              eq(tables.receipts.generation, ref.generation),
+              eq(tables.receipts.operation, operation),
+              eq(tables.receipts.requestId, requestId)
+            )
+          )
+      ).pipe(Effect.flatMap(CommandRows.decodeReceiptRows))
     const transactions = CommandTransactions.of({
       owned: (access, request, operation, body) =>
         Effect.gen(function* () {
@@ -233,35 +279,37 @@ export const make = (schema: string) =>
                 if (admitted.demo_owned === true) {
                   return yield* fail("capability-unavailable")
                 }
-                const prior = yield* query(
-                  `SELECT request_id FROM ${t.admission} WHERE sandbox_id=$1 AND generation=$2 AND operation=$3 AND request_id=$4`,
-                  [
-                    request.sandbox.sandboxId,
-                    request.sandbox.generation,
-                    operation,
-                    request.requestId
-                  ]
+                const prior = yield* typed(
+                  db
+                    .select({ request_id: tables.admission.requestId })
+                    .from(tables.admission)
+                    .where(
+                      and(
+                        eq(tables.admission.sandboxId, request.sandbox.sandboxId),
+                        eq(tables.admission.generation, request.sandbox.generation),
+                        eq(tables.admission.operation, operation),
+                        eq(tables.admission.requestId, request.requestId)
+                      )
+                    )
                 )
-                if (prior.length) {
+                if ((yield* CommandRows.decodeAdmissionRows(prior)).length) {
                   return false
                 }
                 const [budget] = yield* query(
                   `SELECT count(*) AS n FROM ${t.admission} WHERE sandbox_id=$1`,
                   [request.sandbox.sandboxId]
                 )
-                if (Number(budget!.n) >= admissionMaximum) {
+                if ((yield* CommandRows.decodeCount(budget?.n)) >= admissionMaximum) {
                   return yield* fail("limit-reached")
                 }
-                const inserted = yield* query(
-                  `INSERT INTO ${t.admission}(sandbox_id,generation,operation,request_id) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING request_id`,
-                  [
-                    request.sandbox.sandboxId,
-                    request.sandbox.generation,
-                    operation,
-                    request.requestId
-                  ]
+                const inserted = yield* typed(
+                  db
+                    .insert(tables.admission)
+                    .values(identity(request.sandbox, request.requestId, operation))
+                    .onConflictDoNothing()
+                    .returning({ request_id: tables.admission.requestId })
                 )
-                return inserted.length === 1
+                return (yield* CommandRows.decodeAdmissionRows(inserted)).length === 1
               })
             )
           )
@@ -271,7 +319,7 @@ export const make = (schema: string) =>
                 const row = yield* guard(yield* locked(request.sandbox.sandboxId))
                 if (
                   request.requestId.startsWith("auto-") &&
-                  Number(row.viewer_until) <= Number(row.db_now)
+                  (yield* CommandRows.decodeCount(row.viewer_until)) <= row.db_now
                 ) {
                   return yield* fail("sandbox-expired")
                 }
@@ -282,8 +330,8 @@ export const make = (schema: string) =>
                 return yield* body({
                   admission: fresh ? "Fresh" : "Unresolved",
                   current,
-                  dbNow: Number(row.db_now),
-                  expiresAt: Number(row.expires_at),
+                  dbNow: row.db_now,
+                  expiresAt: row.expires_at,
                   receipt: (req, op) => receipt(req.sandbox, req.requestId, op),
                   reserve: (count) =>
                     Effect.gen(function* () {
@@ -300,16 +348,18 @@ export const make = (schema: string) =>
                       }
                     }),
                   associate: (jobId, job) =>
-                    query(`INSERT INTO ${t.associations} VALUES ($1,$2,$3,$4::jsonb)`, [
-                      current.sandboxId,
-                      current.generation,
-                      jobId,
-                      JSON.stringify({
-                        syntheticActor: job.payload.actor,
-                        syntheticTenant: job.payload.tenant,
-                        syntheticOrderId: job.payload.order
+                    typed(
+                      db.insert(tables.associations).values({
+                        sandboxId: current.sandboxId,
+                        generation: current.generation,
+                        jobId,
+                        relations: {
+                          syntheticActor: job.payload.actor,
+                          syntheticTenant: job.payload.tenant,
+                          syntheticOrderId: job.payload.order
+                        }
                       })
-                    ]).pipe(Effect.asVoid),
+                    ).pipe(Effect.asVoid),
                   advanceGeneration: (expected) =>
                     Effect.gen(function* () {
                       // Reset retains all evidence and seeds the same sandbox's new generation.
@@ -318,9 +368,10 @@ export const make = (schema: string) =>
                         [expected.sandboxId]
                       )
                       if (
-                        Number(capacity!.retained_jobs) >
+                        (yield* CommandRows.decodeCount(capacity?.retained_jobs)) >
                           retainedMaximum - Traffic.starterCount ||
-                        Number(capacity!.admissions) >= admissionMaximum
+                        (yield* CommandRows.decodeCount(capacity?.admissions)) >=
+                          admissionMaximum
                       ) {
                         return yield* fail("limit-reached")
                       }
@@ -337,13 +388,12 @@ export const make = (schema: string) =>
                       return advanced
                     }),
                   saveReceipt: (value) =>
-                    query(`INSERT INTO ${t.receipts} VALUES ($1,$2,$3,$4,$5::jsonb)`, [
-                      request.sandbox.sandboxId,
-                      request.sandbox.generation,
-                      operation,
-                      request.requestId,
-                      JSON.stringify(value)
-                    ]).pipe(Effect.asVoid),
+                    typed(
+                      db.insert(tables.receipts).values({
+                        ...identity(request.sandbox, request.requestId, operation),
+                        receipt: value
+                      })
+                    ).pipe(Effect.asVoid),
                   audit: (entry) =>
                     query(`INSERT INTO ${t.audit} VALUES ($1,$2,$3,$4,$5,${dbTime})`, [
                       current.sandboxId,
@@ -378,10 +428,16 @@ export const make = (schema: string) =>
 export const authorityLayerNoDeps = (schema: string) =>
   Layer.effect(
     SandboxAuthority,
-    make(schema).pipe(Effect.map((services) => services.authority))
+    Pg.PgClient.pipe(
+      Effect.flatMap((client) => make(schema, client)),
+      Effect.map((services) => services.authority)
+    )
   )
 export const transactionsLayerNoDeps = (schema: string) =>
   Layer.effect(
     CommandTransactions,
-    make(schema).pipe(Effect.map((services) => services.transactions))
+    Pg.PgClient.pipe(
+      Effect.flatMap((client) => make(schema, client)),
+      Effect.map((services) => services.transactions)
+    )
   )

@@ -54,7 +54,19 @@ const fixture = (failure?: Cause.Cause<SqlError>, rollbackFails = false) =>
       compiler: PgClient.makeCompiler(),
       spanAttributes: []
     }).pipe(Effect.provide(Reactivity.layer))
-    const services = yield* Authority.make("authority_cause").pipe(
+    const pg: PgClient.PgClient = Object.assign(sql, {
+      [PgClient.TypeId]: PgClient.TypeId,
+      config: {},
+      json: () => {
+        throw new Error("Unexpected JSON fragment")
+      },
+      listen: () => Effect.die("Unexpected LISTEN"),
+      notify: () => Effect.die("Unexpected NOTIFY")
+    } satisfies Pick<
+      PgClient.PgClient,
+      PgClient.TypeId | "config" | "json" | "listen" | "notify"
+    >)
+    const services = yield* Authority.make("authority_cause", pg).pipe(
       Effect.provideService(SqlClient.SqlClient, sql),
       Effect.provide(Layer.mock(JobEnqueue, {})),
       Effect.provide(Documents.keysLayer)

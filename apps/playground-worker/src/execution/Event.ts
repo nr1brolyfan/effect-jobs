@@ -133,7 +133,7 @@ export const run = <A, E>(
       )
       yield* backend.ready
       const stable = yield* keys(config)
-      const authority = (yield* Authority.make(config.schema).pipe(
+      const authority = (yield* Authority.make(config.schema, client).pipe(
         Effect.provideService(SqlClient, client),
         Effect.provideService(Definitions.Definitions, definitions),
         Effect.provideService(JobEnqueue, backend.producer),
@@ -198,6 +198,7 @@ export const run = <A, E>(
         ),
         Effect.provideService(Definitions.Definitions, definitions),
         Effect.provideService(SqlClient, client),
+        Effect.provideService(Pg.PgClient, client),
         Effect.provideService(Backend.PostgreSqlJobs, backend),
         Effect.provideService(DocumentKeys, stable)
       )

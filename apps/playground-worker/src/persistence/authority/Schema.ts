@@ -1,18 +1,28 @@
 // App-owned DDL proposal. The serial migration owner invokes this explicitly.
 // No lifecycle writes, migrations or pools start on import.
+export const relationNames = {
+  sandboxes: "sandboxes",
+  associations: "associations",
+  receipts: "command_receipts",
+  admission: "command_admission",
+  audit: "command_audit",
+  ledger: "provider_ledger",
+  jobs: "jobs"
+} as const
+
 export const relations = (schema: string) => {
   if (!/^[a-z][a-z0-9_]{0,62}$/.test(schema)) {
     throw new Error("Invalid playground schema")
   }
   const table = (name: string) => `"${schema}"."${name}"`
   return {
-    sandboxes: table("sandboxes"),
-    associations: table("associations"),
-    receipts: table("command_receipts"),
-    admission: table("command_admission"),
-    audit: table("command_audit"),
-    ledger: table("provider_ledger"),
-    jobs: table("jobs")
+    sandboxes: table(relationNames.sandboxes),
+    associations: table(relationNames.associations),
+    receipts: table(relationNames.receipts),
+    admission: table(relationNames.admission),
+    audit: table(relationNames.audit),
+    ledger: table(relationNames.ledger),
+    jobs: table(relationNames.jobs)
   }
 }
 export const proposal = (schema: string) => {
