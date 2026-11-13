@@ -1,4 +1,4 @@
-import { Data, Effect, Result, Schema } from "effect"
+import { Data, Effect, Match, Result, Schema } from "effect"
 import * as Lifecycle from "../../JobLifecycle.js"
 import * as Store from "../../JobStore.js"
 import { EpochMillis } from "../../JobPolicy.js"
@@ -108,20 +108,25 @@ export const resolveClaim = <E, R>(
       return ClaimResolution.Skipped()
     }
     const reconciled = yield* store.reconcileClaim(request.leaseToken)
-    switch (reconciled._tag) {
-      case "Owned":
-        return ClaimResolution.Ready({ claim: reconciled.claim })
-      case "NotOwned":
-        return ClaimResolution.Skipped()
-      case "Unknown":
-        return ClaimResolution.Deferred()
-      case "InsufficientLease": {
-        const released = yield* store.release(reconciled.ownership, "BeforeExecution")
-        return released._tag === "Applied"
-          ? ClaimResolution.Skipped()
-          : ClaimResolution.Deferred()
-      }
-    }
+    return yield* Match.value(reconciled).pipe(
+      Match.tag("Owned", (owned) =>
+        Effect.succeed(ClaimResolution.Ready({ claim: owned.claim }))
+      ),
+      Match.tag("NotOwned", () => Effect.succeed(ClaimResolution.Skipped())),
+      Match.tag("Unknown", () => Effect.succeed(ClaimResolution.Deferred())),
+      Match.tag("InsufficientLease", (insufficient) =>
+        store
+          .release(insufficient.ownership, "BeforeExecution")
+          .pipe(
+            Effect.map((released) =>
+              released._tag === "Applied"
+                ? ClaimResolution.Skipped()
+                : ClaimResolution.Deferred()
+            )
+          )
+      ),
+      Match.exhaustive
+    )
   })
 
 export type FinalizationResolution = "Applied" | "OwnershipLost" | "Deferred"
@@ -140,16 +145,19 @@ export const resolveFinalization = <E, R>(
       return "Applied"
     }
     const reconciled = yield* store.reconcileFinalization(request)
-    switch (reconciled._tag) {
-      case "Applied":
-        return "Applied"
-      case "OwnershipLost":
-        return "OwnershipLost"
-      case "Unknown":
-        return "Deferred"
-      case "StillOwned": {
-        const repeated = yield* store.finalize(request)
-        return repeated._tag === "Applied" ? "Applied" : "Deferred"
-      }
-    }
+    return yield* Match.value(reconciled).pipe(
+      Match.tag("Applied", () => Effect.succeed("Applied" as const)),
+      Match.tag("OwnershipLost", () => Effect.succeed("OwnershipLost" as const)),
+      Match.tag("Unknown", () => Effect.succeed("Deferred" as const)),
+      Match.tag("StillOwned", () =>
+        store
+          .finalize(request)
+          .pipe(
+            Effect.map((repeated) =>
+              repeated._tag === "Applied" ? ("Applied" as const) : ("Deferred" as const)
+            )
+          )
+      ),
+      Match.exhaustive
+    )
   })

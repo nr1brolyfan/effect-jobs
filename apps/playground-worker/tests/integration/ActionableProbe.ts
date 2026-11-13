@@ -58,7 +58,9 @@ export const scenario = (
     }),
     eventDefinitions
   ).pipe(
-    Effect.catchTag("PlaygroundError", (error) => Effect.succeed({ code: error.code }))
+    Effect.catchTags({
+      PlaygroundError: (error) => Effect.succeed({ code: error.code })
+    })
   )
 
 export const operator = (

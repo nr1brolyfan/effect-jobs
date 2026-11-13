@@ -1,3 +1,4 @@
+import type { PublicErrorCode } from "@effect-jobs/playground-contracts/Services"
 import { LocalPrivate } from "../persistence/authority/PrivateMode.js"
 import { Repairs } from "@effect-jobs/playground-contracts/Repairs"
 import * as RepairHttp from "./commands/HttpRepairs.js"
@@ -30,7 +31,7 @@ export const cookie = (request: Request, name: string) => {
     .filter((part) => part.startsWith(name + "="))
   return values.length === 1 ? values[0]!.slice(name.length + 1) : undefined
 }
-const reject = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
+const reject = (code: PublicErrorCode) => new PlaygroundError({ code })
 export const authenticate = (request: Request, config: OriginPolicy.Config) =>
   Effect.gen(function* () {
     if (!(yield* LocalPrivate)) {

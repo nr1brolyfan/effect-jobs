@@ -1,4 +1,4 @@
-import { Effect, Result, Schema } from "effect"
+import { Effect, Match, Result, Schema } from "effect"
 import type { JobDefinition } from "../../Job.js"
 import type {
   JobOperatorsService,
@@ -35,15 +35,23 @@ const planResult = <A>(result: Result.Result<A, Lifecycle.JobLifecycleError>) =>
     onFailure: (error) =>
       Effect.fail(
         reject(
-          error.reason === "invalid-snapshot"
-            ? "invalid-artifact"
-            : error.reason === "invalid-command"
-              ? "invalid-input"
-              : error.reason === "state-version-conflict" ||
-                  error.reason === "already-due" ||
-                  error.reason === "arithmetic-bound"
-                ? error.reason
-                : "not-eligible"
+          Match.value(error.reason).pipe(
+            Match.when("invalid-snapshot", () => "invalid-artifact" as const),
+            Match.when("invalid-command", () => "invalid-input" as const),
+            Match.whenOr(
+              "state-version-conflict",
+              "already-due",
+              "arithmetic-bound",
+              (reason) => reason
+            ),
+            Match.whenOr(
+              "not-eligible",
+              "ownership-lost",
+              "execution-started",
+              () => "not-eligible" as const
+            ),
+            Match.exhaustive
+          )
         )
       )
   })

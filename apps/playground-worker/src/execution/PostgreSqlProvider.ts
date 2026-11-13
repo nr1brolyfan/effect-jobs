@@ -1,7 +1,7 @@
 import * as NativeTransaction from "../persistence/NativeTransaction.js"
 // Durable synthetic provider only: no network/payment/email and no lifecycle SQL.
 // @effect-diagnostics unstableApiUsage:off
-import { Cause, Effect, Layer } from "effect"
+import { Cause, Effect, Layer, Match } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import {
   FakeProvider,
@@ -120,18 +120,16 @@ export const make = (schema: string) =>
               if (alreadyAccepted) {
                 return undefined
               }
-              switch (command.behavior) {
-                case "success":
-                  return undefined
-                case "retry-then-success":
-                  return invocations === 1 ? new RetryRejected() : undefined
-                case "dead":
-                  return new TerminalRejected()
-                case "isolated":
-                  return new InvariantViolation()
-                case "accepted-response-lost":
-                  return new ResponseLost()
-              }
+              return Match.value(command.behavior).pipe(
+                Match.when("success", () => undefined),
+                Match.when("retry-then-success", () =>
+                  invocations === 1 ? new RetryRejected() : undefined
+                ),
+                Match.when("dead", () => new TerminalRejected()),
+                Match.when("isolated", () => new InvariantViolation()),
+                Match.when("accepted-response-lost", () => new ResponseLost()),
+                Match.exhaustive
+              )
             })
           ).pipe(
             Effect.catchCause((cause) =>

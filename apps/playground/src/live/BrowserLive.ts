@@ -12,7 +12,7 @@ import {
 export interface BrowserOptions<A> {
   readonly sandbox: SandboxView
   readonly url: string
-  readonly snapshot: () => Effect.Effect<A, PlaygroundError>
+  readonly snapshot: (current: () => boolean) => Effect.Effect<A, PlaygroundError>
   readonly render: (snapshot: A) => void
   readonly unavailable: () => void
   readonly expired?: () => void
@@ -94,11 +94,13 @@ export const scoped = <A>(options: BrowserOptions<A>) =>
               return
             }
             const captured = revision
-            yield* Effect.suspend(options.snapshot).pipe(
+            yield* Effect.suspend(() =>
+              options.snapshot(() => active && captured === revision)
+            ).pipe(
               Effect.timeout("4 seconds"),
               Effect.match({
                 onFailure: (error) => {
-                  if (!active) {
+                  if (!active || captured !== revision) {
                     return
                   }
                   if (

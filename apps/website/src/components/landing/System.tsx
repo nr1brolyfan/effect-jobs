@@ -2,6 +2,7 @@
 import * as stylex from "@stylexjs/stylex"
 import { styles } from "./LandingStyles.js"
 import { RegistryProvider, useAtom } from "@effect/atom-react"
+import { Match } from "effect"
 import * as Atom from "effect/reactivity/Atom"
 import { createElement, useEffect, useRef, useState } from "react"
 import { registerPlaybackHost } from "../illustrations/PlaybackHost.js"
@@ -46,18 +47,18 @@ function Simulation(props: Props) {
   }
   const detail = (index: number) => {
     const value = values[index]!
-    switch (stateOf(value)) {
-      case "Active":
-        return `Worker ${Number(value.split(":")[1]) + 1} · attempt ${index === 1 && frame >= 9 ? 2 : 1}`
-      case "RetryScheduled":
-        return "Confirmed failure · waiting for stored delay"
-      case "Completed":
-        return "Finalization confirmed"
-      case "Pending":
-        return "Committed · waiting for a worker"
-      case "Awaiting request":
-        return "No job enqueued yet"
-    }
+    return Match.value(stateOf(value)).pipe(
+      Match.when(
+        "Active",
+        () =>
+          `Worker ${Number(value.split(":")[1]) + 1} · attempt ${index === 1 && frame >= 9 ? 2 : 1}`
+      ),
+      Match.when("RetryScheduled", () => "Confirmed failure · waiting for stored delay"),
+      Match.when("Completed", () => "Finalization confirmed"),
+      Match.when("Pending", () => "Committed · waiting for a worker"),
+      Match.when("Awaiting request", () => "No job enqueued yet"),
+      Match.exhaustive
+    )
   }
   // Observation and one bounded timeout are browser FFI, owned by this React effect.
   const initialized = useRef(false)

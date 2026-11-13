@@ -1,4 +1,4 @@
-import { Effect, Layer } from "effect"
+import { Effect, Layer, Match } from "effect"
 import {
   FakeProvider,
   InvariantViolation,
@@ -60,24 +60,26 @@ export const layer = Layer.sync(FakeProvider, () => {
           if (entry.accepted) {
             return undefined
           }
-          switch (command.behavior) {
-            case "retry-then-success":
+          return Match.value(command.behavior).pipe(
+            Match.when("retry-then-success", () => {
               if (entry.invocations === 1) {
                 return new RetryRejected()
               }
-              break
-            case "dead":
-              return new TerminalRejected()
-            case "isolated":
-              return new InvariantViolation()
-            case "success":
-              break
-            case "accepted-response-lost":
+              entry.accepted = true
+              return undefined
+            }),
+            Match.when("dead", () => new TerminalRejected()),
+            Match.when("isolated", () => new InvariantViolation()),
+            Match.when("success", () => {
+              entry.accepted = true
+              return undefined
+            }),
+            Match.when("accepted-response-lost", () => {
               entry.accepted = true
               return new ResponseLost()
-          }
-          entry.accepted = true
-          return undefined
+            }),
+            Match.exhaustive
+          )
         })
         if (failure) {
           return yield* failure

@@ -1,4 +1,4 @@
-import { Data, Duration, Effect, Schema } from "effect"
+import { Data, Duration, Effect, Match, Schema } from "effect"
 import {
   ScenarioCommand,
   type ScenarioId
@@ -19,22 +19,15 @@ export interface PlannedJob {
 }
 
 const workloads = Definitions.Workload.literals
-const behavior = (scenario: ScenarioId): Definitions.Behavior => {
-  switch (scenario) {
-    case "delayed-success":
-    case "success":
-    case "deduplication":
-      return "success"
-    case "retry-then-success":
-      return "retry-then-success"
-    case "isolated":
-      return "isolated"
-    case "terminal-failure":
-      return "dead"
-    case "unknown-outcome":
-      return "accepted-response-lost"
-  }
-}
+const behavior = (scenario: ScenarioId): Definitions.Behavior =>
+  Match.value(scenario).pipe(
+    Match.whenOr("delayed-success", "success", "deduplication", () => "success" as const),
+    Match.when("retry-then-success", () => "retry-then-success" as const),
+    Match.when("isolated", () => "isolated" as const),
+    Match.when("terminal-failure", () => "dead" as const),
+    Match.when("unknown-outcome", () => "accepted-response-lost" as const),
+    Match.exhaustive
+  )
 
 /** Pure app planning plus a stable hashed producer namespace; no DB writes.
  * The caller supplies authenticated authority and a fixed server-owned seed.
@@ -131,24 +124,31 @@ export const enqueue = (job: PlannedJob) =>
       payload: job.payload,
       ...(job.availableAt === undefined ? {} : { availableAt: job.availableAt })
     }
-    switch (job.workload) {
-      case "welcome-email":
-        return yield* producer.enqueue({ ...input, slot: "welcome-email" })
-      case "image-processing":
-        return yield* producer.enqueue({ ...input, slot: "image-processing" })
-      case "webhook-delivery":
-        return yield* producer.enqueue({ ...input, slot: "webhook-delivery" })
-      case "private-data-export":
-        // All planner inputs are fixed synthetic data, including private sandboxes.
-        // Keep the generic private-key catalog for existing artifacts and consumers.
-        return yield* producer.enqueue({
+    return yield* Match.value(job.workload).pipe(
+      Match.when("welcome-email", () =>
+        producer.enqueue({ ...input, slot: "welcome-email" })
+      ),
+      Match.when("image-processing", () =>
+        producer.enqueue({ ...input, slot: "image-processing" })
+      ),
+      Match.when("webhook-delivery", () =>
+        producer.enqueue({ ...input, slot: "webhook-delivery" })
+      ),
+      // All planner inputs are fixed synthetic data, including private sandboxes.
+      // Keep the generic private-key catalog for existing artifacts and consumers.
+      Match.when("private-data-export", () =>
+        producer.enqueue({
           slot: "private-data-export",
           ...input,
           payload: exportPayload(job.payload)
         })
-      case "catalog-sync":
-        return yield* producer.enqueue({ ...input, slot: "catalog-sync" })
-      case "simulated-payment":
-        return yield* producer.enqueue({ ...input, slot: "simulated-payment" })
-    }
+      ),
+      Match.when("catalog-sync", () =>
+        producer.enqueue({ ...input, slot: "catalog-sync" })
+      ),
+      Match.when("simulated-payment", () =>
+        producer.enqueue({ ...input, slot: "simulated-payment" })
+      ),
+      Match.exhaustive
+    )
   })

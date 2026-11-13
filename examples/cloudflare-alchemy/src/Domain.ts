@@ -1,6 +1,6 @@
 import * as JobApi from "effect-jobs/JobApi"
 import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
-import { Context, Data, Effect, Layer, Schema } from "effect"
+import { Context, Data, Effect, Layer, Match, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
 import * as Group from "effect-jobs/JobGroup"
 import * as Queue from "effect-jobs/JobQueue"
@@ -26,11 +26,11 @@ export const decodeRequest = Schema.decodeUnknownEffect(IssueRequest, {
 
 // DEVELOPMENT ONLY. The credential attests a principal; request data cannot select a tenant.
 export const admitDevelopment = (authorization: string) =>
-  authorization === "Bearer development-alice"
-    ? Effect.succeed("tenant-a")
-    : authorization === "Bearer development-bob"
-      ? Effect.succeed("tenant-b")
-      : Effect.fail(new AdmissionRejected())
+  Match.value(authorization).pipe(
+    Match.when("Bearer development-alice", () => Effect.succeed("tenant-a")),
+    Match.when("Bearer development-bob", () => Effect.succeed("tenant-b")),
+    Match.orElse(() => Effect.fail(new AdmissionRejected()))
+  )
 
 export const BillingQueue = Queue.make("billing")
 // One explicit setup graph owns the contract, producer, group and catalog.

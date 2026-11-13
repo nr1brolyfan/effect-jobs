@@ -1,4 +1,4 @@
-import { Effect, Result, Schema } from "effect"
+import { Effect, Match, Result, Schema } from "effect"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import {
   JobRepairReason,
@@ -220,20 +220,21 @@ export const investigate = (
   row: Readonly<Record<string, unknown>>,
   command: JobRepairCommand
 ) => {
-  switch (command.investigation._tag) {
-    case "KnownFailure":
-      return knownFailure(row)
+  return Match.value(command.investigation).pipe(
+    Match.tag("KnownFailure", () =>
+      knownFailure(row)
         ? Effect.succeed("KnownFailure" as const)
         : Effect.fail(rejected("investigation-required"))
-    case "ConfirmedNotApplied":
-      return row.state === "Isolated"
+    ),
+    Match.tag("ConfirmedNotApplied", () =>
+      row.state === "Isolated"
         ? Effect.succeed("KnownFailure" as const)
         : Effect.fail(rejected("investigation-required"))
-    case "AcceptDuplicateRisk":
-      return Effect.succeed("Unknown" as const)
-    case "Unconfirmed":
-      return Effect.fail(rejected("investigation-required"))
-  }
+    ),
+    Match.tag("AcceptDuplicateRisk", () => Effect.succeed("Unknown" as const)),
+    Match.tag("Unconfirmed", () => Effect.fail(rejected("investigation-required"))),
+    Match.exhaustive
+  )
 }
 
 const fieldChanges = (

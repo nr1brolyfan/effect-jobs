@@ -1,7 +1,10 @@
+// @effect-diagnostics unstableApiUsage:off
+// Test-only bundling provides the pinned Effect 4.1.0 Node platform services.
 import { build } from "esbuild"
-import * as Bundle from "alchemy/Bundle"
+import { WorkerBundle } from "@alchemy.run/cloudflare/Workers/Sources/Rolldown"
+import { NodeServices } from "@effect/platform-node"
 import { Effect } from "effect"
-import { mkdirSync, writeFileSync } from "node:fs"
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import { dirname, resolve } from "node:path"
 const require = createRequire(import.meta.url)
@@ -32,30 +35,33 @@ const runtimeOptions = {
   }
 }
 await build(runtimeOptions)
-// Use Alchemy's own runtime bundler/pure annotations for the complete native
-// entrypoint. Plain esbuild retains plan-only LocalRuntime module side effects.
+// Exercise the same Cloudflare bundler pipeline as Alchemy's Worker provider,
+// including nodejs_compat plugins; the generic Node bundler leaves createRequire
+// in the Worker runtime. Both fixture directories are siblings of src/, so the
+// generated .mts entry preserves the original fixture bytes and relative imports.
+const fullAppEntry = resolve(".toolchain/FullApp.mts")
+writeFileSync(fullAppEntry, readFileSync("tests/FullApp.mts.txt"))
 const applicationBundle = await Effect.runPromise(
-  Bundle.build(
-    {
-      input: "tests/FullApp.mts.txt",
-      moduleTypes: { ".txt": "ts" },
-      platform: "node",
-      external: (id) =>
-        id.startsWith("cloudflare:") ||
-        id.startsWith("node:") ||
-        id === "react-devtools-core",
-      resolve: {
-        conditionNames: ["worker", "module", "default"],
-        alias: runtimeOptions.alias
+  Effect.gen(function* () {
+    const bundler = yield* WorkerBundle
+    return yield* bundler.build({
+      id: "InvoiceApplication",
+      main: fullAppEntry,
+      compatibility: { date: "2026-10-01", flags: ["nodejs_compat"] },
+      entry: { kind: "external" },
+      stack: { name: "JobsExample", stage: "test" },
+      extraOptions: {
+        input: { resolve: { alias: runtimeOptions.alias } },
+        output: {
+          dir: resolve(".toolchain/full-app"),
+          format: "esm",
+          sourcemap: false,
+          entryFileNames: "[name].mjs",
+          chunkFileNames: "[name]-[hash].mjs"
+        }
       }
-    },
-    {
-      dir: ".toolchain/full-app",
-      format: "esm",
-      entryFileNames: "[name].mjs",
-      chunkFileNames: "[name]-[hash].mjs"
-    }
-  )
+    })
+  }).pipe(Effect.provide(NodeServices.layer))
 )
 
 writeFileSync(

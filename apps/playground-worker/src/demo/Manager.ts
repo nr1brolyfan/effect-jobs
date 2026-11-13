@@ -1,7 +1,7 @@
 import * as NativeTransaction from "../persistence/NativeTransaction.js"
 // App-owned demo metadata/retention only. Lifecycle changes go through effect-jobs.
 // @effect-diagnostics unstableApiUsage:off
-import { Duration, Effect, Schema } from "effect"
+import { Duration, Effect, Schema, SchemaGetter, SchemaParser } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
@@ -31,6 +31,23 @@ const capabilities = {
   cancelJob: false
 }
 
+const DemoViewRow = Schema.Struct({
+  sandbox_id: Schema.Unknown.pipe(Schema.optionalKey),
+  generation: Schema.Unknown.pipe(Schema.optionalKey),
+  expires_at: Schema.Unknown.pipe(Schema.optionalKey)
+}).pipe(
+  Schema.decodeTo(Schema.toType(SandboxView), {
+    decode: SchemaGetter.transformEffect((row) =>
+      SchemaParser.decodeUnknownEffect(SandboxView)({
+        ref: { sandboxId: row.sandbox_id, generation: Number(row.generation) },
+        expiresAt: Number(row.expires_at),
+        capabilities
+      })
+    ),
+    encode: SchemaGetter.forbiddenEncoding
+  })
+)
+
 export const current = (schema: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
@@ -50,11 +67,7 @@ export const current = (schema: string) =>
       `UPDATE ${t.sandboxes} SET viewer_until=expires_at WHERE sandbox_id=$1`,
       [row.sandbox_id]
     )
-    return yield* Schema.decodeUnknownEffect(SandboxView)({
-      ref: { sandboxId: row.sandbox_id, generation: Number(row.generation) },
-      expiresAt: Number(row.expires_at),
-      capabilities
-    })
+    return yield* Schema.decodeUnknownEffect(DemoViewRow)(row)
   })
 
 const seedBatch = (

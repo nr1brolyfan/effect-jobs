@@ -2,7 +2,16 @@ import * as NativeTransaction from "../persistence/NativeTransaction.js"
 import * as Queue from "effect-jobs/JobQueue"
 import * as JobApi from "effect-jobs/JobApi"
 // @effect-diagnostics unstableApiUsage:off
-import { Clock, Context, Effect, Layer, Schema } from "effect"
+import {
+  Clock,
+  Context,
+  Effect,
+  Match,
+  Layer,
+  Schema,
+  SchemaGetter,
+  SchemaParser
+} from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import * as Worker from "effect-jobs/JobWorker"
 import * as Storage from "effect-jobs/JobStorage"
@@ -17,6 +26,21 @@ import * as Mode from "../persistence/authority/PrivateMode.js"
 import * as Tables from "../persistence/authority/Schema.js"
 import * as RepairReconciliation from "./RepairReconciliation.js"
 import { WakeAlarm } from "../cloudflare/WakeCycle.js"
+
+const ScopeRow = Schema.Struct({
+  sandbox_id: Schema.Unknown.pipe(Schema.optionalKey),
+  generation: Schema.Unknown.pipe(Schema.optionalKey)
+}).pipe(
+  Schema.decodeTo(Schema.toType(SandboxRef), {
+    decode: SchemaGetter.transformEffect((row) =>
+      SchemaParser.decodeUnknownEffect(SandboxRef, { onExcessProperty: "error" })({
+        sandboxId: row.sandbox_id,
+        generation: Number(row.generation)
+      })
+    ),
+    encode: SchemaGetter.forbiddenEncoding
+  })
+)
 
 export const limits = Object.freeze({
   cycleMillis: 5000,
@@ -138,10 +162,7 @@ export const generate = (schema: string) =>
         if (Number(row.viewer_until) <= now || Number(row.expires_at) <= now) {
           return
         }
-        const ref = yield* Schema.decodeUnknownEffect(SandboxRef)({
-          sandboxId: row.sandbox_id,
-          generation: Number(row.generation)
-        })
+        const ref = yield* Schema.decodeUnknownEffect(ScopeRow)(row)
         const sequence = Number(row.retained_jobs)
         yield* traffic.append(
           ref,
@@ -202,11 +223,12 @@ export const run = (schema: string, queue: QueueName) =>
           100,
           Math.min(
             after.activeMillis,
-            result._tag === "MoreWork"
-              ? 100
-              : result._tag === "Backoff"
-                ? 1000
-                : after.nextMillis,
+            Match.value(result).pipe(
+              Match.tag("MoreWork", () => 100),
+              Match.tag("Backoff", () => 1000),
+              Match.tag("Idle", () => after.nextMillis),
+              Match.exhaustive
+            ),
             limits.repairMillis
           )
         )

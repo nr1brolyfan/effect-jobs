@@ -1,4 +1,4 @@
-import { Effect, Result, Schema } from "effect"
+import { Effect, Result, Schema, SchemaGetter, SchemaParser } from "effect"
 import * as Lifecycle from "../../JobLifecycle.js"
 import { JobStoreProtocolError } from "../../JobStore.js"
 import type { ClaimedJob } from "../../JobStore.js"
@@ -9,31 +9,57 @@ import type { TransactionQuery } from "../PostgreSqlTransaction.js"
 /** pg int8 is text by default; accept only exact bounded decimal integer values. */
 export const integer = (value: unknown): unknown =>
   typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value) ? Number(value) : value
-export const snapshot = (row: Record<string, unknown>) =>
-  Result.gen(function* () {
-    const policy = yield* Result.mapError(
-      Schema.decodeUnknownResult(PersistedJobPolicy, { onExcessProperty: "error" })(
-        row.policy
-      ),
-      () => new Lifecycle.JobLifecycleError({ reason: "invalid-snapshot" })
-    )
-    return yield* Lifecycle.validateSnapshot({
-      jobId: row.id,
-      policy,
-      state: row.state,
-      availableAt: integer(row.available_at),
-      updatedAt: integer(row.updated_at),
-      createdAt: row.created_at === null ? null : integer(row.created_at),
-      finalizedAttempts: integer(row.attempts_made),
-      stalledCount: integer(row.stalled_count),
-      lifecycleVersion: integer(row.lifecycle_version),
-      leaseToken: row.lease_token,
-      leaseExpiresAt:
-        row.lease_expires_at === null ? null : integer(row.lease_expires_at),
-      completedAt: row.completed_at === null ? null : integer(row.completed_at),
-      lastFailureCode: row.last_failure_code
-    })
+// Keep the exact int8 spelling policy, then validate through the target Schema.
+export const Integer = Schema.Unknown.pipe(
+  Schema.decode({
+    decode: SchemaGetter.transform(integer),
+    encode: SchemaGetter.forbiddenEncoding
   })
+)
+const StoredPolicy = Schema.Unknown.pipe(
+  Schema.decodeTo(Schema.toType(PersistedJobPolicy), {
+    decode: SchemaGetter.transformEffect((input) =>
+      SchemaParser.decodeUnknownEffect(PersistedJobPolicy, { onExcessProperty: "error" })(
+        input
+      )
+    ),
+    encode: SchemaGetter.forbiddenEncoding
+  })
+)
+const SnapshotRow = Schema.Struct({
+  jobId: Schema.Unknown,
+  policy: StoredPolicy,
+  state: Schema.Unknown,
+  availableAt: Integer,
+  updatedAt: Integer,
+  createdAt: Integer,
+  finalizedAttempts: Integer,
+  stalledCount: Integer,
+  lifecycleVersion: Integer,
+  leaseToken: Schema.Unknown,
+  leaseExpiresAt: Integer,
+  completedAt: Integer,
+  lastFailureCode: Schema.Unknown
+}).pipe(
+  Schema.encodeKeys({
+    jobId: "id",
+    availableAt: "available_at",
+    updatedAt: "updated_at",
+    createdAt: "created_at",
+    finalizedAttempts: "attempts_made",
+    stalledCount: "stalled_count",
+    lifecycleVersion: "lifecycle_version",
+    leaseToken: "lease_token",
+    leaseExpiresAt: "lease_expires_at",
+    completedAt: "completed_at",
+    lastFailureCode: "last_failure_code"
+  }),
+  Schema.decodeTo(Lifecycle.JobSnapshot)
+)
+export const snapshot = (row: Record<string, unknown>) =>
+  Schema.decodeUnknownResult(SnapshotRow)(row).pipe(
+    Result.mapError(() => new Lifecycle.JobLifecycleError({ reason: "invalid-snapshot" }))
+  )
 export const claimArtifact = (
   row: Record<string, unknown>,
   stored: Lifecycle.JobSnapshot
@@ -74,12 +100,14 @@ export const fromResult = <A>(result: Result.Result<A, Lifecycle.JobLifecycleErr
         })
       )
   })
+const ClockRow = Schema.Struct({ now: Integer.pipe(Schema.decodeTo(EpochMillis)) })
 export const dbTime = (query: TransactionQuery) =>
   query
     .query("SELECT floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint AS now")
     .pipe(
       Effect.flatMap((rows) =>
-        Schema.decodeUnknownEffect(EpochMillis)(integer(rows[0]?.now)).pipe(
+        Schema.decodeUnknownEffect(ClockRow)(rows[0]).pipe(
+          Effect.map((row) => row.now),
           Effect.mapError(() => new JobStoreProtocolError({ reason: "invalid-artifact" }))
         )
       )

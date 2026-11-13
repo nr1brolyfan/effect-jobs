@@ -112,15 +112,19 @@ try {
           report.stage = `preserve historical ${name}`
           const after = yield* snapshot(name)
           const original = new Map(
-            rows.map(({ row }) => [
+            rows.map((entry) => [
               JSON.stringify(
                 name === "associations"
-                  ? [row.sandbox_id, row.generation, row.job_id]
+                  ? [entry.row.sandbox_id, entry.row.generation, entry.row.job_id]
                   : name === "command_audit"
-                    ? row
-                    : (row.id ?? row.job_id ?? row.request_id ?? row.sandbox_id ?? row)
+                    ? entry.row
+                    : (entry.row.id ??
+                      entry.row.job_id ??
+                      entry.row.request_id ??
+                      entry.row.sandbox_id ??
+                      entry.row)
               ),
-              row
+              entry.row
             ])
           )
           assert.equal(after.length, rows.length)

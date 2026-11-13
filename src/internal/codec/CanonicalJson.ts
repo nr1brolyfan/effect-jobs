@@ -1,4 +1,4 @@
-import { Effect, Result } from "effect"
+import { Effect, Match, Result } from "effect"
 import { JobPayloadCodecError, maximumJobPayloadDepth } from "../../JobContract.js"
 
 const encoder = new TextEncoder()
@@ -61,116 +61,122 @@ export const canonicalText = (
       if (item === null) {
         return yield* emit("null")
       }
-      switch (typeof item) {
-        case "boolean":
-          return yield* emit(JSON.stringify(item))
-        case "string":
-          return yield* quote(item)
-        case "number":
-          if (Number.isFinite(item)) {
-            return yield* emit(JSON.stringify(item))
-          }
-          break
-        case "object": {
-          if (seen.has(item)) {
-            break
-          }
-          const array = yield* Result.try({
-            try: () => Array.isArray(item),
-            catch: (error) =>
-              error instanceof JobPayloadCodecError
-                ? error
-                : new JobPayloadCodecError({ reason: "invalid-json-value" })
-          })
-          const plain =
-            array ||
-            (yield* Result.try({
-              try: () =>
-                Object.getPrototypeOf(item) === Object.prototype ||
-                Object.getPrototypeOf(item) === null,
-              catch: (error) =>
-                error instanceof JobPayloadCodecError
-                  ? error
-                  : new JobPayloadCodecError({ reason: "invalid-json-value" })
-            }))
-          if (!plain) {
-            break
-          }
-          seen.add(item)
-          const descriptors = yield* Result.try({
-            try: () => Object.getOwnPropertyDescriptors(item),
-            catch: (error) =>
-              error instanceof JobPayloadCodecError
-                ? error
-                : new JobPayloadCodecError({ reason: "invalid-json-value" })
-          })
-          const keys = Reflect.ownKeys(descriptors)
-          for (const key of keys) {
-            if (array && key === "length") {
-              continue
-            }
-            const descriptor = descriptors[key as string]!
-            if (
-              typeof key !== "string" ||
-              !validScalars(key) ||
-              !descriptor.enumerable ||
-              !("value" in descriptor)
-            ) {
-              return yield* Result.fail(
-                new JobPayloadCodecError({ reason: "invalid-json-value" })
-              )
-            }
-          }
-          let text: string
-          if (array) {
-            yield* emit("[]")
-            const size = yield* Result.try({
-              try: () => (Array.isArray(item) ? item.length : 0),
-              catch: (error) =>
-                error instanceof JobPayloadCodecError
-                  ? error
-                  : new JobPayloadCodecError({ reason: "invalid-json-value" })
-            })
-            if (keys.length !== size + 1) {
-              return yield* Result.fail(
-                new JobPayloadCodecError({ reason: "invalid-json-value" })
-              )
-            }
-            const entries: Array<string> = []
-            for (let index = 0; index < size; index++) {
-              if (index > 0) {
-                yield* emit(",")
-              }
-              const descriptor = descriptors[String(index)]
-              if (descriptor === undefined) {
+      return yield* Match.value(item).pipe(
+        Match.when(Match.boolean, (item) => emit(JSON.stringify(item))),
+        Match.when(Match.string, quote),
+        Match.when(Match.number, (item) =>
+          Number.isFinite(item)
+            ? emit(JSON.stringify(item))
+            : Result.fail(new JobPayloadCodecError({ reason: "invalid-json-value" }))
+        ),
+        Match.when(
+          (item): item is object => typeof item === "object" && item !== null,
+          (item) =>
+            Result.gen(function* () {
+              if (seen.has(item)) {
                 return yield* Result.fail(
                   new JobPayloadCodecError({ reason: "invalid-json-value" })
                 )
               }
-              entries.push(yield* visit(descriptor.value, depth + 1))
-            }
-            text = `[${entries.join(",")}]`
-          } else {
-            yield* emit("{}")
-            const entries: Array<string> = []
-            // Symbols have already failed above; filter preserves the string order.
-            for (const key of keys.filter((key) => typeof key === "string").sort()) {
-              if (entries.length > 0) {
-                yield* emit(",")
+              const array = yield* Result.try({
+                try: () => Array.isArray(item),
+                catch: (error) =>
+                  error instanceof JobPayloadCodecError
+                    ? error
+                    : new JobPayloadCodecError({ reason: "invalid-json-value" })
+              })
+              const plain =
+                array ||
+                (yield* Result.try({
+                  try: () =>
+                    Object.getPrototypeOf(item) === Object.prototype ||
+                    Object.getPrototypeOf(item) === null,
+                  catch: (error) =>
+                    error instanceof JobPayloadCodecError
+                      ? error
+                      : new JobPayloadCodecError({ reason: "invalid-json-value" })
+                }))
+              if (!plain) {
+                return yield* Result.fail(
+                  new JobPayloadCodecError({ reason: "invalid-json-value" })
+                )
               }
-              const name = yield* quote(key)
-              yield* emit(":")
-              const entry = yield* visit(descriptors[key]!.value, depth + 1)
-              entries.push(`${name}:${entry}`)
-            }
-            text = `{${entries.join(",")}}`
-          }
-          seen.delete(item)
-          return text
-        }
-      }
-      return yield* Result.fail(
-        new JobPayloadCodecError({ reason: "invalid-json-value" })
+              seen.add(item)
+              const descriptors = yield* Result.try({
+                try: () => Object.getOwnPropertyDescriptors(item),
+                catch: (error) =>
+                  error instanceof JobPayloadCodecError
+                    ? error
+                    : new JobPayloadCodecError({ reason: "invalid-json-value" })
+              })
+              const keys = Reflect.ownKeys(descriptors)
+              for (const key of keys) {
+                if (array && key === "length") {
+                  continue
+                }
+                const descriptor = descriptors[key as string]!
+                if (
+                  typeof key !== "string" ||
+                  !validScalars(key) ||
+                  !descriptor.enumerable ||
+                  !("value" in descriptor)
+                ) {
+                  return yield* Result.fail(
+                    new JobPayloadCodecError({ reason: "invalid-json-value" })
+                  )
+                }
+              }
+              let text: string
+              if (array) {
+                yield* emit("[]")
+                const size = yield* Result.try({
+                  try: () => (Array.isArray(item) ? item.length : 0),
+                  catch: (error) =>
+                    error instanceof JobPayloadCodecError
+                      ? error
+                      : new JobPayloadCodecError({ reason: "invalid-json-value" })
+                })
+                if (keys.length !== size + 1) {
+                  return yield* Result.fail(
+                    new JobPayloadCodecError({ reason: "invalid-json-value" })
+                  )
+                }
+                const entries: Array<string> = []
+                for (let index = 0; index < size; index++) {
+                  if (index > 0) {
+                    yield* emit(",")
+                  }
+                  const descriptor = descriptors[String(index)]
+                  if (descriptor === undefined) {
+                    return yield* Result.fail(
+                      new JobPayloadCodecError({ reason: "invalid-json-value" })
+                    )
+                  }
+                  entries.push(yield* visit(descriptor.value, depth + 1))
+                }
+                text = `[${entries.join(",")}]`
+              } else {
+                yield* emit("{}")
+                const entries: Array<string> = []
+                // Symbols have already failed above; filter preserves the string order.
+                for (const key of keys.filter((key) => typeof key === "string").sort()) {
+                  if (entries.length > 0) {
+                    yield* emit(",")
+                  }
+                  const name = yield* quote(key)
+                  yield* emit(":")
+                  const entry = yield* visit(descriptors[key]!.value, depth + 1)
+                  entries.push(`${name}:${entry}`)
+                }
+                text = `{${entries.join(",")}}`
+              }
+              seen.delete(item)
+              return text
+            })
+        ),
+        Match.orElse(() =>
+          Result.fail(new JobPayloadCodecError({ reason: "invalid-json-value" }))
+        )
       )
     })
   return visit(value, rootDepth)

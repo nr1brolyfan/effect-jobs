@@ -1,6 +1,6 @@
 import * as NativeTransaction from "../persistence/NativeTransaction.js"
 // @effect-diagnostics unstableApiUsage:off
-import { Effect, Schema } from "effect"
+import { Effect, Schema, SchemaGetter, SchemaParser } from "effect"
 import { JobSnapshot } from "effect-jobs/JobLifecycle"
 import { PersistedJobPolicy } from "effect-jobs/JobPolicy"
 import { SqlClient } from "effect/sql/SqlClient"
@@ -9,6 +9,46 @@ import type { JobSummary } from "@effect-jobs/playground-contracts/Jobs"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import * as RepairSource from "../persistence/commands/RepairSource.js"
 import * as RepairSchema from "../persistence/commands/RepairSchema.js"
+
+const SuccessorRow = Schema.Struct({
+  id: Schema.Unknown.pipe(Schema.optionalKey),
+  policy: Schema.Unknown.pipe(Schema.optionalKey),
+  state: Schema.Unknown.pipe(Schema.optionalKey),
+  available_at: Schema.Unknown.pipe(Schema.optionalKey),
+  updated_at: Schema.Unknown.pipe(Schema.optionalKey),
+  attempts_made: Schema.Unknown.pipe(Schema.optionalKey),
+  stalled_count: Schema.Unknown.pipe(Schema.optionalKey),
+  lifecycle_version: Schema.Unknown.pipe(Schema.optionalKey),
+  lease_token: Schema.Unknown.pipe(Schema.optionalKey),
+  lease_expires_at: Schema.Unknown.pipe(Schema.optionalKey),
+  completed_at: Schema.Unknown.pipe(Schema.optionalKey),
+  last_failure_code: Schema.Unknown.pipe(Schema.optionalKey)
+}).pipe(
+  Schema.decodeTo(Schema.toType(JobSnapshot), {
+    decode: SchemaGetter.transformEffect((row) =>
+      SchemaParser.decodeUnknownEffect(PersistedJobPolicy)(row.policy).pipe(
+        Effect.flatMap((policy) =>
+          SchemaParser.decodeUnknownEffect(JobSnapshot, { onExcessProperty: "error" })({
+            jobId: row.id,
+            policy,
+            state: row.state,
+            availableAt: Number(row.available_at),
+            updatedAt: Number(row.updated_at),
+            finalizedAttempts: Number(row.attempts_made),
+            stalledCount: Number(row.stalled_count),
+            lifecycleVersion: Number(row.lifecycle_version),
+            leaseToken: row.lease_token,
+            leaseExpiresAt:
+              row.lease_expires_at === null ? null : Number(row.lease_expires_at),
+            completedAt: row.completed_at === null ? null : Number(row.completed_at),
+            lastFailureCode: row.last_failure_code
+          })
+        )
+      )
+    ),
+    encode: SchemaGetter.forbiddenEncoding
+  })
+)
 
 // Pure projection shared by locked maintenance/commands and SELECT projections.
 // A late observation never overwrites a manual close or a newer selected tip.
@@ -76,45 +116,15 @@ export const reconcileLocked = (
       `SELECT j.* FROM ${t.associations} a JOIN ${t.jobs} j ON j.id=a.job_id WHERE a.sandbox_id=$1 AND a.generation=$2 AND j.id=$3 FOR UPDATE OF j`,
       [sandboxId, generation, problem.activeSuccessorJobId]
     )
-    if (successor) {
-      yield* Schema.decodeUnknownEffect(JobSnapshot)(
-        {
-          jobId: successor.id,
-          policy: yield* Schema.decodeUnknownEffect(PersistedJobPolicy)(
-            successor.policy
-          ).pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" }))),
-          state: successor.state,
-          availableAt: Number(successor.available_at),
-          updatedAt: Number(successor.updated_at),
-          finalizedAttempts: Number(successor.attempts_made),
-          stalledCount: Number(successor.stalled_count),
-          lifecycleVersion: Number(successor.lifecycle_version),
-          leaseToken: successor.lease_token,
-          leaseExpiresAt:
-            successor.lease_expires_at === null
-              ? null
-              : Number(successor.lease_expires_at),
-          completedAt:
-            successor.completed_at === null ? null : Number(successor.completed_at),
-          lastFailureCode: successor.last_failure_code
-        },
-        { onExcessProperty: "error" }
-      ).pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" })))
-    }
+    const observed = successor
+      ? yield* Schema.decodeUnknownEffect(SuccessorRow)(successor).pipe(
+          Effect.mapError(() => new PlaygroundError({ code: "unavailable" }))
+        )
+      : null
     const [clock] = yield* sql.unsafe<{ now: string }>(
       `SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now`
     )
-    const next = effectiveProblem(
-      problem,
-      successor
-        ? {
-            jobId: String(successor.id) as JobSummary["jobId"],
-            state: successor.state as JobSummary["state"],
-            lifecycleVersion: Number(successor.lifecycle_version)
-          }
-        : null,
-      Number(clock!.now)
-    )
+    const next = effectiveProblem(problem, observed, Number(clock!.now))
     if (next === problem) {
       return problem
     }
@@ -125,7 +135,7 @@ export const reconcileLocked = (
     const identity = yield* RepairSource.digestJson([
       rootJobId,
       problem.activeSuccessorJobId,
-      successor ? Number(successor.lifecycle_version) : null
+      observed?.lifecycleVersion ?? null
     ]).pipe(Effect.mapError(() => new PlaygroundError({ code: "unavailable" })))
     yield* sql.unsafe(
       `INSERT INTO ${t.audit}(sandbox_id,generation,identity,root_job_id,successor_job_id,observed_lifecycle_version,action,fact,observed_at)
@@ -136,7 +146,7 @@ export const reconcileLocked = (
         identity,
         rootJobId,
         problem.activeSuccessorJobId,
-        successor ? Number(successor.lifecycle_version) : null,
+        observed?.lifecycleVersion ?? null,
         JSON.stringify({
           _tag: "Resolution",
           rootJobId,

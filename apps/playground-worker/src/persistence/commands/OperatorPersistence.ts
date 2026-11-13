@@ -1,3 +1,4 @@
+import type { PublicErrorCode } from "@effect-jobs/playground-contracts/Services"
 import { Cause, Effect, Layer, Schema } from "effect"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
 import { PostgreSqlFailure } from "effect-jobs/PostgreSqlTransaction"
@@ -14,7 +15,7 @@ import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
 import { OperatorTransactions } from "./OperatorTransactions.js"
 import { CommandTransactionFailure } from "./Transactions.js"
 
-const fail = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
+const fail = (code: PublicErrorCode) => new PlaygroundError({ code })
 const decode = <S extends Schema.Top & { readonly DecodingServices: never }>(
   schema: S,
   input: unknown

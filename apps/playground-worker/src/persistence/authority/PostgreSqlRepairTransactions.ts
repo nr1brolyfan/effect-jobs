@@ -1,6 +1,7 @@
+import type { PublicErrorCode } from "@effect-jobs/playground-contracts/Services"
 import * as NativeTransaction from "../NativeTransaction.js"
 // @effect-diagnostics unstableApiUsage:off
-import { Cause, Effect, Layer, Option, Schema } from "effect"
+import { Cause, Effect, Layer, Option, Schema, SchemaGetter, SchemaParser } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import { controls } from "./TransactionControls.js"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
@@ -24,7 +25,22 @@ import * as RepairSchema from "../commands/RepairSchema.js"
 import * as Reconciliation from "../../execution/RepairReconciliation.js"
 import * as Mode from "./PrivateMode.js"
 
-const fail = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
+const ScopeRow = Schema.Struct({
+  sandbox_id: Schema.Unknown.pipe(Schema.optionalKey),
+  generation: Schema.Unknown.pipe(Schema.optionalKey)
+}).pipe(
+  Schema.decodeTo(Schema.toType(SandboxRef), {
+    decode: SchemaGetter.transformEffect((row) =>
+      SchemaParser.decodeUnknownEffect(SandboxRef, { onExcessProperty: "error" })({
+        sandboxId: row.sandbox_id,
+        generation: Number(row.generation)
+      })
+    ),
+    encode: SchemaGetter.forbiddenEncoding
+  })
+)
+
+const fail = (code: PublicErrorCode) => new PlaygroundError({ code })
 const sameRef = (a: SandboxRef, b: SandboxRef) =>
   a.sandboxId === b.sandboxId && a.generation === b.generation
 const clock = "floor(extract(epoch FROM clock_timestamp())*1000)::bigint"
@@ -73,9 +89,9 @@ const makeAdapter = (schema: string, category: "LocalOperator" | "SyntheticSeed"
         if (Number(row.expires_at) <= Number(time!.now)) {
           return yield* fail("sandbox-expired")
         }
-        const current = yield* decode(SandboxRef, {
-          sandboxId: row.sandbox_id,
-          generation: Number(row.generation)
+        const current = yield* decode(ScopeRow, {
+          sandbox_id: row.sandbox_id,
+          generation: row.generation
         })
         if (ref.generation > current.generation) {
           return yield* fail("stale-generation")

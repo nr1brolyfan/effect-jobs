@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect"
+import { Effect, Schema, SchemaGetter, SchemaParser } from "effect"
 import { CatalogIdentity } from "effect-jobs/JobIdentity"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import type { JobOperatorCommand } from "@effect-jobs/playground-contracts/Operators"
@@ -22,6 +22,39 @@ const artifact = Schema.Struct({
   payloadBytes: byteBuffer,
   semanticProjectionBytes: byteBuffer
 })
+
+const CatalogRow = Schema.Struct({
+  queue: Schema.Unknown.pipe(Schema.optionalKey),
+  kind: Schema.Unknown.pipe(Schema.optionalKey),
+  version: Schema.Unknown.pipe(Schema.optionalKey)
+}).pipe(
+  Schema.decodeTo(Schema.toType(CatalogIdentity), {
+    decode: SchemaGetter.transformEffect((row) =>
+      SchemaParser.decodeUnknownEffect(CatalogIdentity)({
+        queue: row.queue,
+        name: row.kind,
+        version: Number(row.version)
+      })
+    ),
+    encode: SchemaGetter.forbiddenEncoding
+  })
+)
+const ArtifactRow = Schema.Struct({
+  format_version: Schema.Unknown.pipe(Schema.optionalKey),
+  payload: Schema.Unknown.pipe(Schema.optionalKey),
+  projection: Schema.Unknown.pipe(Schema.optionalKey)
+}).pipe(
+  Schema.decodeTo(Schema.toType(artifact), {
+    decode: SchemaGetter.transformEffect((row) =>
+      SchemaParser.decodeUnknownEffect(artifact)({
+        formatVersion: Number(row.format_version),
+        payloadBytes: row.payload,
+        semanticProjectionBytes: row.projection
+      })
+    ),
+    encode: SchemaGetter.forbiddenEncoding
+  })
+)
 
 // Includes the whole scoped source/request tuple, with a bounded library operationId.
 // This creates a new provider ledger identity; no original acceptance is transferred.
@@ -56,11 +89,7 @@ export const validate = (row: Readonly<Record<string, unknown>>, current: Sandbo
   Effect.gen(function* () {
     const definitions = yield* Definitions.Definitions
 
-    const catalog = yield* Schema.decodeUnknownEffect(CatalogIdentity)({
-      queue: row.queue,
-      name: row.kind,
-      version: Number(row.version)
-    }).pipe(
+    const catalog = yield* Schema.decodeUnknownEffect(CatalogRow)(row).pipe(
       Effect.mapError(() => new OperatorSourceRejected({ reason: "unsupported-catalog" }))
     )
     const definition = definitions.definitions.find(
@@ -72,11 +101,9 @@ export const validate = (row: Readonly<Record<string, unknown>>, current: Sandbo
     if (!definition) {
       return yield* new OperatorSourceRejected({ reason: "unsupported-catalog" })
     }
-    const checked = yield* Schema.decodeUnknownEffect(artifact)({
-      formatVersion: Number(row.format_version),
-      payloadBytes: row.payload,
-      semanticProjectionBytes: row.projection
-    }).pipe(Effect.mapError(invalid))
+    const checked = yield* Schema.decodeUnknownEffect(ArtifactRow)(row).pipe(
+      Effect.mapError(invalid)
+    )
     const encoded = {
       ...checked,
       payloadBytes: new Uint8Array(checked.payloadBytes),

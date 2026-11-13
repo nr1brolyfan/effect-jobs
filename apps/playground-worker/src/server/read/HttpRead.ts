@@ -1,4 +1,4 @@
-import { Cause, Effect, Schema } from "effect"
+import { Cause, Effect, Match, Schema } from "effect"
 import {
   JobDetailRequest,
   ListJobs,
@@ -38,21 +38,27 @@ export const handle = (
       return yield* new PlaygroundError({ code: "invalid-request" })
     }
     const url = new URL(request.url)
-    const allowed =
-      operation === "list" || operation === "problems"
-        ? [
-            "sandboxId",
-            "generation",
-            "state",
-            "name",
-            "resolution",
-            "needsAttention",
-            "limit",
-            "cursor"
-          ]
-        : operation === "detail"
-          ? ["sandboxId", "generation", "jobId"]
-          : ["sandboxId", "generation", "jobId", "limit", "cursor"]
+    const allowed = Match.value(operation).pipe(
+      Match.whenOr("list", "problems", () => [
+        "sandboxId",
+        "generation",
+        "state",
+        "name",
+        "resolution",
+        "needsAttention",
+        "limit",
+        "cursor"
+      ]),
+      Match.when("detail", () => ["sandboxId", "generation", "jobId"]),
+      Match.whenOr("history", "related", () => [
+        "sandboxId",
+        "generation",
+        "jobId",
+        "limit",
+        "cursor"
+      ]),
+      Match.exhaustive
+    )
     for (const key of url.searchParams.keys()) {
       if (!allowed.includes(key) || url.searchParams.getAll(key).length !== 1) {
         return yield* new PlaygroundError({ code: "invalid-request" })

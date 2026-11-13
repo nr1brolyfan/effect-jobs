@@ -2,7 +2,15 @@ import * as Definitions from "./scenarios/Definitions.js"
 import type * as Workers from "@cloudflare/workers-types"
 import * as Cloudflare from "@alchemy.run/cloudflare"
 import { RuntimeContext } from "alchemy/RuntimeContext"
-import { Clock, Config, Effect, Scheduler, Schema } from "effect"
+import {
+  Clock,
+  Config,
+  Effect,
+  Scheduler,
+  Schema,
+  SchemaGetter,
+  SchemaParser
+} from "effect"
 import { HttpServerRequest } from "effect/http/HttpServerRequest"
 import * as HttpRequest from "effect/http/HttpServerRequest"
 import * as HttpResponse from "effect/http/HttpServerResponse"
@@ -31,11 +39,21 @@ export { SandboxLive }
 export type Env = Configuration.Configuration & {
   readonly LIVE: PostCommit.LiveNamespace
 }
-const yieldRef = (row: { sandbox_id: string; generation: string }) =>
-  Schema.decodeUnknownSync(SandboxRef)({
-    sandboxId: row.sandbox_id,
-    generation: Number(row.generation)
+const WakeScopeRow = Schema.Struct({
+  sandbox_id: Schema.Unknown.pipe(Schema.optionalKey),
+  generation: Schema.Unknown.pipe(Schema.optionalKey)
+}).pipe(
+  Schema.decodeTo(Schema.toType(SandboxRef), {
+    decode: SchemaGetter.transformEffect((row) =>
+      SchemaParser.decodeUnknownEffect(SandboxRef)({
+        sandboxId: row.sandbox_id,
+        generation: Number(row.generation)
+      })
+    ),
+    encode: SchemaGetter.forbiddenEncoding
   })
+)
+const yieldRef = Schema.decodeUnknownSync(WakeScopeRow)
 const safe = <E, R>(effect: Effect.Effect<Response, E, R>) =>
   effect.pipe(
     Effect.timeout("8 seconds"),

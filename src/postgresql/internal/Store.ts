@@ -1,5 +1,5 @@
 import { confirmedTransition, observe } from "../../JobTelemetry.js"
-import { Cause, Effect, Result, Schema } from "effect"
+import { Cause, Effect, Result, Schema, SchemaGetter } from "effect"
 import * as Lifecycle from "../../JobLifecycle.js"
 import * as Store from "../../JobStore.js"
 import { QueueName } from "../../JobIdentity.js"
@@ -24,6 +24,13 @@ const finalizationSchema = Schema.Struct({
   before: Lifecycle.JobSnapshot,
   finalization: Lifecycle.JobFinalization
 })
+// Reconciliation owns the existing timestamp bounds and diagnostic ordering.
+const ObservationRow = Schema.Struct({ db_now: Schema.Unknown }).pipe(
+  Schema.decodeTo(Schema.Struct({ dbNow: Schema.Number }), {
+    decode: SchemaGetter.transform((row) => ({ dbNow: Number(row.db_now) })),
+    encode: SchemaGetter.forbiddenEncoding
+  })
+)
 const finalizationInput = (input: Store.FinalizationRequest) =>
   decode(finalizationSchema, input).pipe(
     Effect.map((decoded): Store.FinalizationRequest => ({
@@ -175,8 +182,11 @@ export const makeStore = (
             }
             const stored = yield* fromResult(snapshot(row))
             const observed = yield* fromResult(claimArtifact(row, stored))
+            const observation = yield* Schema.decodeUnknownEffect(ObservationRow)(
+              row
+            ).pipe(Effect.mapError(inputError))
             return yield* fromResult(
-              Reconciliation.inspectClaim(token, observed, Number(row.db_now), budget)
+              Reconciliation.inspectClaim(token, observed, observation.dbNow, budget)
             )
           })
         ),
@@ -280,8 +290,11 @@ export const makeStore = (
                 })
               }
               const observed = row.id === null ? null : yield* fromResult(snapshot(row))
+              const observation = yield* Schema.decodeUnknownEffect(ObservationRow)(
+                row
+              ).pipe(Effect.mapError(inputError))
               return yield* fromResult(
-                Reconciliation.inspectFinalization(request, observed, Number(row.db_now))
+                Reconciliation.inspectFinalization(request, observed, observation.dbNow)
               )
             })
           ),

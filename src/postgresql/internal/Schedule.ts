@@ -4,7 +4,7 @@ import { CatalogIdentity, JobName, JobVersion, QueueName } from "../../JobIdenti
 import { BatchLimit } from "../../JobLifecycle.js"
 import { EpochMillis } from "../../JobPolicy.js"
 import type { ApplicationAdapter, PostgreSqlError } from "../PostgreSqlTransaction.js"
-import { integer } from "./Rows.js"
+import { Integer } from "./Rows.js"
 
 const Request = Schema.Struct({
   queue: QueueName,
@@ -14,14 +14,14 @@ const Request = Schema.Struct({
   limit: BatchLimit
 })
 const Metadata = Schema.Struct({
-  observedAt: EpochMillis,
-  nextRecoveryAt: EpochMillis.pipe(Schema.NullOr)
-})
+  observedAt: Integer.pipe(Schema.decodeTo(EpochMillis)),
+  nextRecoveryAt: Integer.pipe(Schema.decodeTo(EpochMillis.pipe(Schema.NullOr)))
+}).pipe(Schema.encodeKeys({ observedAt: "observed_at", nextRecoveryAt: "recovery_at" }))
 const Pending = Schema.Struct({
   kind: JobName,
-  version: JobVersion,
-  availableAt: EpochMillis
-})
+  version: Integer.pipe(Schema.decodeTo(JobVersion)),
+  availableAt: Integer.pipe(Schema.decodeTo(EpochMillis))
+}).pipe(Schema.encodeKeys({ availableAt: "available_at" }))
 const invalidObservation = () =>
   new Schedule.JobScheduleProtocolError({ reason: "invalid-observation" })
 
@@ -65,11 +65,9 @@ export const makeSchedule = (
           if (rows.length === 0 || rows.length > request.limit + 1) {
             return yield* invalidObservation()
           }
-          const metadata = yield* Schema.decodeUnknownEffect(Metadata)({
-            observedAt: integer(rows[0]!.observed_at),
-            nextRecoveryAt:
-              rows[0]!.recovery_at === null ? null : integer(rows[0]!.recovery_at)
-          }).pipe(Effect.mapError(invalidObservation))
+          const metadata = yield* Schema.decodeUnknownEffect(Metadata)(rows[0]).pipe(
+            Effect.mapError(invalidObservation)
+          )
           const empty =
             rows.length === 1 &&
             rows[0]!.kind === null &&
@@ -80,11 +78,9 @@ export const makeSchedule = (
           )
           let nextAvailableAt: number | null = null
           for (const row of empty ? [] : rows.slice(0, request.limit)) {
-            const pending = yield* Schema.decodeUnknownEffect(Pending)({
-              kind: row.kind,
-              version: integer(row.version),
-              availableAt: integer(row.available_at)
-            }).pipe(Effect.mapError(invalidObservation))
+            const pending = yield* Schema.decodeUnknownEffect(Pending)(row).pipe(
+              Effect.mapError(invalidObservation)
+            )
             if (supported.has(`${pending.kind}\u0000${pending.version}`)) {
               nextAvailableAt =
                 nextAvailableAt === null
