@@ -1,4 +1,4 @@
-import { Cause, Effect, Option, Schema } from "effect"
+import { Cause, Effect, Match, Option, Schema } from "effect"
 import {
   Repairs,
   JobRepairCommand,
@@ -109,17 +109,29 @@ export const handle = (
     const checked = <S extends Schema.Top & { readonly DecodingServices: never }>(
       schema: S
     ) => Schema.decodeUnknownEffect(schema)(raw, strict).pipe(Effect.mapError(invalid))
-    const result =
-      operation === "repair"
-        ? yield* service.execute(access, yield* checked(JobRepairCommand))
-        : operation === "repairReceipt"
-          ? yield* service.receipt(access, yield* checked(JobRepairReceiptRequest))
-          : operation === "resolution"
-            ? yield* service.resolve(access, yield* checked(JobResolutionCommand))
-            : yield* service.resolutionReceipt(
-                access,
-                yield* checked(JobRepairReceiptRequest)
-              )
+    const result = yield* Match.value(operation).pipe(
+      Match.when("repair", () =>
+        checked(JobRepairCommand).pipe(
+          Effect.flatMap((input) => service.execute(access, input))
+        )
+      ),
+      Match.when("repairReceipt", () =>
+        checked(JobRepairReceiptRequest).pipe(
+          Effect.flatMap((input) => service.receipt(access, input))
+        )
+      ),
+      Match.when("resolution", () =>
+        checked(JobResolutionCommand).pipe(
+          Effect.flatMap((input) => service.resolve(access, input))
+        )
+      ),
+      Match.when("resolutionReceipt", () =>
+        checked(JobRepairReceiptRequest).pipe(
+          Effect.flatMap((input) => service.resolutionReceipt(access, input))
+        )
+      ),
+      Match.exhaustive
+    )
     const decoded =
       operation === "repair" || operation === "repairReceipt"
         ? yield* Schema.decodeUnknownEffect(JobRepairResult)(result, strict).pipe(

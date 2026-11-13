@@ -1,7 +1,7 @@
 /**
  * Explicit Node/Bun polling owned by the application Layer Scope.
  */
-import { Effect, FiberSet, Layer, Random, Schema, Scope } from "effect"
+import { Effect, FiberSet, Layer, Match, Random, Schema, Scope } from "effect"
 import { JobWorker, JobWorkerConfigurationError, JobWorkerNotReady } from "./JobWorker.js"
 import { EpochMillis } from "./JobPolicy.js"
 import { observe } from "./JobTelemetry.js"
@@ -53,24 +53,35 @@ const loop = (
           const result = yield* drainWithOptions(consumer, { recover, executions }).pipe(
             observe("polling", "dispatch")
           )
-          if (result._tag === "Backoff") {
-            if (result.claimed > 0 || (recover && result.phase !== "recovery")) {
-              failures = 0
-            }
-            yield* sleepWithJitter(
-              backoffMillis[Math.min(failures, backoffMillis.length - 1)] ?? 30_000
-            ).pipe(observe("backoff", "maintenance"))
-            failures = Math.min(failures + 1, backoffMillis.length - 1)
-            recover = result.phase === "recovery"
-          } else {
-            failures = 0
-            recover = true
-            if (result._tag === "Idle") {
-              yield* sleepWithJitter(idlePollMillis)
-            } else {
-              yield* Effect.yieldNow
-            }
-          }
+          yield* Match.value(result).pipe(
+            Match.tag("Backoff", (result) =>
+              Effect.gen(function* () {
+                if (result.claimed > 0 || (recover && result.phase !== "recovery")) {
+                  failures = 0
+                }
+                yield* sleepWithJitter(
+                  backoffMillis[Math.min(failures, backoffMillis.length - 1)] ?? 30_000
+                ).pipe(observe("backoff", "maintenance"))
+                failures = Math.min(failures + 1, backoffMillis.length - 1)
+                recover = result.phase === "recovery"
+              })
+            ),
+            Match.tag("Idle", () =>
+              Effect.gen(function* () {
+                failures = 0
+                recover = true
+                yield* sleepWithJitter(idlePollMillis)
+              })
+            ),
+            Match.tag("MoreWork", () =>
+              Effect.gen(function* () {
+                failures = 0
+                recover = true
+                yield* Effect.yieldNow
+              })
+            ),
+            Match.exhaustive
+          )
         }),
       step: () => {}
     })

@@ -498,7 +498,12 @@ try {
       ).rows[0].n === 6,
     "real jobs did not complete"
   )
-  await activePage.locator(".job-list .job-id").first().click()
+  await activePage
+    .locator(".job-list tr")
+    .filter({ hasText: "Welcome Email" })
+    .first()
+    .locator(".job-id")
+    .click()
   await details
     .locator("summary")
     .filter({ hasText: "Identity & execution policy" })

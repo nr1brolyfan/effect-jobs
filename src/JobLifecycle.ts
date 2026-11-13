@@ -2,7 +2,7 @@ import { define as defineFailureCodes } from "./FailureCode.js"
 /**
  * Pure lifecycle transition plans; Persistence implementations own atomic fencing and database-time writes.
  */
-import { Data, Result, Schema } from "effect"
+import { Data, Match, Result, Schema } from "effect"
 import { JobId } from "./JobId.js"
 import { FailureCode, JobFailure } from "./JobFailure.js"
 import { EpochMillis, JobPolicy, maximumMillis } from "./JobPolicy.js"
@@ -384,17 +384,18 @@ export const finalize = (
         : delay === 0
           ? dbNow
           : yield* addTimestamp(dbNow, delay)
-    const state =
-      finalization._tag === "Complete"
-        ? "Completed"
-        : finalization._tag === "Isolate"
-          ? "Isolated"
-          : finalization._tag === "Dead" ||
-              finalizedAttempts >= row.policy.maxFinalizedAttempts ||
-              (finalization.retryBefore !== undefined &&
-                nextAvailableAt >= finalization.retryBefore)
-            ? "Dead"
-            : "RetryScheduled"
+    const state = Match.value(finalization).pipe(
+      Match.tag("Complete", () => "Completed" as const),
+      Match.tag("Isolate", () => "Isolated" as const),
+      Match.tag("Dead", () => "Dead" as const),
+      Match.tag("Retry", (retry) =>
+        finalizedAttempts >= row.policy.maxFinalizedAttempts ||
+        (retry.retryBefore !== undefined && nextAvailableAt >= retry.retryBefore)
+          ? ("Dead" as const)
+          : ("RetryScheduled" as const)
+      ),
+      Match.exhaustive
+    )
     return {
       ...row,
       state,

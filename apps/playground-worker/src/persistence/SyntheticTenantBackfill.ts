@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect"
+import { Effect, Schema, SchemaGetter, SchemaParser } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import { JobId } from "effect-jobs/JobId"
@@ -8,6 +8,37 @@ import { ApplicationRelations } from "@effect-jobs/playground-contracts/Jobs"
 import * as Definitions from "../scenarios/Definitions.js"
 import * as Source from "./commands/RepairSource.js"
 import { relations } from "./authority/Schema.js"
+
+const ScopeRow = Schema.Struct({
+  sandbox_id: Schema.Unknown.pipe(Schema.optionalKey),
+  generation: Schema.Unknown.pipe(Schema.optionalKey)
+}).pipe(
+  Schema.decodeTo(Schema.toType(SandboxRef), {
+    decode: SchemaGetter.transformEffect((row) =>
+      SchemaParser.decodeUnknownEffect(SandboxRef)({
+        sandboxId: row.sandbox_id,
+        generation: Number(row.generation)
+      })
+    ),
+    encode: SchemaGetter.forbiddenEncoding
+  })
+)
+const CatalogRow = Schema.Struct({
+  queue: Schema.Unknown.pipe(Schema.optionalKey),
+  kind: Schema.Unknown.pipe(Schema.optionalKey),
+  version: Schema.Unknown.pipe(Schema.optionalKey)
+}).pipe(
+  Schema.decodeTo(Schema.toType(CatalogIdentity), {
+    decode: SchemaGetter.transformEffect((row) =>
+      SchemaParser.decodeUnknownEffect(CatalogIdentity)({
+        queue: row.queue,
+        name: row.kind,
+        version: Number(row.version)
+      })
+    ),
+    encode: SchemaGetter.forbiddenEncoding
+  })
+)
 
 // Explicit application migration hook, same native migration transaction/client.
 // Canonical codec and exact allowlisted catalog validate the old artifact; replacement
@@ -30,15 +61,8 @@ export const run = (schema: string) =>
         const value = yield* Effect.gen(function* () {
           const definitions = yield* Definitions.Definitions
 
-          const ref = yield* Schema.decodeUnknownEffect(SandboxRef)({
-            sandboxId: row.sandbox_id,
-            generation: Number(row.generation)
-          })
-          const catalog = yield* Schema.decodeUnknownEffect(CatalogIdentity)({
-            queue: row.queue,
-            name: row.kind,
-            version: Number(row.version)
-          })
+          const ref = yield* Schema.decodeUnknownEffect(ScopeRow)(row)
+          const catalog = yield* Schema.decodeUnknownEffect(CatalogRow)(row)
           const definition = definitions.definitions.find(
             (d) =>
               definitions.catalogFor(d).queue === catalog.queue &&

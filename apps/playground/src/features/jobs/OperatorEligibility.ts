@@ -1,3 +1,4 @@
+import { Match } from "effect"
 import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
 import type { SandboxView } from "@effect-jobs/playground-contracts/Sandbox"
 import type {
@@ -41,22 +42,40 @@ export const eligibility = (
           : denied("not-eligible")
   }
 }
-export const explanation = (reason: JobOperatorReason | null): string => {
-  switch (reason) {
-    case null:
-      return "Eligibility is checked again by the server."
-    case "public-read-only":
-      return "Operators are unavailable in this session. Public demo is read-only."
-    case "active-execution":
-      return "The handler may already be executing. Safe interruption is unavailable; reconcile or recover the original job first."
-    case "already-due":
-      return "This retry is already eligible for execution."
-    case "terminal-state":
-      return "This job is already terminal. Past effects cannot be undone."
-    default:
-      return "This action is unavailable for the current state."
-  }
-}
+export const explanation = (reason: JobOperatorReason | null): string =>
+  Match.value(reason).pipe(
+    Match.when(null, () => "Eligibility is checked again by the server."),
+    Match.when(
+      "public-read-only",
+      () => "Operators are unavailable in this session. Public demo is read-only."
+    ),
+    Match.when(
+      "active-execution",
+      () =>
+        "The handler may already be executing. Safe interruption is unavailable; reconcile or recover the original job first."
+    ),
+    Match.when("already-due", () => "This retry is already eligible for execution."),
+    Match.when(
+      "terminal-state",
+      () => "This job is already terminal. Past effects cannot be undone."
+    ),
+    Match.whenOr(
+      "invalid-input",
+      "not-found",
+      "state-version-conflict",
+      "not-eligible",
+      "invalid-artifact",
+      "policy-incompatible",
+      "unsupported-catalog",
+      "arithmetic-bound",
+      "investigation-required",
+      "exhausted-budget",
+      "unavailable",
+      "limit-reached",
+      () => "This action is unavailable for the current state."
+    ),
+    Match.exhaustive
+  )
 
 // Detail eligibility is server-projected semantic metadata, never busy/unlock state.
 export const repairApplicability = (detail: JobDetail, readOnly: boolean) => ({

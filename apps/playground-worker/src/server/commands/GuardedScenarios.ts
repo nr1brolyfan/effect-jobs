@@ -1,3 +1,4 @@
+import type { PublicErrorCode } from "@effect-jobs/playground-contracts/Services"
 import { Effect, Layer, Schema } from "effect"
 import { SandboxView } from "@effect-jobs/playground-contracts/Sandbox"
 import type { SandboxAccess, SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
@@ -15,11 +16,11 @@ import {
 } from "@effect-jobs/playground-contracts/Services"
 import { CommandPersistence } from "../../persistence/commands/Transactions.js"
 
-const fail = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
+const fail = (code: PublicErrorCode) => new PlaygroundError({ code })
 const decode = <S extends Schema.Top & { readonly DecodingServices: never }>(
   schema: S,
   value: unknown,
-  code: PlaygroundError["code"] = "invalid-request"
+  code: PublicErrorCode = "invalid-request"
 ) =>
   Schema.decodeUnknownEffect(schema)(value, { onExcessProperty: "error" }).pipe(
     Effect.mapError(() => fail(code))

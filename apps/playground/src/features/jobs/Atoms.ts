@@ -16,7 +16,7 @@ import {
   type JobOperatorAction
 } from "@effect-jobs/playground-contracts/Operators"
 import * as OperatorEligibility from "./OperatorEligibility.js"
-import { Clock, Effect, Schema } from "effect"
+import { Clock, Effect, Match, Schema } from "effect"
 import * as Atom from "effect/reactivity/Atom"
 import * as AtomRegistry from "effect/reactivity/AtomRegistry"
 import {
@@ -359,15 +359,19 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
 
   const read = (
     background: boolean,
-    force = false
+    force = false,
+    current: () => boolean = () => true
   ): Effect.Effect<void, never, JobsClient> =>
     Effect.gen(function* () {
       // A background read never steals ownership from any outstanding read.
-      if (disposed || (background && !force && activeReads > 0)) {
+      if (disposed || !current() || (background && !force && activeReads > 0)) {
         return
       }
       const client = yield* JobsClient
       const revision = ++listRevision
+      // The live owner can invalidate during HTTP without changing list ownership.
+      // Check its fence at each actual publication, before BrowserLive render.
+      const isCurrent = () => revision === listRevision && current()
       activeReads++
       if (!background) {
         update({ loading: true })
@@ -381,13 +385,15 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
           return
         }
         if (described._tag === "Failure") {
-          if (revokesAuthority(described.failure.code)) {
-            revoke()
+          if (isCurrent()) {
+            if (revokesAuthority(described.failure.code)) {
+              revoke()
+            }
+            update({
+              connection: snapshot().page === undefined ? "error" : "stale",
+              error: described.failure.code
+            })
           }
-          update({
-            connection: snapshot().page === undefined ? "error" : "stale",
-            error: described.failure.code
-          })
           return
         }
         const sandbox = described.success
@@ -395,22 +401,23 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
           sandbox.ref.sandboxId !== snapshot().sandbox.ref.sandboxId &&
           !allowDemoRotation
         ) {
-          revoke()
-          update({
-            connection: "error",
-            error: "not-found"
-          })
+          if (isCurrent()) {
+            revoke()
+            update({ connection: "error", error: "not-found" })
+          }
           return
         }
         if (
           sandbox.ref.sandboxId === snapshot().sandbox.ref.sandboxId &&
           sandbox.ref.generation < snapshot().sandbox.ref.generation
         ) {
-          revoke()
-          update({ connection: "error", error: "stale-generation" })
+          if (isCurrent()) {
+            revoke()
+            update({ connection: "error", error: "stale-generation" })
+          }
           return
         }
-        if (!sameRef(sandbox.ref, snapshot().sandbox.ref)) {
+        if (isCurrent() && !sameRef(sandbox.ref, snapshot().sandbox.ref)) {
           // Keep this read as the current owner while fencing old details/history.
           ++detailRevision
           ++selectionRevision
@@ -429,7 +436,9 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
               "Sandbox generation changed. Old data and selection were revoked; filters retained."
           })
         }
-        update({ sandbox })
+        if (isCurrent()) {
+          update({ sandbox })
+        }
         let query: Query = {
           sandbox: sandbox.ref,
           filters: snapshot().filters,
@@ -437,7 +446,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
           pageSize: snapshot().pageSize
         }
         let request: ListJobs = {
-          sandbox: snapshot().sandbox.ref,
+          sandbox: sandbox.ref,
           filters: snapshot().filters,
           limit: query.pageSize,
           ...(snapshot().cursor === undefined ? {} : { cursor: snapshot().cursor })
@@ -476,7 +485,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         yield* fetchPage(request).pipe(
           Effect.flatMap((page) => {
             if (
-              revision !== listRevision ||
+              !isCurrent() ||
               query.pageNumber === 1 ||
               ((page.items.length > 0 || (problemRows?.length ?? 0) > 0) &&
                 (query.pageNumber < Math.ceil(page.filteredTotal / query.pageSize) ||
@@ -497,7 +506,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
           }),
           Effect.match({
             onFailure: (error) => {
-              if (revision === listRevision) {
+              if (isCurrent()) {
                 if (revokesAuthority(error.code)) {
                   revoke()
                 }
@@ -508,7 +517,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
               }
             },
             onSuccess: (page) => {
-              if (revision === listRevision) {
+              if (isCurrent()) {
                 const known =
                   query.pageNumber === 1 && snapshot().pageNumber !== 1
                     ? [undefined]
@@ -542,7 +551,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         Effect.ensuring(
           Effect.sync(() => {
             activeReads--
-            if (revision === listRevision && !background) {
+            if (isCurrent() && !background) {
               update({ loading: false })
             }
           })
@@ -550,7 +559,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       )
       const selected = disposed ? undefined : snapshot().selected
       if (
-        revision === listRevision &&
+        isCurrent() &&
         snapshot().connection === "connected" &&
         selected !== undefined
       ) {
@@ -605,17 +614,25 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       if (result.requestId !== request.requestId) {
         return yield* new PlaygroundError({ code: "unavailable" })
       }
-      if (result._tag === "OutcomeUnknown") {
-        update({
-          notice: "Outcome unknown. Do not replay. Look up the exact request receipt."
-        })
-      } else {
-        update({
-          pending: undefined,
-          notice: `Enqueue acknowledged for ${result.jobIds.length} job(s). Handler success is not confirmed.`
-        })
-        yield* refresh
-      }
+      yield* Match.value(result).pipe(
+        Match.tag("OutcomeUnknown", () =>
+          Effect.sync(() =>
+            update({
+              notice: "Outcome unknown. Do not replay. Look up the exact request receipt."
+            })
+          )
+        ),
+        Match.tag("Committed", (result) =>
+          Effect.gen(function* () {
+            update({
+              pending: undefined,
+              notice: `Enqueue acknowledged for ${result.jobIds.length} job(s). Handler success is not confirmed.`
+            })
+            yield* refresh
+          })
+        ),
+        Match.exhaustive
+      )
     })
   const acceptReset = (result: ResetResult, request: ReceiptRequest) =>
     Effect.gen(function* () {
@@ -623,36 +640,45 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       if (result.requestId !== request.requestId) {
         return yield* new PlaygroundError({ code: "unavailable" })
       }
-      if (result._tag === "OutcomeUnknown") {
-        update({
-          notice:
-            "Reset outcome unknown. Do not replay. Look up the exact request receipt."
-        })
-      } else {
-        if (result.current.generation <= snapshot().sandbox.ref.generation) {
-          // This exact receipt acknowledges history, not newer sandbox authority.
-          update({
-            pending: undefined,
-            notice: "Reset acknowledged. Current sandbox generation and data retained."
+      yield* Match.value(result).pipe(
+        Match.tag("OutcomeUnknown", () =>
+          Effect.sync(() =>
+            update({
+              notice:
+                "Reset outcome unknown. Do not replay. Look up the exact request receipt."
+            })
+          )
+        ),
+        Match.tag("Committed", (result) =>
+          Effect.gen(function* () {
+            if (result.current.generation <= snapshot().sandbox.ref.generation) {
+              // This exact receipt acknowledges history, not newer sandbox authority.
+              update({
+                pending: undefined,
+                notice:
+                  "Reset acknowledged. Current sandbox generation and data retained."
+              })
+              yield* refresh
+              return
+            }
+            // Revoke displayed old data immediately, even if describe subsequently fails.
+            revoke()
+            update({
+              sandbox: { ...snapshot().sandbox, ref: result.current },
+              pending: undefined,
+              page: undefined,
+              detail: undefined,
+              selected: undefined,
+              cursor: undefined,
+              pageNumber: 1,
+              notice:
+                "New generation with starter jobs. Old jobs and receipts are retained; reset does not cancel running jobs."
+            })
+            yield* refresh
           })
-          yield* refresh
-          return
-        }
-        // Revoke displayed old data immediately, even if describe subsequently fails.
-        revoke()
-        update({
-          sandbox: { ...snapshot().sandbox, ref: result.current },
-          pending: undefined,
-          page: undefined,
-          detail: undefined,
-          selected: undefined,
-          cursor: undefined,
-          pageNumber: 1,
-          notice:
-            "New generation with starter jobs. Old jobs and receipts are retained; reset does not cancel running jobs."
-        })
-        yield* refresh
-      }
+        ),
+        Match.exhaustive
+      )
     })
   const exclusive = <E, R>(operation: Effect.Effect<void, E, R>) =>
     Effect.suspend(() => {
@@ -693,17 +719,21 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         }).pipe(Effect.mapError(() => new PlaygroundError({ code: "invalid-request" })))
         const request = { sandbox: input.sandbox, requestId: input.requestId }
         update({ pending: { kind, request }, busy: true, notice: "Sending one request…" })
-        if (kind === "scenario") {
-          yield* bounded(client.run(input)).pipe(
-            Effect.flatMap(decode(ScenarioResult)),
-            Effect.flatMap((result) => acceptScenario(result, request))
-          )
-        } else {
-          yield* bounded(client.reset(request)).pipe(
-            Effect.flatMap(decode(ResetResult)),
-            Effect.flatMap((result) => acceptReset(result, request))
-          )
-        }
+        yield* Match.value(kind).pipe(
+          Match.when("scenario", () =>
+            bounded(client.run(input)).pipe(
+              Effect.flatMap(decode(ScenarioResult)),
+              Effect.flatMap((result) => acceptScenario(result, request))
+            )
+          ),
+          Match.when("reset", () =>
+            bounded(client.reset(request)).pipe(
+              Effect.flatMap(decode(ResetResult)),
+              Effect.flatMap((result) => acceptReset(result, request))
+            )
+          ),
+          Match.exhaustive
+        )
       }).pipe(
         Effect.catchTags({
           PlaygroundError: (error) =>
@@ -963,17 +993,21 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
         Object.freeze(pending)
         update({ pending, notice: "Sending one guarded request…" })
         const client = yield* JobsClient
-        if (pending.kind === "repair") {
-          yield* bounded(client.repair(pending.command)).pipe(
-            Effect.flatMap(decode(JobRepairResult)),
-            Effect.flatMap((result) => acceptRepair(result, pending))
-          )
-        } else {
-          yield* bounded(client.resolve(pending.command)).pipe(
-            Effect.flatMap(decode(JobResolutionResult)),
-            Effect.flatMap((result) => acceptRepair(result, pending))
-          )
-        }
+        yield* Match.value(pending).pipe(
+          Match.when({ kind: "repair" }, (pending) =>
+            bounded(client.repair(pending.command)).pipe(
+              Effect.flatMap(decode(JobRepairResult)),
+              Effect.flatMap((result) => acceptRepair(result, pending))
+            )
+          ),
+          Match.when({ kind: "resolution" }, (pending) =>
+            bounded(client.resolve(pending.command)).pipe(
+              Effect.flatMap(decode(JobResolutionResult)),
+              Effect.flatMap((result) => acceptRepair(result, pending))
+            )
+          ),
+          Match.exhaustive
+        )
       }).pipe(
         Effect.catchTags({
           PlaygroundError: (error) =>
@@ -998,35 +1032,44 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
       }
       const client = yield* JobsClient
       update({ busy: true })
-      if (pending.kind === "repair") {
-        yield* bounded(client.repairReceipt(pending.request)).pipe(
-          Effect.flatMap(decode(JobRepairResult)),
-          Effect.flatMap((result) => acceptRepair(result, pending))
-        )
-      } else if (pending.kind === "resolution") {
-        yield* bounded(client.resolutionReceipt(pending.request)).pipe(
-          Effect.flatMap(decode(JobResolutionResult)),
-          Effect.flatMap((result) => acceptRepair(result, pending))
-        )
-      } else if (pending.kind === "operator") {
-        const revision = selectionRevision
-        yield* bounded(client.operatorReceipt(pending.request)).pipe(
-          Effect.flatMap(decode(JobOperatorResult)),
-          Effect.flatMap((result) =>
-            revision === selectionRevision ? acceptOperator(result, pending) : Effect.void
+      yield* Match.value(pending).pipe(
+        Match.when({ kind: "repair" }, (pending) =>
+          bounded(client.repairReceipt(pending.request)).pipe(
+            Effect.flatMap(decode(JobRepairResult)),
+            Effect.flatMap((result) => acceptRepair(result, pending))
           )
-        )
-      } else if (pending.kind === "scenario") {
-        yield* bounded(client.scenarioReceipt(pending.request)).pipe(
-          Effect.flatMap(decode(ScenarioResult)),
-          Effect.flatMap((result) => acceptScenario(result, pending.request))
-        )
-      } else {
-        yield* bounded(client.resetReceipt(pending.request)).pipe(
-          Effect.flatMap(decode(ResetResult)),
-          Effect.flatMap((result) => acceptReset(result, pending.request))
-        )
-      }
+        ),
+        Match.when({ kind: "resolution" }, (pending) =>
+          bounded(client.resolutionReceipt(pending.request)).pipe(
+            Effect.flatMap(decode(JobResolutionResult)),
+            Effect.flatMap((result) => acceptRepair(result, pending))
+          )
+        ),
+        Match.when({ kind: "operator" }, (pending) => {
+          const revision = selectionRevision
+          return bounded(client.operatorReceipt(pending.request)).pipe(
+            Effect.flatMap(decode(JobOperatorResult)),
+            Effect.flatMap((result) =>
+              revision === selectionRevision
+                ? acceptOperator(result, pending)
+                : Effect.void
+            )
+          )
+        }),
+        Match.when({ kind: "scenario" }, (pending) =>
+          bounded(client.scenarioReceipt(pending.request)).pipe(
+            Effect.flatMap(decode(ScenarioResult)),
+            Effect.flatMap((result) => acceptScenario(result, pending.request))
+          )
+        ),
+        Match.when({ kind: "reset" }, (pending) =>
+          bounded(client.resetReceipt(pending.request)).pipe(
+            Effect.flatMap(decode(ResetResult)),
+            Effect.flatMap((result) => acceptReset(result, pending.request))
+          )
+        ),
+        Match.exhaustive
+      )
     }).pipe(
       Effect.catchTags({
         PlaygroundError: (error) =>
@@ -1047,6 +1090,7 @@ export const make = (initial: SandboxView, allowDemoRotation = false) => {
     reading: () => !disposed && activeReads > 0,
     refresh,
     backgroundRefresh,
+    backgroundRefreshWhen: (current: () => boolean) => read(true, false, current),
     filter,
     first,
     next,

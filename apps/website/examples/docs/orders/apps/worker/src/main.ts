@@ -1,6 +1,6 @@
 // Platform and native SQL APIs are intentionally pinned to Effect 4.1.0 here.
 // @effect-diagnostics unstableApiUsage:off
-import { Config, Effect, Layer } from "effect"
+import { Config, Effect, Layer, Match } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import { NodeRuntime } from "@effect/platform-node"
 import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
@@ -84,11 +84,12 @@ const program = Effect.gen(function* () {
     ["confirmation", "drain", "poll"],
     "WORKER_MODE"
   ).pipe(Config.withDefault("drain"))
-  return yield* mode === "poll"
-    ? pollOrders
-    : mode === "confirmation"
-      ? drainConfirmations
-      : drainOrders
+  return yield* Match.value(mode).pipe(
+    Match.when("poll", () => pollOrders),
+    Match.when("confirmation", () => drainConfirmations),
+    Match.when("drain", () => drainOrders),
+    Match.exhaustive
+  )
 }).pipe(Effect.provide(ApplicationLayer.pipe(Layer.provideMerge(ClientLayer))))
 
 // Execute only when invoked as a CLI; importing composition starts no worker.

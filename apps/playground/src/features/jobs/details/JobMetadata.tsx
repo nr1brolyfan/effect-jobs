@@ -1,3 +1,4 @@
+import { Match } from "effect"
 import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
 import * as stylex from "@stylexjs/stylex"
 import { Panel } from "../../../ui/Primitives.js"
@@ -94,12 +95,12 @@ export function JobMetadata(inputProps: { readonly detail: JobDetail }) {
                       },
                       {
                         label: "Retry jitter",
-                        value:
-                          policy.retrySchedule.jitter === "Full"
-                            ? "Full"
-                            : policy.retrySchedule.jitter === "ProportionalV1"
-                              ? "80–120% (bounded)"
-                              : "None"
+                        value: Match.value(policy.retrySchedule.jitter).pipe(
+                          Match.when("Full", () => "Full"),
+                          Match.when("ProportionalV1", () => "80–120% (bounded)"),
+                          Match.when("None", () => "None"),
+                          Match.exhaustive
+                        )
                       }
                     ]),
                 {

@@ -1,3 +1,4 @@
+import type { PublicErrorCode } from "@effect-jobs/playground-contracts/Services"
 import * as NativeTransaction from "../NativeTransaction.js"
 // The application supplies the exact PgClient's SqlClient service and native adapter.
 // @effect-diagnostics unstableApiUsage:off
@@ -25,7 +26,7 @@ import * as CommandRows from "./CommandRows.js"
 
 export const viewerMillis = 15_000
 const dbTime = "floor(extract(epoch FROM clock_timestamp())*1000)::bigint"
-const fail = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
+const fail = (code: PublicErrorCode) => new PlaygroundError({ code })
 const digest = (value: string) =>
   Effect.tryPromise({
     try: async () =>

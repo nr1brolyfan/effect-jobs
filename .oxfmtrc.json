@@ -16,6 +16,9 @@
   "sortImports": false,
   "sortPackageJson": false,
   "ignorePatterns": [
+    "**/*.md",
+    "**/.alchemy/**",
+    "**/.wrangler/**",
     "**/node_modules/**",
     "**/dist/**",
     "**/coverage/**",

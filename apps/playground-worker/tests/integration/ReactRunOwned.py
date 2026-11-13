@@ -4,10 +4,10 @@ import json
 import os
 import pathlib
 import secrets
-import signal
 import subprocess
 import time
 import sys
+import OwnedProcesses
 
 root = pathlib.Path(__file__).resolve().parents[4]
 evidence = root / os.environ.get('PLAYGROUND_EVIDENCE_DIRECTORY', '.multica/react-qualification')
@@ -39,49 +39,43 @@ try:
     testenv = os.environ.copy()
     testenv.update(PLAYGROUND_PRIVATE_CONFIG=str(private), PLAYGROUND_EVIDENCE_DIRECTORY=str(evidence))
     with (evidence / 'runtime.log').open('w') as log:
-        process = subprocess.Popen(['node', 'apps/playground-worker/tests/integration/NativeHostQualification.ts' if '--native-host' in sys.argv else 'apps/playground-worker/tests/integration/React.ts', *(['--combined-private'] if '--combined-private' in sys.argv else [])], cwd=root, env=testenv, stdout=log, stderr=log, start_new_session=True)
-        try:
-            exit_code = process.wait(timeout=240)
-        finally:
-            if process.poll() is None:
-                os.killpg(process.pid, signal.SIGTERM)
-                try:
-                    process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    process.wait(timeout=10)
-            # The node test's process group owns workerd and Chromium too.
-            # A successful parent exit is insufficient if a child remains alive.
-            try:
-                os.killpg(process.pid, 0)
-            except ProcessLookupError:
-                receipt['childProcessGroupAbsent'] = True
-            else:
-                os.killpg(process.pid, signal.SIGTERM)
-                for _ in range(40):
-                    try:
-                        os.killpg(process.pid, 0)
-                    except ProcessLookupError:
-                        receipt['childProcessGroupAbsent'] = True
-                        break
-                    time.sleep(0.05)
-                else:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    receipt['childProcessGroupAbsent'] = False
+        receipt['processCleanup'] = {}
+        exit_code = OwnedProcesses.run(['node', 'apps/playground-worker/tests/integration/NativeHostQualification.ts' if '--native-host' in sys.argv else 'apps/playground-worker/tests/integration/React.ts', *(['--combined-private'] if '--combined-private' in sys.argv else [])], cwd=root, env=testenv, stdout=log, stderr=log, timeout=240, receipt=receipt['processCleanup'])
     receipt['exit'] = exit_code
-    if exit_code == 0 and receipt.get('childProcessGroupAbsent') is True:
+    if exit_code == 0 and receipt['processCleanup']['absentVerified'] is True:
         receipt['status'] = 'PASS'
 except Exception as error:
     receipt['failureClass'] = type(error).__name__
 finally:
+    cleanup_errors = []
     if cid:
-        removed = subprocess.run(['docker', 'rm', '--force', cid], capture_output=True, text=True, timeout=30)
-        absent = subprocess.run(['docker', 'inspect', '--format', '{{.Id}}', cid], capture_output=True, text=True, timeout=10)
-        receipt['cleanup'] = {'exit': removed.returncode, 'absentVerified': absent.returncode != 0 and 'no such object' in absent.stderr.lower()}
-        if not receipt['cleanup']['absentVerified']:
-            receipt['status'] = 'FAIL'
-    private.unlink(missing_ok=True)
-    receipt['privateConfigRemoved'] = not private.exists()
+        try:
+            owned = json.loads(subprocess.check_output(['docker', 'inspect', '--format', '{{json .Config.Labels}}', cid], text=True, timeout=10))
+            assert owned.get('task') == 'UPVE-2010'
+            removed = subprocess.run(['docker', 'rm', '--force', cid], capture_output=True, text=True, timeout=30)
+            receipt['cleanup'] = {'exit': removed.returncode}
+            if removed.returncode != 0:
+                cleanup_errors.append('container-removal-failed')
+        except Exception as error:
+            cleanup_errors.append('container-removal-' + type(error).__name__)
+        try:
+            absent = subprocess.run(['docker', 'inspect', '--format', '{{.Id}}', cid], capture_output=True, text=True, timeout=10)
+            receipt.setdefault('cleanup', {})['absentVerified'] = absent.returncode != 0 and 'no such object' in absent.stderr.lower()
+            if not receipt['cleanup']['absentVerified']:
+                cleanup_errors.append('container-absence-unverified')
+        except Exception as error:
+            cleanup_errors.append('container-inspect-' + type(error).__name__)
+    try:
+        private.unlink(missing_ok=True)
+        receipt['privateConfigRemoved'] = not private.exists()
+        if not receipt['privateConfigRemoved']:
+            cleanup_errors.append('private-config-remains')
+    except Exception as error:
+        receipt['privateConfigRemoved'] = False
+        cleanup_errors.append('private-config-' + type(error).__name__)
+    receipt['cleanupErrors'] = cleanup_errors
+    if cleanup_errors:
+        receipt['status'] = 'FAIL'
     receipt['finishedAt'] = now()
     (evidence / 'resource-receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
     print(json.dumps(receipt, indent=2))

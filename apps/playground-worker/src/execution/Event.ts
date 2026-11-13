@@ -120,7 +120,13 @@ export const run = <A, E>(
         maxConnections: 2,
         prepare: false,
         connectTimeout: "2 seconds",
-        idleTimeout: "1 second"
+        acquireTimeout: "2 seconds",
+        idleTimeout: "1 second",
+        startupParameters: {
+          statement_timeout: "2000",
+          lock_timeout: "1000",
+          idle_in_transaction_session_timeout: "5000"
+        }
       })
       const jobs = yield* Jobs.make({
         schema: config.schema,

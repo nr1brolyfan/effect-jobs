@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect"
+import { Effect, Match, Schema } from "effect"
 import * as Fixtures from "@effect-jobs/playground-contracts/Fixtures"
 import { JobDetail, JobPage } from "@effect-jobs/playground-contracts/Jobs"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
@@ -102,16 +102,19 @@ export const client: Client = {
           observation: {
             ...Fixtures.detail.observation,
             observedAt: job.updatedAt,
-            outcome:
-              job.state === "Active"
-                ? "unknown"
-                : job.state === "Dead"
-                  ? "dead"
-                  : job.state === "Isolated"
-                    ? "isolated"
-                    : job.state === "Pending"
-                      ? "retry"
-                      : "success"
+            outcome: Match.value(job.state).pipe(
+              Match.when("Active", () => "unknown" as const),
+              Match.when("Dead", () => "dead" as const),
+              Match.when("Isolated", () => "isolated" as const),
+              Match.when("Pending", () => "retry" as const),
+              Match.whenOr(
+                "Completed",
+                "RetryScheduled",
+                "Cancelled",
+                () => "success" as const
+              ),
+              Match.exhaustive
+            )
           }
         },
         { onExcessProperty: "error" }

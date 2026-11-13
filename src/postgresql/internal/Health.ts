@@ -1,4 +1,4 @@
-import { Effect, Result, Schema } from "effect"
+import { Effect, Result, Schema, SchemaGetter } from "effect"
 import { CatalogIdentity, QueueName } from "../../JobIdentity.js"
 import { BatchLimit } from "../../JobLifecycle.js"
 import { JobStoreProtocolError } from "../../JobStore.js"
@@ -32,6 +32,24 @@ const Request = Schema.Struct({
   ),
   limit: BatchLimit
 })
+const OldestRow = Schema.Struct({
+  oldest_at: Schema.Unknown.pipe(Schema.optionalKey)
+}).pipe(
+  Schema.decodeTo(
+    Schema.Struct({
+      oldestAt: Schema.Int.pipe(
+        Schema.check(Schema.isBetween({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER })),
+        Schema.NullOr
+      )
+    }),
+    {
+      decode: SchemaGetter.transform((row) => ({
+        oldestAt: row.oldest_at === undefined ? null : Number(row.oldest_at)
+      })),
+      encode: SchemaGetter.forbiddenEncoding
+    }
+  )
+)
 export const makeHealth = (adapter: ApplicationAdapter, jobs: string) => ({
   sample: (
     input: HealthRequest
@@ -64,23 +82,21 @@ export const makeHealth = (adapter: ApplicationAdapter, jobs: string) => ({
                 values
               )
               .pipe(
-                Effect.flatMap((rows) => {
-                  const oldest = rows[0]?.oldest_at
-                  const timestamp = oldest === undefined ? null : Number(oldest)
-                  if (
-                    timestamp !== null &&
-                    (!Number.isSafeInteger(timestamp) || timestamp < 0)
-                  ) {
-                    return Effect.fail(
-                      new JobStoreProtocolError({ reason: "invalid-artifact" })
+                Effect.flatMap((rows) =>
+                  Schema.decodeUnknownEffect(OldestRow)(rows[0] ?? {}).pipe(
+                    Effect.map(
+                      (oldest) =>
+                        ({
+                          count: Math.min(rows.length, request.limit),
+                          saturated: rows.length > request.limit,
+                          oldestAt: oldest.oldestAt
+                        }) satisfies HealthBucket
+                    ),
+                    Effect.mapError(
+                      () => new JobStoreProtocolError({ reason: "invalid-artifact" })
                     )
-                  }
-                  return Effect.succeed({
-                    count: Math.min(rows.length, request.limit),
-                    saturated: rows.length > request.limit,
-                    oldestAt: timestamp
-                  } satisfies HealthBucket)
-                })
+                  )
+                )
               )
           const supported = yield* bucket(
             `state IN ('Pending','RetryScheduled') AND available_at <= $2 AND (${catalogs})`,

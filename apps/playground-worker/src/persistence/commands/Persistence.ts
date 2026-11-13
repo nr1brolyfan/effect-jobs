@@ -12,6 +12,7 @@ import {
   ScenarioResult
 } from "@effect-jobs/playground-contracts/Scenarios"
 import { PlaygroundError } from "@effect-jobs/playground-contracts/Services"
+import type { PublicErrorCode } from "@effect-jobs/playground-contracts/Services"
 import * as Plan from "../../scenarios/Plan.js"
 import { DocumentKeys } from "../../scenarios/PrivateDocument.js"
 import {
@@ -22,11 +23,11 @@ import {
 } from "./Transactions.js"
 import type { CommandTransaction } from "./Transactions.js"
 
-const fail = (code: PlaygroundError["code"]) => new PlaygroundError({ code })
+const fail = (code: PublicErrorCode) => new PlaygroundError({ code })
 const decode = <S extends Schema.Top & { readonly DecodingServices: never }>(
   schema: S,
   input: unknown,
-  code: PlaygroundError["code"] = "invalid-request"
+  code: PublicErrorCode = "invalid-request"
 ) =>
   Schema.decodeUnknownEffect(schema)(input, { onExcessProperty: "error" }).pipe(
     Effect.mapError(() => fail(code))

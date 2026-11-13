@@ -73,7 +73,7 @@ it("projects selected Union branches through structs, arrays and optional fields
   ])
   const Payload = Schema.Struct({
     items: Schema.Array(Item),
-    extra: Schema.optionalKey(Protected)
+    extra: Protected.pipe(Schema.optionalKey)
   })
   const input = {
     items: [
@@ -183,7 +183,7 @@ it("separates protected metadata from public JSON at root, struct, array and opt
     },
     { schema: Schema.Array(Choice), wrap: (value: unknown) => [value], path: "/0" },
     {
-      schema: Schema.Struct({ value: Schema.optionalKey(Choice) }),
+      schema: Schema.Struct({ value: Choice.pipe(Schema.optionalKey) }),
       wrap: (value: unknown) => ({ value }),
       path: "/value"
     }
@@ -270,7 +270,7 @@ it("preserves the original root Union regression oracle and optional marked fiel
     const result = await Effect.runPromise(encodeJobPayload(Payload, changed))
     assert.notDeepEqual(encoded.semanticProjectionBytes, result.semanticProjectionBytes)
   }
-  const Optional = Schema.Struct({ value: Schema.optional(Protected) })
+  const Optional = Schema.Struct({ value: Protected.pipe(Schema.optional) })
   const omitted = await Effect.runPromise(encodeJobPayload(Optional, {}))
   assert.equal(text(omitted.payloadBytes), "{}")
   const present = await Effect.runPromise(

@@ -1,5 +1,5 @@
 import type { HealthSample } from "./postgresql/internal/Health.js"
-import { Cause, Clock, Effect, Exit, Metric, Schema } from "effect"
+import { Cause, Clock, Effect, Exit, Match, Metric, Schema } from "effect"
 import { JobFailure } from "./JobFailure.js"
 
 export type Operation =
@@ -61,7 +61,7 @@ const resultTags = [
   "Unsupported",
   "Abandoned"
 ] as const
-const resultOf = (value: unknown): string => {
+const resultOf = (value: unknown): (typeof resultTags)[number] | "none" => {
   if (typeof value === "object" && value !== null && "_tag" in value) {
     for (const tag of resultTags) {
       if (value._tag === tag) {
@@ -79,29 +79,40 @@ const UnknownCommit = Schema.Struct({
 
 export const classify = <A, E>(exit: Exit.Exit<A, E>): Outcome => {
   if (Exit.isSuccess(exit)) {
-    const result = resultOf(exit.value)
-    if (result === "Retry") {
-      return "retry"
-    }
-    if (result === "Dead") {
-      return "dead"
-    }
-    if (result === "Isolate") {
-      return "isolate"
-    }
-    if (
-      result === "InvalidOwnership" ||
-      result === "Unsupported" ||
-      result === "Abandoned"
-    ) {
-      return "unknown"
-    }
-    return result === "Unknown" || result === "Unresolved"
-      ? "unknown"
-      : result === "Backoff"
-        ? "failure"
-        : "success"
+    return Match.value(resultOf(exit.value)).pipe(
+      Match.when("Retry", () => "retry" as const),
+      Match.when("Dead", () => "dead" as const),
+      Match.when("Isolate", () => "isolate" as const),
+      Match.whenOr(
+        "InvalidOwnership",
+        "Unsupported",
+        "Abandoned",
+        "Unknown",
+        "Unresolved",
+        () => "unknown" as const
+      ),
+      Match.when("Backoff", () => "failure" as const),
+      Match.whenOr(
+        "Empty",
+        "Claimed",
+        "Owned",
+        "InsufficientLease",
+        "NotOwned",
+        "Applied",
+        "StillOwned",
+        "OwnershipLost",
+        "Inserted",
+        "AlreadyPresent",
+        "Idle",
+        "MoreWork",
+        "Complete",
+        "none",
+        () => "success" as const
+      ),
+      Match.exhaustive
+    )
   }
+
   const reasons = exit.cause.reasons
   if (Cause.hasInterruptsOnly(exit.cause)) {
     return "interrupted"
@@ -115,16 +126,13 @@ export const classify = <A, E>(exit: Exit.Exit<A, E>): Outcome => {
       return "unknown"
     }
     if (Schema.is(JobFailure)(reason.error)) {
-      switch (reason.error._tag) {
-        case "Retry":
-          return "retry"
-        case "Dead":
-          return "dead"
-        case "Isolate":
-          return "isolate"
-        case "OutcomeUnknown":
-          return "unknown"
-      }
+      return Match.value<JobFailure>(reason.error).pipe(
+        Match.tag("Retry", () => "retry" as const),
+        Match.tag("Dead", () => "dead" as const),
+        Match.tag("Isolate", () => "isolate" as const),
+        Match.tag("OutcomeUnknown", () => "unknown" as const),
+        Match.exhaustive
+      )
     }
   }
   return "failure"

@@ -144,8 +144,10 @@ export const scoped = (client: Client, sandbox: SandboxView, options: Options = 
               state.revokeAuthority("sandbox-expired")
             }
           },
-          snapshot: () =>
-            state.backgroundRefresh.pipe(Effect.provideService(JobsClient, client)),
+          snapshot: (current) =>
+            state
+              .backgroundRefreshWhen(current)
+              .pipe(Effect.provideService(JobsClient, client)),
           render: () => undefined,
           connection: (connection) => state.connection(connection),
           unavailable: () => {
@@ -173,7 +175,7 @@ export const scoped = (client: Client, sandbox: SandboxView, options: Options = 
       const active =
         document.visibilityState !== "hidden" && window.navigator?.onLine !== false
       live?.setVisible(active)
-      if (active && !state.reading()) {
+      if (active && !options.liveUrl && !state.reading()) {
         void run(state.backgroundRefresh)
       }
     }
@@ -235,7 +237,11 @@ export const scoped = (client: Client, sandbox: SandboxView, options: Options = 
       )
     }
     connect()
-    void run(state.refresh.pipe(Effect.andThen(Effect.sync(followRoute))))
+    if (options.liveUrl) {
+      followRoute()
+    } else {
+      void run(state.refresh.pipe(Effect.andThen(Effect.sync(followRoute))))
+    }
     const dispose = () => {
       if (closing) {
         return closing

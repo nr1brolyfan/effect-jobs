@@ -891,7 +891,7 @@
   {
     "subpath": "effect-jobs/JobPolling",
     "filename": "src/JobPolling.ts",
-    "sha256": "3ea6ffe61a334046816c13c6dcb443552992dbf95bc3f38efdb1759aab0f0d7a",
+    "sha256": "54d771ddc8847a37743cec565e897457c681cb80fc2f3d5101ec474b37c46ab6",
     "symbols": [
       {
         "name": "layer",
@@ -983,7 +983,7 @@
   {
     "subpath": "effect-jobs/JobLifecycle",
     "filename": "src/JobLifecycle.ts",
-    "sha256": "aa930fa2516853393f9987bde1c51845e07ab0b4d9333286c43d5ba4749a084e",
+    "sha256": "76f11f25b0ca301e96a4f80c837af621f0e287e81b8d79a6e0d1fc13077770f8",
     "symbols": [
       {
         "name": "addTimestamp",

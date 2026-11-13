@@ -17,11 +17,14 @@ const runtimeArtifacts = [
   ".opencode/skills/multica-platform/references/skill-import.md"
 ]
 
-it("keeps runtime formatter exclusions exact and disjoint from tracked files", () => {
+it("keeps Markdown policy explicit and runtime exclusions disjoint from tracked files", () => {
   const config: { readonly ignorePatterns: ReadonlyArray<string> } = JSON.parse(
     readFileSync(new URL("../.oxfmtrc.json", import.meta.url), "utf8")
   )
   expect(config.ignorePatterns).toEqual([
+    "**/*.md",
+    "**/.alchemy/**",
+    "**/.wrangler/**",
     "**/node_modules/**",
     "**/dist/**",
     "**/coverage/**",
