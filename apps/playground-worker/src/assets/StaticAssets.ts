@@ -15,6 +15,7 @@ const types: Readonly<Record<string, string>> = {
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json",
   ".svg": "image/svg+xml",
+  ".ico": "image/vnd.microsoft.icon",
   ".png": "image/png",
   ".webp": "image/webp",
   ".woff2": "font/woff2",

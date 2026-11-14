@@ -47,6 +47,7 @@ export default defineConfig({
     react(),
     starlight({
       title: "effect-jobs",
+      favicon: "/favicon.svg",
       description: "Durable background jobs with explicit Effect ownership.",
       customCss: ["./src/styles/site/docs.css"],
       expressiveCode: {
@@ -125,7 +126,26 @@ export default defineConfig({
           href: "https://github.com/nr1brolyfan/effect-jobs"
         }
       ],
-      head: [{ tag: "meta", attrs: { name: "color-scheme", content: "dark" } }]
+      head: [
+        { tag: "meta", attrs: { name: "color-scheme", content: "dark" } },
+        {
+          tag: "link",
+          attrs: {
+            rel: "icon",
+            href: "/favicon.ico",
+            type: "image/x-icon",
+            sizes: "16x16 32x32 48x48"
+          }
+        },
+        {
+          tag: "link",
+          attrs: {
+            rel: "apple-touch-icon",
+            href: "/apple-touch-icon.png",
+            sizes: "180x180"
+          }
+        }
+      ]
     })
   ]
 })
