@@ -72,6 +72,25 @@ try {
     readonly sha256: string
     readonly headers: Readonly<Record<string, string>>
   }> = JSON.parse(await readFile(resolve(directory, "assets.json"), "utf8"))
+  const controls = ["/_headers", "/_redirects"]
+  if (assetManifest.some((entry) => controls.includes(entry.path))) {
+    throw new Error("Platform controls cannot be public response manifest entries")
+  }
+  const headerControl = await readFile(resolve(directory, "assets/_headers"), "utf8")
+  const redirectControl = await readFile(resolve(directory, "assets/_redirects"), "utf8")
+  const headerRules = headerControl.split("\n").filter((line) => line.startsWith("/"))
+  if (
+    headerRules.length === 0 ||
+    headerRules.length > 100 ||
+    headerControl.split("\n").some((line) => line.length > 2000) ||
+    !redirectControl.trim() ||
+    redirectControl
+      .trim()
+      .split("\n")
+      .some((line) => !/^\S+ \/_pages\/[a-f0-9]{64} 200$/.test(line))
+  ) {
+    throw new Error("Invalid generated native platform controls")
+  }
   for (const entry of assetManifest) {
     const path = entry.path
     // /demo starts the real durable generator; its DB-backed runtime is
@@ -119,7 +138,14 @@ try {
       throw new Error(`Native trailing-slash alias ${path} changed its policy`)
     }
   }
-  for (const path of ["/jobs.html", "/api", "/api.html", "/demo.html", "/demo/foreign"]) {
+  for (const path of [
+    ...controls,
+    "/jobs.html",
+    "/api",
+    "/api.html",
+    "/demo.html",
+    "/demo/foreign"
+  ]) {
     const response = await fetch(new URL(path, url), { redirect: "manual" })
     if (response.status !== 404) {
       throw new Error(`Reserved asset ${path} was exposed`)
@@ -175,7 +201,19 @@ try {
   await writeFile(
     resolve(directory, "manifest.json"),
     JSON.stringify(
-      { output, bindings, modules, assets: process.env.ASSET_DIRECTORY, receipts },
+      {
+        output,
+        bindings,
+        modules,
+        assets: process.env.ASSET_DIRECTORY,
+        receipts,
+        controls: {
+          publicStatus: 404,
+          headerRules: headerRules.length,
+          headersSHA256: createHash("sha256").update(headerControl).digest("hex"),
+          redirectsSHA256: createHash("sha256").update(redirectControl).digest("hex")
+        }
+      },
       null,
       2
     )

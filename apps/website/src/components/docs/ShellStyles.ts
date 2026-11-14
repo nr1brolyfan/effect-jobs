@@ -1,8 +1,7 @@
 import * as stylex from "@stylexjs/stylex"
 
-// Static component styles. Class hooks remain for behavior tests, not CSS ownership.
+// Docs-owned shell styles; the landing and shared application tokens stay fixed.
 export const styles = stylex.create({
-  // .ej-header
   ejHeader: {
     containerType: "inline-size",
     display: "flex",
@@ -11,62 +10,55 @@ export const styles = stylex.create({
     gap: "1rem",
     height: "100%"
   },
-  // .ej-wordmark | .ej-wordmark
   ejWordmark: {
     display: "flex",
     alignItems: "center",
-    gap: { default: "0.8rem", "@container (max-width: 13rem)": "0" },
-    color: "#eeefed",
+    gap: { default: "12px", "@container (max-width: 13rem)": "0" },
+    color: "#edecea",
     textDecoration: "none",
-    fontSize: "1.1rem",
+    fontSize: "19px",
     fontWeight: "650",
-    letterSpacing: "-0.04em",
+    letterSpacing: "-0.6px",
     whiteSpace: "nowrap"
   },
-  // .ej-mark
   ejMark: {
     display: "grid",
     gridTemplateColumns: "auto auto",
     placeContent: "center",
-    width: "1.9rem",
-    height: "1.9rem",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: "#9fdbbd",
-    borderRadius: "0.35rem",
-    color: "#b3e6cc",
-    fontFamily: "var(--sl-font-mono)",
-    fontSize: "1rem",
-    letterSpacing: "-0.12em"
+    width: "34px",
+    height: "34px",
+    borderRadius: "9px",
+    backgroundColor: "#2c2933",
+    color: "#edecea",
+    fontFamily: "Georgia, serif",
+    fontSize: "25px",
+    fontWeight: "400",
+    paddingBottom: "3px",
+    letterSpacing: "-0.6px"
   },
-  // .ej-mark span
-  ejMark2: { transform: "translateY(0.15rem)" },
-  // .ej-product,   .ej-docs-label,   .ej-header-divider
+  ejMark2: { color: "#c9b7f5" },
   ejHeaderDivider: { display: { "@container (max-width: 13rem)": "none" } },
-  // .ej-header-divider | .ej-source-link,   .ej-header-divider,   .ej-docs-label | .ej-product,   .ej-docs-label,   .ej-header-divider
   ejHeaderDivider2: {
     height: "1rem",
     borderLeftWidth: "1px",
     borderLeftStyle: "solid",
-    borderLeftColor: "#505753",
+    borderLeftColor: "#35343a",
     marginLeft: "0.4rem",
     display: {
       "@media (max-width: 49.99rem)": "none",
       "@container (max-width: 13rem)": "none"
     }
   },
-  // .ej-docs-label | .ej-source-link,   .ej-header-divider,   .ej-docs-label | .ej-product,   .ej-docs-label,   .ej-header-divider
   ejDocsLabel: {
-    fontSize: "0.85rem",
+    fontSize: "14px",
     fontWeight: "400",
     letterSpacing: "0",
-    color: "#b4bab7",
+    color: "#aaa7b2",
     display: {
       "@media (max-width: 49.99rem)": "none",
       "@container (max-width: 13rem)": "none"
     }
   },
-  // .ej-header-tools | .ej-header-tools | .ej-header-tools
   ejHeaderTools: {
     display: "flex",
     alignItems: "center",
@@ -76,7 +68,6 @@ export const styles = stylex.create({
       "@container (max-width: 36rem)": "0.75rem"
     }
   },
-  // .ej-source-link | .ej-source-link,   .ej-header-divider,   .ej-docs-label | .ej-source-link
   ejSourceLink: {
     display: {
       default: "inline-flex",
@@ -86,98 +77,60 @@ export const styles = stylex.create({
     gap: "0.4rem",
     whiteSpace: "nowrap",
     alignItems: "center",
-    color: "#b4bab7",
-    fontSize: "0.85rem",
+    color: "#aaa7b2",
+    fontSize: "15px",
     textDecoration: "none"
   },
-  // .ej-nav-intro
-  ejNavIntro: {
-    fontSize: "0.75rem",
-    color: "#b4bab7",
-    display: "flex",
-    alignItems: "center",
-    gap: "0.55rem",
-    margin: "0 0 2rem 0.7rem"
-  },
-  // .ej-nav-dot
-  ejNavDot: {
-    width: "5px",
-    height: "5px",
-    backgroundColor: "#9fdbbd",
-    borderRadius: "50%"
-  },
-  // .ej-nav-group
-  ejNavGroup: { marginBottom: "1.35rem" },
-  // .ej-nav-group h2
+  ejNavGroup: { marginBottom: "24px" },
   ejNavGroup2: {
-    margin: "0 0 0.5rem 0.7rem",
-    fontSize: "0.65rem",
+    margin: "0 0 8px 12px",
+    fontSize: "12px",
     lineHeight: "1.5",
-    fontWeight: "600",
+    fontWeight: "550",
     textTransform: "uppercase",
-    letterSpacing: "0.13em",
-    color: "#a8afac"
+    letterSpacing: "0.08em",
+    color: "#aaa7b2"
   },
-  // .ej-nav-group ul
   ejNavGroup3: { listStyle: "none", margin: "0", padding: "0" },
-  // .ej-nav-group li
-  ejNavGroup4: { margin: "0.12rem 0" },
-  // .ej-nav-group a | .ej-nav-group a:hover
+  ejNavGroup4: { margin: "2px 0" },
   ejNavGroup5: {
     display: "block",
-    padding: "0.45rem 0.7rem",
+    padding: "8px 12px",
     borderLeftWidth: "2px",
     borderLeftStyle: "solid",
     borderLeftColor: "transparent",
-    borderRadius: "0 4px 4px 0",
-    color: { default: "#b4bab7", ":hover": "#eeefed" },
+    borderRadius: "0 6px 6px 0",
+    color: { default: "#aaa7b2", ":hover": "#edecea" },
     textDecoration: "none",
-    fontSize: "0.82rem",
+    fontSize: "14px",
     lineHeight: "1.5",
-    backgroundColor: { ":hover": "#191c1b" }
+    backgroundColor: { ":hover": "#202023" }
   },
-  // .ej-nav-group a[aria-current="page"]
   ejNavGroupSelected: {
-    color: "#b3e6cc",
-    borderLeftColor: "#9fdbbd",
-    backgroundColor: "#1b2923"
+    color: "#d0bff1",
+    borderLeftColor: "#b5a4d1",
+    backgroundColor: "#2c2933"
   },
-  // .ej-nav-footer
-  ejNavFooter: {
-    margin: "1rem 0.7rem 0",
-    paddingTop: "1.2rem",
-    borderTopWidth: "1px",
-    borderTopStyle: "solid",
-    borderTopColor: "#2b2e32",
-    display: "grid",
-    gap: "0.7rem",
-    fontSize: "0.65rem",
-    color: "#a8afac"
-  },
-  // .ej-nav-footer a
-  ejNavFooter2: { fontSize: "0.7rem", color: "#b3e6cc", textDecoration: "none" },
-  // .ej-page-context | .ej-page-context
-  ejPageContext: {
-    flexWrap: { default: "wrap", "@media (max-width: 49.99rem)": "wrap" },
+  ejNavExamples: {
     display: "flex",
     alignItems: "center",
-    gap: "0.8rem",
-    color: "#a8afac",
-    fontSize: "0.65rem",
-    letterSpacing: "0.13em",
-    fontFamily: "var(--sl-font-mono)",
-    marginTop: { default: "1.5rem", "@media (max-width: 49.99rem)": "0.5rem" }
+    gap: "8px",
+    margin: "24px 12px 0",
+    paddingTop: "20px",
+    borderTopWidth: "1px",
+    borderTopStyle: "solid",
+    borderTopColor: "#35343a",
+    fontSize: "14px",
+    color: "#c6b8df",
+    textDecoration: "none"
   },
-  // .ej-page-context span
-  ejPageContext2: { color: "#65746c" },
-  // h1#_top | h1#_top
   element: {
-    fontSize: { default: "var(--sl-text-h1)", "@media (max-width: 49.99rem)": "2.5rem" },
-    fontWeight: "500",
-    letterSpacing: "-0.055em",
-    lineHeight: "1.12",
-    marginTop: "1.5rem",
-    maxWidth: "min(13em, 38rem)",
+    fontFamily: 'Georgia, "Times New Roman", serif',
+    fontSize: "var(--sl-text-h1)",
+    fontWeight: "400",
+    letterSpacing: "-1.5px",
+    lineHeight: "1.15",
+    marginTop: "0",
     textWrap: "balance",
     overflowWrap: "anywhere"
   }

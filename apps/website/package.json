@@ -18,7 +18,10 @@
     "site:check": "astro sync && tsc --project tsconfig.site.json --noEmit",
     "site:test": "cd ../.. && node node_modules/vitest/vitest.mjs run --project website-unit apps/website/tests/modernization/Extraction.unit.ts apps/website/tests/modernization/StaticAssets.unit.ts",
     "site:browser": "node tests/site/Browser.ts",
-    "site:routes": "node tests/site/Routes.ts"
+    "site:routes": "node tests/site/Routes.ts",
+    "hosting:build": "node hosting/Build.mjs",
+    "hosting:check": "tsc -p tsconfig.hosting.json --noEmit",
+    "hosting:test": "node hosting/Qualify.mjs"
   },
   "devDependencies": {
     "@astrojs/react": "7.1.5",
@@ -38,6 +41,12 @@
     "@playwright/test": "1.56.1",
     "@base-ui/react": "1.9.0",
     "effect-jobs": "file:../..",
-    "@effect-jobs/playground-contracts": "workspace:*"
+    "@effect-jobs/playground-contracts": "workspace:*",
+    "alchemy": "2.0.0-beta.85",
+    "@alchemy.run/cloudflare": "2.0.0-beta.85",
+    "@alchemy.run/frontend-frameworks": "2.0.0-beta.85",
+    "miniflare": "5.20261006.1-alpha",
+    "@effect/platform-node": "4.1.0",
+    "@astrojs/sitemap": "3.7.4"
   }
 }

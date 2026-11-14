@@ -25,10 +25,10 @@ export const styles = stylex.create({
     },
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "#303238",
-    borderRadius: "12px",
-    backgroundColor: "#0c0d0f",
-    color: "#e3e4e8"
+    borderColor: "#45404f",
+    borderRadius: "9px",
+    backgroundColor: "#202023",
+    color: "#edecea"
   },
   // .jv :where(div, span, code, strong, button, svg) | .jv-buttons, .jv-modes | .jv-modes
   modes: {
@@ -48,22 +48,22 @@ export const styles = stylex.create({
     borderColor: "transparent",
     borderRadius: "6px",
     padding: "7px 11px",
-    color: "#828b9c",
-    backgroundColor: { default: "transparent", ":hover": "#1d2027" },
+    color: "#aaa7b2",
+    backgroundColor: { default: "transparent", ":hover": "#2c2933" },
     cursor: { default: "pointer", ":disabled": "default" },
     font: "12px/1.4 var(--sl-font)",
     whiteSpace: "nowrap",
     outlineWidth: { ":focus-visible": "2px" },
     outlineStyle: { ":focus-visible": "solid" },
-    outlineColor: { ":focus-visible": "var(--jv-blue)" },
+    outlineColor: { ":focus-visible": "#b5a4d1" },
     outlineOffset: { ":focus-visible": "3px" },
     opacity: { ":disabled": "0.35" }
   },
   // .jv-modes button[aria-pressed="true"]
   modesSelected: {
-    color: "#e1e5ed",
-    borderColor: "#424852",
-    backgroundColor: "#181b21"
+    color: "#edecea",
+    borderColor: "#655871",
+    backgroundColor: "#302b38"
   },
   // .jv :where(div, span, code, strong, button, svg) | .jv-stage | .jv-stage
   stage: {
@@ -146,10 +146,10 @@ export const styles = stylex.create({
     position: "relative",
     zIndex: "1",
     minWidth: "0",
-    backgroundColor: "#111215",
+    backgroundColor: "#27262c",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "#3a3d45",
+    borderColor: "#51485e",
     borderRadius: "10px",
     display: "flex",
     flexDirection: "column",
@@ -174,7 +174,7 @@ export const styles = stylex.create({
   // .jv-node[data-active="true"]
   nodeSelected: {
     borderColor: "var(--node-color)",
-    backgroundColor: "color-mix(in srgb, var(--node-color) 7%, #0c0d0f)"
+    backgroundColor: "color-mix(in srgb, var(--node-color) 7%, #202023)"
   },
   // .jv-overview .jv-node
   nodeSelected2: {
@@ -188,7 +188,7 @@ export const styles = stylex.create({
     margin: "0",
     boxSizing: "border-box",
     font: "550 13px/1.4 var(--sl-font)",
-    color: "#e8e9ed"
+    color: "#edecea"
   },
   // .jv :where(div, span, code, strong, button, svg) | .jv code
   element5: {
@@ -199,17 +199,18 @@ export const styles = stylex.create({
     borderStyle: "none",
     borderColor: "currentColor",
     backgroundColor: "transparent",
-    color: "#b7bcc7",
-    font: "11px/1.5 var(--sl-font-mono)",
+    color: "#c5b6dd",
+    font: "14px/1.5 var(--sl-font-mono)",
     overflowWrap: "anywhere"
   },
   // .jv :where(div, span, code, strong, button, svg) | .jv-status
   status: {
     margin: "0",
     boxSizing: "border-box",
-    color: "#8e95a3",
-    font: "11px/1.4 var(--sl-font-mono)",
-    whiteSpace: "nowrap"
+    color: "#aaa7b2",
+    font: "14px/1.4 var(--sl-font-mono)",
+    whiteSpace: "normal",
+    overflowWrap: "anywhere"
   },
   // .jv-status[data-done="true"], .jv-check
   checkSelected: { color: "var(--jv-green)" },
@@ -220,10 +221,10 @@ export const styles = stylex.create({
     position: "relative",
     zIndex: "1",
     minWidth: "0",
-    backgroundColor: "#111215",
+    backgroundColor: "#27262c",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "#3a3d45",
+    borderColor: "#51485e",
     borderRadius: "10px"
   },
   // .jv-overview .jv-database
@@ -248,6 +249,7 @@ export const styles = stylex.create({
     margin: "0",
     boxSizing: "border-box",
     display: "flex",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: {
       default: "10px",
@@ -259,7 +261,7 @@ export const styles = stylex.create({
     },
     borderBottomWidth: "1px",
     borderBottomStyle: "solid",
-    borderBottomColor: "#303238"
+    borderBottomColor: "#45404f"
   },
   // .jv :where(div, span, code, strong, button, svg) | .jv-table | .jv-table
   table: {
@@ -277,8 +279,8 @@ export const styles = stylex.create({
     boxSizing: "border-box",
     display: "block",
     padding: "0 4px 7px",
-    color: "#8e95a3",
-    font: "11px/1.3 var(--sl-font-mono)"
+    color: "#aaa7b2",
+    font: "14px/1.3 var(--sl-font-mono)"
   },
   // .jv :where(div, span, code, strong, button, svg) | .jv-row | .jv-row
   row: {
@@ -291,15 +293,16 @@ export const styles = stylex.create({
       "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "4px 8px"
     },
     minHeight: "39px",
+    overflowWrap: "anywhere",
     padding: {
       default: "9px 11px",
       "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "8px"
     },
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "#303238",
+    borderColor: "#45404f",
     borderRadius: "5px",
-    font: "11px/1.4 var(--sl-font-mono)",
+    font: "14px/1.4 var(--sl-font-mono)",
     flexWrap: {
       "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "wrap"
     }
@@ -331,9 +334,9 @@ export const styles = stylex.create({
   status2: {
     margin: "0",
     boxSizing: "border-box",
-    color: "#8e95a3",
-    font: "11px/1.4 var(--sl-font-mono)",
-    whiteSpace: "nowrap",
+    color: "#aaa7b2",
+    font: "14px/1.4 var(--sl-font-mono)",
+    whiteSpace: "normal",
     marginLeft: "auto"
   },
   // .jv-overview .jv-table:last-child .jv-row > :last-child
@@ -353,10 +356,10 @@ export const styles = stylex.create({
     position: "relative",
     zIndex: "1",
     minWidth: "0",
-    backgroundColor: "#111215",
+    backgroundColor: "#27262c",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "#3a3d45",
+    borderColor: "#51485e",
     borderRadius: "10px",
     display: "flex",
     flexDirection: "column",
@@ -385,10 +388,10 @@ export const styles = stylex.create({
     position: "relative",
     zIndex: "1",
     minWidth: "0",
-    backgroundColor: "#111215",
+    backgroundColor: "#27262c",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "#3a3d45",
+    borderColor: "#51485e",
     borderRadius: "10px",
     display: "flex",
     flexDirection: "column",
@@ -417,10 +420,10 @@ export const styles = stylex.create({
     position: "relative",
     zIndex: "1",
     minWidth: "0",
-    backgroundColor: "#111215",
+    backgroundColor: "#27262c",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "#3a3d45",
+    borderColor: "#51485e",
     borderRadius: "10px",
     paddingBottom: "14px"
   },
@@ -447,7 +450,7 @@ export const styles = stylex.create({
     alignItems: "center",
     gap: "8px",
     marginBottom: "12px",
-    color: "#8e95a3",
+    color: "#aaa7b2",
     font: "10px/1.5 var(--sl-font-mono)"
   },
   // .jv-boundary[data-result="rollback"] .jv-boundary-title > :last-child
@@ -471,9 +474,9 @@ export const styles = stylex.create({
     },
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "#303238",
+    borderColor: "#45404f",
     borderRadius: "5px",
-    font: "11px/1.4 var(--sl-font-mono)",
+    font: "14px/1.4 var(--sl-font-mono)",
     marginTop: "10px",
     flexWrap: {
       "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "wrap"
@@ -486,10 +489,10 @@ export const styles = stylex.create({
     position: "relative",
     zIndex: "1",
     minWidth: "0",
-    backgroundColor: "#111215",
+    backgroundColor: "#27262c",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "#3a3d45",
+    borderColor: "#51485e",
     borderRadius: "10px",
     display: "flex",
     flexDirection: "column",
@@ -519,10 +522,10 @@ export const styles = stylex.create({
       default: "0",
       "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "145px"
     },
-    backgroundColor: "#111215",
+    backgroundColor: "#27262c",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "#3a3d45",
+    borderColor: "#51485e",
     borderRadius: "10px",
     display: "flex",
     flexDirection: "column",
@@ -554,10 +557,10 @@ export const styles = stylex.create({
     position: "relative",
     zIndex: "1",
     minWidth: "0",
-    backgroundColor: "#111215",
+    backgroundColor: "#27262c",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "#3a3d45",
+    borderColor: "#51485e",
     borderRadius: "10px",
     display: "flex",
     flexDirection: "column",
@@ -586,10 +589,10 @@ export const styles = stylex.create({
     position: "relative",
     zIndex: "1",
     minWidth: "0",
-    backgroundColor: "#111215",
+    backgroundColor: "#27262c",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "#3a3d45",
+    borderColor: "#51485e",
     borderRadius: "10px",
     display: "flex",
     flexDirection: "column",
@@ -618,10 +621,10 @@ export const styles = stylex.create({
     position: "relative",
     zIndex: "1",
     minWidth: "0",
-    backgroundColor: "#111215",
+    backgroundColor: "#27262c",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "#3a3d45",
+    borderColor: "#51485e",
     borderRadius: "10px",
     display: "flex",
     flexDirection: "column",
@@ -670,8 +673,8 @@ export const styles = stylex.create({
   progress: {
     margin: "0",
     boxSizing: "border-box",
-    color: "#9299a7",
-    font: "11px/1.4 var(--sl-font-mono)"
+    color: "#aaa7b2",
+    font: "14px/1.4 var(--sl-font-mono)"
   },
   // .jv :where(div, span, code, strong, button, svg) | .jv-buttons, .jv-modes | .jv-buttons
   modes2: {
@@ -689,17 +692,17 @@ export const styles = stylex.create({
     boxSizing: "border-box",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "#dfe3eb",
+    borderColor: "#c6b8df",
     borderRadius: "6px",
     padding: "7px 11px",
-    color: "#101216",
-    backgroundColor: { default: "#dfe3eb", ":hover": "white" },
+    color: "#201d27",
+    backgroundColor: { default: "#c6b8df", ":hover": "#b5a4d1" },
     cursor: { default: "pointer", ":disabled": "default" },
     font: "12px/1.4 var(--sl-font)",
     whiteSpace: "nowrap",
     outlineWidth: { ":focus-visible": "2px" },
     outlineStyle: { ":focus-visible": "solid" },
-    outlineColor: { ":focus-visible": "var(--jv-blue)" },
+    outlineColor: { ":focus-visible": "#b5a4d1" },
     outlineOffset: { ":focus-visible": "3px" },
     opacity: { ":disabled": "0.35" }
   },
@@ -712,14 +715,14 @@ export const styles = stylex.create({
     borderColor: { ":hover": "#646a77" },
     borderRadius: "6px",
     padding: "7px 11px",
-    color: "#d7dae2",
-    backgroundColor: { default: "transparent", ":hover": "#1d2027" },
+    color: "#edecea",
+    backgroundColor: { default: "transparent", ":hover": "#2c2933" },
     cursor: { default: "pointer", ":disabled": "default" },
     font: "12px/1.4 var(--sl-font)",
     whiteSpace: "nowrap",
     outlineWidth: { ":focus-visible": "2px" },
     outlineStyle: { ":focus-visible": "solid" },
-    outlineColor: { ":focus-visible": "var(--jv-blue)" },
+    outlineColor: { ":focus-visible": "#b5a4d1" },
     outlineOffset: { ":focus-visible": "3px" },
     opacity: { ":disabled": "0.35" },
     display: { "@media (prefers-reduced-motion: reduce)": "none" }
@@ -733,18 +736,18 @@ export const styles = stylex.create({
     borderColor: { ":hover": "#646a77" },
     borderRadius: "6px",
     padding: "3px 10px",
-    color: "#d7dae2",
-    backgroundColor: { default: "transparent", ":hover": "#1d2027" },
+    color: "#edecea",
+    backgroundColor: { default: "transparent", ":hover": "#2c2933" },
     cursor: { default: "pointer", ":disabled": "default" },
     font: "12px/1.4 var(--sl-font)",
     whiteSpace: "nowrap",
     outlineWidth: { ":focus-visible": "2px" },
     outlineStyle: { ":focus-visible": "solid" },
-    outlineColor: { ":focus-visible": "var(--jv-blue)" },
+    outlineColor: { ":focus-visible": "#b5a4d1" },
     outlineOffset: { ":focus-visible": "3px" },
     opacity: { ":disabled": "0.35" },
     fontSize: "18px"
   },
   // .jv-static
-  static: { margin: "16px 0 0", fontSize: "12px", color: "#a1a7b3" }
+  static: { margin: "16px 0 0", fontSize: "12px", color: "#aaa7b2" }
 })

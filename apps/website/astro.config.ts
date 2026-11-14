@@ -3,6 +3,8 @@ import react from "@astrojs/react"
 import type { Plugin } from "vite"
 import { unplugin as stylex } from "@stylexjs/unplugin"
 import starlight from "@astrojs/starlight"
+import sitemap from "@astrojs/sitemap"
+import { productionAssets } from "./hosting/Assets.js"
 
 // Astro emits shared illustration CSS during prerender. Running extraction again
 // in the client environment renames Expressive Code's CSS after its href is frozen.
@@ -28,6 +30,7 @@ extraction.writeBundle = function (options, bundle) {
 }
 
 export default defineConfig({
+  site: "https://effect-jobs.dev",
   output: "static",
   build: { inlineStylesheets: "never" },
   markdown: { syntaxHighlight: false },
@@ -39,11 +42,51 @@ export default defineConfig({
     plugins: [extraction]
   },
   integrations: [
+    productionAssets(),
+    sitemap({ filter: (page) => new URL(page).pathname !== "/docs/jobs" }),
     react(),
     starlight({
       title: "effect-jobs",
       description: "Durable background jobs with explicit Effect ownership.",
       customCss: ["./src/styles/site/docs.css"],
+      expressiveCode: {
+        themes: ["github-dark"],
+        useStarlightDarkModeSwitch: false,
+        useDarkModeMediaQuery: false,
+        styleOverrides: {
+          borderColor: "#36343c",
+          borderWidth: "1px",
+          // Frames adds the 1px border to this inner radius: 9px outer panel.
+          borderRadius: "8px",
+          codeBackground: "#1c1c20",
+          codeFontFamily:
+            'ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace',
+          codeFontSize: "14px",
+          codeLineHeight: "1.7",
+          codePaddingBlock: "22px",
+          codePaddingInline: "22px",
+          uiFontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
+          uiFontSize: "13px",
+          uiLineHeight: "1.3",
+          uiPaddingBlock: "12px",
+          uiPaddingInline: "22px",
+          frames: {
+            frameBoxShadowCssValue: "none",
+            editorBackground: "#1c1c20",
+            editorTabBarBackground: "#1c1c20",
+            editorActiveTabBackground: "#1c1c20",
+            editorActiveTabForeground: "#bcc2d0",
+            editorTabBarBorderColor: "#36343c",
+            editorTabBarBorderBottomColor: "#ffffff13",
+            editorActiveTabIndicatorTopColor: "transparent",
+            editorActiveTabIndicatorBottomColor: "#ffffff13",
+            terminalBackground: "#1c1c20",
+            terminalTitlebarBackground: "#1c1c20",
+            terminalTitlebarForeground: "#bcc2d0",
+            terminalTitlebarBorderBottomColor: "#ffffff13"
+          }
+        }
+      },
       components: {
         ThemeProvider: "./src/components/docs/ThemeProvider.astro",
         Header: "./src/components/docs/Header.astro",

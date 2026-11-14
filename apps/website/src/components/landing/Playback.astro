@@ -1,0 +1,11 @@
+---
+import Playback from "./Playback.js"
+---
+
+<!-- Keep the stylesheet in the prerender entry, not the hydrated client chunk.
+     The unchanged extraction hook appends shared StyleX rules to this asset. -->
+<Playback client:load />
+
+<style is:global>
+  @import "./Playback.css";
+</style>

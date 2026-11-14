@@ -1,7 +1,42 @@
 import { createHash } from "node:crypto"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
-import { resolve } from "node:path"
+import { extname, resolve } from "node:path"
 import * as StaticAssets from "../src/assets/StaticAssets.js"
+
+// An exact index alias needs no second identical header declaration when its
+// canonical wildcard already covers it. Never remove a conflicting override.
+export const compactHeaderPolicies = (policies: ReadonlySet<string>) => {
+  const rules = [...policies].map((policy) => {
+    const newline = policy.indexOf("\n")
+    return { policy, route: policy.slice(0, newline), headers: policy.slice(newline) }
+  })
+  return rules
+    .filter((rule) => {
+      if (rule.route === "/index.html" || !rule.route.endsWith("/index.html")) {
+        return true
+      }
+      const canonical = rule.route.slice(0, -11) + "*"
+      const covering = rules.find(
+        (other) => other.route === canonical && other.headers === rule.headers
+      )
+      if (!covering) {
+        return true
+      }
+      return rules.some((other) => {
+        // Output is sorted: broader rules before the canonical rule are already
+        // overridden. A later conflicting match still needs the exact alias rule.
+        if (other.headers === rule.headers || other.policy < covering.policy) {
+          return false
+        }
+        const wildcard = other.route.indexOf("*")
+        return wildcard === -1
+          ? other.route === rule.route
+          : rule.route.startsWith(other.route.slice(0, wildcard)) &&
+              rule.route.endsWith(other.route.slice(wildcard + 1))
+      })
+    })
+    .map((rule) => rule.policy)
+}
 
 // Preserve the test-owned dashboard bytes until its owner moves the source.
 // Refuse a changed declaration instead of silently staging a second template.
@@ -42,6 +77,10 @@ export const stage = async (root: string, directory: string) => {
   const manifest = []
   const policies = new Set<string>()
   for (const path of [...paths].sort()) {
+    // Native platform configuration is generated below, not a public payload.
+    if (path === "/_headers" || path === "/_redirects") {
+      continue
+    }
     const response = serve(new Request("http://localhost" + path))
     if (response.status !== 200) {
       continue
@@ -64,7 +103,10 @@ export const stage = async (root: string, directory: string) => {
     // Native _headers has a 100-rule bound. Non-HTML site files share policy
     // and MIME by extension; HTML keeps its exact final-byte inline hashes.
     if (!html && dashboard[path] === undefined) {
-      routes[0] = "/*" + path.slice(path.lastIndexOf("."))
+      // Extensionless control/asset names must stay exact: slicing at -1 would
+      // turn /_headers into /*s and overwrite JavaScript's MIME policy.
+      const extension = extname(path)
+      routes[0] = extension ? "/*" + extension : path
     }
     for (const route of routes) {
       const policy = [
@@ -90,10 +132,11 @@ export const stage = async (root: string, directory: string) => {
       headers: Object.fromEntries(response.headers)
     })
   }
-  if (policies.size + 1 > 100) {
+  const compactPolicies = compactHeaderPolicies(policies)
+  if (compactPolicies.length + 1 > 100) {
     throw new Error("Staged assets exceed the native 100-rule header bound")
   }
-  headers.push(...[...policies].sort())
+  headers.push(...compactPolicies.sort())
   await writeFile(resolve(directory, "_headers"), headers.join("\n"))
   await writeFile(resolve(directory, "_redirects"), redirects.join("\n") + "\n")
   return manifest
