@@ -1,1 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#090b10"/><path d="M8 10h10m-10 6h16M8 22h10" stroke="#91b5ff" stroke-width="3" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">
+  <title>effect-jobs</title>
+  <rect width="34" height="34" rx="9" fill="#2c2933"/>
+  <text x="17" y="23" fill="#edecea" font-family="Georgia, serif" font-size="25" font-weight="400" letter-spacing="-.6" text-anchor="middle">e<tspan fill="#c9b7f5">j</tspan></text>
+</svg>

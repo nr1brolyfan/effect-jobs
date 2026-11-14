@@ -27,7 +27,7 @@ for (const file of files) {
   }
   assert.match(
     file,
-    /^(?:_astro\/|pagefind\/|docs\/|404\.html$|index\.html$|favicon\.svg$|robots\.txt$|sitemap(?:-\d+|-index)?\.xml$|_headers$)/
+    /^(?:_astro\/|pagefind\/|docs\/|404\.html$|index\.html$|favicon\.(?:svg|ico)$|apple-touch-icon\.png$|robots\.txt$|sitemap(?:-\d+|-index)?\.xml$|_headers$)/
   )
   assert.doesNotMatch(
     file,
@@ -165,7 +165,7 @@ try {
     /Sitemap: https:\/\/effect-jobs.dev\/sitemap-index.xml/
   )
   for (const file of manifest.filter((item) =>
-    /\.(?:css|js|wasm|woff2|svg)$/.test(item.file)
+    /\.(?:css|js|wasm|woff2|svg|ico|png)$/.test(item.file)
   )) {
     const response = await request("/" + file.file)
     assert.equal(response.status, 200, file.file)
@@ -177,6 +177,15 @@ try {
     )
     if (file.file.endsWith(".wasm")) {
       assert.equal(response.headers.get("content-type"), "application/wasm")
+    }
+    if (file.file === "favicon.ico") {
+      assert.match(
+        response.headers.get("content-type"),
+        /^image\/(?:x-icon|vnd\.microsoft\.icon)$/
+      )
+    }
+    if (file.file === "apple-touch-icon.png") {
+      assert.equal(response.headers.get("content-type"), "image/png")
     }
     if (file.file.startsWith("_astro/")) {
       assert.match(response.headers.get("cache-control"), /max-age=31536000/)
