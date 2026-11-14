@@ -222,7 +222,7 @@ try {
   }
   await staticPage.goto(`${origin}/docs/jobs`)
   await expect(staticPage).toHaveURL(`${origin}/docs/playground`)
-  await expect(staticPage.locator("h1")).toHaveText("Explore the jobs playground")
+  await expect(staticPage.locator("h1")).toHaveText("Run the jobs playground locally")
   await noJs.close()
   await writeFile(
     resolve(evidence, "result.json"),

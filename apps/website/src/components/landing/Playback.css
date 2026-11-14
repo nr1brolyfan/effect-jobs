@@ -1,0 +1,140 @@
+/* Keep this named CSS entry: hosting targets Playback for shared StyleX output. */
+@layer walkthrough {
+  .playback-host {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    min-height: 64px;
+    padding: 10px 20px 0;
+  }
+  .outcome-selector {
+    display: flex;
+    margin: 0;
+    padding: 0;
+    border: 1px solid #51485e;
+    border-radius: 5px;
+  }
+  .outcome-selector label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    padding: 7px 10px;
+    font-size: 14px;
+  }
+  .outcome-selector label:has(:checked) {
+    background: #302b38;
+    color: #d0bff1;
+  }
+  .outcome-selector input {
+    accent-color: #c6b8df;
+    margin: 0;
+  }
+  .outcome-selector input:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 3px;
+  }
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .playback {
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 13px;
+    border: 0;
+    padding: 7px 2px;
+    cursor: pointer;
+    min-height: 36px;
+    white-space: nowrap;
+  }
+  .playback span {
+    margin-left: 7px;
+  }
+  .playback:hover {
+    color: var(--accent);
+  }
+  #worker-controls {
+    margin-top: 20px;
+  }
+  #transaction-stages:not(:empty) {
+    margin-top: 22px;
+  }
+  .stage-controls {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .stage-strip {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 8px;
+    flex: 1;
+  }
+  .stage-button {
+    position: relative;
+    padding: 9px 8px 12px;
+    min-width: 0;
+    min-height: 40px;
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .stage-button[aria-current] {
+    color: var(--ink);
+  }
+  .stage-button:hover:not(:disabled) {
+    color: var(--accent);
+  }
+  .stage-button:disabled {
+    opacity: 0.65;
+    cursor: default;
+  }
+  .stage-track {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    overflow: hidden;
+    background: #b5a4d11a;
+  }
+  .stage-progress {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    transform-origin: left;
+  }
+  @media (max-width: 650px) {
+    .playback-host {
+      padding-inline: 16px;
+      gap: 8px;
+    }
+    .stage-controls {
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+    .stage-strip {
+      flex-basis: 100%;
+      gap: 3px;
+    }
+    .stage-button {
+      padding-inline: 3px;
+      font-size: 12px;
+    }
+  }
+}

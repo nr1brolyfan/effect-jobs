@@ -1,10 +1,21 @@
 ---
-title: Explore the jobs playground
+title: Run the jobs playground locally
 description: Read synthetic jobs, inspect their lifecycle and reconcile uncertain commands.
 ---
 
-The [demo](/demo) is a read-only view of synthetic jobs. The local operator
-surface at `/jobs` is a separate application with server-enforced capabilities.
+This website hosts documentation only. No public demo, jobs API or operator
+surface is deployed here. Run the separate playground from a repository checkout
+with Docker available:
+
+```sh
+bun install --frozen-lockfile --ignore-scripts
+bun run workspace:prepare
+bun run playground:build
+bun run playground:preview
+```
+
+Use the local URL printed by the launcher. Its `/demo` is read-only; its private
+operator surface at `/jobs` has server-enforced capabilities.
 Scenarios use synthetic actors and providers; they do not send real email,
 payments or webhooks. UI fixtures are not evidence of PostgreSQL execution.
 

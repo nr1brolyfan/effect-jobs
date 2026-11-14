@@ -1,0 +1,528 @@
+@layer walkthrough {
+  h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 550;
+  }
+  [data-at] {
+    display: none;
+  }
+  [data-phase="0"] [data-at="0"],
+  [data-phase="1"] [data-at="1"],
+  [data-phase="2"] [data-at="2"],
+  [data-phase="3"] [data-at="3"],
+  [data-phase="4"] [data-at="4"] {
+    display: inline;
+  }
+  .rollback-code,
+  .rollback-only,
+  .rolled-back-only,
+  .pending-only,
+  .blocked-only {
+    display: none;
+  }
+  [data-outcome="rollback"] .rollback-code {
+    display: block;
+  }
+  [data-outcome="rollback"] .rollback-only {
+    display: inline;
+  }
+  [data-outcome="rollback"] .commit-code,
+  [data-outcome="rollback"] .commit-only {
+    display: none;
+  }
+  [data-result="pending"] .pending-only,
+  [data-result="rolled-back"] .rolled-back-only {
+    display: inline;
+  }
+  main:not([data-result="saved"]) .saved-only {
+    display: none;
+  }
+  .postgres-logo {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+  }
+  .transaction-compare,
+  .database {
+    margin: 0;
+    min-width: 0;
+    border: 1px solid #45404f;
+    border-radius: 9px;
+    background: #202023;
+  }
+  .transaction-compare {
+    display: flex;
+    flex-direction: column;
+  }
+  .transaction-compare figcaption,
+  .database figcaption {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 17px 20px;
+    border-bottom: 1px solid var(--rule);
+  }
+  figcaption strong {
+    font-weight: 550;
+  }
+  .transaction-compare figcaption > span,
+  .database figcaption strong span {
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 400;
+  }
+  .database figcaption strong span {
+    margin-left: 14px;
+  }
+  .branches {
+    padding: 20px;
+    flex: 1;
+  }
+  .branch {
+    border: 1px dashed #655871;
+    border-radius: 6px;
+    padding: 18px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .rollback-path {
+    display: none;
+  }
+  [data-outcome="rollback"] .commit-path {
+    display: none;
+  }
+  [data-outcome="rollback"] .rollback-path {
+    display: flex;
+  }
+  .branch h3 {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font:
+      14px/1.6 ui-monospace,
+      monospace;
+  }
+  .branch h3 span {
+    display: none;
+    color: var(--accent);
+    font:
+      13px/1.5 -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
+  }
+  [data-phase="3"] .branch h3 span {
+    display: block;
+  }
+  .branch-rows {
+    min-height: 168px;
+    margin-top: 18px;
+  }
+  .row-chip {
+    display: none;
+    padding: 11px 14px;
+    background: #2b2832;
+    border: 1px solid #51485e;
+    border-radius: 4px;
+  }
+  .row-chip + .row-chip {
+    margin-top: 10px;
+  }
+  .row-chip strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .row-chip code {
+    color: #d0bff1;
+    font:
+      14px/1.7 ui-monospace,
+      monospace;
+  }
+  .empty-tx,
+  .rolled-back {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0;
+    padding-top: 52px;
+    text-align: center;
+  }
+  .rolled-back {
+    display: none;
+  }
+  .branch-result {
+    font-size: 14px;
+    color: var(--muted);
+    margin: auto 0 0;
+    padding-top: 18px;
+  }
+  [data-phase="1"] .stage-order,
+  [data-phase="2"] .stage-order,
+  [data-phase="2"] .stage-job,
+  [data-phase="3"] .commit-path .row-chip {
+    display: block;
+  }
+  .transaction:not([data-phase="0"]) .empty-tx {
+    display: none;
+  }
+  [data-phase="3"] .branch {
+    border-style: solid;
+  }
+  [data-phase="3"] .commit-path {
+    border-color: #a08cb8;
+  }
+  [data-phase="3"] .commit-path .branch-result {
+    color: #d0bff1;
+  }
+  [data-phase="3"] .rolled-back {
+    display: block;
+  }
+  .transaction-status {
+    border-top: 1px solid var(--rule);
+    padding: 16px 20px;
+    color: #c5b6dd;
+    font-size: 14px;
+    min-height: 78px;
+  }
+  .transaction-note {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 18px 0 0;
+    max-width: 920px;
+  }
+  .row-pair {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 28px;
+    padding: 26px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+    font:
+      14px/1.6 ui-monospace,
+      monospace;
+  }
+  caption {
+    text-align: left;
+    font:
+      550 17px/1.4 -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
+    margin-bottom: 16px;
+  }
+  th {
+    color: var(--muted);
+    font-weight: 400;
+    text-align: left;
+    border-bottom: 1px solid #51485e;
+    background: #242329;
+  }
+  th,
+  td {
+    padding: 12px 10px;
+    white-space: nowrap;
+  }
+  td {
+    border-bottom: 1px solid var(--rule);
+  }
+  td.relation-key {
+    color: #d0bff1;
+    background: #b5a4d10a;
+  }
+  main:not([data-result="saved"]) #rows tbody {
+    display: none;
+  }
+  .result-empty {
+    display: none;
+    margin: 0;
+    padding: 0 26px 24px;
+    color: var(--muted);
+  }
+  main:not([data-result="saved"]) .result-empty {
+    display: block;
+  }
+  .projection-note {
+    padding: 0 26px 22px;
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .projection-note code {
+    font-size: 13px;
+  }
+  .code-stack {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+  .worker-outcome {
+    padding: 28px 30px;
+  }
+  .worker-flow {
+    position: relative;
+    width: 100%;
+  }
+  .flow-database,
+  .worker-box {
+    border: 1px solid #45414c;
+    border-radius: 7px;
+    padding: 20px;
+    background: #242328;
+  }
+  .flow-database h3,
+  .worker-box h3 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .flow-database h3 .postgres-logo {
+    width: 26px;
+    height: 26px;
+  }
+  .worker-flow p {
+    font-size: 14px;
+    color: var(--muted);
+    margin: 10px 0 0;
+  }
+  .job-column-labels,
+  .job-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .job-column-labels {
+    margin: 18px 0 7px;
+    padding-inline: 12px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .job-row {
+    padding: 12px;
+    border: 1px solid #51485e;
+    background: #2b2832;
+    border-radius: 4px;
+  }
+  .job-row code {
+    font:
+      14px/1.6 ui-monospace,
+      monospace;
+    color: #d0bff1;
+  }
+  .flow-arrow {
+    text-align: center;
+    padding: 20px 0;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .worker-state {
+    font-size: 14px;
+    color: #c5b6dd;
+    font-weight: 400;
+  }
+  .received-job {
+    visibility: hidden;
+  }
+  .handler[data-phase="2"] .received-job,
+  .handler[data-phase="3"] .received-job,
+  .handler[data-phase="4"] .received-job {
+    visibility: visible;
+  }
+  .handler-operation {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid var(--rule);
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .handler-operation strong {
+    font-weight: 500;
+  }
+  .adapter-box {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid #45414c;
+    border-radius: 7px;
+    padding: 18px 20px;
+    background: #242328;
+  }
+  .adapter-box strong {
+    font-size: 16px;
+    font-weight: 550;
+  }
+  .adapter-key {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .adapter-key code {
+    font:
+      13px/1.7 ui-monospace,
+      monospace;
+  }
+  [data-result="saved"] .worker-box {
+    border-color: #b5a4d1;
+    background: #2a2730;
+  }
+  [data-result="saved"] .handler[data-phase="1"] .flow-database {
+    border-color: #b5a4d1;
+  }
+  [data-result="saved"] .handler[data-phase="3"] .handler-operation {
+    color: #e2d4f6;
+    border-color: #b5a4d1;
+  }
+  [data-result="saved"] .handler[data-phase="4"] .adapter-box {
+    border-color: #b5a4d1;
+    background: #302b38;
+  }
+  [data-result="saved"] .handler[data-phase="4"] .worker-box {
+    border-color: #655871;
+    background: #242328;
+  }
+  .travel-row {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 2;
+    border-color: #c6b8df;
+    background: #37303f;
+    box-shadow: 0 7px 20px #0005;
+    pointer-events: none;
+  }
+  [data-result="saved"] .handler[data-phase="1"] .travel-row {
+    display: grid;
+  }
+  main:not([data-result="saved"]) .stored-job,
+  main:not([data-result="saved"]) .job-column-labels,
+  main:not([data-result="saved"]) .received-job,
+  main:not([data-result="saved"]) .worker-state,
+  main:not([data-result="saved"]) .handler-operation,
+  main:not([data-result="saved"]) .storage-state [data-at],
+  main:not([data-result="saved"]) .adapter-key {
+    display: none;
+  }
+  main:not([data-result="saved"]) .blocked-only {
+    display: block;
+  }
+  main:not([data-result="saved"]) .worker-box {
+    min-height: 150px;
+  }
+  .shared-roles {
+    padding: 22px 8px;
+  }
+  .shared-roles > p:first-child {
+    margin: 0 0 25px;
+    font-size: 20px;
+    color: var(--ink);
+  }
+  .shared-roles > div {
+    padding: 22px 0;
+    border-top: 1px solid var(--rule);
+  }
+  .shared-roles code {
+    color: #c5b6dd;
+    font:
+      14px/1.7 ui-monospace,
+      monospace;
+  }
+  .shared-roles p {
+    font-size: 16px;
+    color: var(--muted);
+    margin: 9px 0 0;
+  }
+  .shared-roles .reference-note {
+    font-size: 14px;
+  }
+  @media (max-width: 1050px) and (min-width: 651px) {
+    .transaction .scene-pair,
+    .handler .scene-pair,
+    .shared-reference .scene-pair {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 650px) {
+    .transaction-compare figcaption,
+    .database figcaption {
+      padding: 16px;
+    }
+    .transaction-compare figcaption {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .branches {
+      padding: 16px;
+    }
+    .branch {
+      padding: 14px;
+    }
+    .branch-rows {
+      min-height: 158px;
+    }
+    .transaction-status {
+      padding: 16px;
+      min-height: 98px;
+    }
+    .row-pair {
+      grid-template-columns: 1fr;
+      padding: 18px 14px;
+      gap: 28px;
+    }
+    th,
+    td {
+      padding: 11px 6px;
+      font-size: 13px;
+    }
+    .database figcaption strong span {
+      margin: 0;
+    }
+    .database figcaption strong .saved-only,
+    [data-result="pending"] .database figcaption strong .pending-only,
+    [data-result="rolled-back"] .database figcaption strong .rolled-back-only {
+      display: block;
+    }
+    main:not([data-result="saved"]) .database figcaption strong .saved-only {
+      display: none;
+    }
+    .projection-note,
+    .result-empty {
+      padding-inline: 16px;
+    }
+    .worker-outcome {
+      padding: 24px 16px;
+    }
+    .file-label {
+      height: auto;
+      min-height: 44px;
+      padding-block: 10px;
+    }
+    .flow-database,
+    .worker-box,
+    .adapter-box {
+      padding: 16px;
+    }
+    .job-row {
+      gap: 6px;
+      padding: 10px;
+    }
+    .job-row code {
+      font-size: 13px;
+    }
+    .shared-roles {
+      padding-top: 12px;
+    }
+  }
+}

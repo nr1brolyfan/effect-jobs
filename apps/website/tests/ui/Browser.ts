@@ -394,15 +394,45 @@ try {
   await page.goto(`${url}/docs/jobs`)
   await page.waitForURL("**/docs/playground")
   await page
-    .getByRole("heading", { name: "Explore the jobs playground", exact: true })
+    .getByRole("heading", { name: "Run the jobs playground locally", exact: true })
     .waitFor()
+  // Expressive Code initializes overflowing scrollers after its resize/idle pass.
+  // Observe the served component, then test keyboard behavior before the audit.
+  const guideCode = page.locator('pre[data-language="sh"]')
+  await expect(guideCode).toHaveAttribute("tabindex", "0")
+  let reachedGuideCode = false
+  for (let step = 0; step < 30; step++) {
+    await page.keyboard.press("Tab")
+    if (await guideCode.evaluate((node) => node === document.activeElement)) {
+      reachedGuideCode = true
+      break
+    }
+  }
+  assert.equal(reachedGuideCode, true)
+  assert(await guideCode.evaluate((node) => node.matches(":focus-visible")))
+  assert.equal(
+    await guideCode.evaluate((node) => getComputedStyle(node).outlineStyle),
+    "solid"
+  )
+  const scrollBefore = await guideCode.evaluate((node) => node.scrollLeft)
+  await page.keyboard.press("ArrowRight")
+  await expect
+    .poll(() => guideCode.evaluate((node) => node.scrollLeft))
+    .toBeGreaterThan(scrollBefore)
+  checks.push("official guide scroller readiness, real Tab focus and Arrow scrolling")
   await accessibility()
   await page.locator('main a[href="#commands-and-receipts"]').first().click()
   assert.equal(new URL(page.url()).hash, "#commands-and-receipts")
-  await page.locator('main a[href="/demo"]').first().click()
+  assert.equal(await page.locator('main a[href="/demo"]').count(), 0)
+  await expect(page.locator("main")).toContainText("No public demo")
+  // The public guide now documents local-only setup, not a hosted demo link.
+  // Retain the independent local dashboard-return oracle without inventing one.
+  await page.goto(`${url}/demo`)
   await page.waitForURL("**/demo")
   await text(status(), "connected")
-  checks.push("canonical built guide alias, receipts anchor, demo return and WCAG checks")
+  checks.push(
+    "canonical guide alias, receipts anchor, local-only guidance, local demo and WCAG checks"
+  )
   const hashes = Object.fromEntries(
     Object.entries({
       ...scripts,

@@ -1,58 +1,71 @@
-@import "./tokens.css";
-
+/* Documentation owns its reading theme. These values match the approved landing
+   without importing its layout or changing shared application tokens. */
 :root,
 :root[data-theme="dark"],
 :root[data-theme="light"] {
-  --sl-color-bg: #101113;
-  --sl-color-bg-nav: #101113;
-  --sl-color-bg-sidebar: #101113;
-  --sl-color-bg-inline-code: #1d2023;
-  --sl-color-hairline: #2b2e32;
-  --sl-color-hairline-light: #2b2e32;
-  --sl-color-white: #eeefed;
-  --sl-color-gray-1: #eeefed;
-  --sl-color-gray-2: #d2d5d3;
-  --sl-color-gray-3: #a8afac;
-  --sl-color-gray-4: #777e7b;
-  --sl-color-gray-5: #343937;
-  --sl-color-gray-6: #191c1b;
-  --sl-color-black: #101113;
-  --sl-color-accent-low: #20362e;
-  --sl-color-accent: #9fdbbd;
-  --sl-color-accent-high: #b3e6cc;
-  --sl-font: "Inter", "Segoe UI", sans-serif;
-  --sl-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  color-scheme: dark;
+  --sl-color-bg: #171719;
+  --sl-color-bg-nav: #171719;
+  --sl-color-bg-sidebar: #171719;
+  --sl-color-bg-inline-code: #27262c;
+  --sl-color-hairline: #35343a;
+  --sl-color-hairline-light: #35343a;
+  --sl-color-white: #edecea;
+  --sl-color-gray-1: #edecea;
+  --sl-color-gray-2: #d0cdd6;
+  --sl-color-gray-3: #aaa7b2;
+  --sl-color-gray-4: #77727f;
+  --sl-color-gray-5: #35343a;
+  --sl-color-gray-6: #202023;
+  --sl-color-black: #171719;
+  --sl-color-text: #edecea;
+  --sl-color-text-accent: #c6b8df;
+  --sl-color-accent-low: #2c2933;
+  --sl-color-accent: #b5a4d1;
+  --sl-color-accent-high: #d0bff1;
+  --sl-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --sl-font-mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   --sl-content-width: 48rem;
   --sl-sidebar-width: 17rem;
   --sl-nav-height: 4.5rem;
-  --sl-text-h1: clamp(2.3rem, 4vw, 3.5rem);
-  --sl-line-height: 1.7;
+  --sl-menu-button-size: 36px;
+  --sl-text-h1: clamp(34px, 3.5vw, 46px);
   --sl-text-body: 1rem;
+  --sl-line-height: 1.6;
 }
 body {
-  color: #d2d5d3;
-  background: #101113;
+  color: #edecea;
+  background: #171719;
+  font-family: var(--sl-font);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
 }
 :focus-visible {
-  outline: 2px solid #b3e6cc;
-  outline-offset: 4px;
+  outline: 3px solid #b5a4d1;
+  outline-offset: 5px;
 }
 .ej-header-tools site-search button[data-open-modal] {
   border-radius: 6px;
-  background: #191c1b;
-  border-color: #343937;
+  background: #202023;
+  border-color: #35343a;
   min-width: 14rem;
 }
+.sl-menu-button {
+  background: #2c2933;
+  color: #edecea;
+  border: 1px solid #35343a;
+  border-radius: 6px;
+  box-shadow: none;
+}
 .sidebar-content {
-  padding: 2rem 1.3rem !important;
+  padding: 32px 20px !important;
   gap: 0 !important;
 }
-/* One composition in the space after navigation. The article owns a single
-   start edge; the optional desktop TOC occupies its own real grid track. */
+/* One article track with a separate optional desktop TOC. */
 .main-frame > .lg\:sl-flex {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  width: min(100% - 2 * clamp(1.3rem, 3vw, 3rem), var(--sl-content-width));
+  width: min(100% - 2 * clamp(18px, 3vw, 48px), var(--sl-content-width));
   margin-inline: auto;
 }
 [data-has-sidebar][data-has-toc] .main-pane,
@@ -67,25 +80,23 @@ body {
 .content-panel > .sl-container {
   margin-inline: 0;
 }
-/* Prose, headings and code share the article track and its start edge.
-   The outer grid sets the reading measure; paragraphs wrap naturally within it. */
 .sl-markdown-content > :is(p, ul, ol, blockquote, .sl-heading-wrapper),
-.ej-page-context,
 h1#_top {
   width: 100%;
   margin-inline: 0;
 }
 .content-panel:first-child {
-  padding-top: 2rem;
-  padding-bottom: 0.5rem;
+  padding-top: 40px;
+  padding-bottom: 24px;
 }
 .content-panel + .content-panel {
   border-top: 0 !important;
   padding-top: 0;
 }
 .sl-markdown-content {
-  line-height: 1.75;
-  font-size: 0.95rem;
+  line-height: 1.6;
+  font-size: 16px;
+  container-type: inline-size;
 }
 .sl-markdown-content p {
   max-width: none;
@@ -93,76 +104,83 @@ h1#_top {
   text-wrap: wrap;
 }
 .sl-markdown-content a {
-  color: #b3e6cc;
-  text-underline-offset: 0.25em;
+  color: #c6b8df;
+  text-underline-offset: 4px;
 }
 .sl-markdown-content h2:not(:where(.not-content *)) {
-  padding-top: 0.8rem;
-  margin-top: 2.8rem;
-  font-size: 1.5rem;
-  font-weight: 500;
-  letter-spacing: -0.035em;
+  font-family: Georgia, "Times New Roman", serif;
+  padding-top: 0;
+  margin-top: 40px;
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 400;
+  letter-spacing: -1px;
+  text-wrap: balance;
 }
 .sl-markdown-content h3 {
-  font-weight: 500;
+  font-family: var(--sl-font);
+  font-size: 21px;
+  font-weight: 550;
 }
 .sl-markdown-content strong {
-  color: #eeefed;
+  color: #edecea;
   font-weight: 550;
 }
 .sl-markdown-content .ej-lead {
-  font-size: 1.2rem;
-  color: #eeefed;
-  letter-spacing: -0.02em;
+  font-size: 20px;
+  color: #edecea;
   margin-top: 0;
   line-height: 1.5;
 }
 .sl-markdown-content code:not(pre code) {
   border: 0;
-  border-radius: 3px;
-  font-size: 0.85em;
+  border-radius: 4px;
+  font-size: 14px;
+}
+.sl-markdown-content table:not(:where(.not-content *)) {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+/* Reference contracts need a real reading column inside their local scroller,
+   not a few chopped words squeezed beside long public symbol names. */
+.sl-markdown-content table:has(th:nth-child(3)) :is(th:last-child, td:last-child) {
+  min-width: 20rem;
 }
 .expressive-code {
-  margin-top: 1.5rem;
-  border-radius: 8px;
-  overflow: hidden;
-  --ec-brdCol: #343937;
-  --ec-brdRad: 8px;
-  --ec-codeFontSize: 0.82rem;
-  --ec-codeLineHt: 1.9;
-  --ec-codePadBlk: 1.25rem;
-  --ec-codePadInl: 1.35rem;
-  --ec-frm-edBg: #191c1b;
-  --ec-frm-edTabBarBg: #191c1b;
-  --ec-frm-edTabBarBrdCol: #343937;
+  margin-top: 24px;
 }
-.expressive-code pre {
-  background: #151819 !important;
+/* Expressive Code's supported theme owns tokens, frames, fonts and padding.
+   Only its responsive spacing variables change here, just like landing source. */
+.expressive-code .frame .header .title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
 }
-.expressive-code .frame {
-  box-shadow: none !important;
+.expressive-code .frame .header {
+  min-height: 44px;
 }
 @media (min-width: 72rem) {
   .main-frame > .lg\:sl-flex:has(> .right-sidebar-container) {
     max-width: 61rem;
-    width: calc(100% - 2 * clamp(1.3rem, 3vw, 3rem));
+    width: calc(100% - 2 * clamp(18px, 3vw, 48px));
     grid-template-columns: minmax(0, 48rem) 11rem;
-    column-gap: 2rem;
+    column-gap: 32px;
   }
   .right-sidebar-container {
     grid-column: 2;
     grid-row: 1;
     position: sticky;
-    top: calc(var(--sl-nav-height) + 2.5rem);
+    top: calc(var(--sl-nav-height) + 40px);
     align-self: start;
     width: auto;
-    margin-top: 2.5rem;
+    margin-top: 40px;
   }
   .right-sidebar {
     position: static;
     width: auto;
     height: auto;
-    max-height: calc(100vh - var(--sl-nav-height) - 5rem);
+    max-height: calc(100vh - var(--sl-nav-height) - 80px);
     padding-top: 0;
     border-left: 0 !important;
     overflow-y: auto;
@@ -177,82 +195,76 @@ h1#_top {
   }
 }
 starlight-toc {
-  font-size: 0.75rem;
+  font-size: 13px;
 }
 starlight-toc h2 {
   text-transform: uppercase;
-  font-family: var(--sl-font-mono);
-  letter-spacing: 0.09em;
-  font-size: 0.65rem !important;
-  color: #a8afac !important;
+  font-family: var(--sl-font);
+  letter-spacing: 0.06em;
+  font-size: 12px !important;
+  color: #aaa7b2 !important;
 }
 .ej-result {
-  border-left: 2px solid #9fdbbd;
-  background: #18221d;
-  padding: 1rem 1.3rem;
-  margin-top: 1.3rem;
+  border-left: 2px solid #b5a4d1;
+  background: #202023;
+  padding: 16px 20px;
+  margin-top: 20px;
 }
 .ej-result > span,
 .ej-next > span {
-  color: #b3e6cc;
-  font: 0.65rem var(--sl-font-mono);
-  letter-spacing: 0.12em;
+  color: #c6b8df;
+  font: 13px var(--sl-font-mono);
 }
 .ej-result p {
-  margin: 0.5rem 0 0 !important;
-  font-size: 0.88rem;
+  margin: 8px 0 0 !important;
+  font-size: 16px;
 }
 .ej-setup {
-  padding: 1rem 1.2rem;
-  border: 1px solid #343937;
-  border-radius: 6px;
-  background: #151819;
+  padding: 18px 20px;
+  border: 1px solid #36343c;
+  border-radius: 9px;
+  background: #1c1c20;
 }
 .ej-setup summary {
   cursor: pointer;
-  font-weight: 500;
-  color: #eeefed;
+  font-weight: 550;
+  color: #edecea;
 }
 .ej-outcome-list {
-  margin-top: 1.5rem;
-  border-top: 1px solid #343937;
+  margin-top: 24px;
+  border-top: 1px solid #35343a;
 }
 .ej-outcome-list > div {
   display: grid;
   grid-template-columns: 11rem 1fr;
-  gap: 1.2rem;
-  padding: 1rem 0;
-  border-bottom: 1px solid #343937;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid #35343a;
 }
-.ej-outcome-list strong {
-  font-size: 0.85rem;
+.ej-outcome-list strong,
+.ej-outcome-list p {
+  font-size: 16px;
 }
 .ej-outcome-list p {
-  font-size: 0.88rem;
   margin: 0 !important;
 }
 .ej-next {
-  margin-top: 3rem;
-  padding: 1.5rem 0;
-  border-top: 1px solid #505753;
+  margin-top: 40px;
+  padding: 24px 0;
+  border-top: 1px solid #35343a;
   display: grid;
-  gap: 0.4rem;
+  gap: 6px;
 }
 .ej-next a {
-  font-size: 1.3rem;
+  font-size: 20px;
   text-decoration: none;
   display: flex;
   justify-content: space-between;
 }
 .ej-next p {
   margin: 0 !important;
-  color: #a8afac;
-  font-size: 0.85rem;
-}
-@media (min-width: 72rem) {
-  .content-panel:first-child {
-    padding-top: 2.5rem;
-  }
+  color: #aaa7b2;
+  font-size: 16px;
 }
 @media (max-width: 49.99rem) {
   :root {
@@ -262,15 +274,41 @@ starlight-toc h2 {
     min-width: auto;
   }
   .content-panel:first-child {
-    padding-top: 1.2rem;
-  }
-  .sl-markdown-content {
-    font-size: 0.92rem;
+    padding-top: 32px;
   }
   .ej-outcome-list > div {
     grid-template-columns: 1fr;
-    gap: 0.3rem;
+    gap: 6px;
   }
+}
+@media (max-width: 650px) {
+  .expressive-code {
+    --ec-codePadBlk: 18px;
+    --ec-codePadInl: 14px;
+    --ec-uiPadInl: 15px;
+    --ec-uiFontSize: 12px;
+    --ec-codeLineHt: 1.75;
+  }
+}
+@container (max-width: 36rem) {
+  .ej-header-tools site-search button[data-open-modal] {
+    min-width: auto;
+  }
+}
+@container (max-width: 38rem) {
+  .ej-outcome-list > div {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+.ej-code-role {
+  color: #aaa7b2;
+  font-size: 13px;
+  font-weight: 550;
+  margin-bottom: 8px;
+}
+.ej-code-role + .expressive-code {
+  margin-top: 8px;
 }
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -280,38 +318,4 @@ starlight-toc h2 {
     animation: none !important;
     transition: none !important;
   }
-}
-
-/* Fit header controls to their actual space, including text zoom. */
-@container (max-width: 36rem) {
-  .ej-header-tools site-search button[data-open-modal] {
-    min-width: auto;
-  }
-}
-
-.sl-markdown-content {
-  container-type: inline-size;
-}
-@container (max-width: 38rem) {
-  .ej-outcome-list > div {
-    grid-template-columns: 1fr;
-    gap: 0.3rem;
-  }
-}
-
-.ej-code-role {
-  color: var(--sl-color-gray-2);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: 0.5rem;
-}
-.ej-code-role + .expressive-code {
-  margin-top: 0.5rem;
-}
-.expressive-code .frame .header .title {
-  white-space: normal;
-  overflow-wrap: anywhere;
-  max-width: 100%;
 }
