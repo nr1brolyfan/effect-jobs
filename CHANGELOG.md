@@ -1,6 +1,49 @@
 # Changelog
 
-## 0.1.0-alpha.2 (unpublished candidate)
+## 0.1.0-alpha.3 (unpublished candidate)
+
+Breaking prerelease changes since the published alpha.2 package:
+
+- Require exact Effect/sql-pg `4.1.0` and optional Drizzle `1.0.0-rc.5`, replacing
+  Effect/sql-pg `4.0.5` and the two hash-suffixed Drizzle snapshots. Node `24.15.0`
+  and Bun `1.4.2` remain pinned; the local Alchemy example uses `2.0.0-beta.85`.
+- Evaluate lazy `Job.make`, `JobProducer.make`, `JobPolicy.make` and
+  `JobPayload.encrypted` setup in their typed Effect channels. Reuse one
+  application-owned definitions Layer; do not hide setup in synchronous runners.
+- Move routing and default policy from jobs into immutable producer slot bindings:
+  `JobProducer.make(operation).pipe(JobProducer.withSlot(slot, job, { queue }))`.
+  Enqueue now takes one object containing `slot`, `operationId` and `payload`.
+  Fixed bindings forbid an enqueue queue; selectable `{ queues: [...] }` bindings
+  require a declared queue-name string. Job-level enqueue and producer `identity`
+  are removed. See [the API migration contract](./specs/api-refinements.md).
+- Replace `JobRegistry`, `JobConsumer`, `JobWorkerRuntime` and `PollingJobWorker`
+  public entrypoints with `JobGroup`, `JobApi`, `JobApiBuilder`, `JobStorage`,
+  `JobSchedule` and `JobPolling`. Declare complete catalog handlers and compose
+  the shared worker/storage graph explicitly; old imports are not aliases.
+- Configure retries through `JobRetryPolicy` and `yield* JobPolicy.make({ retry })`.
+  Replace `retryDelay`/`maxAttempts` options with `fixed`/`exponential`, optional
+  cap/jitter, and `maxFinalizedAttempts`. Public counters use `finalizedAttempts`;
+  stored `maxAttempts`/`attempts_made` keys are retained. Upgrade every reader
+  before producing `BackoffV1`/`ProportionalV1` jobs; old readers cannot process
+  them safely. Existing `FixedDelayV1` policies keep their semantics.
+- Adapt encrypted codecs to the lazy Schema-native transformation, with explicit
+  independent seal/open services. Already-protected envelopes remain supported.
+  The application still owns encryption, keys and stable keyed fingerprints.
+
+Also included: read-only bounded scheduling, nullable creation metadata and its
+application-owned `creationTimeMigration`, focused PostgreSQL implementation
+subpaths behind the unchanged public PostgreSQL export names, and bounded
+observability with application-owned exporters. Review schema readiness and
+apply required migrations before starting readers; runtime never migrates or
+resets an installation. See [retry rollout](./specs/retry-policy.md) and the
+[PostgreSQL contract](./specs/postgresql-jobs.md).
+
+This entry describes prepared source, not publication or a fresh qualification
+PASS. The release handoff binds actual commands, exceptions and cleanup to one
+immutable archive. Completed retention remains 90 days. Website/playground source
+is excluded from npm; no deployment or production guarantee is implied.
+
+## 0.1.0-alpha.2 (published)
 
 Breaking prerelease changes since alpha.1:
 
@@ -32,8 +75,9 @@ Also included:
 
 Completed retention remains 90 days by default. Upstream Drizzle full-declaration
 checks retain their documented known-failure exceptions; successful own-code
-checks do not mean upstream full strict PASS. Publication, registry installation
-and deployment remain separate owner actions.
+checks do not mean upstream full strict PASS. The registry contains this release
+with Effect `4.0.5` and the two Drizzle snapshots; current source is not identical
+to those published bytes. Deployment is not established by registry publication.
 
 ## 0.1.0-alpha.1-effect.4.0.5.local.2 (local only)
 
