@@ -68,11 +68,16 @@ const website = JSON.parse(
 const dependencies = { ...website.dependencies, ...website.devDependencies }
 delete dependencies["@effect-jobs/playground-contracts"]
 delete dependencies["effect-jobs"]
-run("pack", "node", ["scripts/pack-release.mjs"], root, {
-  ...process.env,
-  EFFECT_JOBS_ARTIFACT_DIRECTORY: join(evidence, "artifact")
-})
-const archive = join(evidence, "artifact", `effect-jobs-${manifest.version}.tgz`)
+const suppliedArchive = process.env.EFFECT_JOBS_ARCHIVE
+if (!suppliedArchive) {
+  run("pack", "node", ["scripts/pack-release.mjs"], root, {
+    ...process.env,
+    EFFECT_JOBS_ARTIFACT_DIRECTORY: join(evidence, "artifact")
+  })
+}
+const archive = suppliedArchive
+  ? resolve(suppliedArchive)
+  : join(evidence, "artifact", `effect-jobs-${manifest.version}.tgz`)
 const inventory = run("inventory", "tar", ["-tzf", archive]).trim().split("\n")
 assert(!inventory.some((entry) => /(?:apps|packages|node_modules)\//.test(entry)))
 for (const entry of inventory.filter(

@@ -1,9 +1,10 @@
 # Release qualification
 
-## Integrated alpha.2 candidate (unpublished)
+## Alpha.3 candidate (unpublished)
 
-Package metadata remains `0.1.0-alpha.2`. This local integration combines current
-main and the preserved contract-first redesign, selecting exact Effect/sql-pg
+Package metadata targets `0.1.0-alpha.3`. Published alpha.2 uses Effect/sql-pg
+`4.0.5` and two hash-suffixed Drizzle snapshots; it is not this candidate.
+The candidate includes the contract-first redesign and selects exact Effect/sql-pg
 `4.1.0`, Drizzle `1.0.0-rc.5`, and Alchemy/Cloudflare `2.0.0-beta.85`.
 Node `24.15.0`, Bun `1.4.2` and TypeScript `7.0.2` remain pinned. The standalone
 Alchemy example retains its bounded TypeScript 6 graph. Completed retention
@@ -91,13 +92,15 @@ same version are not substitutes.
 ```sh
 bun install --frozen-lockfile --ignore-scripts
 bun run test:browser:install
+bun run build
+# Set EFFECT_JOBS_ARTIFACT_DIRECTORY to a new stable candidate directory.
+bun run release:pack
+# Set EFFECT_JOBS_ARCHIVE to that immutable archive for every following gate.
 bun run verify
 bun run playground:check
 bun run playground:lint
 bun run test:postgresql:matrix all
 bun run test:postgresql:crash
-bun run release:pack
-# Set EFFECT_JOBS_ARCHIVE to the immutable archive produced above.
 # Native PG runners also need validated task-owned loopback resource records.
 bun run qualify:docs:readme
 bun run check:docs:api
@@ -108,6 +111,16 @@ bun run qualify:drizzle:native
 bun run qualify:drizzle:indexes
 node scripts/check-release.mjs --metadata-only
 ```
+
+Use the actual `.github/workflows/ci.yml` command inventory as well as the list
+above: native types/serializer checks, all four native application modes,
+compiled browser/UI and public-site/provider gates are separate required steps.
+Additional release gates include `check:docs:reference`, `qualify:docs:orders`,
+`qualify:docs:examples`, `node apps/website/tests/ui/Packed.ts`,
+`node tests/qualification/creation-time/Installed.mjs`, `qualify:observability`
+and the frozen standalone Alchemy example qualification. Packed UI honors the
+same `EFFECT_JOBS_ARCHIVE`; do not let a consumer silently pack another candidate.
+The selected Drizzle pin is only `1.0.0-rc.5`, not the historical snapshots.
 
 The full handoff also records compiled browser/UI, public docs/islands, native
 private/public/observation/concurrency, provider cleanup, bounded export and

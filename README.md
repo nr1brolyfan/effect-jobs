@@ -60,11 +60,11 @@ const ReceiptHandler = JobApiBuilder.group(ApplicationJobs, "billing", (handlers
 
 ## Install
 
-Examples target the local `0.1.0-alpha.2` release candidate, which is not an npm release. Its exact peers are Effect `4.1.0` and optional Drizzle `1.0.0-rc.5`. This prerelease changes the alpha.0 enqueue,
+Examples target the unpublished `0.1.0-alpha.3` release candidate, not the published alpha.2 package. Its exact peers are Effect `4.1.0` and optional Drizzle `1.0.0-rc.5`. This prerelease changes the alpha.0 enqueue,
 policy, failure-code and encrypted-payload APIs; update callers before upgrading.
 
 ```sh
-npm install ./effect-jobs-0.1.0-alpha.2.tgz effect@4.1.0
+npm install ./effect-jobs-0.1.0-alpha.3.tgz effect@4.1.0
 ```
 
 Imports are omitted below. Use package subpaths (`effect-jobs/Job`, `effect-jobs/JobGroup`, `effect-jobs/JobApi`, `effect-jobs/JobApiBuilder`, `effect-jobs/JobPolicy`, …); the root export is empty. `Codec`, `Worker` and `Polling` refer to `JobPayloadCodec`, `JobWorker` and `JobPolling` respectively.
