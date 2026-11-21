@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
+import { symlinkSync, unlinkSync } from "node:fs"
 import { Effect, Exit, Cause, Schema } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import { eq } from "drizzle-orm"
@@ -401,16 +402,17 @@ const cliEnvironment = {
   WITH_INVOICE: "false",
   WORKER_MODE: "confirmation"
 }
-const invoke = (file: string, env: NodeJS.ProcessEnv) => {
-  const result = spawnSync(process.execPath, [file], {
+const invoke = (env: NodeJS.ProcessEnv, ...args: string[]) => {
+  const result = spawnSync(process.execPath, args, {
     env,
     encoding: "utf8",
     timeout: 30000
   })
-  assert.equal(result.status, 0, `CLI ${file}: ${result.stderr}`)
+  assert.equal(result.status, 0, `CLI ${args.join(" ")}: ${result.stderr}`)
 }
-invoke("dist/apps/api/src/main.js", cliEnvironment)
-invoke("dist/apps/worker/src/main.js", cliEnvironment)
+const producerEntry = "dist/apps/api/src/main.js"
+invoke(cliEnvironment, producerEntry)
+invoke(cliEnvironment, "dist/apps/worker/src/main.js")
 const expandedEnvironment = {
   ...cliEnvironment,
   OPERATION_ID: "cli-expanded",
@@ -418,9 +420,9 @@ const expandedEnvironment = {
   WITH_INVOICE: "true",
   WORKER_MODE: "drain"
 }
-invoke("dist/apps/api/src/main.js", expandedEnvironment)
-invoke("dist/apps/worker/src/main.js", expandedEnvironment)
-invoke("dist/apps/worker/src/main.js", expandedEnvironment)
+invoke(expandedEnvironment, producerEntry)
+invoke(expandedEnvironment, "dist/apps/worker/src/main.js")
+invoke(expandedEnvironment, "dist/apps/worker/src/main.js")
 await Effect.runPromise(
   Effect.gen(function* () {
     const db = yield* Database
@@ -569,3 +571,47 @@ await Effect.runPromise(
 console.log(
   "PASS: exact beginner duplicate and advanced idempotent replay/conflict content scenarios"
 )
+
+// Fresh IDs distinguish import side effects from a successful CLI submission.
+const linkedEntry = "orders-api.mjs"
+symlinkSync(producerEntry, linkedEntry)
+try {
+  for (const { operationId, args, expected } of [
+    {
+      operationId: "imported",
+      args: ["--input-type=module", "-e", 'await import("./orders-api.mjs")'],
+      expected: [0, 0, 0]
+    },
+    { operationId: "direct", args: [producerEntry], expected: [1, 2, 1] },
+    { operationId: "linked", args: [linkedEntry], expected: [1, 2, 1] }
+  ]) {
+    invoke(
+      { ...expandedEnvironment, OPERATION_ID: operationId, ORDER_ID: operationId },
+      ...args
+    )
+    const counts = await Effect.runPromise(
+      Effect.gen(function* () {
+        const db = yield* Database
+        const order = yield* db
+          .select()
+          .from(orders)
+          .where(eq(orders.operationId, operationId))
+        const jobs = yield* db
+          .select()
+          .from(jobTables.jobs)
+          .where(eq(jobTables.jobs.operationId, operationId))
+        const receipts = yield* db
+          .select()
+          .from(orderReceipts)
+          .where(eq(orderReceipts.operationId, operationId))
+        return [order.length, jobs.length, receipts.length]
+      }).pipe(Effect.provide(PersistenceLayer), Effect.provide(ClientLayer))
+    )
+    console.log(
+      `Installed producer ${operationId}: orders/jobs/receipts ${counts.join("/")}`
+    )
+    assert.deepEqual(counts, expected, `producer ${operationId}: orders/jobs/receipts`)
+  }
+} finally {
+  unlinkSync(linkedEntry)
+}

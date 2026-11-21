@@ -1,6 +1,5 @@
 // Platform and native SQL APIs are intentionally pinned to Effect 4.1.0 here.
 // @effect-diagnostics unstableApiUsage:off
-import { pathToFileURL } from "node:url"
 import { Config, Effect, Layer } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import { NodeRuntime } from "@effect/platform-node"
@@ -36,7 +35,7 @@ const submit = Effect.gen(function* () {
   return yield* withInvoice ? placeOrderWithInvoice(input) : placeOrder(input)
 })
 // CLI boundary; an HTTP host instead supplies its admitted/authorized request.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (import.meta.main) {
   NodeRuntime.runMain(
     submit.pipe(Effect.provide(ProducerLayer.pipe(Layer.provideMerge(ClientLayer))))
   )
