@@ -146,7 +146,7 @@ api.test(
       cursorKey: process.env.CURSOR_KEY!
     }
 
-    for (const variant of ["acknowledged", "transaction", "portable"] as const) {
+    for (const variant of ["acknowledged", "lost"] as const) {
       const jobId = await Effect.runPromise(OperatorProbe.seed(config, ref))
       const command = {
         sandbox: ref,
@@ -167,7 +167,7 @@ api.test(
         })
       } else {
         const unknown = await Effect.runPromise(
-          OperatorProbe.lostCommit(config, credential, command, variant)
+          OperatorProbe.lostCommit(config, credential, command)
         )
         expect(unknown).toMatchObject({
           _tag: "OutcomeUnknown",
