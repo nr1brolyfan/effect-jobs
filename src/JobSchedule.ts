@@ -1,5 +1,6 @@
 /** Explicit read-only wake hints. No alarms, polling or execution start on import. */
 import { Cause, Context, Data, Effect, Layer, Schema } from "effect"
+import type { Groups, JobApi } from "./JobApi.js"
 import { BatchLimit } from "./JobLifecycle.js"
 import { EpochMillis } from "./JobPolicy.js"
 import type { JobGroup, Definitions } from "./JobGroup.js"
@@ -11,6 +12,7 @@ export class JobScheduleProtocolError extends Data.TaggedError(
   "JobScheduleProtocolError"
 )<{
   readonly reason: "invalid-input" | "invalid-observation"
+  readonly message?: string
 }> {}
 
 /** Safe source failure; no provider diagnostics or database parameters are retained. */
@@ -91,14 +93,16 @@ export interface Options {
 const OptionsSchema = Schema.Struct({ limit: BatchLimit.pipe(Schema.optionalKey) })
 
 /**
- * Observe the selected group's contracts in one queue, without requiring handlers.
+ * Observe one group's contracts or the worker's JobApi catalog in one queue.
+ * This read requires no handlers and accepts at most 500 catalog identities,
+ * independently of the metadata sample limit.
  * Recovery is queue-scoped, including expired leases for other contracts, just like drain.
  * Hints can become stale immediately after reading. Keep a finite repair wakeup even
  * when timestamps are null; saturated samples especially cannot establish emptiness.
  * The application owns authorization, activation expiry and exclusive alarm ownership.
  */
 export const observe = <Name extends string, D extends Definitions>(
-  group: JobGroup<Name, D>,
+  selection: JobGroup<Name, D> | JobApi<string, Groups>,
   queue: JobQueue,
   options: Options = {}
 ) =>
@@ -108,14 +112,24 @@ export const observe = <Name extends string, D extends Definitions>(
     }).pipe(
       Effect.mapError(() => new JobScheduleProtocolError({ reason: "invalid-input" }))
     )
-    const source = yield* JobSchedule
-    return yield* source.read({
-      queue: queue.name,
-      supportedCatalog: Object.values(group.definitions).map((job) => ({
+    const groups = "groups" in selection ? Object.values(selection.groups) : [selection]
+    const supportedCatalog = groups.flatMap((group) =>
+      Object.values(group.definitions).map((job) => ({
         queue: queue.name,
         name: job.name,
         version: job.version
-      })),
+      }))
+    )
+    if (supportedCatalog.length > 500) {
+      return yield* new JobScheduleProtocolError({
+        reason: "invalid-input",
+        message: "Schedule observation accepts at most 500 catalog identities"
+      })
+    }
+    const source = yield* JobSchedule
+    return yield* source.read({
+      queue: queue.name,
+      supportedCatalog,
       limit: decoded.limit ?? 100
     })
   })

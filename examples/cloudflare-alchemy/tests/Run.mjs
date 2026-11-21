@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
 import { Miniflare, convertV4MiniflareOptions } from "miniflare"
+import { Client } from "pg"
 import { makeDevelopmentProvider } from "./DevelopmentProvider.mjs"
 const provider = makeDevelopmentProvider()
 const deliveries = provider.effects
@@ -203,8 +204,62 @@ try {
     assert.equal(first.response.status, 200, JSON.stringify(first.body))
     const duplicate = await issue("invoice-a", "request-a")
     assert.deepEqual(duplicate.body, first.body)
-    await call("fire?owner=pg&mode=pg")
-    assert.equal(deliveries.size, 1)
+    const client = new Client({
+      connectionString: database,
+      connectionTimeoutMillis: 2000
+    })
+    await client.connect()
+    try {
+      // The supported job sorts after twenty older, unsupported jobs on the same queue.
+      const {
+        rows: [scheduled]
+      } = await client.query(
+        `UPDATE alchemy_example.jobs
+         SET available_at = floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint + 10000
+         WHERE id = $1 RETURNING available_at`,
+        [first.body.jobId]
+      )
+      await client.query(
+        `INSERT INTO alchemy_example.jobs
+           (id, operation, operation_id, slot, queue, kind, version, policy, state, available_at, updated_at)
+         SELECT 'unsupported-' || n, operation, 'unsupported-' || n, slot, queue,
+                'unsupported.mail', version, policy, 'Pending', available_at - 20000, updated_at
+         FROM alchemy_example.jobs CROSS JOIN generate_series(1, 20) AS n WHERE id = $1`,
+        [first.body.jobId]
+      )
+      const idle = (await call("fire?owner=pg&mode=pg")).body
+      assert.equal(idle.observed.result._tag, "Idle")
+      assert.equal(idle.observed.result.claimed, 0)
+      assert.equal(idle.observed.hint.nextAvailableAt, null)
+      assert.equal(idle.observed.hint.nextRecoveryAt, null)
+      assert.equal(idle.observed.hint.saturated, true)
+      assert.equal(idle.alarm - idle.now, 5000)
+      assert.equal(deliveries.size, 0)
+
+      const early = (await call("fire?owner=pg&mode=pg&advance=1000")).body
+      assert.equal(early.calls, idle.calls)
+      assert.equal(early.alarm, idle.alarm)
+
+      // The DO test clock drives alarm delivery. PostgreSQL still owns eligibility.
+      await client.query(
+        "SELECT pg_sleep(GREATEST(0, $1::bigint / 1000.0 - extract(epoch FROM clock_timestamp())))",
+        [scheduled.available_at]
+      )
+      const due = (await call("fire?owner=pg&mode=pg&advance=4000")).body
+      assert.equal(due.calls, idle.calls + 1)
+      assert.equal(due.observed.result.claimed, 1)
+      assert.equal(deliveries.size, 1)
+      const { rows } = await client.query(
+        "SELECT state FROM alchemy_example.jobs WHERE id = $1",
+        [first.body.jobId]
+      )
+      assert.equal(rows[0].state, "Completed")
+      receipts.push(
+        "real PostgreSQL saturated head: five-second recheck, then claim at due time PASS"
+      )
+    } finally {
+      await client.end()
+    }
     await call("fire?owner=pg&mode=pg")
     assert.equal(deliveries.size, 1, "repeated wake cannot execute a completed job again")
     receipts.push(

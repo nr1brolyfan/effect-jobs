@@ -514,6 +514,66 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
     ).toBe(false)
   })
 
+  test("the worker catalog observes a future report that a billing-only read misses", async () => {
+    await clear()
+    const report = Effect.runSync(
+      Job.make({ name: "report.generate", payload: Schema.String })
+    )
+    const reports = Effect.runSync(Group.make("reports", { report }))
+    const api = Effect.runSync(
+      JobApi.make("billing-and-reports").pipe(
+        JobApi.addGroup(workerGroup),
+        JobApi.addGroup(reports)
+      )
+    )
+    const producer = Effect.runSync(
+      Producer.make("reports.request").pipe(
+        Producer.withSlot("report", report, { queue, policy })
+      )
+    )
+    const due = (await serverNow()) + 10_000
+    await Effect.runPromise(
+      jobs.withTransaction(() =>
+        producer.enqueue({
+          operationId: "future-report",
+          slot: "report",
+          payload: "report",
+          availableAt: DateTime.makeUnsafe(due)
+        })
+      )
+    )
+    const drain = await Effect.runPromise(
+      Effect.gen(function* () {
+        const worker = yield* Worker.make(api, { queues: [{ queue }] })
+        return yield* worker.drain(queue)
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Layer.succeed(Storage.JobStorage, jobs.storage),
+            Group.handlers(workerGroup, (h) =>
+              h.handle("generate", () => Effect.die("unexpected invoice claim"))
+            ),
+            Group.handlers(reports, (h) =>
+              h.handle("report", () => Effect.die("report is not yet due"))
+            )
+          )
+        )
+      )
+    )
+    expect(drain).toMatchObject({ _tag: "Idle", claimed: 0 })
+    const schedule = Schedule.layer(jobs.schedule)
+    const billing = await Effect.runPromise(
+      Schedule.observe(workerGroup, queue).pipe(Effect.provide(schedule))
+    )
+    const combined = await Effect.runPromise(
+      Schedule.observe(api, queue).pipe(Effect.provide(schedule))
+    )
+    expect(billing).toMatchObject({ nextAvailableAt: null, saturated: false })
+    expect(combined).toMatchObject({ nextAvailableAt: due, saturated: false })
+    expect(due - combined.observedAt).toBeGreaterThan(0)
+    expect(due - combined.observedAt).toBeLessThan(60_000)
+  })
+
   test("schedule rejects invalid selections before SQL and rejects an ambient owning transaction", async () => {
     const request = { queue: queue.name, supportedCatalog: [catalog], limit: 100 }
     const borrows = source.counters.borrows

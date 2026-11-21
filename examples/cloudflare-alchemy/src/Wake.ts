@@ -5,19 +5,20 @@ import type { Observation } from "effect-jobs/JobSchedule"
 import type { DrainResult } from "effect-jobs/JobWorker"
 
 export const repairMillis = 60_000
+const saturatedRecheckMillis = 5_000
 // Uses a database-relative delay. Null/saturated/Idle never cancels the repair path.
 export const nextDelay = (result: DrainResult, hint: Observation) => {
   if (result._tag === "Backoff") {
     return repairMillis
   }
-  if (result._tag === "MoreWork" || hint.saturated) {
+  if (result._tag === "MoreWork") {
     return 1000
   }
   const deadlines = [hint.nextAvailableAt, hint.nextRecoveryAt].filter(
     (time) => time !== null
   )
   return Math.min(
-    repairMillis,
+    hint.saturated ? saturatedRecheckMillis : repairMillis,
     ...deadlines.map((time) => Math.max(1000, time - hint.observedAt))
   )
 }
