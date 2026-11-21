@@ -9,6 +9,7 @@ import {
   Layer,
   Logger,
   Random,
+  Result,
   Schema,
   Scope
 } from "effect"
@@ -185,7 +186,10 @@ it.each(["claim", "reconciliation"] as const)(
               return Effect.fail("RAW_RECONCILIATION")
             })
         })
-        yield* start(worker, { ...pollingOptions, recoveryRetryIntervalMillis: 801 })
+        yield* start(worker, {
+          ...pollingOptions,
+          recoveryRetryInterval: Duration.millis(801)
+        })
         yield* Effect.yieldNow
         assert.deepEqual(test.calls.recoveries, [1])
         yield* TestClock.adjust(800)
@@ -408,18 +412,23 @@ it("validates every plan queue before spawning loops and rejects invalid polling
         ).pipe(Effect.result)
         assert.equal(result._tag, "Failure")
       }
-      for (const recoveryRetryIntervalMillis of [
-        0,
-        -1,
-        0.5,
-        NaN,
-        Infinity,
-        Number.MAX_SAFE_INTEGER
+      for (const options of [
+        { recoveryRetryInterval: Duration.zero },
+        { recoveryRetryInterval: Duration.millis(-1) },
+        { recoveryRetryInterval: Duration.nanos(999_999n) },
+        { recoveryRetryInterval: Duration.infinity },
+        { recoveryRetryInterval: Duration.negativeInfinity },
+        { recoveryRetryInterval: Duration.millis(Number.MAX_SAFE_INTEGER) },
+        { recoveryRetryInterval: 30_000 },
+        { recoveryRetryIntervalMillis: 30_000 }
       ]) {
-        const result = yield* start(worker, { recoveryRetryIntervalMillis }).pipe(
+        const result = yield* start(worker, options as Polling.Options).pipe(
           Effect.result
         )
-        assert.equal(result._tag, "Failure")
+        assert.deepEqual(
+          result,
+          Result.fail(new Worker.JobWorkerConfigurationError({ field: "polling" }))
+        )
       }
       for (const idlePollMillis of [0, -1, 0.5, Infinity]) {
         const result = yield* Layer.build(

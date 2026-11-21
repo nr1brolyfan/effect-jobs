@@ -896,7 +896,7 @@
   {
     "subpath": "effect-jobs/JobPolling",
     "filename": "src/JobPolling.ts",
-    "sha256": "403f7d191db7d5fbe2170abf66df082405e078f815757421f67aa72892da60ad",
+    "sha256": "0e622996f7e740e0538a11f7e8a991359fb25091856e4de7ab2dae39e7903e8e",
     "symbols": [
       {
         "name": "layer",
@@ -908,7 +908,7 @@
         "name": "Options",
         "kind": "type",
         "category": "models",
-        "description": "Polling configuration. idlePoll defaults to one second and must be positive.\nIdle/backoff sleeps include jitter. shutdownGrace defaults to 30 seconds\nand accepts zero through five minutes. Both use whole milliseconds.\nrecoveryRetryIntervalMillis defaults to 30 seconds and must be a positive\ninteger. It enables recovery on the next eligible round during claim backoff."
+        "description": "Polling configuration. idlePoll defaults to one second and must be positive.\nIdle/backoff sleeps include jitter. shutdownGrace defaults to 30 seconds\nand accepts zero through five minutes. Each option uses whole milliseconds.\nrecoveryRetryInterval accepts a positive, bounded Duration and defaults to\nDuration.seconds(30). It enables recovery on the next eligible round during\nclaim backoff."
       }
     ]
   },

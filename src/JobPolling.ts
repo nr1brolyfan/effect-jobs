@@ -26,20 +26,21 @@ import type { QueueRun } from "./internal/worker/QueueRun.js"
 /**
  * Polling configuration. idlePoll defaults to one second and must be positive.
  * Idle/backoff sleeps include jitter. shutdownGrace defaults to 30 seconds
- * and accepts zero through five minutes. Both use whole milliseconds.
- * recoveryRetryIntervalMillis defaults to 30 seconds and must be a positive
- * integer. It enables recovery on the next eligible round during claim backoff.
+ * and accepts zero through five minutes. Each option uses whole milliseconds.
+ * recoveryRetryInterval accepts a positive, bounded Duration and defaults to
+ * Duration.seconds(30). It enables recovery on the next eligible round during
+ * claim backoff.
  *
  * @category models
  */
 export interface Options extends DrainLimits {
-  readonly recoveryRetryIntervalMillis?: number
+  readonly recoveryRetryInterval?: Duration.Duration
   readonly idlePoll?: Duration.Duration
   readonly shutdownGrace?: Duration.Duration
 }
 const OptionsSchema = Schema.Struct({
   ...DrainLimitsSchema.fields,
-  recoveryRetryIntervalMillis: EpochMillis.pipe(Schema.optionalKey),
+  recoveryRetryInterval: Schema.Duration.pipe(Schema.optionalKey),
   idlePoll: Schema.Duration.pipe(Schema.optionalKey),
   shutdownGrace: Schema.Duration.pipe(Schema.optionalKey)
 })
@@ -143,6 +144,12 @@ export const layer = (queues: ReadonlyArray<JobQueue>, options: Options = {}) =>
       if (!Schema.is(EpochMillis)(idlePollMillis)) {
         return yield* new JobWorkerConfigurationError({ field: "idlePoll" })
       }
+      const recoveryRetryIntervalMillis = durationMillis(
+        decoded.recoveryRetryInterval ?? Duration.seconds(30)
+      )
+      if (!Schema.is(EpochMillis)(recoveryRetryIntervalMillis)) {
+        return yield* new JobWorkerConfigurationError({ field: "polling" })
+      }
       const shutdownGraceMillis =
         decoded.shutdownGrace === undefined
           ? 30_000
@@ -202,12 +209,7 @@ export const layer = (queues: ReadonlyArray<JobQueue>, options: Options = {}) =>
       for (const consumer of consumers) {
         yield* FiberSet.run(
           lifetime.admissions,
-          loop(
-            consumer,
-            idlePollMillis,
-            decoded.recoveryRetryIntervalMillis ?? 30_000,
-            lifetime.executions
-          )
+          loop(consumer, idlePollMillis, recoveryRetryIntervalMillis, lifetime.executions)
         )
       }
     })

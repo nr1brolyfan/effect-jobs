@@ -50,7 +50,10 @@ this worker composition; importing its definitions starts no processing.
 
 Set `idlePoll` to a positive whole-millisecond `Duration`. The default is one
 second before jitter. `shutdownGrace` defaults to 30 seconds and accepts
-durations from zero through five minutes.
+durations from zero through five minutes. `recoveryRetryInterval` accepts a
+positive, bounded whole-millisecond `Duration` and defaults to
+`Duration.seconds(30)`. Once that interval has elapsed during claim backoff, the
+next eligible polling round attempts bounded recovery.
 
 | Setting                   | Bound                                         | Meaning                                                                                 |
 | ------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------- |

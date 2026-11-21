@@ -42,6 +42,9 @@ Breaking prerelease changes since the published alpha.2 package:
   insert. Omitting `retryBefore` leaves no additional retry cutoff.
 - Pass Effect `Duration` values to `JobPolling.layer` as `idlePoll` and
   `shutdownGrace`, replacing `idlePollMillis` and `shutdownGraceMillis`.
+  Replace `recoveryRetryIntervalMillis: n` with
+  `recoveryRetryInterval: Duration.millis(n)`. Omitting it uses
+  `Duration.seconds(30)`.
   Storage constructors take `operationResponseBudget` and the native
   PostgreSQL adapter takes `operationTimeout`. Use `Duration.millis(oldValue)`
   for existing constants. Resolved storage budgets and persisted time fields
