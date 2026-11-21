@@ -2255,11 +2255,25 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
       await clear()
       await enqueue(`cleanup-${fault}`)
       await finish(await claim())
+      // Age both timestamps: SQL filters on cleanup_at and the lifecycle check
+      // derives the same deadline from completed_at and the stored policy.
+      const aged = await observer.query(
+        `UPDATE jobs_fixture.tasks
+         SET completed_at = completed_at - 60000, cleanup_at = cleanup_at - 60000
+         WHERE operation_id = $1 AND state = 'Completed'
+         RETURNING completed_at, cleanup_at`,
+        [`cleanup-${fault}`]
+      )
+      expect(aged.rowCount).toBe(1)
+      const deadline = Number(aged.rows[0].cleanup_at)
+      expect(deadline).toBe(Number(aged.rows[0].completed_at) + 1)
+      expect(deadline).toBeLessThan(await serverNow())
       remaining = 1
       await expect(Effect.runPromise(faulted.cleanup.cleanup(1))).rejects.toMatchObject({
         _tag: "PostgreSqlFailure",
         commitKnowledge: "Unknown"
       })
+      expect(remaining).toBe(0)
       if (fault === "after-durable") {
         expect(await row(`cleanup-${fault}`)).toBeUndefined()
       } else {
