@@ -178,6 +178,12 @@ acknowledged. If commit is unknown, read the receipt for the original command
 outside that transaction. A missing receipt leaves the outcome unresolved and
 does not authorize replay.
 
+For every redrive, require explicit application confirmation that this exact
+command may repeat an external effect. This applies even when
+\`correctedRedrive\` supplies a complete replacement payload. If confirmation is
+missing or denied, fail the transaction before calling the operator or writing
+the receipt.
+
 <CodeExample sourcePath="ReportOperators.ts" region="transaction" role="Composition" />
 
 <CodeExample sourcePath="ReportOperators.ts" region="actions" role="Checked scenario" />
