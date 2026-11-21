@@ -239,7 +239,7 @@ assert.equal(claims, 0)
 assert.deepEqual(await Effect.runPromise(Worker.drain(queue).pipe(Effect.provide(workerLayer))), { _tag: "Idle", claimed: 0, recovered: 0 })
 assert.equal(claims, 1)
 await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-  yield* Layer.build(Polling.layer([queue], { maxJobs: 1, idlePoll: Duration.seconds(1), shutdownGrace: Duration.zero }).pipe(Layer.provide(workerLayer)))
+  yield* Layer.build(Polling.layer([queue], { maxJobs: 1, idlePoll: Duration.seconds(1), shutdownGrace: Duration.zero, recoveryRetryInterval: Duration.seconds(30) }).pipe(Layer.provide(workerLayer)))
   yield* Effect.yieldNow
 })))
 assert.equal(claims, 2)

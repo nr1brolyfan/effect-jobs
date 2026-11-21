@@ -122,14 +122,17 @@ export const makeStore = (
               yield* isolate(query, jobs, row.id, now)
               return Store.ClaimResult.Empty()
             }
-            if (
-              before.success.policy.leaseDurationMillis -
-                before.success.policy.attemptTimeoutMillis <
-                budget ||
-              before.success.policy.leaseDurationMillis > maximumMillis - now
-            ) {
-              // A valid retained policy incompatible with this deployment is not
-              // corrupt data. Leave its state, ownership and artifact untouched.
+            // A valid retained policy incompatible with this deployment is not
+            // corrupt data. Leave its state, ownership and artifact untouched.
+            const { leaseDurationMillis, attemptTimeoutMillis } = before.success.policy
+            const reserveMillis = leaseDurationMillis - attemptTimeoutMillis
+            if (reserveMillis < budget) {
+              return yield* new JobPolicyIncompatible({
+                reserveMillis,
+                requiredMillis: budget
+              })
+            }
+            if (leaseDurationMillis > maximumMillis - now) {
               return yield* new JobPolicyIncompatible()
             }
             const plan = Lifecycle.claim(before.success, request.leaseToken, now, budget)

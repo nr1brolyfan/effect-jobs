@@ -1,5 +1,6 @@
 import { observe, trackExecution } from "../../JobTelemetry.js"
 import { Effect, Fiber, FiberSet, Semaphore } from "effect"
+import { JobPolicyIncompatible } from "../../JobContract.js"
 import { JobWorker } from "../../JobWorker.js"
 import { WorkerCapability } from "./Capability.js"
 import { DrainResult } from "./Results.js"
@@ -49,7 +50,12 @@ export const drainWithOptions = (consumer: QueueRun, options: DrainOptions = {})
             )
             executions.push(fiber)
           })
-        let terminal: "Empty" | "Limit" | "Unresolved" | "Failed" = "Limit"
+        let terminal:
+          | "Empty"
+          | "Limit"
+          | "Unresolved"
+          | "Failed"
+          | "JobPolicyIncompatible" = "Limit"
         for (; claimed < consumer.claimLimitPerRun; claimed++) {
           const result = yield* Effect.uninterruptibleMask((restore) =>
             Effect.gen(function* () {
@@ -80,7 +86,10 @@ export const drainWithOptions = (consumer: QueueRun, options: DrainOptions = {})
             })
           ).pipe(Effect.result)
           if (result._tag === "Failure") {
-            terminal = "Failed"
+            terminal =
+              result.failure instanceof JobPolicyIncompatible
+                ? "JobPolicyIncompatible"
+                : "Failed"
             break
           }
           if (result.success !== "Started") {
@@ -89,10 +98,15 @@ export const drainWithOptions = (consumer: QueueRun, options: DrainOptions = {})
           }
         }
         yield* Effect.forEach(executions, Fiber.await, { discard: true })
-        if (terminal === "Failed" || terminal === "Unresolved") {
+        if (
+          terminal === "Failed" ||
+          terminal === "Unresolved" ||
+          terminal === "JobPolicyIncompatible"
+        ) {
           return DrainResult.Backoff({
-            phase: terminal === "Failed" ? "claim" : "reconciliation",
-            claimed
+            phase: terminal === "Unresolved" ? "reconciliation" : "claim",
+            claimed,
+            ...(terminal === "JobPolicyIncompatible" ? { reason: terminal } : {})
           })
         }
         return terminal === "Empty"

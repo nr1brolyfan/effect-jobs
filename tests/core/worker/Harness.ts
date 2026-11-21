@@ -9,7 +9,7 @@ import {
   FinalizationReconciliation,
   JobOwnershipLost
 } from "../../../src/JobStore.js"
-import type { PreparedJob } from "../../../src/JobContract.js"
+import { JobPolicyIncompatible, type PreparedJob } from "../../../src/JobContract.js"
 import type {
   JobStoreService,
   ClaimRequest,
@@ -19,8 +19,13 @@ import type {
 const epoch = 1_725_000_000_000
 const snapshotEquals = Schema.toEquivalence(Lifecycle.JobSnapshot)
 
-/** Test-only, synchronous atomic state machine. NOT a durable jobs. */
-export const harness = (prepared: ReadonlyArray<PreparedJob> = []) => {
+/** In-memory state machine for worker scenarios and the reserve boundary contract.
+ * Uses fixture order and models no SQL transaction, durability or lock contention.
+ */
+export const harness = (
+  prepared: ReadonlyArray<PreparedJob> = [],
+  responseBudget = 100
+) => {
   const rows = prepared.map((job, index) => ({
     prepared: job as unknown,
     snapshot: {
@@ -66,7 +71,7 @@ export const harness = (prepared: ReadonlyArray<PreparedJob> = []) => {
   })
   const store: JobStoreService<JobOwnershipLost> = {
     claim: (request) =>
-      atomic((now) => {
+      atomic<Result.Result<ClaimResult, JobPolicyIncompatible>>((now) => {
         calls.claims.push(request)
         const row = rows.find((row) => {
           const job = prepared[rows.indexOf(row)]!
@@ -83,15 +88,28 @@ export const harness = (prepared: ReadonlyArray<PreparedJob> = []) => {
           )
         })
         if (row === undefined) {
-          return ClaimResult.Empty()
+          return Result.succeed(ClaimResult.Empty())
         }
-        const next = Lifecycle.claim(row.snapshot, request.leaseToken, now, 100)
+        const reserveMillis =
+          row.snapshot.policy.leaseDurationMillis -
+          row.snapshot.policy.attemptTimeoutMillis
+        if (reserveMillis < responseBudget) {
+          return Result.fail(
+            new JobPolicyIncompatible({ reserveMillis, requiredMillis: responseBudget })
+          )
+        }
+        const next = Lifecycle.claim(
+          row.snapshot,
+          request.leaseToken,
+          now,
+          responseBudget
+        )
         if (Result.isFailure(next)) {
-          return ClaimResult.Empty()
+          return Result.succeed(ClaimResult.Empty())
         }
         row.snapshot = next.success
-        return ClaimResult.Claimed({ claim: claimOf(row) })
-      }),
+        return Result.succeed(ClaimResult.Claimed({ claim: claimOf(row) }))
+      }).pipe(Effect.flatMap(Effect.fromResult)),
     reconcileClaim: (token) =>
       atomic((now) => {
         calls.claimReconciliations.push(token)
@@ -99,7 +117,7 @@ export const harness = (prepared: ReadonlyArray<PreparedJob> = []) => {
         if (row === undefined) {
           return ClaimReconciliation.NotOwned()
         }
-        return Lifecycle.usableLease(row.snapshot, now, 100)
+        return Lifecycle.usableLease(row.snapshot, now, responseBudget)
           ? ClaimReconciliation.Owned({ claim: claimOf(row) })
           : ClaimReconciliation.InsufficientLease({ ownership: claimOf(row).ownership })
       }),

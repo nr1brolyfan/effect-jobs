@@ -253,6 +253,7 @@ const runWorker = Effect.gen(function* () {
   const PollingLayer = Polling.layer([BillingQueue], {
     maxJobs: 20, // Max jobs claimed during one bounded drain.
     recoveryLimit: 20, // Max expired leases recovered in this queue per drain.
+    recoveryRetryInterval: Duration.seconds(30), // Retry threshold when claim backoff skips recovery.
     shutdownGrace: Duration.seconds(30) // Shared grace for already-started executions.
   }).pipe(Layer.provide(WorkerLayer))
 
@@ -261,6 +262,10 @@ const runWorker = Effect.gen(function* () {
 
 NodeRuntime.runMain(runWorker)
 ```
+
+`recoveryRetryInterval` defaults to 30 seconds and accepts positive, bounded
+whole-millisecond Effect durations. During claim backoff, it triggers bounded
+recovery on the next eligible polling round once that interval has elapsed.
 
 The Scope owns polling shutdown. Construction starts no workers. Concurrency is fixed per worker instance and shared across its concurrent drains, not a global queue limit.
 

@@ -1,7 +1,17 @@
 /**
  * Explicit Node/Bun polling owned by the application Layer Scope.
  */
-import { Duration, Effect, FiberSet, Layer, Match, Random, Schema, Scope } from "effect"
+import {
+  Clock,
+  Duration,
+  Effect,
+  FiberSet,
+  Layer,
+  Match,
+  Random,
+  Schema,
+  Scope
+} from "effect"
 import { JobWorker, JobWorkerConfigurationError, JobWorkerNotReady } from "./JobWorker.js"
 import { durationMillis } from "./internal/policy/Retry.js"
 import { EpochMillis } from "./JobPolicy.js"
@@ -16,16 +26,21 @@ import type { QueueRun } from "./internal/worker/QueueRun.js"
 /**
  * Polling configuration. idlePoll defaults to one second and must be positive.
  * Idle/backoff sleeps include jitter. shutdownGrace defaults to 30 seconds
- * and accepts zero through five minutes. Both use whole milliseconds.
+ * and accepts zero through five minutes. Each option uses whole milliseconds.
+ * recoveryRetryInterval accepts a positive, bounded Duration and defaults to
+ * Duration.seconds(30). It enables recovery on the next eligible round during
+ * claim backoff.
  *
  * @category models
  */
 export interface Options extends DrainLimits {
+  readonly recoveryRetryInterval?: Duration.Duration
   readonly idlePoll?: Duration.Duration
   readonly shutdownGrace?: Duration.Duration
 }
 const OptionsSchema = Schema.Struct({
   ...DrainLimitsSchema.fields,
+  recoveryRetryInterval: Schema.Duration.pipe(Schema.optionalKey),
   idlePoll: Schema.Duration.pipe(Schema.optionalKey),
   shutdownGrace: Schema.Duration.pipe(Schema.optionalKey)
 })
@@ -39,42 +54,59 @@ const sleepWithJitter = (millis: number) =>
 const loop = (
   consumer: QueueRun,
   idlePollMillis: number,
+  recoveryRetryIntervalMillis: number,
   executions: FiberSet.FiberSet<void, never>
 ) =>
   Effect.gen(function* () {
     let failures = 0
-    let recover = true
+    let recoverNormally = true
+    let retryRecovery = false
+    let lastRecovery = 0n
+    const recoveryInterval = BigInt(recoveryRetryIntervalMillis) * 1_000_000n
     yield* Effect.whileLoop({
       while: () => true,
       body: () =>
         Effect.gen(function* () {
+          const now = yield* Clock.monotonicTimeNanos
+          const recover =
+            recoverNormally || retryRecovery || now - lastRecovery >= recoveryInterval
+          if (recover) {
+            lastRecovery = now
+          }
           const result = yield* drainWithOptions(consumer, { recover, executions }).pipe(
             observe("polling", "dispatch")
           )
+          // Retry a failed recovery after backoff without resetting a claim failure streak.
+          retryRecovery = result._tag === "Backoff" && result.phase === "recovery"
           yield* Match.value(result).pipe(
             Match.tag("Backoff", (result) =>
               Effect.gen(function* () {
-                if (result.claimed > 0 || (recover && result.phase !== "recovery")) {
+                if (
+                  result.claimed > 0 ||
+                  (recoverNormally && result.phase !== "recovery")
+                ) {
                   failures = 0
                 }
                 yield* sleepWithJitter(
                   backoffMillis[Math.min(failures, backoffMillis.length - 1)] ?? 30_000
                 ).pipe(observe("backoff", "maintenance"))
                 failures = Math.min(failures + 1, backoffMillis.length - 1)
-                recover = result.phase === "recovery"
+                if (result.phase !== "recovery") {
+                  recoverNormally = false
+                }
               })
             ),
             Match.tag("Idle", () =>
               Effect.gen(function* () {
                 failures = 0
-                recover = true
+                recoverNormally = true
                 yield* sleepWithJitter(idlePollMillis)
               })
             ),
             Match.tag("MoreWork", () =>
               Effect.gen(function* () {
                 failures = 0
-                recover = true
+                recoverNormally = true
                 yield* Effect.yieldNow
               })
             ),
@@ -111,6 +143,12 @@ export const layer = (queues: ReadonlyArray<JobQueue>, options: Options = {}) =>
         decoded.idlePoll === undefined ? 1_000 : durationMillis(decoded.idlePoll)
       if (!Schema.is(EpochMillis)(idlePollMillis)) {
         return yield* new JobWorkerConfigurationError({ field: "idlePoll" })
+      }
+      const recoveryRetryIntervalMillis = durationMillis(
+        decoded.recoveryRetryInterval ?? Duration.seconds(30)
+      )
+      if (!Schema.is(EpochMillis)(recoveryRetryIntervalMillis)) {
+        return yield* new JobWorkerConfigurationError({ field: "polling" })
       }
       const shutdownGraceMillis =
         decoded.shutdownGrace === undefined
@@ -171,7 +209,7 @@ export const layer = (queues: ReadonlyArray<JobQueue>, options: Options = {}) =>
       for (const consumer of consumers) {
         yield* FiberSet.run(
           lifetime.admissions,
-          loop(consumer, idlePollMillis, lifetime.executions)
+          loop(consumer, idlePollMillis, recoveryRetryIntervalMillis, lifetime.executions)
         )
       }
     })

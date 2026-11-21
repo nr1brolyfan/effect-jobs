@@ -6,7 +6,8 @@ import { JobAddress } from "../../JobIdentity.js"
 import { EpochMillis } from "../../JobPolicy.js"
 import { observe } from "../../JobTelemetry.js"
 import { JobOwnership } from "../../JobLifecycle.js"
-import type { HandlerLookup } from "./Handler.js"
+import { addressKey, type HandlerLookup } from "./Handler.js"
+import { JobPolicyIncompatible } from "../../JobContract.js"
 import {
   DispatchResult,
   JobWorkerConfigurationError,
@@ -59,9 +60,7 @@ export const makeWithHandlers = <E, R>(
         version: entry.catalog.version
       })
     )
-    const keys = catalogs.map(
-      (entry) => `${entry.queue}\u0000${entry.name}\u0000${entry.version}`
-    )
+    const keys = catalogs.map(addressKey)
     if (
       catalogs.length === 0 ||
       !catalogs.every(Schema.is(JobAddress)) ||
@@ -69,7 +68,33 @@ export const makeWithHandlers = <E, R>(
     ) {
       return yield* new JobWorkerConfigurationError({ field: "catalog" })
     }
-    Object.freeze(catalogs)
+    if (
+      handlers.immutable &&
+      !catalogs.every((entry) => typeof handlers.find(entry)?.execute === "function")
+    ) {
+      return yield* new JobWorkerConfigurationError({ field: "catalog" })
+    }
+    const byQueue = new Map<string, Array<JobAddress>>()
+    for (const entry of catalogs) {
+      const supported = byQueue.get(entry.queue)
+      if (supported === undefined) {
+        byQueue.set(entry.queue, [entry])
+      } else {
+        supported.push(entry)
+      }
+    }
+    for (const supported of byQueue.values()) {
+      Object.freeze(supported)
+    }
+    const supportedCatalog = (queue: string) =>
+      Effect.suspend(() => {
+        const supported = byQueue.get(queue)
+        return supported !== undefined &&
+          (handlers.immutable ||
+            catalogs.every((entry) => handlers.find(entry) !== undefined))
+          ? Effect.succeed(supported)
+          : Effect.fail(new JobWorkerNotReady())
+      })
     const bound: JobStoreService<E> = {
       claim: (input) =>
         Effect.suspend(() => store.claim(input)).pipe(Effect.provide(services)),
@@ -93,12 +118,7 @@ export const makeWithHandlers = <E, R>(
       { readonly concurrency: number; readonly semaphore: Semaphore.Semaphore }
     >()
     const ready: RuntimeCapability["ready"] = (queue) =>
-      Effect.suspend(() =>
-        catalogs.some((entry) => entry.queue === queue) &&
-        catalogs.every((entry) => handlers.find(entry) !== undefined)
-          ? Effect.void
-          : Effect.fail(new JobWorkerNotReady())
-      )
+      supportedCatalog(queue).pipe(Effect.asVoid)
     const release = (ownership: JobOwnership) =>
       bound
         .release(ownership, "BeforeExecution")
@@ -108,7 +128,11 @@ export const makeWithHandlers = <E, R>(
           observe("release", "dispatch"),
           Effect.ignore
         )
-    const started = (claim: ClaimedJob, token: string, queue: string) => {
+    const started = (
+      claim: ClaimedJob,
+      token: string,
+      supported: ReadonlyArray<JobAddress>
+    ) => {
       if (
         !Schema.is(JobOwnership)(claim.ownership) ||
         claim.ownership.leaseToken !== token
@@ -122,13 +146,7 @@ export const makeWithHandlers = <E, R>(
             return Effect.void
           }
           phase = "Executing"
-          return executionFor(
-            bound,
-            claim,
-            handlers.find,
-            catalogs.filter((entry) => entry.queue === queue),
-            budget
-          )
+          return executionFor(bound, claim, handlers.find, supported, budget)
         }),
         release: Effect.suspend(() => {
           if (phase !== "BeforeExecution") {
@@ -162,13 +180,13 @@ export const makeWithHandlers = <E, R>(
         }),
       claim: (queue) =>
         Effect.gen(function* () {
-          yield* ready(queue)
+          const supported = yield* supportedCatalog(queue)
           // Allocate when the Effect runs, not when it is constructed/reused.
           const token = yield* Effect.sync(() => globalThis.crypto.randomUUID())
           const result = yield* bound
             .claim({
               queue,
-              supportedCatalog: catalogs.filter((entry) => entry.queue === queue),
+              supportedCatalog: supported,
               leaseToken: token
             })
             .pipe(
@@ -182,13 +200,13 @@ export const makeWithHandlers = <E, R>(
             return DispatchResult.Empty()
           }
           if (result._tag === "Claimed") {
-            return started(result.claim, token, queue)
+            return started(result.claim, token, supported)
           }
           const reconciled = yield* bound
             .reconcileClaim(token)
             .pipe(Effect.timeout(budget), observe("claim", "reconciliation"))
           if (reconciled._tag === "Owned") {
-            return started(reconciled.claim, token, queue)
+            return started(reconciled.claim, token, supported)
           }
           if (reconciled._tag === "InsufficientLease") {
             if (
@@ -202,7 +220,26 @@ export const makeWithHandlers = <E, R>(
             return DispatchResult.Unresolved()
           }
           return DispatchResult.Unresolved()
-        }).pipe(unavailable),
+        }).pipe(
+          Effect.catchCause(
+            (
+              cause
+            ): Effect.Effect<never, JobPolicyIncompatible | JobWorkerUnavailable> => {
+              const [reason] = cause.reasons
+              if (
+                cause.reasons.length === 1 &&
+                reason !== undefined &&
+                Cause.isFailReason(reason) &&
+                reason.error instanceof JobPolicyIncompatible
+              ) {
+                return Effect.fail(reason.error)
+              }
+              return Cause.hasInterrupts(cause)
+                ? Effect.interrupt
+                : Effect.fail(new JobWorkerUnavailable())
+            }
+          )
+        ),
       recover: (queue, limit) =>
         Effect.gen(function* () {
           let recovered = 0

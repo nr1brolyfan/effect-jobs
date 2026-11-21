@@ -1,5 +1,6 @@
 import { Data } from "effect"
 import type { Effect, Semaphore } from "effect"
+import type { JobPolicyIncompatible } from "../../JobContract.js"
 import type { QueueRun } from "./QueueRun.js"
 
 /** Explicit per-worker wiring; not exported as a package subpath. */
@@ -36,7 +37,9 @@ export interface RuntimeCapability {
   readonly permits: (
     consumer: Pick<QueueRun, "queue" | "localConcurrency">
   ) => Effect.Effect<Semaphore.Semaphore, JobWorkerConfigurationError>
-  readonly claim: (queue: string) => Effect.Effect<DispatchResult, JobWorkerUnavailable>
+  readonly claim: (
+    queue: string
+  ) => Effect.Effect<DispatchResult, JobWorkerUnavailable | JobPolicyIncompatible>
   readonly recover: (
     queue: string,
     limit: number

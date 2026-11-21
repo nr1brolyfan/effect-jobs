@@ -1,5 +1,7 @@
 import type { HealthSample } from "./postgresql/internal/Health.js"
 import { Cause, Clock, Effect, Exit, Match, Metric, Schema } from "effect"
+import { JobPolicyIncompatible } from "./JobContract.js"
+import { PositiveMillis } from "./JobPolicy.js"
 import { JobFailure } from "./JobFailure.js"
 
 export type Operation =
@@ -203,7 +205,29 @@ export const observe =
                     reasons.length === 1 ? "1" : reasons.length === 2 ? "2" : "3+"
                 })
           }
-          yield* Effect.annotateCurrentSpan(fields)
+          const [reason] = reasons
+          const error =
+            operation === "claim" &&
+            reasons.length === 1 &&
+            reason !== undefined &&
+            Cause.isFailReason(reason)
+              ? reason.error
+              : undefined
+          const diagnostic =
+            error instanceof JobPolicyIncompatible
+              ? {
+                  "jobs.reason": "JobPolicyIncompatible",
+                  ...(Schema.is(PositiveMillis)(error.reserveMillis) &&
+                  Schema.is(PositiveMillis)(error.requiredMillis) &&
+                  error.reserveMillis < error.requiredMillis
+                    ? {
+                        "jobs.reserve_millis": error.reserveMillis,
+                        "jobs.required_millis": error.requiredMillis
+                      }
+                    : {})
+                }
+              : {}
+          yield* Effect.annotateCurrentSpan({ ...fields, ...diagnostic })
           yield* isolated(Metric.update(Metric.withAttributes(total, fields), 1))
           yield* isolated(
             Metric.update(
@@ -233,7 +257,7 @@ export const observe =
             degraded
               ? Effect.logWarning("effect-jobs operation completed")
               : Effect.logDebug("effect-jobs operation completed")
-          ).pipe(Effect.annotateLogs(fields))
+          ).pipe(Effect.annotateLogs({ ...fields, ...diagnostic }))
           // End our own span with void, restore the exact original Exit outside it.
         }).pipe(Effect.withSpan(`effect-jobs.${operation}`))
         return exit

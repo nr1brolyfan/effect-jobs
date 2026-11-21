@@ -351,7 +351,7 @@
   {
     "subpath": "effect-jobs/JobContract",
     "filename": "src/JobContract.ts",
-    "sha256": "f0775c5dcbea4916a7191a1bf489bf6f520cc7dcab69af180d107434811b00d8",
+    "sha256": "418a849a3ad71e9249e2cd209512a43b08b94aabc622794624256175b07310b7",
     "symbols": [
       {
         "name": "EncodedJobPayload",
@@ -423,7 +423,7 @@
         "name": "JobPolicyIncompatible",
         "kind": "value + type",
         "category": "errors",
-        "description": "New production cannot reserve its attempt timeout and this storage's response budget.\nMatching duplicates still retain their original policy. No payload data is exposed."
+        "description": "The persisted or proposed policy cannot support the deployment's claim budget.\nReserve details are available for claims rejected for insufficient reserve.\nMatching duplicates still retain their original policy. No payload data is exposed."
       },
       {
         "name": "maximumJobPayloadBytes",
@@ -896,7 +896,7 @@
   {
     "subpath": "effect-jobs/JobPolling",
     "filename": "src/JobPolling.ts",
-    "sha256": "fce6df4658f2f1a94427b7a7764983a2faa36407a1ca69894cd9ab23e2ecef56",
+    "sha256": "0e622996f7e740e0538a11f7e8a991359fb25091856e4de7ab2dae39e7903e8e",
     "symbols": [
       {
         "name": "layer",
@@ -908,7 +908,7 @@
         "name": "Options",
         "kind": "type",
         "category": "models",
-        "description": "Polling configuration. idlePoll defaults to one second and must be positive.\nIdle/backoff sleeps include jitter. shutdownGrace defaults to 30 seconds\nand accepts zero through five minutes. Both use whole milliseconds."
+        "description": "Polling configuration. idlePoll defaults to one second and must be positive.\nIdle/backoff sleeps include jitter. shutdownGrace defaults to 30 seconds\nand accepts zero through five minutes. Each option uses whole milliseconds.\nrecoveryRetryInterval accepts a positive, bounded Duration and defaults to\nDuration.seconds(30). It enables recovery on the next eligible round during\nclaim backoff."
       }
     ]
   },

@@ -1,7 +1,14 @@
 import { tmpdir } from "node:os"
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, symlinkSync } from "node:fs"
+import {
+  mkdtempSync,
+  mkdirSync,
+  copyFileSync,
+  readFileSync,
+  writeFileSync,
+  symlinkSync
+} from "node:fs"
 import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { publicModules } from "./SourceExports.mjs"
@@ -94,6 +101,7 @@ for (const pathName of [
   "tests/postgresql/Jobs.test.ts",
   "tests/core/codec/PayloadCodec.test.ts",
   "tests/postgresql/Adapter.ts",
+  "tests/contracts/ClaimReserve.ts",
   "tests/qualification/d6-pg/ApplicationTransactions.ts",
   "tests/qualification/d6-pg/PgDriver.ts"
 ]) {
@@ -110,6 +118,11 @@ for (const pathName of [
   )
   writeFileSync(destination, source)
 }
+mkdirSync(join(directory, "specs"), { recursive: true })
+copyFileSync(
+  join(directory, "node_modules/effect-jobs/specs/postgresql-jobs.md"),
+  join(directory, "specs/postgresql-jobs.md")
+)
 symlinkSync(
   join(directory, "node_modules"),
   join(directory, "tests/postgresql/node_modules"),

@@ -16,7 +16,11 @@ export interface JobHandler {
   ) => Effect.Effect<void, JobFailure | JobPayloadCodecError>
 }
 
+export const addressKey = (address: JobAddress) =>
+  `${address.queue}\u0000${address.name}\u0000${address.version}`
+
 /** Immutable group lookup in production; protocol fixtures may install handlers. */
 export interface HandlerLookup {
+  readonly immutable?: true
   readonly find: (catalog: JobAddress) => JobHandler | undefined
 }

@@ -108,9 +108,14 @@ Polling.layer([
 
 export const configuredPolling = Polling.layer([queue], {
   idlePoll: Duration.seconds(1),
-  shutdownGrace: Duration.zero
+  shutdownGrace: Duration.zero,
+  recoveryRetryInterval: Duration.seconds(30)
 })
 // @ts-expect-error Polling takes a Duration, not bare milliseconds.
 export const numericPolling = Polling.layer([queue], { idlePoll: 1000 })
 // @ts-expect-error Polling takes a Duration, not bare milliseconds.
 export const numericGrace = Polling.layer([queue], { shutdownGrace: 1000 })
+// @ts-expect-error Recovery retry interval requires an Effect Duration.
+Polling.layer([queue], { recoveryRetryInterval: 30_000 })
+// @ts-expect-error The former milliseconds option has been replaced.
+Polling.layer([queue], { recoveryRetryIntervalMillis: 30_000 })

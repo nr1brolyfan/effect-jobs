@@ -152,13 +152,21 @@ export class InvalidJobInput extends Data.TaggedError("InvalidJobInput")<{
  * @category errors
  */
 export class JobIntegrityConflict extends Data.TaggedError("JobIntegrityConflict")<{}> {}
-/** New production cannot reserve its attempt timeout and this storage's response budget.
+/** The persisted or proposed policy cannot support the deployment's claim budget.
+ * Reserve details are available for claims rejected for insufficient reserve.
  * Matching duplicates still retain their original policy. No payload data is exposed.
  * @category errors
  */
-export class JobPolicyIncompatible extends Data.TaggedError(
-  "JobPolicyIncompatible"
-)<{}> {}
+export class JobPolicyIncompatible extends Data.TaggedError("JobPolicyIncompatible")<{
+  readonly reserveMillis?: number
+  readonly requiredMillis?: number
+}> {
+  constructor(
+    details: { readonly reserveMillis?: number; readonly requiredMillis?: number } = {}
+  ) {
+    super(details)
+  }
+}
 /**
  * Bounded codec failure reason without raw payload or Schema diagnostic inputs.
  *

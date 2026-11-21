@@ -4,7 +4,7 @@ import type { JobApi, Groups, HandlerServices } from "../../JobApi.js"
 import { JobStorage } from "../../JobStorage.js"
 import type { JobQueue } from "../../JobQueue.js"
 import { QueueName } from "../../JobIdentity.js"
-import type { JobHandler } from "./Handler.js"
+import { addressKey, type JobHandler } from "./Handler.js"
 import { JobWorker } from "../../JobWorker.js"
 import type { QueueRun } from "./QueueRun.js"
 import { JobWorkerConfigurationError, WorkerCapability } from "./Capability.js"
@@ -88,17 +88,15 @@ export const make = <A extends JobApi<string, Groups>>(api: A, options: Options)
       )
     )
     const catalog = installed.map((entry) => ({ catalog: entry.catalog }))
+    const byAddress = new Map(
+      installed.map((entry) => [addressKey(entry.catalog), entry])
+    )
     const worker = yield* makeWithHandlers(
       storage.store,
       { catalog, operationResponseBudgetMillis: storage.operationResponseBudgetMillis },
       {
-        find: (identity) =>
-          installed.find(
-            (entry) =>
-              entry.catalog.queue === identity.queue &&
-              entry.catalog.name === identity.name &&
-              entry.catalog.version === identity.version
-          )
+        immutable: true,
+        find: (identity) => byAddress.get(addressKey(identity))
       }
     )
     // Initialize before exposing the worker. Concurrent drains cannot choose a
