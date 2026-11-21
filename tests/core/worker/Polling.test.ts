@@ -241,12 +241,13 @@ it.each(["claim", "reconciliation"] as const)(
         const worker = yield* make({
           ...test.store,
           recoverExpired: (name, limit) =>
-            Effect.suspend(() => {
+            Effect.gen(function* () {
               events.push("recover")
               limits.push(limit)
-              return limits.length === 2
-                ? Effect.fail("temporary recovery failure")
-                : test.store.recoverExpired(name, limit)
+              if (limits.length === 2) {
+                return yield* Effect.fail("temporary recovery failure")
+              }
+              return yield* test.store.recoverExpired(name, limit)
             }),
           claim: () =>
             Effect.suspend(() => {
