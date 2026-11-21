@@ -560,7 +560,7 @@
   {
     "subpath": "effect-jobs/JobPayloadCodec",
     "filename": "src/JobPayloadCodec.ts",
-    "sha256": "7d61ad362131e171742ed121398ebff7cd24465681df8a1c1f25f6c066529a25",
+    "sha256": "372185c6c33aec2f8d509f655469ef6a91d8b393d770c5d5e80a2436eda4afb9",
     "symbols": [
       {
         "name": "decodeJobPayload",
