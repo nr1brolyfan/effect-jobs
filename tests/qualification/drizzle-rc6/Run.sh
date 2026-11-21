@@ -83,7 +83,7 @@ for rt in node bun workerd; do
   if [[ "$rt" == workerd ]]; then
     timeout 90 node Workerd.mjs || status=1
   else
-    timeout 90 "$rt" --input-type=module -e 'import {qualify, drain} from "./Transaction.mjs"; await qualify(process.env.PROBE_URL); await drain(process.env.PROBE_URL)' || status=1
+    timeout 90 "$rt" --input-type=module -e 'import {qualify, drain} from "./Transaction.mjs"; import {qualifyRollback} from "./Rollback.mjs"; import {DrizzlePostgresClient as Pg} from "drizzle-orm/postgres/effect"; await qualify(process.env.PROBE_URL); await drain(process.env.PROBE_URL); await qualifyRollback(process.env.PROBE_URL, Pg, Pg.DrizzlePostgresClient)' || status=1
   fi
   sessions=$(docker exec "$id" psql -XAt -U postgres -d postgres -c "select count(*) from pg_stat_activity where datname='$rt'")
   if [[ "$sessions" != 0 ]]; then echo "$rt: $sessions database sessions left open" >&2; status=1; fi
