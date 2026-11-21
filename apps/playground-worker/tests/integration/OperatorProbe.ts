@@ -141,7 +141,7 @@ export const lostCommit = (
   config: Event.Config,
   credential: string,
   command: JobOperatorCommand,
-  failure: "transaction" | "portable"
+  failure: "transaction" | "portable" = "transaction"
 ) =>
   Event.run(
     config,
