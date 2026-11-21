@@ -2,8 +2,25 @@ import assert from "node:assert/strict"
 import { Cause, Effect, Exit, Fiber, Logger, Metric, References, Tracer } from "effect"
 import { it } from "vitest"
 import { define } from "../../../src/FailureCode.js"
+import { JobPersistenceError } from "../../../src/JobEnqueue.js"
 import { JobFailures } from "../../../src/JobFailure.js"
 import { classify, observe, trackExecution } from "../../../src/JobTelemetry.js"
+import { PostgreSqlFailure } from "../../../src/postgresql/PostgreSqlTransaction.js"
+
+it("classifies raw and portable unknown commit outcomes as unknown", () => {
+  for (const commitKnowledge of ["Unknown", "NotCommitted"] as const) {
+    const expected = commitKnowledge === "Unknown" ? "unknown" : "failure"
+    assert.equal(
+      classify(Exit.fail(new PostgreSqlFailure({ commitKnowledge }))),
+      expected
+    )
+    const portable = new JobPersistenceError({
+      reason: "storage-failure",
+      commitKnowledge
+    })
+    assert.equal(classify(Exit.fail(portable)), expected)
+  }
+})
 
 const code = define({ probe: "synthetic_probe" }).probe
 for (const tag of ["Retry", "Dead", "Isolate", "OutcomeUnknown"] as const) {

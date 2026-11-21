@@ -57,13 +57,15 @@ durable nor exactly once.
 | claim / worker               | `claim`, dispatch or reconciliation               | Empty/Claimed/Unknown; Owned/InsufficientLease/NotOwned/Unknown                                                                    |
 | release / worker             | `release`, dispatch                               | Pre-execution release only; Applied is not queue-empty proof                                                                       |
 | handler / execution          | `execute`, handler                                | Includes bounded artifact decode before invocation; success/retry/dead/isolate/unknown/failure/interrupted                         |
+| registered handler / group   | `invoke`, handler                                 | Invocation of the registered handler when instrumented                                                                             |
 | attempt / execution          | `attempt`, protocol                               | One terminal measurement for every entered execution, including invalid ownership, unsupported artifacts, abandonment and deadline |
 | finalization / worker        | `finalize`, finalization/reconciliation/protocol  | Separate write calls, reads and bounded protocol; `jobs.requested` on protocol span is intent, not persisted state                 |
 | recovery / worker            | `recover-expired`, maintenance                    | Whole bounded recovery call, including count validation; invalid count is failure                                                  |
 | drain / runtime              | `drain`, dispatch                                 | Idle/MoreWork/Backoff; includes scoped execution cleanup                                                                           |
+| local permit / worker        | `permit-wait`, dispatch                           | Time waiting for a local execution permit                                                                                          |
 | polling / polling owner      | `polling`, dispatch; `backoff`, maintenance       | Cycle/sleep, never a completed-job count                                                                                           |
 | cleanup / PostgreSQL adapter | `cleanup`, committed                              | Bounded actual deletion after acknowledged commit                                                                                  |
-| health / explicit reporter   | `health`, maintenance                             | Bounded read-only sample; no implicit schedule/dependency                                                                          |
+| health / explicit reporter   | `health`, maintenance                             | Bounded queue sample and gauge publication                                                                                         |
 
 `jobs.outcome` is success/failure/interrupted/unknown/timeout/retry/dead/isolate.
 Only one validated expected Fail gets a domain classification. Mixed Cause remains
@@ -90,19 +92,35 @@ count nor an external idempotency key. Health/telemetry performs no lifecycle re
 | `effect_jobs_health_oldest_age_seconds`  | `s`; jobs.backlog                                      | DB-sampled age of oldest candidate; -1 means no row; not zero age                                               |
 | `effect_jobs_health_sample_time_seconds` | `s`; none                                              | Last successful sample's DB epoch seconds; absent/stale is not healthy zero                                     |
 
-Logs now use one constant message `effect-jobs operation completed` with query
-fields in **annotations**, not the old second message/body argument. Healthy and
-expected Retry operations use Debug; degradation (failure/unknown/timeout/isolate/
-dead) uses Warning. Set the host threshold intentionally. This changes existing log
-queries and default volume; metrics continue even when Debug is disabled. Span
-status remains Success(void) for privacy; query jobs fields to detect degradation.
+Operation logs use the constant message `effect-jobs operation completed` and put
+query fields in **annotations**. The `success`, `retry`, and `interrupted` outcomes
+use Debug. The `failure`, `unknown`, `timeout`, `isolate`, and `dead` outcomes use
+Warning. An Info threshold filters out Debug logs, including expected retries.
+The log threshold has no effect on metric collection. Query the jobs fields for
+degradation since operation spans finish with `Success(void)` for privacy.
+
+```ts
+import { Effect, References } from "effect"
+import type { JobQueue } from "effect-jobs/JobQueue"
+import * as JobWorker from "effect-jobs/JobWorker"
+
+const drainWithDebugLogs = (queue: JobQueue) =>
+  JobWorker.drain(queue).pipe(Effect.provideService(References.MinimumLogLevel, "Debug"))
+```
 
 ## Explicit health reporter
 
-Call `jobs.health.sample({ queue, supportedCatalog, limit })` from ONE explicit
-application-owned reporter for that storage/queue. Limit is 1–500 and catalog
-selection is 1–500 entries from that queue. The implementation does four bounded
-reads (at most limit+1 returned rows each), one DB-time sample, no writes/migrations,
+One application-owned scheduled reporter calls
+`jobs.health.sample({ queue, supportedCatalog, limit })` for its storage/queue
+in each metrics scope. A successful call returns the bounded sample and updates
+the health gauges without mutating any jobs. The gauges share a series per backlog
+bucket within the registry, so an interactive dashboard using the same registry
+can overwrite the reporter's values. With 80 matching jobs, a reporter limit of
+100 publishes 80, and a subsequent dashboard call with limit 20 publishes 20
+with saturation set. Keep independent dashboard reads off this publication path.
+
+The limit and catalog size are each 1–500. Use catalog entries from the selected
+queue. The implementation does four bounded reads (at most limit+1 returned rows each), one DB-time sample, no writes/migrations,
 and no per-claim scan. It requires an owned transaction, rejects ambient native
 transactions and uses the application's finite SQL/query/control deadlines.
 Filtered scans can still cost more than returned rows; qualify indexes/load and
