@@ -8,6 +8,7 @@ import { definitions as eventDefinitions } from "../scenarios/Setup.js"
 import { Duration, Effect, Redacted, Schema } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
+import { JobPersistenceError } from "effect-jobs/JobEnqueue"
 import { FailureCode } from "effect-jobs/FailureCode"
 import * as Policy from "effect-jobs/JobPolicy"
 import type { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
@@ -139,7 +140,8 @@ export const lookup = (
 export const lostCommit = (
   config: Event.Config,
   credential: string,
-  command: JobOperatorCommand
+  command: JobOperatorCommand,
+  failure: "transaction" | "portable"
 ) =>
   Event.run(
     config,
@@ -152,15 +154,18 @@ export const lostCommit = (
         Effect.provideService(OperatorTransactions, {
           ...transactions,
           owned: (access, command, body) =>
-            transactions
-              .owned(access, command, body)
-              .pipe(
-                Effect.flatMap(() =>
-                  Effect.fail(
-                    new CommandTransactionFailure({ commitKnowledge: "Unknown" })
-                  )
+            transactions.owned(access, command, body).pipe(
+              Effect.flatMap(() =>
+                Effect.fail(
+                  failure === "transaction"
+                    ? new CommandTransactionFailure({ commitKnowledge: "Unknown" })
+                    : new JobPersistenceError({
+                        reason: "storage-failure",
+                        commitKnowledge: "Unknown"
+                      })
                 )
               )
+            )
         })
       )
       return yield* service.execute(access, command)

@@ -12,6 +12,23 @@ import type { Effect } from "effect"
  */
 export class PostgreSqlFailure extends Data.TaggedError("PostgreSqlFailure")<{
   readonly commitKnowledge: "NotCommitted" | "Unknown"
+  /** Present when readiness confirms a mismatch against the configured schema. */
+  readonly readiness?:
+    | {
+        readonly reason: "invalid-column-definition"
+        readonly check: "created-at" | "lineage"
+      }
+    | {
+        readonly reason: "missing-required-constraint"
+        readonly check:
+          | "job-keys"
+          | "payload-key-and-cascade"
+          | "operator-lineage-and-state"
+      }
+    | {
+        readonly reason: "missing-required-index"
+        readonly check: "lineage" | "claim" | "recovery" | "cleanup"
+      }
 }> {}
 /**
  * Typed rejection of foreign, unqualified, inactive or ambient transaction handles.

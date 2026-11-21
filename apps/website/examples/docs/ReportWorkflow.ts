@@ -93,6 +93,19 @@ export const enqueueReport = (operationId: string, payload: ReportPayload) =>
 // A duplicate keeps its first policy. Deleting evidence ends this dedup window.
 // #endregion enqueue
 
+// #region standalone
+export const enqueueStandaloneReport = (operationId: string, payload: ReportPayload) =>
+  Effect.gen(function* () {
+    const { RequestReport } = yield* ReportDefinitions
+    return yield* RequestReport.enqueueStandalone({
+      slot: "generate",
+      operationId,
+      payload,
+      policy: yield* ReportPolicy
+    })
+  })
+// #endregion standalone
+
 export class ReportStorageUnavailable extends Schema.TaggedError<ReportStorageUnavailable>()(
   "ReportStorageUnavailable",
   {}

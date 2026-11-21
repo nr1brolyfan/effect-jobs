@@ -1,6 +1,7 @@
 import type { PublicErrorCode } from "@effect-jobs/playground-contracts/Services"
 import { Cause, Effect, Layer, Schema } from "effect"
-import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
+import { JobOperators } from "effect-jobs/JobOperators"
+import { JobPersistenceError } from "effect-jobs/JobEnqueue"
 import { PostgreSqlFailure } from "effect-jobs/PostgreSqlTransaction"
 import {
   Operators,
@@ -36,7 +37,8 @@ const recover = (request: JobOperatorReceiptRequest) => (cause: Cause.Cause<unkn
     reason &&
     Cause.isFailReason(reason) &&
     (reason.error instanceof CommandTransactionFailure ||
-      reason.error instanceof PostgreSqlFailure) &&
+      reason.error instanceof PostgreSqlFailure ||
+      reason.error instanceof JobPersistenceError) &&
     reason.error.commitKnowledge === "Unknown"
   ) {
     return Effect.succeed(unknown(request))
@@ -61,7 +63,7 @@ const recover = (request: JobOperatorReceiptRequest) => (cause: Cause.Cause<unkn
 }
 export const make = Effect.gen(function* () {
   const transactions = yield* OperatorTransactions
-  const jobs = yield* PostgreSqlJobs
+  const operators = yield* JobOperators
   return Operators.of({
     execute: Effect.fn("Operators.execute")(function* (access, input) {
       const command = yield* decode(JobOperatorCommand, input)
@@ -105,8 +107,8 @@ export const make = Effect.gen(function* () {
                 return reject("investigation-required")
               }
               const transition = yield* command.action === "cancel"
-                ? jobs.operators.cancel(expected)
-                : jobs.operators.retryNow(expected)
+                ? operators.cancel(expected)
+                : operators.retryNow(expected)
               return yield* decode(JobOperatorResult.members[0], {
                 _tag: "Committed",
                 sandbox: command.sandbox,

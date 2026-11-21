@@ -80,7 +80,9 @@ authorization decision. One shared `billing` queue and one wake coordinator serv
 both tenants; neither is a mandatory library topology.
 
 An application transaction locks/creates its receipt, validates replay content,
-updates the invoice and enqueues the job using the SAME client. The stable
+updates the invoice and enqueues the job inside one `client.withTransaction`.
+The native jobs adapter captures that exact invocation-owned `PgClient`. The
+enqueue result is provisional until the outer transaction commits. The stable
 operation ID includes the admitted tenant and caller's bounded request ID.
 The acknowledged receipt response can be read again after response loss. A new
 request ID denotes a new operation. Unknown transaction results are unconfirmed;

@@ -96,6 +96,10 @@ export const exactJoinedError: Equal<
   | import("effect-jobs/PostgreSqlTransaction").PostgreSqlError
 > = true
 
+export const storedAttempts = (row: typeof jobTables.jobs.$inferSelect): number => row.policy.maxAttempts
+// @ts-expect-error -- ORACLE: a raw Drizzle select exposes the encoded policy.
+export const decodedAttempts = (row: typeof jobTables.jobs.$inferSelect): number => row.policy.maxFinalizedAttempts
+
 // Negative oracles only. Removing each directive must produce an application diagnostic.
 // @ts-expect-error -- ORACLE: inferred query errors must reject strings.
 export const badQueryError: Effect.Error<typeof selectProgram> = "not-an-error"

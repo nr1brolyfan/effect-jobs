@@ -58,7 +58,7 @@
   {
     "subpath": "effect-jobs/JobProducer",
     "filename": "src/JobProducer.ts",
-    "sha256": "06877cfc12fdd8b768458798454208169299751ff0747838d52bac80e4bf78df",
+    "sha256": "7754d341651d75ea90ca932881c9c78b3bedecb11c0bd0518e35308df80d0373",
     "symbols": [
       {
         "name": "Binding",
@@ -1212,7 +1212,7 @@
   {
     "subpath": "effect-jobs/JobOperators",
     "filename": "src/JobOperators.ts",
-    "sha256": "32cce7d6123377ba3602a2908c5858b9bc1f678fc32d44c3b35bf86151ce109b",
+    "sha256": "22c9fe1505edf47a3b787ac829f40fb6fced1c1ef5f1b34f9fb1d66c751912f7",
     "symbols": [
       {
         "name": "JobCorrectedRedriveRequest",
@@ -1316,7 +1316,7 @@
   {
     "subpath": "effect-jobs/PostgreSqlTransaction",
     "filename": "src/postgresql/PostgreSqlTransaction.ts",
-    "sha256": "0a2b090b31cc04d2b8b6e054f79f7d017f0c989a8753699868bcb69b93899a32",
+    "sha256": "8f555f908003c5c1cae2366e754eaa1b01e5600670e1ffcf0ec3015b7dace07c",
     "symbols": [
       {
         "name": "ApplicationAdapter",
@@ -1451,7 +1451,7 @@
   {
     "subpath": "effect-jobs/PostgreSqlDrizzleSchema",
     "filename": "src/postgresql/PostgreSqlDrizzleSchema.ts",
-    "sha256": "9b06a00c09ecee0689520f77eb7089a362e60e33cc5f51aea63c3013b06a1467",
+    "sha256": "de1568f733803a4b1cd6c595e93bc89999ace8c79154353a01ead214df34b671",
     "symbols": [
       {
         "name": "JobsIndexColumns",

@@ -48,6 +48,10 @@ and optional `extraIndexes(jobs)` for additive Drizzle indexes. Feed its `mappin
 to storage; keep the required fixed columns, constraints and indexes.
 The application owns unique schema-wide names for its extra indexes.
 
+A Drizzle select exposes the stored policy JSON with `maxAttempts`. Decode
+`row.policy` with `Schema.decodeUnknownEffect(PersistedJobPolicy)` from
+`effect-jobs/JobPolicy` to read the domain field `maxFinalizedAttempts`.
+
 Generate and apply migrations with your application tooling. The SQL helper
 `PostgreSqlSchema.migration(mapping)` generates only the library baseline; it does
 not include `extraIndexes`. Neither declarations nor the runtime execute DDL.

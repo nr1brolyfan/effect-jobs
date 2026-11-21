@@ -35,7 +35,10 @@ export const ready = (adapter: ApplicationAdapter, jobs: string, payloads: strin
         creationColumns[0]?.bigint !== true ||
         creationColumns[0]?.has_default !== false
       ) {
-        return yield* new PostgreSqlFailure({ commitKnowledge: "NotCommitted" })
+        return yield* new PostgreSqlFailure({
+          commitKnowledge: "NotCommitted",
+          readiness: { reason: "invalid-column-definition", check: "created-at" }
+        })
       }
       const lineageColumns = yield* query.query(
         `SELECT attname AS name,attnotnull AS required,atttypid='text'::regtype AS text
@@ -52,7 +55,10 @@ export const ready = (adapter: ApplicationAdapter, jobs: string, payloads: strin
           )
         )
       ) {
-        return yield* new PostgreSqlFailure({ commitKnowledge: "NotCommitted" })
+        return yield* new PostgreSqlFailure({
+          commitKnowledge: "NotCommitted",
+          readiness: { reason: "invalid-column-definition", check: "lineage" }
+        })
       }
       const constraints = yield* query.query(
         `SELECT c.conrelid=$1::regclass AS jobs,c.conrelid=$2::regclass AS payloads,c.contype AS kind, pg_catalog.pg_get_expr(c.conbin,c.conrelid) AS expression,
@@ -86,6 +92,25 @@ export const ready = (adapter: ApplicationAdapter, jobs: string, payloads: strin
           c.deletion === "c"
       )
       if (
+        !has("jobs", "p", ["id"]) ||
+        !has("jobs", "u", ["operation", "operation_id", "slot"]) ||
+        !has("jobs", "u", ["lease_token"])
+      ) {
+        return yield* new PostgreSqlFailure({
+          commitKnowledge: "NotCommitted",
+          readiness: { reason: "missing-required-constraint", check: "job-keys" }
+        })
+      }
+      if (!has("payloads", "p", ["job_id"]) || !fk) {
+        return yield* new PostgreSqlFailure({
+          commitKnowledge: "NotCommitted",
+          readiness: {
+            reason: "missing-required-constraint",
+            check: "payload-key-and-cascade"
+          }
+        })
+      }
+      if (
         !Object.values(operatorChecks).every((expected) =>
           constraints.some(
             (c) =>
@@ -95,11 +120,6 @@ export const ready = (adapter: ApplicationAdapter, jobs: string, payloads: strin
               c.expression.replace(/\s|\(|\)|::text/g, "") === expected
           )
         ) ||
-        !has("jobs", "p", ["id"]) ||
-        !has("jobs", "u", ["operation", "operation_id", "slot"]) ||
-        !has("jobs", "u", ["lease_token"]) ||
-        !has("payloads", "p", ["job_id"]) ||
-        !fk ||
         !constraints.some(
           (c) =>
             c.jobs === true &&
@@ -110,7 +130,13 @@ export const ready = (adapter: ApplicationAdapter, jobs: string, payloads: strin
             c.deletion === "n"
         )
       ) {
-        return yield* new PostgreSqlFailure({ commitKnowledge: "NotCommitted" })
+        return yield* new PostgreSqlFailure({
+          commitKnowledge: "NotCommitted",
+          readiness: {
+            reason: "missing-required-constraint",
+            check: "operator-lineage-and-state"
+          }
+        })
       }
       const indexes = yield* query.query(
         `SELECT ARRAY(SELECT a.attname::text FROM unnest(i.indkey::smallint[]) WITH ORDINALITY k(n,o)
@@ -120,14 +146,27 @@ export const ready = (adapter: ApplicationAdapter, jobs: string, payloads: strin
         [jobs]
       )
       const required = [
-        { columns: ["source_job_id"], predicate: "source_job_idISNOTNULL" },
         {
+          check: "lineage",
+          columns: ["source_job_id"],
+          predicate: "source_job_idISNOTNULL"
+        },
+        {
+          check: "claim",
           columns: ["queue", "kind", "version", "available_at", "id"],
           predicate: "state=ANYARRAY['Pending','RetryScheduled']"
         },
-        { columns: ["lease_expires_at", "id"], predicate: "state='Active'" },
-        { columns: ["cleanup_at", "id"], predicate: "state=ANYARRAY['Completed','Dead']" }
-      ]
+        {
+          check: "recovery",
+          columns: ["lease_expires_at", "id"],
+          predicate: "state='Active'"
+        },
+        {
+          check: "cleanup",
+          columns: ["cleanup_at", "id"],
+          predicate: "state=ANYARRAY['Completed','Dead']"
+        }
+      ] as const
       for (const expected of required) {
         if (
           !indexes.some(
@@ -137,7 +176,10 @@ export const ready = (adapter: ApplicationAdapter, jobs: string, payloads: strin
               i.predicate.replace(/\s|\(|\)|::text/g, "") === expected.predicate
           )
         ) {
-          return yield* new PostgreSqlFailure({ commitKnowledge: "NotCommitted" })
+          return yield* new PostgreSqlFailure({
+            commitKnowledge: "NotCommitted",
+            readiness: { reason: "missing-required-index", check: expected.check }
+          })
         }
       }
     })

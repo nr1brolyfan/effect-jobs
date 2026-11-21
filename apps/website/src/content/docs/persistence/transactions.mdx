@@ -18,7 +18,8 @@ enqueueing, its confirmation is lost. Put the application write and job enqueue 
 
 Use Drizzle for application queries and **`PgClient.withTransaction`** for the
 transaction boundary. `PlaceOrder.enqueue` joins the active transaction of
-that exact client. No second connection, savepoint or inner commit is created by the join.
+that exact client. Providing `JobEnqueue` alone does not start a transaction.
+Inside the transaction the enqueue result is provisional until the outer commit.
 
 <CodeExample
   sourcePath="orders/apps/api/src/orders/PlaceOrder.ts"
@@ -35,6 +36,16 @@ Return the committed job ID to the caller; an installed worker can claim it when
 
   </div>
 </div>
+
+## When the job is the whole transaction
+
+If there is no business write to commit alongside the job, use
+`enqueueStandalone`. It requires `JobEnqueue`, rejects an active transaction on
+the configured client and acknowledges its own commit when it succeeds.
+
+<CodeExample sourcePath="ReportWorkflow.ts" region="standalone" role="Producer" />
+
+## Order submission and replay
 
 `placeOrder` validates external input and creates a new order. Its unique
 `operationId` rejects duplicates and rolls back the whole transaction, even when
@@ -233,13 +244,6 @@ retries. Invoice persistence and delivery enqueue share one transaction; a faile
 invoice write rolls back the new job. No external provider call belongs inside
 this transaction. A real invoice service needs its own idempotency/reconciliation
 contract. This is application orchestration, not a built-in DAG or slot ordering.
-
-## When the job is the whole transaction
-
-Use `PlaceOrder.enqueueStandalone({ slot: "send-confirmation", operationId, payload: { orderId } })` for independent production with no
-application write that must commit beside it. It owns a bounded transaction and
-resolves after acknowledged commit. It rejects an active transaction of its
-configured client.
 
 Keep every transactional Effect awaited inside the owner callback. Do not call
 `Effect.runPromise` inside it, fork unawaited work, retain transaction Context past

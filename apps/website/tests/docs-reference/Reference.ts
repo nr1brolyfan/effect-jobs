@@ -150,6 +150,43 @@ for (const [slug, group] of Object.entries(groups)) {
       }
     }
   }
+  if (slug === "lifecycle") {
+    body += `
+### Allowed source states
+
+Every command checks the exact job ID, expected state and lifecycle version
+under lock. Supply the values from the snapshot the application authorized.
+
+| Command | Allowed source | Effect after commit |
+| --- | --- | --- |
+| \`cancel\` | Pending or RetryScheduled | Stops future execution. An active handler keeps running, and earlier external effects cannot be undone. |
+| \`retryNow\` | RetryScheduled, strictly in the future | Advances availability to database time. Keeps existing limits and counters. |
+| \`redrive\` | Dead or eligible, investigated Isolated | Creates a Pending successor with lineage and a copy of the valid original payload. |
+| \`correctedRedrive\` | Dead or eligible, investigated Isolated | Creates a Pending successor with lineage and a complete replacement payload. |
+
+Both redrive methods use a definition whose public \`name\` and \`version\` match the
+source. Use a new producer identity for the successor. A redrive leaves the
+source as it was. Execution is a later worker operation.
+
+### Transaction and receipt
+
+The application checks authorization and command admission in the same-client
+transaction as the operator call and receipt write. Admit only a fresh command
+after checking its exact identity and any existing receipt. Keep the result
+provisional inside the transaction and return it after the outer commit is
+acknowledged. If commit is unknown, read the receipt for the original command
+outside that transaction. A missing receipt leaves the outcome unresolved and
+does not authorize replay.
+
+<CodeExample sourcePath="ReportOperators.ts" region="transaction" role="Composition" />
+
+<CodeExample sourcePath="ReportOperators.ts" region="actions" role="Checked scenario" />
+`
+    body = body.replace(
+      "{/* Generated",
+      'import CodeExample from "../../../components/docs/CodeExample.astro"\n\n{/* Generated'
+    )
+  }
   const path = join(output, `${slug}.mdx`)
   body = execFileSync(
     join(root, "node_modules/.bin/oxfmt"),

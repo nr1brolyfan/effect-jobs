@@ -299,15 +299,19 @@ try {
     `UPDATE ${table("sandboxes")} SET retained_jobs=(SELECT count(*) FROM ${table("associations")} WHERE sandbox_id=$1) WHERE sandbox_id=$1`,
     [b.sandbox.ref.sandboxId]
   )
-  const lost = await seed("Pending", 0, b.sandbox.ref)
-  const lostCommand = { ...(await command(lost, "cancel")), sandbox: b.sandbox.ref }
-  assert.equal(
-    (await native(probe.lostCommit(cfg, b.credential, lostCommand)))._tag,
-    "OutcomeUnknown"
-  )
-  assert.equal((await lookup(lostCommand, b))._tag, "Committed")
-  assert.equal((await execute(lostCommand, b))._tag, "Committed")
-  assert.equal((await snapshot(lost)).lifecycle_version, "1")
+  for (const failure of ["transaction", "portable"]) {
+    const lost = await seed("Pending", 0, b.sandbox.ref)
+    const lostCommand = { ...(await command(lost, "cancel")), sandbox: b.sandbox.ref }
+    assert.equal(
+      (await native(probe.lostCommit(cfg, b.credential, lostCommand, failure)))._tag,
+      "OutcomeUnknown"
+    )
+    const receipt = await lookup(lostCommand, b)
+    assert.equal(receipt._tag, "Committed")
+    assert.equal(receipt.resultJobId, lost)
+    assert.equal(receipt.resultState, "Cancelled")
+    assert.equal((await snapshot(lost)).lifecycle_version, "1")
+  }
   check(
     "synthetic native COMMIT response loss after durable acceptance reconciles exact receipt without replay"
   )
