@@ -27,7 +27,7 @@ versions are excluded from claims rather than dispatched to another decoder.
 
 Keep the polling Layer built for the application's intended lifetime. Building it
 inside a short request scope stops those loops when that scope closes. Scope
-closure first allows the finite shared `shutdownGraceMillis` grace; expiry interrupts
+closure first allows the finite shared `shutdownGrace` grace; expiry interrupts
 remaining work. This does not establish whether an external report
 provider completed a request. See [recovery](/docs/execution/recovery).
 
@@ -48,12 +48,16 @@ this worker composition; importing its definitions starts no processing.
 
 ## Read the limits correctly
 
-| Setting                         | Bound                                 | Meaning                                                                                 |
-| ------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------- |
-| `concurrency`                   | Integer 1–64                          | Per-queue permits shared by concurrent drains of the same worker; acquired before claim |
-| `maxJobs`                       | Integer 1–10,000                      | Maximum started claims in one finite drain                                              |
-| `recoveryLimit`                 | Integer 1–10,000                      | Recovery budget per drain; storage requests are split into batches of at most 500       |
-| `operationResponseBudgetMillis` | Positive bounded integer milliseconds | Configured once on storage; workers consume that same budget                            |
+Set `idlePoll` to a positive whole-millisecond `Duration`. The default is one
+second before jitter. `shutdownGrace` defaults to 30 seconds and accepts
+durations from zero through five minutes.
+
+| Setting                   | Bound                                         | Meaning                                                                                 |
+| ------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `concurrency`             | Integer 1–64                                  | Per-queue permits shared by concurrent drains of the same worker; acquired before claim |
+| `maxJobs`                 | Integer 1–10,000                              | Maximum started claims in one finite drain                                              |
+| `recoveryLimit`           | Integer 1–10,000                              | Recovery budget per drain; storage requests are split into batches of at most 500       |
+| `operationResponseBudget` | Positive bounded whole-millisecond `Duration` | Configured once on storage; workers consume that same budget                            |
 
 Local concurrency is **per worker instance**, not a fleet-wide limit. Two separate
 worker instances each have their own permits. Reusing a queue on one worker with

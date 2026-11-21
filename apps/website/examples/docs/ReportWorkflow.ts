@@ -1,4 +1,4 @@
-import { Context, Duration, Effect, Layer, Schema } from "effect"
+import { Context, DateTime, Match, Duration, Effect, Layer, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
 import * as JobQueue from "effect-jobs/JobQueue"
 import * as JobProducer from "effect-jobs/JobProducer"
@@ -180,7 +180,6 @@ export class ReportDelivery extends Context.Service<
 
 export const DeliveryCodes = FailureCode.define({
   busy: "delivery_busy",
-  uncertain: "delivery_uncertain",
   handoff: "report_handoff_failed",
   conflict: "report_handoff_conflict"
 })
@@ -195,8 +194,7 @@ export const DeliveryHandlerLayer = Layer.unwrap(
             Effect.catchTags({
               DeliveryBusy: () =>
                 Effect.fail(JobFailures.Retry({ code: DeliveryCodes.busy })),
-              DeliveryUncertain: () =>
-                Effect.fail(JobFailures.OutcomeUnknown({ code: DeliveryCodes.uncertain }))
+              DeliveryUncertain: () => Effect.fail(JobFailures.OutcomeUnknown())
             })
           )
         })
@@ -208,3 +206,51 @@ export const DeliveryHandlerLayer = Layer.unwrap(
 // bounded lease recovery may invoke the handler again, so the destination still
 // needs stable idempotency/reconciliation. It is not an exactly-once guarantee.
 // #endregion delivery
+
+// #region shared-failure-policy
+type MailError =
+  | { readonly _tag: "ProviderBusy"; readonly retryBeforeMillis?: unknown }
+  | { readonly _tag: "RecipientRejected" }
+
+const MailCodes = FailureCode.define({
+  busy: "mail_provider_busy",
+  invalidCutoff: "mail_invalid_retry_cutoff",
+  rejected: "mail_recipient_rejected"
+})
+
+export const toMailJobFailure = (error: MailError) =>
+  Match.value(error).pipe(
+    Match.tag("ProviderBusy", ({ retryBeforeMillis }) => {
+      if (retryBeforeMillis === undefined) {
+        return JobFailures.Retry({ code: MailCodes.busy })
+      }
+      if (!Schema.is(JobPolicy.EpochMillis)(retryBeforeMillis)) {
+        return JobFailures.Isolate({ code: MailCodes.invalidCutoff })
+      }
+      return JobFailures.Retry({
+        code: MailCodes.busy,
+        retryBefore: DateTime.makeUnsafe(retryBeforeMillis)
+      })
+    }),
+    Match.tag("RecipientRejected", () => JobFailures.Dead({ code: MailCodes.rejected })),
+    Match.exhaustive
+  )
+
+export const mailHandlers = (mail: {
+  readonly sendConfirmation: (orderId: string) => Effect.Effect<void, MailError>
+  readonly sendInvoice: (orderId: string) => Effect.Effect<void, MailError>
+}) => ({
+  confirmation: (orderId: string) =>
+    mail.sendConfirmation(orderId).pipe(Effect.mapError(toMailJobFailure)),
+  invoice: (orderId: string) =>
+    mail.sendInvoice(orderId).pipe(Effect.mapError(toMailJobFailure))
+})
+// #endregion shared-failure-policy
+
+// #region finalized-attempt-limit
+export const threeFinalizedAttempts = JobPolicy.make({
+  retry: JobRetryPolicy.fixed(Duration.seconds(5)).pipe(
+    JobRetryPolicy.maxFinalizedAttempts(3)
+  )
+})
+// #endregion finalized-attempt-limit

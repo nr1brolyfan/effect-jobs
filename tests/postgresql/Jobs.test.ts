@@ -3,6 +3,7 @@ import * as FailureCodes from "../../src/FailureCode.js"
 import { readFileSync, writeFileSync } from "node:fs"
 import { randomBytes, randomUUID } from "node:crypto"
 import {
+  DateTime,
   Effect,
   Exit,
   Duration,
@@ -78,7 +79,7 @@ const input = (id: string, value = id, availableAt?: number) => ({
   operationId: id,
   slot: "generate" as const,
   payload: { invoiceId: value },
-  ...(availableAt === undefined ? {} : { availableAt })
+  ...(availableAt === undefined ? {} : { availableAt: DateTime.makeUnsafe(availableAt) })
 })
 const mapping = Tables.tables({
   schema: "jobs_fixture",
@@ -111,7 +112,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
   const role = "jobs_fixture_runtime"
   const make = (integration: ApplicationAdapter) =>
     Effect.runPromise(
-      Jobs.make({ ...mapping, operationResponseBudgetMillis: 100 }).pipe(
+      Jobs.make({ ...mapping, operationResponseBudget: Duration.millis(100) }).pipe(
         Effect.provideService(PostgreSqlApplication, integration)
       )
     )
@@ -438,7 +439,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
           slot: "generate",
           operationId: "schedule-unsupported",
           payload: { invoiceId: "PRIVATE_SCHEDULE_PAYLOAD" },
-          availableAt: now - 10000
+          availableAt: DateTime.makeUnsafe(now - 10000)
         })
       )
     )
@@ -454,7 +455,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
           slot: "generate",
           operationId: "schedule-other",
           payload: { invoiceId: "other" },
-          availableAt: now - 20000
+          availableAt: DateTime.makeUnsafe(now - 20000)
         })
       )
     )
@@ -571,7 +572,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
                 Polling.layer([queue], {
                   maxJobs: 1,
                   recoveryLimit: 1,
-                  shutdownGraceMillis: completes ? 1000 : 10
+                  shutdownGrace: Duration.millis(completes ? 1000 : 10)
                 }).pipe(Layer.provide(worker))
               )
             )
@@ -599,7 +600,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
     const borrows = source.counters.borrows
     const jobsLayer = Jobs.layerNoDeps({
       ...mapping,
-      operationResponseBudgetMillis: 100
+      operationResponseBudget: Duration.millis(100)
     }).pipe(Layer.provide(Layer.succeed(PostgreSqlApplication, adapter)))
     const workerLayer = Worker.layer(
       Effect.runSync(JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup))),
@@ -759,11 +760,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
           )
         }
         if (seen.length === 2) {
-          return Effect.fail(
-            JobFailures.OutcomeUnknown({
-              code: FailureCodes.define({ value: "response_lost" }).value
-            })
-          )
+          return Effect.fail(JobFailures.OutcomeUnknown())
         }
         return Effect.void
       })
@@ -801,13 +798,55 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
       ).rows[0].n
     ).toBe(0)
   })
+  test("Retry.none disables scheduled retries while unknown outcomes still recover once", async () => {
+    await clear()
+    const id = "retry-none"
+    const noRetries = await Effect.runPromise(
+      Policy.make({ retry: Retry.none, maxStalledCount: 1 })
+    )
+    const produced = await enqueue(id, id, noRetries)
+    const seen: number[] = []
+    const code = FailureCodes.define({ busy: "provider_busy" }).busy
+    const handler = ({ context }: HandlerInput<{ readonly invoiceId: string }>) => {
+      seen.push(context.nextFinalizationNumber)
+      return Effect.fail(
+        seen.length === 1 ? JobFailures.OutcomeUnknown() : JobFailures.Retry({ code })
+      )
+    }
+    await runWorker(handler)
+    const uncertain = await row(id)
+    expect(uncertain).toMatchObject({ state: "Active", last_failure_code: null })
+    expect(Number(uncertain.attempts_made)).toBe(0)
+    expect(Number(uncertain.stalled_count)).toBe(0)
+    expect(seen).toEqual([1])
+
+    await observer.query("UPDATE jobs_fixture.tasks SET lease_expires_at=1 WHERE id=$1", [
+      produced.jobId
+    ])
+    expect(await Effect.runPromise(jobs.store.recoverExpired(queue.name, 1))).toBe(1)
+    const recovered = await row(id)
+    expect(recovered.state).toBe("Pending")
+    expect(Number(recovered.stalled_count)).toBe(1)
+    expect(Number(recovered.attempts_made)).toBe(0)
+
+    await runWorker(handler)
+    const finalized = await row(id)
+    expect(finalized).toMatchObject({
+      state: "Dead",
+      last_failure_code: code,
+      available_at: recovered.available_at
+    })
+    expect(Number(finalized.attempts_made)).toBe(1)
+    await runWorker(handler)
+    expect(seen).toEqual([1, 1])
+  })
   test("explicit readiness validates relations/constraints/indexes; missing mapping fails finitely without DDL", async () => {
     await Effect.runPromise(jobs.ready)
     const missing = await Effect.runPromise(
       Jobs.make({
         ...mapping,
         jobsTable: "absent",
-        operationResponseBudgetMillis: 100
+        operationResponseBudget: Duration.millis(100)
       }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
     )
     await expect(Effect.runPromise(missing.ready)).rejects.toMatchObject({
@@ -953,10 +992,11 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
     const incompatible = await Effect.runPromise(
       Jobs.make({
         ...mapping,
-        operationResponseBudgetMillis:
+        operationResponseBudget: Duration.millis(
           Policy.defaultPolicy.leaseDurationMillis -
-          Policy.defaultPolicy.attemptTimeoutMillis +
-          1
+            Policy.defaultPolicy.attemptTimeoutMillis +
+            1
+        )
       }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
     )
     const claimResult = await Effect.runPromise(
@@ -1289,7 +1329,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
           slot: "generate",
           operationId: "duplicate",
           payload: { invoiceId: "same" },
-          availableAt: 3,
+          availableAt: DateTime.makeUnsafe(3),
           queue: "billing-slow",
           policy: changed
         })
@@ -1356,7 +1396,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
               operationId: "routing-race",
               payload: { invoiceId: "same" },
               queue: route.name,
-              availableAt: route === queue ? 1 : 2,
+              availableAt: DateTime.makeUnsafe(route === queue ? 1 : 2),
               policy: { ...policy, maxFinalizedAttempts: route === queue ? 3 : 7 }
             })
           )
@@ -1494,7 +1534,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
           )
       }
       const timeJobs = await Effect.runPromise(
-        Jobs.make({ ...mapping, operationResponseBudgetMillis: 100 }).pipe(
+        Jobs.make({ ...mapping, operationResponseBudget: Duration.millis(100) }).pipe(
           Effect.provideService(PostgreSqlApplication, controlled)
         )
       )
@@ -1545,7 +1585,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
           )
       }
       const measuredJobs = await Effect.runPromise(
-        Jobs.make({ ...mapping, operationResponseBudgetMillis: 100 }).pipe(
+        Jobs.make({ ...mapping, operationResponseBudget: Duration.millis(100) }).pipe(
           Effect.provideService(PostgreSqlApplication, measured)
         )
       )

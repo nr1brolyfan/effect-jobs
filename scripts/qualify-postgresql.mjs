@@ -123,14 +123,14 @@ export default defineConfig({ test: { include: ["tests/postgresql/Jobs.test.ts",
 writeFileSync(
   join(directory, "types.ts"),
   `
-import { Effect, Layer } from "effect"
+import { Duration, Effect, Layer } from "effect"
 import * as Jobs from "effect-jobs/PostgreSqlJobs"
 import * as Tables from "effect-jobs/PostgreSqlSchema"
 import { PostgreSqlApplication, type ApplicationAdapter } from "effect-jobs/PostgreSqlTransaction"
 declare const adapter: ApplicationAdapter
 const mapping = Tables.tables({ schema: "installed", jobsTable: "tasks", payloadsTable: "artifacts" })
-const program: Effect.Effect<Jobs.Service, Tables.PostgreSqlConfigurationError> = Jobs.make({ ...mapping, operationResponseBudgetMillis: 100 }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
-const layer = Jobs.layerNoDeps({ ...mapping, operationResponseBudgetMillis: 100 }).pipe(Layer.provide(Layer.succeed(PostgreSqlApplication, adapter)))
+const program: Effect.Effect<Jobs.Service, Tables.PostgreSqlConfigurationError> = Jobs.make({ ...mapping, operationResponseBudget: Duration.millis(100) }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
+const layer = Jobs.layerNoDeps({ ...mapping, operationResponseBudget: Duration.millis(100) }).pipe(Layer.provide(Layer.succeed(PostgreSqlApplication, adapter)))
 void program; void layer
 `
 )

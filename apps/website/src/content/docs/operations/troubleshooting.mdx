@@ -31,7 +31,7 @@ migrations. A readiness failure can mean missing tables, incompatible constraint
 or storage mapping mismatch. Runtime never repairs the schema or applies DDL.
 Verify that jobs and migration configuration name the same namespace/tables.
 
-`operationResponseBudgetMillis` must agree between worker and store, and the
+`operationResponseBudget` must agree between worker and store, and the
 stored lease must reserve the attempt timeout plus that budget. Keep native
 acquisition/control/release timeouts finite in the application adapter; a body
 query timeout alone does not bound every native transaction finalizer.

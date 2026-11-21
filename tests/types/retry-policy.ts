@@ -1,6 +1,8 @@
-import { Duration, Effect, Schedule } from "effect"
+import { DateTime, Duration, Effect, Schedule } from "effect"
 import * as Policy from "../../src/JobPolicy.js"
 import * as Retry from "../../src/JobRetryPolicy.js"
+import * as FailureCodes from "../../src/FailureCode.js"
+import { JobFailures } from "../../src/JobFailure.js"
 
 const retry = Retry.exponential(Duration.seconds(1)).pipe(
   Retry.capped(Duration.minutes(1)),
@@ -30,3 +32,20 @@ void incomplete
 // @ts-expect-error Effectful validation must be evaluated before a policy can be used.
 const unresolved: Policy.JobPolicy = policy
 void unresolved
+
+const retryCode = FailureCodes.define({ temporary: "temporary" }).temporary
+export const retryCutoff = JobFailures.Retry({
+  code: retryCode,
+  retryBefore: DateTime.makeUnsafe(1000)
+})
+// @ts-expect-error Unknown outcomes carry no code.
+export const codedOutcome = JobFailures.OutcomeUnknown({
+  code: FailureCodes.define({ value: "lost" }).value
+})
+// @ts-expect-error A retry cutoff requires an absolute UTC instant.
+export const numericCutoff = JobFailures.Retry({ ...retryCutoff, retryBefore: 1000 })
+export const relativeCutoff = JobFailures.Retry({
+  ...retryCutoff,
+  // @ts-expect-error A duration is relative and cannot express a retry cutoff.
+  retryBefore: Duration.seconds(1)
+})

@@ -1,7 +1,7 @@
 // Pinned native SQL and OTLP APIs are the integration under test.
 // @effect-diagnostics unstableApiUsage:off
 import assert from "node:assert/strict"
-import { Cause, Context, Effect, Exit, Layer, Logger, Tracer } from "effect"
+import { Duration, Cause, Context, Effect, Exit, Layer, Logger, Tracer } from "effect"
 import { HttpClient, HttpClientResponse } from "effect/http"
 import { OtlpExporter, OtlpSerialization, OtlpTracer } from "effect/observability"
 import { makeWithTransaction } from "effect/sql/SqlClient"
@@ -73,7 +73,7 @@ for (const encoding of ["json", "protobuf"] as const) {
       })
       const adapter = Native.make({
         client: { transactionService, withTransaction },
-        operationTimeoutMillis: 100
+        operationTimeout: Duration.millis(100)
       })
       const bodyFailure = { marker: "SYNTHETIC_BODY_CANARY" }
       const body =

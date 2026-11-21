@@ -23,7 +23,7 @@ const IssueInvoice = yield* JobProducer.make("billing.issue-invoice").pipe(
 const jobs =
   yield *
   PostgreSqlJobs.make({
-    operationResponseBudgetMillis: 100
+    operationResponseBudget: Duration.millis(100)
   }).pipe(Effect.provide(ApplicationPostgresLayer))
 
 // Application: invoice and job commit together, or neither does.
@@ -228,12 +228,12 @@ const { BillingQueue, ApplicationJobs } = definitions
 const client = yield * PgClient.PgClient
 const ApplicationPostgresLayer = PostgreSqlNative.layer({
   client,
-  operationTimeoutMillis: 2000
+  operationTimeout: Duration.seconds(2)
 })
 const jobs =
   yield *
   PostgreSqlJobs.make({
-    operationResponseBudgetMillis: 100
+    operationResponseBudget: Duration.millis(100)
   }).pipe(Effect.provide(ApplicationPostgresLayer))
 
 const WorkerLayer = Worker.layer(
@@ -253,7 +253,7 @@ const runWorker = Effect.gen(function* () {
   const PollingLayer = Polling.layer([BillingQueue], {
     maxJobs: 20, // Max jobs claimed during one bounded drain.
     recoveryLimit: 20, // Max expired leases recovered in this queue per drain.
-    shutdownGraceMillis: 30_000 // Shared grace for already-started executions.
+    shutdownGrace: Duration.seconds(30) // Shared grace for already-started executions.
   }).pipe(Layer.provide(WorkerLayer))
 
   yield* Effect.never.pipe(Effect.provide(PollingLayer))
@@ -267,8 +267,8 @@ The Scope owns polling shutdown. Construction starts no workers. Concurrency is 
 On Scope closure, polling first interrupts admission loops (including permit waits,
 recovery and in-flight claims). Started executions retain their resources and may
 finalize within one shared grace period, not one period per queue/job. The default
-is 30 seconds; `shutdownGraceMillis` accepts integer 0–300,000, with zero requesting
-immediate interruption. After grace, remaining executions are interrupted. They
+is 30 seconds. `shutdownGrace` accepts whole-millisecond durations from zero
+through five minutes. `Duration.zero` requests immediate interruption. After grace, remaining executions are interrupted. They
 are not released as safely unexecuted work: external outcomes can remain unknown
 until lease recovery. Qualified storage operations and handler finalizers must
 remain finitely bounded and interruption-cooperative; this timer cannot hard-kill
@@ -279,7 +279,7 @@ Worker construction requires `JobStorage` and the complete group's handlers.
 `PostgreSqlJobs.layerNoDeps(options)` provides `JobStorage` together with the
 configured producer/operator services; reuse that Layer when composing workers.
 When using `PostgreSqlJobs.make`, provide its captured `jobs.storage` as above.
-Custom qualified ports use `JobStorage.layer({ store, operationResponseBudgetMillis })`;
+Custom qualified ports use `JobStorage.layer({ store, operationResponseBudget })`;
 their provider requirements remain explicit on the Layer. The source owns its
 lifetime, migrations and admission checks; this composition does not prove atomicity.
 
@@ -309,7 +309,7 @@ exclusive alarm ownership and repair notifications remain application-owned.
 
 The configured jobs instance exposes its producer service as `jobs.producer`.
 Provide it as `JobEnqueue` to effects that call `enqueue` or `enqueueStandalone`.
-`PostgreSqlNative.layer({ client, operationTimeoutMillis })` bridges the exact
+`PostgreSqlNative.layer({ client, operationTimeout })` bridges the exact
 application-owned `PgClient@4.1.0`, including its active `transactionService`.
 Use public `PgClient.withTransaction` on that same client with Drizzle queries
 inside its Effect body. Missing or foreign-client transactions fail before preparation.
@@ -377,11 +377,9 @@ Define validated diagnostic codes before starting the worker:
 ```ts
 const Codes = FailureCode.define({
   ReceiptUnreadable: "receipt_unreadable",
-  ResponseLost: "response_lost",
   ProviderBusy: "provider_busy",
   InvalidRecipient: "invalid_recipient",
-  ProviderCredentials: "provider_credentials",
-  Unconfirmed: "unconfirmed"
+  ProviderCredentials: "provider_credentials"
 })
 ```
 
@@ -406,7 +404,7 @@ const ReceiptHandler = Layer.unwrap(Effect.map(Definitions, (definitions) =>
           idempotencyKey: input.context.jobId
         })
         .pipe(
-          Effect.mapError(() => JobFailures.OutcomeUnknown({ code: Codes.ResponseLost }))
+          Effect.mapError(() => JobFailures.OutcomeUnknown())
         )
 
       return yield* Match.value(result).pipe(
@@ -422,7 +420,7 @@ const ReceiptHandler = Layer.unwrap(Effect.map(Definitions, (definitions) =>
           Effect.fail(JobFailures.Isolate({ code: Codes.ProviderCredentials }))
         ),
         Match.tag("Unconfirmed", () =>
-          Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.Unconfirmed }))
+          Effect.fail(JobFailures.OutcomeUnknown())
         ),
         Match.exhaustive
       )
@@ -467,7 +465,7 @@ const ScheduledInvoice = yield* JobProducer.make(IssueInvoice.operation).pipe(
 yield* ScheduledInvoice.enqueue({
   operationId, slot: "receipt",
   payload: { invoiceId },
-  availableAt: deliveryTimeMillis // Optional initial eligibility, epoch milliseconds.
+  availableAt: DateTime.makeUnsafe(deliveryTimeMillis) // Optional absolute UTC eligibility.
 })
 ```
 
@@ -478,7 +476,8 @@ For storage integrations, `JobPolicy` validates the resolved in-memory model;
 serializing resolved policy directly: retained JSON uses `maxAttempts`, mapped
 to public `maxFinalizedAttempts`. The physical `attempts_made` counter is unchanged.
 
-Use `Retry.fixed(Duration.seconds(5))` for a constant delay. Exponential retries
+Use `Retry.none` to disable scheduled retries. Expired-lease recovery still follows
+`maxStalledCount`. Use `Retry.fixed(Duration.seconds(5))` for a constant delay. Exponential retries
 start at the base delay, grow by a factor of two, and stop growing at the cap.
 Jitter selects an integer delay in 80–120% of the nominal delay, with the upper
 bound shortened at the hard cap. For a nominal 60 seconds capped at 60 seconds,
@@ -643,7 +642,7 @@ const ddl = PostgreSqlSchema.migration(tables)
 // Runtime: configure the same schema/table mapping, without DDL permissions.
 const jobs = yield* PostgreSqlJobs.make({
   ...tables,
-  operationResponseBudgetMillis: 100
+  operationResponseBudget: Duration.millis(100)
 }).pipe(Effect.provide(ApplicationPostgresLayer))
 
 yield* jobs.ready

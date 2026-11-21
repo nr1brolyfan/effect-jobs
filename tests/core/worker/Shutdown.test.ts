@@ -1,6 +1,7 @@
 import * as JobApi from "../../../src/JobApi.js"
 import assert from "node:assert/strict"
 import {
+  Duration,
   Context,
   Deferred,
   Effect,
@@ -93,7 +94,7 @@ const fixture = Effect.fnUntraced(function* (
         handlers,
         Storage.layer({
           store: configure(test.store),
-          operationResponseBudgetMillis: 100
+          operationResponseBudget: Duration.millis(100)
         })
       )
     )
@@ -106,7 +107,9 @@ const fixture = Effect.fnUntraced(function* (
         Polling.layer(queues, {
           maxJobs: 4,
           recoveryLimit: 1,
-          ...(shutdownGraceMillis === undefined ? {} : { shutdownGraceMillis })
+          ...(shutdownGraceMillis === undefined
+            ? {}
+            : { shutdownGrace: Duration.millis(shutdownGraceMillis) })
         }).pipe(Layer.provide(Layer.succeed(Worker.JobWorker, worker)))
       )
     )
@@ -359,7 +362,10 @@ it("retains provided handler resources until graceful finalization is done", asy
                 Effect.flatMap(Resource, (resource) => resource.execute)
               )
             ),
-            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+            Storage.layer({
+              store: test.store,
+              operationResponseBudget: Duration.millis(100)
+            })
           )
         ),
         Layer.provide(resources)
@@ -367,7 +373,7 @@ it("retains provided handler resources until graceful finalization is done", asy
       const scope = yield* Scope.fork(yield* Scope.Scope)
       yield* Scope.provide(scope)(
         Layer.build(
-          Polling.layer([queue], { shutdownGraceMillis: 1000 }).pipe(
+          Polling.layer([queue], { shutdownGrace: Duration.millis(1000) }).pipe(
             Layer.provide(worker)
           )
         )

@@ -1,5 +1,5 @@
 import * as JobApi from "../../src/JobApi.js"
-import { Context, Effect, Schema } from "effect"
+import { Duration, Context, Effect, Schema } from "effect"
 import * as Group from "../../src/JobGroup.js"
 import * as Queue from "../../src/JobQueue.js"
 import * as Worker from "../../src/JobWorker.js"
@@ -19,7 +19,10 @@ export const made = Worker.make(
     queues: [{ queue, concurrency: 2 }]
   }
 )
-export const storage = Storage.layer({ store, operationResponseBudgetMillis: 100 })
+export const storage = Storage.layer({
+  store,
+  operationResponseBudget: Duration.millis(100)
+})
 export const composed = made.pipe(Effect.provide(storage))
 
 type ExpectFalse<T extends false> = T
@@ -54,6 +57,6 @@ export const invalidBudget = Worker.make(
   {
     queues: [{ queue }],
     // @ts-expect-error The worker cannot duplicate or override its storage budget.
-    operationResponseBudgetMillis: 200
+    operationResponseBudget: Duration.millis(200)
   }
 )

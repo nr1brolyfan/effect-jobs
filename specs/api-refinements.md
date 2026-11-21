@@ -146,7 +146,7 @@ useful for already-protected envelopes and custom codecs.
 
 ## Native transactions
 
-`PostgreSqlNative.layer({ client, operationTimeoutMillis })` supplies the adapter
+`PostgreSqlNative.layer({ client, operationTimeout })` supplies the adapter
 for the application's SAME native `PgClient@4.1.0`. `PostgreSqlJobs.layerNoDeps`
 provides `PostgreSqlJobs`, `JobEnqueue`, `JobOperators`, `JobStorage` and `JobSchedule`. Public
 `client.withTransaction(body)` owns the transaction; Drizzle schema/queries run

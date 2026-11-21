@@ -58,7 +58,7 @@
   {
     "subpath": "effect-jobs/JobProducer",
     "filename": "src/JobProducer.ts",
-    "sha256": "f9d096a09da18f08771fc38ede3a4ffafce56c18a82c334eecb6389a98867aad",
+    "sha256": "06877cfc12fdd8b768458798454208169299751ff0747838d52bac80e4bf78df",
     "symbols": [
       {
         "name": "Binding",
@@ -351,7 +351,7 @@
   {
     "subpath": "effect-jobs/JobContract",
     "filename": "src/JobContract.ts",
-    "sha256": "0464e311c7356b6eb236b0eddb1d9ab88b6437412a220fc7f3cb0e0ee1c2838d",
+    "sha256": "f0775c5dcbea4916a7191a1bf489bf6f520cc7dcab69af180d107434811b00d8",
     "symbols": [
       {
         "name": "EncodedJobPayload",
@@ -657,7 +657,7 @@
   {
     "subpath": "effect-jobs/JobRetryPolicy",
     "filename": "src/JobRetryPolicy.ts",
-    "sha256": "8962969a0ac720e21cfeb622aa85aab3997743ed9ec9a567f6861ef87b5ca55b",
+    "sha256": "d87fb6ff5f9d8c5cb7e2ffa83d4cb2028f05f8116d2e00b2fc2fa19e76cc2d01",
     "symbols": [
       {
         "name": "capped",
@@ -694,13 +694,19 @@
         "kind": "value",
         "category": "contract",
         "description": "Maximum finalized attempts including the first, 1–100; 1 disables retries."
+      },
+      {
+        "name": "none",
+        "kind": "value",
+        "category": "contract",
+        "description": "Disable scheduled retries. Bounded expired-lease recovery remains independent."
       }
     ]
   },
   {
     "subpath": "effect-jobs/JobFailure",
     "filename": "src/JobFailure.ts",
-    "sha256": "278bf77f677ef97e638a0ec99ea1c8daf9ba21e55c5290df3b90492b440f53f5",
+    "sha256": "c61e0d0ed8b9a3d54b6ebf4535d1b212fd1b4ad7d816e6ae7978502d07b12757",
     "symbols": [
       {
         "name": "FailureCode",
@@ -762,7 +768,7 @@
   {
     "subpath": "effect-jobs/JobStorage",
     "filename": "src/JobStorage.ts",
-    "sha256": "82a845c133e8425d1a96c54a514cc55d153387679f841021f8cc72580305d9d7",
+    "sha256": "380eb488dfe24e2905b477b4378b5ac4f29e9101d22751c688c6fb1186976068",
     "symbols": [
       {
         "name": "JobStorage",
@@ -890,7 +896,7 @@
   {
     "subpath": "effect-jobs/JobPolling",
     "filename": "src/JobPolling.ts",
-    "sha256": "54d771ddc8847a37743cec565e897457c681cb80fc2f3d5101ec474b37c46ab6",
+    "sha256": "fce6df4658f2f1a94427b7a7764983a2faa36407a1ca69894cd9ab23e2ecef56",
     "symbols": [
       {
         "name": "layer",
@@ -902,7 +908,7 @@
         "name": "Options",
         "kind": "type",
         "category": "models",
-        "description": "Polling configuration; idlePollMillis defaults to 1,000 positive integer\nmilliseconds. Idle/backoff sleeps include jitter. shutdownGraceMillis defaults\nto 30,000; integer 0–300,000, with zero requesting immediate interruption."
+        "description": "Polling configuration. idlePoll defaults to one second and must be positive.\nIdle/backoff sleeps include jitter. shutdownGrace defaults to 30 seconds\nand accepts zero through five minutes. Both use whole milliseconds."
       }
     ]
   },
@@ -982,7 +988,7 @@
   {
     "subpath": "effect-jobs/JobLifecycle",
     "filename": "src/JobLifecycle.ts",
-    "sha256": "76f11f25b0ca301e96a4f80c837af621f0e287e81b8d79a6e0d1fc13077770f8",
+    "sha256": "010e29d88bc2386c94424c2006b48f1ac21730401fc3f78c6305b5960479c62b",
     "symbols": [
       {
         "name": "addTimestamp",
@@ -1273,7 +1279,7 @@
   {
     "subpath": "effect-jobs/PostgreSqlJobs",
     "filename": "src/postgresql/PostgreSqlJobs.ts",
-    "sha256": "6de4a23dcd8ee95b7a827ee110a678903cd86d373d88b530433549442c0a6c39",
+    "sha256": "54781a2da4f34094ef6d2c2eebc725d230123432e2871a5f4f836d1e5e76f736",
     "symbols": [
       {
         "name": "layerNoDeps",
@@ -1353,7 +1359,7 @@
   {
     "subpath": "effect-jobs/PostgreSqlNative",
     "filename": "src/postgresql/PostgreSqlNative.ts",
-    "sha256": "4d880ff2fbb9bd1c7e3004d38544473bcb46c412a9d22e82028f5d64412ef28e",
+    "sha256": "f026e2b2879a544c475f0c9c4b55d3b7b217c12865ccf354a5589f187ebd3f90",
     "symbols": [
       {
         "name": "layer",
@@ -1378,7 +1384,7 @@
   {
     "subpath": "effect-jobs/PostgreSqlSchema",
     "filename": "src/postgresql/PostgreSqlSchema.ts",
-    "sha256": "118564e669752dfae538d9cd0abe06e747ad587c9e850a8e578b5ccc7417f67d",
+    "sha256": "96034ba531af70da506626127f992b87ad1cc0ca7512e64505c60bc397e770b7",
     "symbols": [
       {
         "name": "creationTimeMigration",

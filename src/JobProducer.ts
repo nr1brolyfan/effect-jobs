@@ -1,8 +1,8 @@
 /** Declares producer operations with typed contract, routing and default-policy bindings. */
-import { Data, Effect, Pipeable, Schema } from "effect"
+import { Data, DateTime, Effect, Pipeable, Schema } from "effect"
 import type { JobDefinition } from "./Job.js"
 import type { JobQueue } from "./JobQueue.js"
-import { defaultPolicy, EpochMillis, JobPolicy } from "./JobPolicy.js"
+import { defaultPolicy, JobPolicy } from "./JobPolicy.js"
 import {
   JobName,
   JobVersion,
@@ -22,6 +22,7 @@ import { observe } from "./JobTelemetry.js"
 import { declaration } from "./internal/ProducerDeclaration.js"
 import { insertPreparing } from "./internal/JobTransaction.js"
 import type { IsUnion, SingleKey } from "./internal/DeclarationTypes.js"
+import { JobInstant } from "./internal/Time.js"
 import { prepareProjection } from "./internal/codec/ProtectedProjection.js"
 
 /** Exactly one route declaration; selectable queues have no implicit default. */
@@ -79,7 +80,7 @@ export type Input<D extends Bindings, K extends keyof D & string = keyof D & str
     readonly payload: D[S]["job"]["payload"]["Type"]
     /** Complete resolved replacement, never a partial merge or retained-job update. */
     readonly policy?: JobPolicy
-    readonly availableAt?: number
+    readonly availableAt?: DateTime.Utc
   } & (D[S] extends { readonly queues: ReadonlyArray<JobQueue<infer Name>> }
     ? { readonly queue: Name }
     : { readonly queue?: never })
@@ -292,15 +293,17 @@ const assemble = <Operation extends string, D extends Bindings>(
   ) {
     const slot = input.slot
     const operationId = input.operationId
-    const availableAt = input.availableAt
+    const availability = input.availableAt
     const payload = input.payload
     if (!Object.hasOwn(slots, slot) || typeof operationId !== "string") {
       return yield* new InvalidJobInput({ field: "producer" })
     }
     yield* validateOperationId(operationId)
-    if (availableAt !== undefined && !Schema.is(EpochMillis)(availableAt)) {
+    if (availability !== undefined && !Schema.is(JobInstant)(availability)) {
       return yield* new InvalidJobInput({ field: "availableAt" })
     }
+    const availableAt =
+      availability === undefined ? undefined : DateTime.toEpochMillis(availability)
     const binding = slots[slot]!
     const destination = input.queue
     const configured = input.policy

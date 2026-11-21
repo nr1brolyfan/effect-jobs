@@ -1,4 +1,4 @@
-import { Cause, Context, Effect, Exit, Schema } from "effect"
+import { Duration, Cause, Context, Effect, Exit, Schema } from "effect"
 import { afterEach, expect, test, vi } from "vitest"
 import * as Jobs from "../../../src/postgresql/PostgreSqlJobs.js"
 import * as Operators from "../../../src/postgresql/internal/Operators.js"
@@ -45,7 +45,7 @@ const adapter: ApplicationAdapter = {
   withTransaction: (body) => body({}),
   ownedTransaction: () => Effect.die("unexpected owned transaction")
 }
-const options = { operationResponseBudgetMillis: 100 }
+const options = { operationResponseBudget: Duration.millis(100) }
 const invoke = (
   service: JobOperatorsService<JobPersistenceError>,
   method: Method

@@ -1,4 +1,4 @@
-import { Cause, Context, Effect, Exit, Layer, Schema } from "effect"
+import { Duration, Cause, Context, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Storage from "../../../src/JobStorage.js"
 import * as Store from "../../../src/JobStore.js"
@@ -48,21 +48,21 @@ const failing = <E>(error: E): Store.JobStoreService<E> => ({
 })
 
 describe("configured JobStorage", () => {
-  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 8_640_000_000_000_001])(
+  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY, 8_640_000_000_000_001])(
     "rejects invalid response budget %s before source activity",
     async (budget) => {
       const source = harness()
       const result = await Effect.runPromise(
         Storage.make({
           store: source.store,
-          operationResponseBudgetMillis: budget
+          operationResponseBudget: Duration.millis(budget)
         }).pipe(Effect.result)
       )
       expect(result).toMatchObject({
         _tag: "Failure",
         failure: {
           _tag: "JobStorageConfigurationError",
-          field: "operationResponseBudgetMillis"
+          field: "operationResponseBudget"
         }
       })
       expect(source.calls.claims).toHaveLength(0)
@@ -92,11 +92,11 @@ describe("configured JobStorage", () => {
       reconcileFinalization: (input) => record(input, unknownFinalization),
       recoverExpired: (queue, limit) => record([queue, limit], 3)
     }
-    const options = { store: source, operationResponseBudgetMillis: 100 }
+    const options = { store: source, operationResponseBudget: Duration.millis(100) }
     const configured = await Effect.runPromise(
       Storage.make(options).pipe(Effect.provideService(Provider, { marker: "captured" }))
     )
-    options.operationResponseBudgetMillis = 200
+    options.operationResponseBudget = Duration.millis(200)
     expect(seen).toHaveLength(0)
     expect(configured.operationResponseBudgetMillis).toBe(100)
     expect(Object.isFrozen(configured)).toBe(true)
@@ -131,7 +131,7 @@ describe("configured JobStorage", () => {
     const privateError = { detail: "PRIVATE_STORAGE_PROVIDER" }
     const source = failing(privateError)
     const configured = await Effect.runPromise(
-      Storage.make({ store: source, operationResponseBudgetMillis: 100 })
+      Storage.make({ store: source, operationResponseBudget: Duration.millis(100) })
     )
     expect(await Effect.runPromise(Effect.flip(source.claim(request)))).toBe(privateError)
     const operations: ReadonlyArray<
@@ -171,7 +171,7 @@ describe("configured JobStorage", () => {
         }).pipe(Effect.andThen(Effect.fail(privateError)))
     }
     const bounded = await Effect.runPromise(
-      Storage.make({ store, operationResponseBudgetMillis: 100 })
+      Storage.make({ store, operationResponseBudget: Duration.millis(100) })
     )
     await Effect.runPromiseExit(bounded.store.finalize(finalization))
     expect(writes).toBe(1)
@@ -182,13 +182,19 @@ describe("configured JobStorage", () => {
     const ownership = new Store.JobOwnershipLost()
     const admission = new JobPolicyIncompatible()
     const configured = await Effect.runPromise(
-      Storage.make({ store: failing(protocol), operationResponseBudgetMillis: 100 })
+      Storage.make({
+        store: failing(protocol),
+        operationResponseBudget: Duration.millis(100)
+      })
     )
     expect(
       await Effect.runPromise(Effect.flip(configured.store.reconcileClaim("token")))
     ).toBe(protocol)
     const fenced = await Effect.runPromise(
-      Storage.make({ store: failing(ownership), operationResponseBudgetMillis: 100 })
+      Storage.make({
+        store: failing(ownership),
+        operationResponseBudget: Duration.millis(100)
+      })
     )
     expect(
       await Effect.runPromise(Effect.flip(fenced.store.release(owner, "BeforeExecution")))
@@ -197,7 +203,10 @@ describe("configured JobStorage", () => {
       await Effect.runPromise(Effect.flip(fenced.store.finalize(finalization)))
     ).toBe(ownership)
     const rejected = await Effect.runPromise(
-      Storage.make({ store: failing(admission), operationResponseBudgetMillis: 100 })
+      Storage.make({
+        store: failing(admission),
+        operationResponseBudget: Duration.millis(100)
+      })
     )
     expect(await Effect.runPromise(Effect.flip(rejected.store.claim(request)))).toBe(
       admission
@@ -214,7 +223,7 @@ describe("configured JobStorage", () => {
     ]) {
       const store = { ...failing(provider), finalize: () => effect }
       const configured = await Effect.runPromise(
-        Storage.make({ store, operationResponseBudgetMillis: 100 })
+        Storage.make({ store, operationResponseBudget: Duration.millis(100) })
       )
       const original = await Effect.runPromiseExit(effect)
       const actual = await Effect.runPromiseExit(configured.store.finalize(finalization))
@@ -258,7 +267,7 @@ describe("configured JobStorage", () => {
     )
     const configured = Storage.layer({
       store: source,
-      operationResponseBudgetMillis: 100
+      operationResponseBudget: Duration.millis(100)
     }).pipe(Layer.provide(provider))
     const result = await Effect.runPromiseExit(
       Effect.scoped(

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import type { SqlClient } from "effect/sql/SqlClient"
-import { Duration, Effect, Layer, Schema, Cause, Exit } from "effect"
+import { DateTime, Duration, Effect, Layer, Schema, Cause, Exit } from "effect"
 import * as Job from "effect-jobs/Job"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Producer from "effect-jobs/JobProducer"
@@ -119,13 +119,13 @@ export const qualifyBindings = (pg: SqlClient) =>
       slot: "invoice" as const,
       operationId: "new",
       payload: "fresh",
-      availableAt: 200
+      availableAt: DateTime.makeUnsafe(200)
     }
     const fresh = yield* pg.withTransaction(nextDefault.enqueue(freshInput))
     yield* pg.withTransaction(
       nextDefault.enqueue({
         ...freshInput,
-        availableAt: 400,
+        availableAt: DateTime.makeUnsafe(400),
         policy: overridePolicy
       })
     )

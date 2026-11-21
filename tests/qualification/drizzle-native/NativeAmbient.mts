@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync } from "node:fs"
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto"
 import { Pool } from "pg"
 import {
+  Duration,
   Cause,
   Deferred,
   Effect,
@@ -120,10 +121,10 @@ try {
     const client = yield* Pg.PgClient
     const db = yield* Drizzle.makeWithDefaults()
     assert.strictEqual(db.$client, client)
-    const adapter = Native.make({ client, operationTimeoutMillis: 2000 })
+    const adapter = Native.make({ client, operationTimeout: Duration.millis(2000) })
     const jobs = yield* Jobs.make({
       ...mapping,
-      operationResponseBudgetMillis: 100
+      operationResponseBudget: Duration.millis(100)
     }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
     yield* jobs.ready
     return yield* Effect.gen(function* () {

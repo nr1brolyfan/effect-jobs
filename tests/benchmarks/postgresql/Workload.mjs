@@ -5,7 +5,15 @@ import { join } from "node:path"
 import { performance } from "node:perf_hooks"
 import { setTimeout as delay } from "node:timers/promises"
 import pg from "pg"
-import { Effect, Exit, Layer, ManagedRuntime, Redacted, References } from "effect"
+import {
+  Duration,
+  Effect,
+  Exit,
+  Layer,
+  ManagedRuntime,
+  Redacted,
+  References
+} from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import * as Policy from "effect-jobs/JobPolicy"
 import * as Worker from "effect-jobs/JobWorker"
@@ -158,9 +166,9 @@ try {
   )
   stage = "composition"
   const client = await run(PgClient.PgClient)
-  const native = Native.make({ client, operationTimeoutMillis: 5000 })
+  const native = Native.make({ client, operationTimeout: Duration.millis(5000) })
   const jobs = await run(
-    Jobs.make({ ...mapping, operationResponseBudgetMillis: 1000 }).pipe(
+    Jobs.make({ ...mapping, operationResponseBudget: Duration.millis(1000) }).pipe(
       Effect.provideService(PostgreSqlApplication, native)
     )
   )
@@ -236,7 +244,9 @@ try {
           queues: queues.map((queue) => ({ queue, concurrency: options.concurrency }))
         }).pipe(
           Layer.provide(handlers),
-          Layer.provide(Storage.layer({ store, operationResponseBudgetMillis: 1000 }))
+          Layer.provide(
+            Storage.layer({ store, operationResponseBudget: Duration.millis(1000) })
+          )
         )
       )
     )

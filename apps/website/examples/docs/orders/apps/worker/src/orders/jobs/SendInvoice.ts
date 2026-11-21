@@ -44,8 +44,7 @@ export const InvoiceDeliveryHandlerLayer = Layer.unwrap(
               Effect.catchTags({
                 EmailBusy: () =>
                   Effect.fail(JobFailures.Retry({ code: EmailCodes.busy })),
-                EmailUncertain: () =>
-                  Effect.fail(JobFailures.OutcomeUnknown({ code: EmailCodes.uncertain }))
+                EmailUncertain: () => Effect.fail(JobFailures.OutcomeUnknown())
               })
             )
         })

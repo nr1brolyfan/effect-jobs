@@ -1,5 +1,5 @@
 /** Port doubles exercise bridge composition and lifetime, not PostgreSQL atomicity. */
-import { Effect, Schema } from "effect"
+import { Duration, Effect, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Jobs from "../../../src/postgresql/PostgreSqlJobs.js"
 import * as Queue from "../../../src/JobQueue.js"
@@ -91,7 +91,7 @@ describe("invocation-bound ambient production", () => {
       const test = fixture(native)
       await Effect.runPromise(
         Effect.gen(function* () {
-          const jobs = yield* Jobs.make({ operationResponseBudgetMillis: 100 })
+          const jobs = yield* Jobs.make({ operationResponseBudget: Duration.millis(100) })
           const result = yield* jobs.withTransaction(() =>
             producer.enqueue({ slot: "receipt", operationId: "one", payload: "one" })
           )
@@ -106,7 +106,7 @@ describe("invocation-bound ambient production", () => {
     const test = fixture(false)
     await Effect.runPromise(
       Effect.gen(function* () {
-        const jobs = yield* Jobs.make({ operationResponseBudgetMillis: 100 })
+        const jobs = yield* Jobs.make({ operationResponseBudget: Duration.millis(100) })
         const result = yield* test.adapter.withTransaction((handle) =>
           jobs.joinTransaction(handle, () =>
             producer.enqueue({ slot: "receipt", operationId: "one", payload: "one" })
@@ -126,7 +126,7 @@ describe("invocation-bound ambient production", () => {
       let preparations = 0
       await Effect.runPromise(
         Effect.gen(function* () {
-          const jobs = yield* Jobs.make({ operationResponseBudgetMillis: 100 })
+          const jobs = yield* Jobs.make({ operationResponseBudget: Duration.millis(100) })
           yield* jobs.withTransaction(() =>
             Effect.gen(function* () {
               escaped = yield* JobEnqueue

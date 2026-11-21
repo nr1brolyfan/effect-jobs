@@ -103,7 +103,7 @@ writeFileSync(
   `import * as JobApi from "effect-jobs/JobApi"
 
 import assert from "node:assert/strict"
-import { Cause, Duration, Effect, Exit, Layer, Result, Schema } from "effect"
+import { Cause, DateTime, Duration, Effect, Exit, Layer, Result, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Policy from "effect-jobs/JobPolicy"
@@ -141,6 +141,12 @@ assert.equal(typeof JobOperators.of, "function")
 assert(Schema.is(JobOperatorExpected)({ jobId: "fixture", state: "Pending", lifecycleVersion: 0 }))
 const code = Codes.define({ boundary: "a".repeat(128) }).boundary
 assert.equal(JobFailures.Retry({ code }).code.length, 128)
+const utc = DateTime.makeUnsafe(1000)
+assert.deepEqual(JobFailures.Retry({ code, retryBefore: utc }), { _tag: "Retry", code, retryBefore: utc })
+assert.deepEqual(JobFailures.OutcomeUnknown(), { _tag: "OutcomeUnknown" })
+const noRetries = await Effect.runPromise(Policy.make({ retry: Retry.none }))
+assert.equal(noRetries.maxFinalizedAttempts, 1)
+assert.deepEqual(noRetries.retrySchedule, Policy.defaultPolicy.retrySchedule)
 assert(Result.isFailure(Codes.parse("a".repeat(129))))
 assert(Object.isFrozen(Policy.defaultPolicy.retrySchedule))
 const retry = Retry.exponential(Duration.seconds(1)).pipe(Retry.capped(Duration.minutes(1)), Retry.jittered(), Retry.maxFinalizedAttempts(5))
@@ -193,9 +199,10 @@ assert.deepEqual(await Effect.runPromise(decodeJobPayload(definition.payload, pr
 const priority = Effect.runSync(Queue.make("billing-priority"))
 const selectable = Effect.runSync(Producer.make(producer.operation).pipe(Producer.withSlot("receipt", definition, { queues: [queue, priority] })))
 const overridePolicy = { ...Policy.defaultPolicy, maxFinalizedAttempts: 7 }
-await Effect.runPromise(selectable.enqueue({ ...input, queue: priority.name, policy: overridePolicy }).pipe(Effect.provideService(JobEnqueue, enqueueService), Effect.provide(keysLayer(keys()))))
+await Effect.runPromise(selectable.enqueue({ ...input, queue: priority.name, policy: overridePolicy, availableAt: utc }).pipe(Effect.provideService(JobEnqueue, enqueueService), Effect.provide(keysLayer(keys()))))
 assert.equal(prepared[3]!.catalog.queue, priority.name)
 assert.equal(prepared[3]!.policy.maxFinalizedAttempts, 7)
+assert.equal(prepared[3]!.availableAt, 1000)
 assert.equal(prepared[3]!.producer.slot, input.slot)
 assert.equal(producer.slots.receipt.queue.name, queue.name)
 for (const invalid of [{ queue: queue.name }, { queue: undefined }, { queue }, { queue: { name: "INVALID/queue" } }, { policy: { ...overridePolicy, maxFinalizedAttempts: 0 } }]) {
@@ -216,7 +223,7 @@ await Effect.runPromise(Effect.gen(function* () {
 }).pipe(Effect.provide(handler)))
 assert.equal(calls, 1)
 let claims = 0
-const storageLayer = Storage.layer({ operationResponseBudgetMillis: 100, store: {
+const storageLayer = Storage.layer({ operationResponseBudget: Duration.millis(100), store: {
   claim: () => Effect.sync(() => { claims++; return Store.ClaimResult.Empty() }),
   reconcileClaim: () => Effect.succeed(Store.ClaimReconciliation.Unknown()),
   release: () => Effect.succeed(Store.FinalizationResult.Unknown()),
@@ -232,7 +239,7 @@ assert.equal(claims, 0)
 assert.deepEqual(await Effect.runPromise(Worker.drain(queue).pipe(Effect.provide(workerLayer))), { _tag: "Idle", claimed: 0, recovered: 0 })
 assert.equal(claims, 1)
 await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-  yield* Layer.build(Polling.layer([queue], { maxJobs: 1, shutdownGraceMillis: 0 }).pipe(Layer.provide(workerLayer)))
+  yield* Layer.build(Polling.layer([queue], { maxJobs: 1, idlePoll: Duration.seconds(1), shutdownGrace: Duration.zero }).pipe(Layer.provide(workerLayer)))
   yield* Effect.yieldNow
 })))
 assert.equal(claims, 2)

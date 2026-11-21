@@ -14,7 +14,6 @@ import { WorkerDefinitions } from "#worker/orders/Definitions"
 
 const Codes = FailureCode.define({
   missing: "invoice_order_missing",
-  handoff: "invoice_handoff_uncertain",
   conflict: "invoice_handoff_conflict"
 })
 
@@ -73,10 +72,8 @@ export const InvoiceHandlerLayer = Layer.unwrap(
           // SQL control/commit failures are conservatively uncertain, never safe-retried.
           yield* createInvoice(input.payload.orderId).pipe(
             Effect.catchTags({
-              EffectDrizzleQueryError: () =>
-                Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.handoff })),
-              JobsTransactionClosed: () =>
-                Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.handoff })),
+              EffectDrizzleQueryError: () => Effect.fail(JobFailures.OutcomeUnknown()),
+              JobsTransactionClosed: () => Effect.fail(JobFailures.OutcomeUnknown()),
               InvalidOperationId: () =>
                 Effect.fail(JobFailures.Isolate({ code: Codes.conflict })),
               JobPolicyIncompatible: () =>
@@ -85,10 +82,8 @@ export const InvoiceHandlerLayer = Layer.unwrap(
                 Effect.fail(JobFailures.Isolate({ code: Codes.conflict })),
               JobPayloadCodecError: () =>
                 Effect.fail(JobFailures.Isolate({ code: Codes.conflict })),
-              SqlError: () =>
-                Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.handoff })),
-              JobPersistenceError: () =>
-                Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.handoff })),
+              SqlError: () => Effect.fail(JobFailures.OutcomeUnknown()),
+              JobPersistenceError: () => Effect.fail(JobFailures.OutcomeUnknown()),
               JobIntegrityConflict: () =>
                 Effect.fail(JobFailures.Isolate({ code: Codes.conflict }))
             })

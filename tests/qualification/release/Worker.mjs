@@ -2,6 +2,7 @@ import * as JobApi from "effect-jobs/JobApi"
 import assert from "node:assert/strict"
 import { inspect } from "node:util"
 import {
+  Duration,
   Effect,
   Exit,
   Layer,
@@ -129,7 +130,7 @@ await Effect.runPromise(
       ).pipe(
         Effect.provide(
           Layer.mergeAll(
-            Storage.layer({ store, operationResponseBudgetMillis: 100 }),
+            Storage.layer({ store, operationResponseBudget: Duration.millis(100) }),
             handlers
           )
         )

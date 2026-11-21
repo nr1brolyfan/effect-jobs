@@ -1,6 +1,6 @@
 import { runPromise } from "../scenarios/Setup.js"
 import { describe, expect, it } from "vitest"
-import { Effect, Layer, Schema } from "effect"
+import { Duration, Effect, Layer, Schema } from "effect"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
 import * as Storage from "effect-jobs/JobStorage"
 import * as Tables from "effect-jobs/PostgreSqlSchema"
@@ -49,7 +49,9 @@ const store = {
 }
 const jobs = Layer.mock(PostgreSqlJobs, {
   operationResponseBudgetMillis: 100,
-  storage: Effect.runSync(Storage.make({ store, operationResponseBudgetMillis: 100 })),
+  storage: Effect.runSync(
+    Storage.make({ store, operationResponseBudget: Duration.millis(100) })
+  ),
   health: { sample: unexpected },
   schedule: { read: unexpected },
   tables: Tables.tables(),

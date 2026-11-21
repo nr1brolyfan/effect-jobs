@@ -1,4 +1,4 @@
-import { Context, Deferred, Effect, Fiber, Layer, Schema } from "effect"
+import { Duration, Context, Deferred, Effect, Fiber, Layer, Schema } from "effect"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as Api from "../../../src/JobApi.js"
@@ -135,7 +135,10 @@ describe("immutable catalogs and complete installation", () => {
           queues: [{ queue }]
         }).pipe(
           Effect.provide(
-            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+            Storage.layer({
+              store: test.store,
+              operationResponseBudget: Duration.millis(100)
+            })
           )
         )
         expect(received).toEqual([])
@@ -209,7 +212,10 @@ describe("immutable catalogs and complete installation", () => {
           Effect.provide(
             Layer.mergeAll(
               installed,
-              Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+              Storage.layer({
+                store: test.store,
+                operationResponseBudget: Duration.millis(100)
+              })
             )
           ),
           Effect.result
@@ -303,7 +309,10 @@ describe("immutable catalogs and complete installation", () => {
               Group.handlers(first, (h) => h.handle("run", execute)),
               Group.handlers(second, (h) => h.handle("run", execute)),
               Group.handlers(third, (h) => h.handle("run", execute)),
-              Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+              Storage.layer({
+                store: test.store,
+                operationResponseBudget: Duration.millis(100)
+              })
             )
           )
         )

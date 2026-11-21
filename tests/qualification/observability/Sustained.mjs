@@ -1,3 +1,4 @@
+import { Duration } from "effect"
 // Real loopback transport faults and actual Effect OTLP conversion under sustained load.
 import assert from "node:assert/strict"
 import { createServer } from "node:http"
@@ -118,7 +119,7 @@ const runJob = () =>
     ).pipe(
       Effect.provide(
         Layer.mergeAll(
-          Storage.layer({ store, operationResponseBudgetMillis: 100 }),
+          Storage.layer({ store, operationResponseBudget: Duration.millis(100) }),
           handlers
         )
       )

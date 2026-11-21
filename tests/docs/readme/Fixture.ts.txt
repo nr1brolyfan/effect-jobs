@@ -1,7 +1,7 @@
 import * as JobApi from "effect-jobs/JobApi"
 import * as Group from "effect-jobs/JobGroup"
 // Application fixtures used by exact extracted fences. No production connection.
-import { Context, Effect, Layer, Schema } from "effect"
+import { Duration, Context, Effect, Layer, Schema } from "effect"
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto"
 import * as Jobs from "effect-jobs/PostgreSqlJobs"
 import { PostgreSqlApplication, PostgreSqlFailure } from "effect-jobs/PostgreSqlTransaction"
@@ -19,7 +19,7 @@ const unavailable = () => Effect.fail(new PostgreSqlFailure({ commitKnowledge: "
 export const ApplicationPostgresLayer = Layer.succeed(PostgreSqlApplication, {
   ambient: unavailable(), validate: unavailable, withTransaction: unavailable, ownedTransaction: unavailable
 })
-export let jobs = Effect.runSync(Jobs.make({ operationResponseBudgetMillis: 100 }).pipe(Effect.provide(ApplicationPostgresLayer)))
+export let jobs = Effect.runSync(Jobs.make({ operationResponseBudget: Duration.millis(100) }).pipe(Effect.provide(ApplicationPostgresLayer)))
 export const useJobs = (value: Jobs.Service) => { jobs = value }
 export const invoices = { create: (_: { id: string }) => Effect.void, createOnce: (_: { operationId: string; invoiceId: string }) => Effect.void }
 export const operationId = "readme-operation"

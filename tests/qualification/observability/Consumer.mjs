@@ -1,3 +1,4 @@
+import { Duration } from "effect"
 import * as BoundedSink from "./BoundedSink.mjs"
 // Synthetic application-owned consumer. No credentials, external endpoint or production storage.
 import assert from "node:assert/strict"
@@ -92,7 +93,7 @@ const withTransaction = makeWithTransaction({
 })
 const native = Native.make({
   client: { transactionService, withTransaction },
-  operationTimeoutMillis: 100
+  operationTimeout: Duration.millis(100)
 })
 const captures = []
 const accepted = []
@@ -205,7 +206,7 @@ const program = Effect.gen(function* () {
       ).pipe(
         Effect.provide(
           Layer.mergeAll(
-            Storage.layer({ store, operationResponseBudgetMillis: 100 }),
+            Storage.layer({ store, operationResponseBudget: Duration.millis(100) }),
             handlers
           )
         )

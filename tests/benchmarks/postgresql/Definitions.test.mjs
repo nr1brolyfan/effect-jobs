@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "vitest"
-import { Effect, Layer, ManagedRuntime, Schema } from "effect"
+import { Duration, Effect, Layer, ManagedRuntime, Schema } from "effect"
 import * as Definitions from "./Definitions.mjs"
 import { parseOptions } from "./Support.mjs"
 import * as Group from "effect-jobs/JobGroup"
@@ -107,7 +107,9 @@ test("catalog-backed soak workers recover only their queue and keep bounded clai
       queues: setup.queues.map((queue) => ({ queue, concurrency: options.concurrency }))
     }).pipe(
       Layer.provide(handlers),
-      Layer.provide(Storage.layer({ store, operationResponseBudgetMillis: 1000 }))
+      Layer.provide(
+        Storage.layer({ store, operationResponseBudget: Duration.millis(1000) })
+      )
     )
   )
   try {

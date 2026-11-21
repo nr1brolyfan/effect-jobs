@@ -1,9 +1,10 @@
 /** Effect SQL native PostgreSQL integration. No pool or migration ownership. */
 // The native SQL contract is intentionally pinned to Effect 4.1.0.
 // @effect-diagnostics unstableApiUsage:off
-import { Cause, Effect, Exit, Layer, Option, Schema, Tracer } from "effect"
+import { Cause, Effect, Exit, Layer, Option, Schema, Tracer, type Duration } from "effect"
 import type { SqlClient } from "effect/sql/SqlClient"
 import { isSqlError, type SqlError } from "effect/sql/SqlError"
+import { durationMillis } from "../internal/policy/Retry.js"
 import { EpochMillis } from "../JobPolicy.js"
 import { PostgreSqlConfigurationError } from "./PostgreSqlSchema.js"
 import {
@@ -26,7 +27,7 @@ export interface Options {
   readonly client: Pick<SqlClient, "transactionService" | "withTransaction">
   /** Finite query/body response deadline. Native control/release paths must also be
    * bounded by the application's configured client timeouts. */
-  readonly operationTimeoutMillis: number
+  readonly operationTimeout: Duration.Duration
 }
 
 const controls = <A, E, R>(
@@ -60,10 +61,11 @@ const controls = <A, E, R>(
  * @category constructors
  */
 export const make = (options: Options): ApplicationAdapter => {
-  if (!Schema.is(EpochMillis)(options.operationTimeoutMillis)) {
-    throw new PostgreSqlConfigurationError({ field: "operationTimeoutMillis" })
+  const operationTimeoutMillis = durationMillis(options.operationTimeout)
+  if (!Schema.is(EpochMillis)(operationTimeoutMillis)) {
+    throw new PostgreSqlConfigurationError({ field: "operationTimeout" })
   }
-  const { client, operationTimeoutMillis } = options
+  const { client } = options
   // Protect only the native transaction span we create. Restore the host tracer
   // inside the callback: application spans retain their own failure semantics.
   // Controls still see the original Exit, including rollback/release failures.

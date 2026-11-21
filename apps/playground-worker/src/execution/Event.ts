@@ -8,7 +8,7 @@ import * as OperatorTransactions from "../persistence/authority/PostgreSqlOperat
 import * as Reactivity from "effect/reactivity/Reactivity"
 import { JobWorker } from "effect-jobs/JobWorker"
 import { CommandPersistence } from "../persistence/commands/Transactions.js"
-import { Effect, Layer, Redacted, Schema } from "effect"
+import { Duration, Effect, Layer, Redacted, Schema } from "effect"
 import * as Pg from "@effect/sql-pg/PgClient"
 import { SqlClient } from "effect/sql/SqlClient"
 import * as Native from "effect-jobs/PostgreSqlNative"
@@ -130,11 +130,11 @@ export const run = <A, E>(
       })
       const jobs = yield* Jobs.make({
         schema: config.schema,
-        operationResponseBudgetMillis: 500
+        operationResponseBudget: Duration.millis(500)
       }).pipe(
         Effect.provideService(
           PostgreSqlApplication,
-          Native.make({ client, operationTimeoutMillis: 2000 })
+          Native.make({ client, operationTimeout: Duration.millis(2000) })
         )
       )
       yield* jobs.ready

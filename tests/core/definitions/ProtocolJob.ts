@@ -2,7 +2,7 @@
  * Not a public declaration API: public contracts are tested through src/Job.ts,
  * production through JobProducer and complete handlers through JobGroup. */
 import { observe } from "../../../src/JobTelemetry.js"
-import { Data, Effect, Layer, Schema } from "effect"
+import { DateTime, Data, Effect, Layer, Schema } from "effect"
 import { InvalidJobInput } from "../../../src/JobContract.js"
 import type {
   EnqueueInput,
@@ -14,7 +14,8 @@ import type {
 import type { JobFailure } from "../../../src/JobFailure.js"
 import { JobAddress, ProducerIdentity } from "../../../src/JobIdentity.js"
 import type { JobQueue } from "../../../src/JobQueue.js"
-import { EpochMillis, PersistedJobPolicy } from "../../../src/JobPolicy.js"
+import { PersistedJobPolicy } from "../../../src/JobPolicy.js"
+import { JobInstant } from "../../../src/internal/Time.js"
 import { JobRegistry, type DuplicateJobHandler } from "./ProtocolRegistry.js"
 import type { JobEnqueueError, JobsTransaction } from "../../../src/JobTransaction.js"
 import { encodeJobPayload } from "../../../src/JobPayloadCodec.js"
@@ -159,7 +160,7 @@ export function make<
       if (!Schema.is(PersistedJobPolicy)(input.policy)) {
         return yield* new InvalidJobInput({ field: "policy" })
       }
-      if (input.availableAt !== undefined && !Schema.is(EpochMillis)(input.availableAt)) {
+      if (input.availableAt !== undefined && !Schema.is(JobInstant)(input.availableAt)) {
         return yield* new InvalidJobInput({ field: "availableAt" })
       }
       const producer = Object.freeze({
@@ -173,7 +174,10 @@ export function make<
         completedRetention: Object.freeze({ ...input.policy.completedRetention }),
         deadRetention: Object.freeze({ ...input.policy.deadRetention })
       })
-      const availableAt = input.availableAt
+      const availableAt =
+        input.availableAt === undefined
+          ? undefined
+          : DateTime.toEpochMillis(input.availableAt)
       const encoded = yield* encodePayload(payload, input.payload)
       return Object.freeze({
         catalog,

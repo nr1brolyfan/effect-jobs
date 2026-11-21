@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect"
+import { DateTime, Effect, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Producer from "../../../src/JobProducer.js"
 import * as Queue from "../../../src/JobQueue.js"
@@ -65,7 +65,7 @@ describe("fixed and explicit selectable producer routes", () => {
         ]) {
           const command = {
             ...input,
-            availableAt: 1,
+            availableAt: DateTime.makeUnsafe(1),
             ...(policy === undefined ? {} : { policy })
           }
           const effect =

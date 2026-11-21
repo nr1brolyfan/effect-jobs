@@ -1,5 +1,5 @@
 /** Constructor-only adapter doubles; no database or transaction qualification. */
-import { Effect, Exit } from "effect"
+import { Duration, Effect, Exit } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Jobs from "../../../src/postgresql/PostgreSqlJobs.js"
 import { PostgreSqlApplication } from "../../../src/postgresql/PostgreSqlTransaction.js"
@@ -24,14 +24,14 @@ const fixture = () => {
 
 const paths = ["make", "layerNoDeps"] as const
 const construct = (path: (typeof paths)[number], budget: number) => {
-  const options = { operationResponseBudgetMillis: budget }
+  const options = { operationResponseBudget: Duration.millis(budget) }
   return path === "make"
     ? Jobs.make(options)
     : Jobs.PostgreSqlJobs.pipe(Effect.provide(Jobs.layerNoDeps(options)))
 }
 
 describe.each(paths)("PostgreSQL %s configuration", (path) => {
-  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY])(
     "rejects budget %s as a recoverable typed failure before adapter construction",
     async (budget) => {
       const test = fixture()
@@ -46,7 +46,7 @@ describe.each(paths)("PostgreSQL %s configuration", (path) => {
           _tag: "Fail",
           error: {
             _tag: "PostgreSqlConfigurationError",
-            field: "operationResponseBudgetMillis"
+            field: "operationResponseBudget"
           }
         })
       }
@@ -58,7 +58,7 @@ describe.each(paths)("PostgreSQL %s configuration", (path) => {
           })
         )
       )
-      expect(recovered).toBe("operationResponseBudgetMillis")
+      expect(recovered).toBe("operationResponseBudget")
       expect(test.calls).toEqual({ constructed: 0, executed: 0 })
     }
   )

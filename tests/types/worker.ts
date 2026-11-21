@@ -1,5 +1,5 @@
 import * as JobApi from "../../src/JobApi.js"
-import { Context, Effect, Layer, Schema } from "effect"
+import { Duration, Context, Effect, Layer, Schema } from "effect"
 import * as Job from "../../src/Job.js"
 import * as Queue from "../../src/JobQueue.js"
 import * as Group from "../../src/JobGroup.js"
@@ -48,7 +48,7 @@ const installed: Layer.Layer<
   )
 )
 void installed
-const storage = { store, operationResponseBudgetMillis: 100 }
+const storage = { store, operationResponseBudget: Duration.millis(100) }
 const made: Effect.Effect<
   Worker.JobWorkerService,
   Worker.JobWorkerConfigurationError,
@@ -85,7 +85,7 @@ const polling: Layer.Layer<
   never,
   Worker.JobWorkerNotReady | Worker.JobWorkerConfigurationError,
   Worker.JobWorker
-> = Polling.layer([queue], { shutdownGraceMillis: 1000 })
+> = Polling.layer([queue], { shutdownGrace: Duration.millis(1000) })
 void polling
 export const explicitStorage = Worker.make(
   Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
@@ -105,3 +105,12 @@ Polling.layer([
   // @ts-expect-error Polling accepts queues, not consumer/plan configurations.
   { queue, localConcurrency: 2, claimLimitPerRun: 10, recoveryLimitPerRun: 10 }
 ])
+
+export const configuredPolling = Polling.layer([queue], {
+  idlePoll: Duration.seconds(1),
+  shutdownGrace: Duration.zero
+})
+// @ts-expect-error Polling takes a Duration, not bare milliseconds.
+export const numericPolling = Polling.layer([queue], { idlePoll: 1000 })
+// @ts-expect-error Polling takes a Duration, not bare milliseconds.
+export const numericGrace = Polling.layer([queue], { shutdownGrace: 1000 })

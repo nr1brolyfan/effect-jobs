@@ -1,8 +1,9 @@
 /**
  * Explicit Node/Bun polling owned by the application Layer Scope.
  */
-import { Effect, FiberSet, Layer, Match, Random, Schema, Scope } from "effect"
+import { Duration, Effect, FiberSet, Layer, Match, Random, Schema, Scope } from "effect"
 import { JobWorker, JobWorkerConfigurationError, JobWorkerNotReady } from "./JobWorker.js"
+import { durationMillis } from "./internal/policy/Retry.js"
 import { EpochMillis } from "./JobPolicy.js"
 import { observe } from "./JobTelemetry.js"
 import { WorkerCapability } from "./internal/worker/Capability.js"
@@ -13,23 +14,20 @@ import type { JobQueue } from "./JobQueue.js"
 import type { QueueRun } from "./internal/worker/QueueRun.js"
 
 /**
- * Polling configuration; idlePollMillis defaults to 1,000 positive integer
- * milliseconds. Idle/backoff sleeps include jitter. shutdownGraceMillis defaults
- * to 30,000; integer 0–300,000, with zero requesting immediate interruption.
+ * Polling configuration. idlePoll defaults to one second and must be positive.
+ * Idle/backoff sleeps include jitter. shutdownGrace defaults to 30 seconds
+ * and accepts zero through five minutes. Both use whole milliseconds.
  *
  * @category models
  */
 export interface Options extends DrainLimits {
-  readonly idlePollMillis?: number
-  readonly shutdownGraceMillis?: number
+  readonly idlePoll?: Duration.Duration
+  readonly shutdownGrace?: Duration.Duration
 }
 const OptionsSchema = Schema.Struct({
   ...DrainLimitsSchema.fields,
-  idlePollMillis: EpochMillis.pipe(Schema.optionalKey),
-  shutdownGraceMillis: Schema.Int.pipe(
-    Schema.check(Schema.isBetween({ minimum: 0, maximum: 300_000 })),
-    Schema.optionalKey
-  )
+  idlePoll: Schema.Duration.pipe(Schema.optionalKey),
+  shutdownGrace: Schema.Duration.pipe(Schema.optionalKey)
 })
 const backoffMillis = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000] as const
 const sleepWithJitter = (millis: number) =>
@@ -109,9 +107,21 @@ export const layer = (queues: ReadonlyArray<JobQueue>, options: Options = {}) =>
       }).pipe(
         Effect.mapError(() => new JobWorkerConfigurationError({ field: "polling" }))
       )
-      const idlePollMillis = decoded.idlePollMillis ?? 1_000
+      const idlePollMillis =
+        decoded.idlePoll === undefined ? 1_000 : durationMillis(decoded.idlePoll)
       if (!Schema.is(EpochMillis)(idlePollMillis)) {
-        return yield* new JobWorkerConfigurationError({ field: "idlePollMillis" })
+        return yield* new JobWorkerConfigurationError({ field: "idlePoll" })
+      }
+      const shutdownGraceMillis =
+        decoded.shutdownGrace === undefined
+          ? 30_000
+          : durationMillis(decoded.shutdownGrace)
+      if (
+        !Number.isInteger(shutdownGraceMillis) ||
+        shutdownGraceMillis < 0 ||
+        shutdownGraceMillis > 300_000
+      ) {
+        return yield* new JobWorkerConfigurationError({ field: "polling" })
       }
       if (
         queues.length === 0 ||
@@ -147,15 +157,13 @@ export const layer = (queues: ReadonlyArray<JobQueue>, options: Options = {}) =>
         (owned, exit) =>
           Effect.gen(function* () {
             yield* FiberSet.clear(owned.admissions)
-            if ((decoded.shutdownGraceMillis ?? 30_000) > 0) {
+            if (shutdownGraceMillis > 0) {
               // Only the race children are interruptible. Restoring interruptibility
               // on the finalizer itself would re-observe the shutdown interruption
               // and skip grace when the application is interrupted.
               yield* Effect.raceFirst(
                 FiberSet.awaitEmpty(owned.executions).pipe(Effect.interruptible),
-                Effect.sleep(decoded.shutdownGraceMillis ?? 30_000).pipe(
-                  Effect.interruptible
-                )
+                Effect.sleep(shutdownGraceMillis).pipe(Effect.interruptible)
               )
             }
           }).pipe(Effect.ensuring(Scope.close(owned.scope, exit)))

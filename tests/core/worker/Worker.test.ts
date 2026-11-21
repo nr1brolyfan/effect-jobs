@@ -165,13 +165,7 @@ for (const [name, failure, state] of [
     JobFailures.Isolate({ code: FailureCodes.define({ value: "invalid" }).value }),
     "Isolated"
   ],
-  [
-    "unknown",
-    JobFailures.OutcomeUnknown({
-      code: FailureCodes.define({ value: "response_lost" }).value
-    }),
-    "Active"
-  ]
+  ["unknown", JobFailures.OutcomeUnknown(), "Active"]
 ] as const) {
   it(`persists only explicit ${name} using the first stored policy`, async () => {
     await run(
@@ -1074,15 +1068,7 @@ it("recovery repeats nextFinalizationNumber but consumes only the independent st
       const worker = yield* make(test.store, (input) =>
         Effect.sync(() => {
           attempts.push(input.context.nextFinalizationNumber)
-        }).pipe(
-          Effect.andThen(
-            Effect.fail(
-              JobFailures.OutcomeUnknown({
-                code: FailureCodes.define({ value: "response_lost" }).value
-              })
-            )
-          )
-        )
+        }).pipe(Effect.andThen(Effect.fail(JobFailures.OutcomeUnknown())))
       )
       const once = drain(consumer(1)).pipe(
         Effect.provideService(Worker.JobWorker, worker)

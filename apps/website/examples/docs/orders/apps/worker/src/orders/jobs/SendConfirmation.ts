@@ -22,8 +22,7 @@ export class TransactionalEmails extends Context.Service<
 >()("worker/orders/TransactionalEmails") {}
 
 export const EmailCodes = FailureCode.define({
-  busy: "mail_busy",
-  uncertain: "mail_uncertain"
+  busy: "mail_busy"
 })
 
 // #region handler
@@ -45,8 +44,7 @@ export const ConfirmationHandlerLayer = Layer.unwrap(
               Effect.catchTags({
                 EmailBusy: () =>
                   Effect.fail(JobFailures.Retry({ code: EmailCodes.busy })),
-                EmailUncertain: () =>
-                  Effect.fail(JobFailures.OutcomeUnknown({ code: EmailCodes.uncertain }))
+                EmailUncertain: () => Effect.fail(JobFailures.OutcomeUnknown())
               })
             )
         })

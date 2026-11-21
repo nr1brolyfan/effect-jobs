@@ -61,6 +61,7 @@ Import: `effect-jobs/JobRetryPolicy`. Source: `src/JobRetryPolicy.ts`.
 | `jittered`             | value | Integer jitter in 80–120% of nominal delay, with the range bounded by the hard cap.     |
 | `JobRetryPolicy`       | type  | A reusable unvalidated description; Policy.make supplies the typed validation boundary. |
 | `maxFinalizedAttempts` | value | Maximum finalized attempts including the first, 1–100; 1 disables retries.              |
+| `none`                 | value | Disable scheduled retries. Bounded expired-lease recovery remains independent.          |
 
 ## JobFailure
 

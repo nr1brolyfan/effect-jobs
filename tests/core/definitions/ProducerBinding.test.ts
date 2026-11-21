@@ -1,5 +1,14 @@
 import * as JobApi from "../../../src/JobApi.js"
-import { Deferred, Effect, Fiber, Layer, Logger, Schema } from "effect"
+import {
+  DateTime,
+  Duration,
+  Deferred,
+  Effect,
+  Fiber,
+  Layer,
+  Logger,
+  Schema
+} from "effect"
 import { describe, expect, it } from "vitest"
 import * as Job from "../../../src/Job.js"
 import * as Producer from "../../../src/JobProducer.js"
@@ -161,7 +170,7 @@ describe("contract-first producer binding", () => {
           slot: "deferred",
           operationId: "invoice-1",
           payload: { invoiceId: "one" },
-          availableAt: 1
+          availableAt: DateTime.makeUnsafe(1)
         })
         expect(prepared.map((value) => value.catalog.queue)).toEqual([
           queue.name,
@@ -183,7 +192,10 @@ describe("contract-first producer binding", () => {
           }
         ).pipe(
           Effect.provide(
-            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+            Storage.layer({
+              store: test.store,
+              operationResponseBudget: Duration.millis(100)
+            })
           )
         )
         yield* worker.drain(queue)
@@ -433,14 +445,14 @@ describe("contract-first producer binding", () => {
           slot: "receipt" as const,
           operationId: "original",
           payload: { recipient: "private", total: 1n },
-          availableAt: 1,
+          availableAt: DateTime.makeUnsafe(1),
           queue: destination.name as "billing-priority" | "billing",
           policy: configured
         }
         const fiber = yield* producer.enqueue(input).pipe(Effect.forkChild)
         yield* Deferred.await(entered)
         input.operationId = "changed\u0000"
-        input.availableAt = 2
+        input.availableAt = DateTime.makeUnsafe(2)
         input.queue = "billing"
         configured.maxFinalizedAttempts = 8
         configured.retrySchedule.delayMillis = 123

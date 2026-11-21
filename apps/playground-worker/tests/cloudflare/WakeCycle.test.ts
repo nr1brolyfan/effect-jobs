@@ -1,6 +1,6 @@
 import * as JobApi from "effect-jobs/JobApi"
 import { describe, expect, it } from "vitest"
-import { Cause, Effect, Exit, Fiber, Layer } from "effect"
+import { Duration, Cause, Effect, Exit, Fiber, Layer } from "effect"
 import * as Job from "effect-jobs/Job"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Group from "effect-jobs/JobGroup"
@@ -57,7 +57,9 @@ const exercise = (
       queues: [{ queue, concurrency: 2 }]
     }
   ).pipe(
-    Layer.provide(Storage.layer({ store, operationResponseBudgetMillis: 100 })),
+    Layer.provide(
+      Storage.layer({ store, operationResponseBudget: Duration.millis(100) })
+    ),
     Layer.provide(handlers)
   )
   const program = WakeCycle.run(queue).pipe(
@@ -151,7 +153,7 @@ describe("finite wake cycle (mock storage, not PostgreSQL evidence)", () => {
         ).pipe(
           Layer.provide(
             Storage.layer({
-              operationResponseBudgetMillis: 100,
+              operationResponseBudget: Duration.millis(100),
               store: {
                 claim: () => Effect.die("must not claim"),
                 recoverExpired: () => Effect.die("must not recover"),

@@ -6,7 +6,7 @@ import type {
   DurableObjectNamespace,
   Request as WorkerRequest
 } from "@cloudflare/workers-types"
-import { Effect, Layer, Redacted, Schema } from "effect"
+import { Duration, Effect, Layer, Redacted, Schema } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import * as Native from "effect-jobs/PostgreSqlNative"
@@ -49,8 +49,8 @@ const nativeProbe = (definitions: Effect.Success<typeof setup>) =>
         connectTimeout: "1 second",
         idleTimeout: "1 second"
       })
-      const adapter = Native.make({ client, operationTimeoutMillis: 1_000 })
-      const jobs = yield* Jobs.make({ operationResponseBudgetMillis: 100 }).pipe(
+      const adapter = Native.make({ client, operationTimeout: Duration.millis(1_000) })
+      const jobs = yield* Jobs.make({ operationResponseBudget: Duration.millis(100) }).pipe(
         Effect.provideService(PostgreSqlApplication, adapter)
       )
       const result = yield* producer.enqueue({
@@ -86,7 +86,7 @@ export class Probe extends DurableObject {
       }
       const worker = Worker.layer(Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))), { queues: [{ queue, concurrency: 2 }] }).pipe(Layer.provide(Storage.layer({
         store,
-        operationResponseBudgetMillis: 100
+        operationResponseBudget: Duration.millis(100)
       })),
         Layer.provide(Group.handlers(group, (_handlers) => _handlers.handle("synthetic", () => Effect.void)))
       )

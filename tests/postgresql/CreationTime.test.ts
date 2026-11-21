@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs"
 import { randomUUID } from "node:crypto"
 import { Pool } from "../qualification/d6-pg/PgDriver.js"
-import { Cause, Effect, Exit, Option, Schema } from "effect"
+import { DateTime, Duration, Cause, Effect, Exit, Option, Schema } from "effect"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import * as Job from "../../src/Job.js"
 import * as Producer from "../../src/JobProducer.js"
@@ -46,7 +46,9 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     operationId,
     slot: "job" as const,
     payload: "fixture",
-    ...(availableAt === undefined ? {} : { availableAt })
+    ...(availableAt === undefined
+      ? {}
+      : { availableAt: DateTime.makeUnsafe(availableAt) })
   })
   const read = async (id: string) =>
     (await pool.query(`SELECT * FROM ${jobsRelation} WHERE id=$1`, [id])).rows[0]
@@ -78,7 +80,7 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     )
     adapter = Adapter.make(App.source(pool))
     jobs = await Effect.runPromise(
-      Jobs.make({ ...mapping, operationResponseBudgetMillis: 100 }).pipe(
+      Jobs.make({ ...mapping, operationResponseBudget: Duration.millis(100) }).pipe(
         Effect.provideService(PostgreSqlApplication, {
           ...adapter,
           ambient: Effect.flatMap(App.activeHandle, (handle) =>

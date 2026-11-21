@@ -20,7 +20,7 @@ export const names = [
   "indexes"
 ]
 export const imports = `import "effect/Schema"
-import { Context, Duration, Effect, Layer, Match, Schema } from "effect"
+import { Context, DateTime, Duration, Effect, Layer, Match, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
 import * as JobApi from "effect-jobs/JobApi"
 import * as JobGroup from "effect-jobs/JobGroup"

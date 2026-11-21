@@ -24,7 +24,7 @@ failure codes. Define bounded diagnostic codes with `FailureCode.define`.
 | `JobFailures.Retry({ code, retryBefore? })` | `RetryScheduled`, or `Dead` when the retry budget/cutoff prevents another attempt |
 | `JobFailures.Dead({ code })`                | `Dead`; no scheduled retry                                                        |
 | `JobFailures.Isolate({ code })`             | `Isolated`; investigate the artifact or invariant                                 |
-| `JobFailures.OutcomeUnknown({ code })`      | No confirmed finalization; leave recovery to the bounded lease protocol           |
+| `JobFailures.OutcomeUnknown()`              | No confirmed finalization; leave recovery to the bounded lease protocol           |
 
 Use `Retry` only when the application's effect contract makes another attempt
 safe. A defect, interruption, timeout or mixed Cause is not automatically mapped
@@ -42,27 +42,52 @@ independent idempotency/reconciliation contract for that key and request body.
   role="Consumer"
 />
 
+Use a named application function for handlers that share a failure policy.
+Give workflows separate mappings when they have different replay guarantees.
+The example treats a missing cutoff as an unrestricted cutoff under the retry
+policy. It validates a supplied epoch value before constructing a `DateTime.Utc`
+and chooses `Isolate` for invalid provider data.
+
+<CodeExample
+  sourcePath="ReportWorkflow.ts"
+  region="shared-failure-policy"
+  role="Consumer"
+/>
+
 ## Store the policy once
 
 `JobPolicy.make` is a lazy typed Effect that resolves a complete immutable policy.
 Attach the resolved value to a producer slot or supply it as a complete enqueue
-override. Its defaults are:
+override. The table lists constructor options and their defaults.
 
-| Option                 | Default                                                       |
-| ---------------------- | ------------------------------------------------------------- |
-| `maxFinalizedAttempts` | 3 finalized attempts, including the first                     |
-| `retry`                | Fixed 5 seconds                                               |
-| `maxStalledCount`      | 1 expired-lease recovery before the next makes the job `Dead` |
-| `attemptTimeout`       | 30 seconds                                                    |
-| `leaseDuration`        | Fixed, non-renewable 90 seconds                               |
+| Option            | Default                                                       |
+| ----------------- | ------------------------------------------------------------- |
+| `retry`           | Fixed 5 seconds                                               |
+| `maxStalledCount` | 1 expired-lease recovery before the next makes the job `Dead` |
+| `attemptTimeout`  | 30 seconds                                                    |
+| `leaseDuration`   | Fixed, non-renewable 90 seconds                               |
+
+The resolved policy's `maxFinalizedAttempts` defaults to three. Configure this
+field on the retry description. Three includes the first finalized attempt and
+allows at most two scheduled retries. Expired-lease recovery can invoke the handler
+again without consuming a finalized attempt.
+
+<CodeExample
+  sourcePath="ReportWorkflow.ts"
+  region="finalized-attempt-limit"
+  role="Producer"
+/>
+
+Use `JobRetryPolicy.none` for a single finalized attempt and no scheduled retries.
+Expired leases still follow `maxStalledCount`.
 
 Compose `JobRetryPolicy.fixed(duration)` or `exponential(base)` with
 `capped(duration)`, `jittered()` and `maxFinalizedAttempts(limit)` as needed.
 A confirmed retry uses database time plus its bounded computed delay. The chosen
 availability is persisted before another worker can continue; reconciliation does
 not redraw jitter. Retry arithmetic rejects overflow rather than clamping it. If that next availability is **at or after**
-`retryBefore`, the job becomes `Dead`. The cutoff limits scheduling; it is not a
-promise to stop an already running handler at that timestamp.
+`retryBefore` (a `DateTime.Utc`), the job becomes `Dead`. The cutoff governs when
+the next retry can be scheduled. The execution deadline comes from `attemptTimeout`.
 
 The attempt timeout must be strictly shorter than the lease. The runtime deadline
 covers validation, decoding, handler execution and the bounded finalization
