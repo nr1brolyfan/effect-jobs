@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Isolated source compatibility probe; no published peer ranges are overridden.
+# Each runtime gets an empty database on one fresh loopback-only container.
+set -eu -o pipefail
+here=$(cd "$(dirname "$0")" && pwd)
+root=$(cd "$here/../../.." && pwd)
+scratch=$(mktemp -d)
+id=
+cleanup() {
+  if [[ -n "$id" ]]; then docker rm -f "$id" >/dev/null; fi
+  rm -rf "$scratch"
+}
+trap cleanup EXIT
+cd "$scratch"
+cp "$here"/*.mjs "$here"/package*.json .
+npm ci --no-audit --no-fund
+npm ls --all >/dev/null
+# Compile the checked-out library in isolation. Only the export map is used:
+# installing the current release with future peers would mask a peer mismatch.
+mkdir -p node_modules/effect-jobs/dist
+cp -R "$root/src" .
+cp "$root/tsconfig"{,.build}.json .
+./node_modules/.bin/tsc -p tsconfig.build.json --outDir node_modules/effect-jobs/dist
+node --input-type=module - "$root" <<'JS'
+import assert from 'node:assert/strict'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { build } from 'esbuild'
+const root = process.argv[2]
+const { name, type, exports } = JSON.parse(readFileSync(`${root}/package.json`))
+const installed = Object.keys(JSON.parse(readFileSync('package-lock.json')).packages)
+assert(!installed.some(p => /node_modules\/(?:pg|@types\/pg|@effect\/sql-pg)$/.test(p)))
+writeFileSync('node_modules/effect-jobs/package.json', JSON.stringify({ name, type, exports }))
+await build({entryPoints:['Migrations','ReportWorkflow'].map(p=>`${root}/apps/website/examples/docs/${p}.ts`),tsconfigRaw:{},outdir:'.',format:'esm',target:'es2022'})
+JS
+cat > Integration.mts <<'TS'
+import { Duration, Effect } from "effect"
+import { DrizzlePostgresClient, makeWithDefaults } from "drizzle-orm/postgres/effect"
+import * as Native from "effect-jobs/PostgreSqlNative"
+export const compose = Effect.gen(function* () {
+  const client = yield* DrizzlePostgresClient.DrizzlePostgresClient
+  const db = yield* makeWithDefaults()
+  return { db, adapter: Native.make({ client, operationTimeout: Duration.seconds(3) }) }
+})
+TS
+node -e 'require("node:fs").writeFileSync("tsconfig.consumer.json", JSON.stringify({extends:"./tsconfig.json",include:["Integration.mts"]}))'
+./node_modules/.bin/tsc -p tsconfig.consumer.json
+pass=$(node -p 'crypto.randomUUID()')
+id=$(docker run --rm -d -p 127.0.0.1::5432 -e POSTGRES_PASSWORD="$pass" postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea -c statement_timeout=5000 -c lock_timeout=3000 -c idle_in_transaction_session_timeout=7000)
+port=$(docker port "$id" 5432/tcp | cut -d: -f2)
+for i in {1..80}; do
+  if docker exec "$id" pg_isready -h 127.0.0.1 -U postgres >/dev/null; then break; fi
+  sleep 0.25
+done
+status=0
+for rt in node bun workerd; do
+  docker exec "$id" createdb -U postgres "$rt"
+  export PROBE_URL="postgres://postgres:$pass@127.0.0.1:$port/$rt"
+  echo "Testing $rt"
+  if [[ "$rt" == workerd ]]; then
+    timeout 90 node Workerd.mjs || status=1
+  else
+    timeout 90 "$rt" --input-type=module -e 'import {qualify, drain} from "./Transaction.mjs"; await qualify(process.env.PROBE_URL); await drain(process.env.PROBE_URL)' || status=1
+  fi
+  sessions=$(docker exec "$id" psql -XAt -U postgres -d postgres -c "select count(*) from pg_stat_activity where datname='$rt'")
+  if [[ "$sessions" != 0 ]]; then echo "$rt: $sessions database sessions left open" >&2; status=1; fi
+done
+exit "$status"
