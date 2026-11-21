@@ -1,4 +1,4 @@
-import type { HealthSample } from "./postgresql/internal/Health.js"
+import type { HealthSample } from "./internal/telemetry/HealthModel.js"
 import { Cause, Clock, Effect, Exit, Match, Metric, Schema } from "effect"
 import { JobPolicyIncompatible } from "./JobContract.js"
 import { PositiveMillis } from "./JobPolicy.js"

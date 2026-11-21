@@ -1,4 +1,5 @@
 import { Effect, Result, Schema, SchemaGetter } from "effect"
+import type { HealthBucket, HealthSample } from "../../internal/telemetry/HealthModel.js"
 import { JobAddress, QueueName } from "../../JobIdentity.js"
 import { BatchLimit } from "../../JobLifecycle.js"
 import { JobStoreProtocolError } from "../../JobStore.js"
@@ -12,18 +13,6 @@ export interface HealthRequest {
   readonly queue: string
   readonly supportedCatalog: ReadonlyArray<JobAddress>
   readonly limit: number
-}
-export interface HealthBucket {
-  readonly count: number
-  readonly saturated: boolean
-  readonly oldestAt: number | null
-}
-export interface HealthSample {
-  readonly sampledAt: number
-  readonly supported: HealthBucket
-  readonly unsupported: HealthBucket
-  readonly expired: HealthBucket
-  readonly cleanup: HealthBucket
 }
 const Request = Schema.Struct({
   queue: QueueName,
