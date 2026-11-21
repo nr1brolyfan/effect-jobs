@@ -138,7 +138,7 @@ const compilerOptions = {
 }
 const checks = `
 import assert from "node:assert/strict"
-import { Effect } from "effect"
+import { Duration, Effect } from "effect"
 import * as Definition from "./Job.ts"
 import * as Producer from "./JobProducer.ts"
 import * as Policy from "./JobPolicy.ts"
@@ -173,7 +173,7 @@ const store: JobStoreService = {
   recoverExpired: () => Effect.succeed(0)
 }
 assert.equal(claims, 0)
-assert.deepEqual(await Effect.runPromise(Runtime.runOnce({ store, operationResponseBudgetMillis: 100 })), { _tag: "Idle", claimed: 0, recovered: 0 })
+assert.deepEqual(await Effect.runPromise(Runtime.runOnce({ store, operationResponseBudget: Duration.millis(100) })), { _tag: "Idle", claimed: 0, recovered: 0 })
 assert.equal(claims, 1)
 console.log("JSDoc constructor/codec/finite empty-store drain examples PASS")
 `
