@@ -1,7 +1,7 @@
 import { Effect, Layer } from "effect"
 import { Database } from "#database/Database"
 import { syntheticMail } from "#database/schema"
-import { TransactionalEmails, EmailUncertain } from "#worker/orders/jobs/SendConfirmation"
+import { TransactionalEmails, EmailUncertain } from "#worker/orders/TransactionalEmails"
 
 // Durable synthetic records only. No network, recipient, credentials or email.
 // A production adapter needs its own idempotency and reconciliation contract.

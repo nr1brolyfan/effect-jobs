@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
+import { symlinkSync, unlinkSync } from "node:fs"
 import { Effect, Exit, Cause, Schema } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import { eq } from "drizzle-orm"
@@ -7,9 +8,10 @@ import { pgTable, text, integer } from "drizzle-orm/pg-core"
 import * as Producer from "effect-jobs/JobProducer"
 import { JobPersistenceError } from "effect-jobs/JobEnqueue"
 import {
-  ApplicationLayer,
-  Database
+  Database,
+  PersistenceLayer
 } from "../../examples/docs/orders/packages/database/src/Database.js"
+import { ProducerLayer } from "../../examples/docs/orders/apps/api/src/main.js"
 import {
   orders,
   orderReceipts,
@@ -32,7 +34,8 @@ import { placeOrderWithInvoice } from "../../examples/docs/orders/apps/api/src/o
 import { createInvoice } from "../../examples/docs/orders/apps/worker/src/orders/jobs/CreateInvoice.js"
 import {
   drainOrders,
-  drainConfirmations
+  drainConfirmations,
+  WorkerApplicationLayer
 } from "../../examples/docs/orders/apps/worker/src/main.js"
 import {
   OrderJobs,
@@ -93,6 +96,7 @@ const ClientLayer = PgClient.layer({
     idle_in_transaction_session_timeout: "5000"
   }
 })
+const withWorker = Effect.provide(WorkerApplicationLayer)
 const audit = pgTable("order_transaction_audit", {
   tableName: text("table_name").notNull(),
   pid: integer("pid").notNull(),
@@ -183,7 +187,7 @@ await Effect.runPromise(
       assert.equal(duplicate._tag, "AlreadyPresent")
       assert.equal(duplicate.jobId, first.jobId)
       assert.deepEqual(yield* counts, [1, 1, 1, 1, 0, 0, 4])
-      yield* drainConfirmations
+      yield* drainConfirmations.pipe(withWorker)
       assert.equal((yield* db.select().from(syntheticMail)).length, 1)
       // Whole-operation semantics include fields absent from the job payload.
       for (const changed of [
@@ -288,7 +292,7 @@ await Effect.runPromise(
       // Dependence is explicit application code, repeatable even concurrently.
       const handoffs = yield* Effect.forEach([0, 1], () => createInvoice("expanded"), {
         concurrency: 2
-      })
+      }).pipe(withWorker)
       assert.equal(handoffs[0]!.jobId, handoffs[1]!.jobId)
       const [invoice] = yield* db.select().from(invoices)
       assert(invoice)
@@ -315,7 +319,11 @@ await Effect.runPromise(
         "ALTER TABLE invoices ADD CONSTRAINT reject_handoff CHECK (order_id <> 'handoff-rollback')"
       )
       const beforeHandoff = yield* counts
-      assert(Exit.isFailure(yield* createInvoice("handoff-rollback").pipe(Effect.exit)))
+      assert(
+        Exit.isFailure(
+          yield* createInvoice("handoff-rollback").pipe(withWorker, Effect.exit)
+        )
+      )
       assert.deepEqual(yield* counts, beforeHandoff)
       yield* pg.unsafe("ALTER TABLE invoices DROP CONSTRAINT reject_handoff")
       // Synthetic acknowledgement loss AFTER durable real COMMIT. No network claim.
@@ -351,8 +359,8 @@ await Effect.runPromise(
       assert.deepEqual(yield* readOrderReceipt("absent"), [])
       assert.deepEqual(yield* counts, beforeReads, "reconciliation performs no writes")
       // Worker actually uses the canonical handlers and synthetic mail adapter.
-      yield* drainOrders
-      yield* drainOrders
+      yield* drainOrders.pipe(withWorker)
+      yield* drainOrders.pipe(withWorker)
       const mail = yield* db.select().from(syntheticMail)
       assert.equal(
         mail.length,
@@ -369,8 +377,8 @@ await Effect.runPromise(
       const completed = yield* db.select().from(jobTables.jobs)
       assert(completed.every((j) => j.state === "Completed"))
       const beforeReplay = yield* counts
-      yield* createInvoice("expanded")
-      yield* drainOrders
+      yield* createInvoice("expanded").pipe(withWorker)
+      yield* drainOrders.pipe(withWorker)
       assert.deepEqual(
         yield* counts,
         beforeReplay,
@@ -378,7 +386,7 @@ await Effect.runPromise(
       )
       yield* Scenarios.deliveryReasons
       yield* qualifyBindings(pg)
-    }).pipe(Effect.provide(ApplicationLayer))
+    }).pipe(Effect.provide(ProducerLayer))
   }).pipe(Effect.provide(ClientLayer))
 )
 console.log(
@@ -394,16 +402,17 @@ const cliEnvironment = {
   WITH_INVOICE: "false",
   WORKER_MODE: "confirmation"
 }
-const invoke = (file: string, env: NodeJS.ProcessEnv) => {
-  const result = spawnSync(process.execPath, [file], {
+const invoke = (env: NodeJS.ProcessEnv, ...args: string[]) => {
+  const result = spawnSync(process.execPath, args, {
     env,
     encoding: "utf8",
     timeout: 30000
   })
-  assert.equal(result.status, 0, `CLI ${file}: ${result.stderr}`)
+  assert.equal(result.status, 0, `CLI ${args.join(" ")}: ${result.stderr}`)
 }
-invoke("source/dist/apps/api/src/main.js", cliEnvironment)
-invoke("source/dist/apps/worker/src/main.js", cliEnvironment)
+const producerEntry = "dist/apps/api/src/main.js"
+invoke(cliEnvironment, producerEntry)
+invoke(cliEnvironment, "dist/apps/worker/src/main.js")
 const expandedEnvironment = {
   ...cliEnvironment,
   OPERATION_ID: "cli-expanded",
@@ -411,16 +420,16 @@ const expandedEnvironment = {
   WITH_INVOICE: "true",
   WORKER_MODE: "drain"
 }
-invoke("source/dist/apps/api/src/main.js", expandedEnvironment)
-invoke("source/dist/apps/worker/src/main.js", expandedEnvironment)
-invoke("source/dist/apps/worker/src/main.js", expandedEnvironment)
+invoke(expandedEnvironment, producerEntry)
+invoke(expandedEnvironment, "dist/apps/worker/src/main.js")
+invoke(expandedEnvironment, "dist/apps/worker/src/main.js")
 await Effect.runPromise(
   Effect.gen(function* () {
     const db = yield* Database
     assert.equal((yield* db.select().from(orders)).length, 6)
     assert.equal((yield* db.select().from(invoices)).length, 3)
     assert.equal((yield* db.select().from(syntheticMail)).length, 9)
-  }).pipe(Effect.provide(ApplicationLayer), Effect.provide(ClientLayer))
+  }).pipe(Effect.provide(PersistenceLayer), Effect.provide(ClientLayer))
 )
 console.log(
   "PASS: installed producer and worker CLI execution for confirmation-only and expanded invoice submissions"
@@ -433,7 +442,7 @@ await Effect.runPromise(
     yield* Scenarios.businessConflict
     yield* Scenarios.payloadConflict
     yield* Scenarios.catalogConflict
-  }).pipe(Effect.provide(ApplicationLayer), Effect.provide(ClientLayer))
+  }).pipe(Effect.provide(ProducerLayer), Effect.provide(ClientLayer))
 )
 console.log(
   "PASS: exact canonical expandable scenarios and replay predicate negative controls"
@@ -547,7 +556,7 @@ await Effect.runPromise(
         .where(eq(jobTables.jobs.operationId, failed.operationId))).length,
       0
     )
-  }).pipe(Effect.provide(ApplicationLayer), Effect.provide(ClientLayer))
+  }).pipe(Effect.provide(ProducerLayer), Effect.provide(ClientLayer))
 )
 console.log(
   "PASS: beginner same-client atomic create, duplicate rejection, enqueue rollback; opening without-jobs success/failure window; advanced replay remains independently qualified"
@@ -557,8 +566,52 @@ await Effect.runPromise(
   Effect.gen(function* () {
     yield* Scenarios.duplicateCreate
     yield* Scenarios.idempotentSubmissionReplay
-  }).pipe(Effect.provide(ApplicationLayer), Effect.provide(ClientLayer))
+  }).pipe(Effect.provide(ProducerLayer), Effect.provide(ClientLayer))
 )
 console.log(
   "PASS: exact beginner duplicate and advanced idempotent replay/conflict content scenarios"
 )
+
+// Fresh IDs distinguish import side effects from a successful CLI submission.
+const linkedEntry = "orders-api.mjs"
+symlinkSync(producerEntry, linkedEntry)
+try {
+  for (const { operationId, args, expected } of [
+    {
+      operationId: "imported",
+      args: ["--input-type=module", "-e", 'await import("./orders-api.mjs")'],
+      expected: [0, 0, 0]
+    },
+    { operationId: "direct", args: [producerEntry], expected: [1, 2, 1] },
+    { operationId: "linked", args: [linkedEntry], expected: [1, 2, 1] }
+  ]) {
+    invoke(
+      { ...expandedEnvironment, OPERATION_ID: operationId, ORDER_ID: operationId },
+      ...args
+    )
+    const counts = await Effect.runPromise(
+      Effect.gen(function* () {
+        const db = yield* Database
+        const order = yield* db
+          .select()
+          .from(orders)
+          .where(eq(orders.operationId, operationId))
+        const jobs = yield* db
+          .select()
+          .from(jobTables.jobs)
+          .where(eq(jobTables.jobs.operationId, operationId))
+        const receipts = yield* db
+          .select()
+          .from(orderReceipts)
+          .where(eq(orderReceipts.operationId, operationId))
+        return [order.length, jobs.length, receipts.length]
+      }).pipe(Effect.provide(PersistenceLayer), Effect.provide(ClientLayer))
+    )
+    console.log(
+      `Installed producer ${operationId}: orders/jobs/receipts ${counts.join("/")}`
+    )
+    assert.deepEqual(counts, expected, `producer ${operationId}: orders/jobs/receipts`)
+  }
+} finally {
+  unlinkSync(linkedEntry)
+}

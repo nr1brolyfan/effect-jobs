@@ -5,15 +5,15 @@ sidebar:
   order: 2
 ---
 
-These docs describe the upcoming, unreleased contract-first API, qualified locally
-with Effect 4.1.0. The published `effect-jobs@0.1.0-alpha.2` targets the older
-Effect 4.0.5 API; installing it from npm does not provide the API shown here.
-The checkout still carries the alpha.2 version; no newer npm release is published.
-Build and pack the candidate checkout with `bun run build` and `npm pack --ignore-scripts`,
-then install that exact tarball and its supported Effect peer from your application directory:
+These docs cover the local, unpublished `effect-jobs@0.1.0-alpha.3` candidate
+and its qualified Effect `4.1.0` peer. The historical npm release
+`effect-jobs@0.1.0-alpha.2` used Effect `4.0.5`.
+
+From the candidate checkout, build and pack the library with `bun run build`
+and `npm pack --ignore-scripts`. Install that tarball from your application directory:
 
 ```sh
-npm install --save-exact /path/to/effect-jobs-0.1.0-alpha.2.tgz effect@4.1.0
+npm install --save-exact /path/to/effect-jobs-0.1.0-alpha.3.tgz effect@4.1.0
 ```
 
 Keep these versions exact in the application manifest so subsequent installs do

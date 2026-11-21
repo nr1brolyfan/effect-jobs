@@ -145,9 +145,10 @@ These are complete source functions; their imports come from the labelled file.
 ## Set up once, then serve requests
 
 The application owns **one scoped PgClient**, its pool, finite acquisition/control/release
-timeouts and migrations. Build `ApplicationLayer` once with that client; keep the same
-PgClient service available to request handlers. Drizzle and the jobs adapter then
-observe the same client's transaction service in the same Effect Context.
+timeouts and migrations. Build the tutorial’s `ProducerLayer` once with that
+client and keep the same PgClient service available to request handlers. Drizzle
+and the jobs adapter then observe the same client's transaction service in the
+same Effect Context.
 
 <details className="ej-setup">
 <summary>Show the checked composition and application schema</summary>

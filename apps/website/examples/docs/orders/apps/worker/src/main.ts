@@ -1,5 +1,6 @@
 // Platform and native SQL APIs are intentionally pinned to Effect 4.1.0 here.
 // @effect-diagnostics unstableApiUsage:off
+import { pathToFileURL } from "node:url"
 import { Duration, Config, Effect, Layer, Match } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import { NodeRuntime } from "@effect/platform-node"
@@ -7,8 +8,9 @@ import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
 import * as JobWorker from "effect-jobs/JobWorker"
 import * as JobStorage from "effect-jobs/JobStorage"
 import * as JobPolling from "effect-jobs/JobPolling"
-import { ApplicationLayer } from "#database/Database"
-import { OrderJobs, OrdersQueue } from "#orders/contracts/jobs"
+import { PersistenceLayer } from "#database/Database"
+import { OrderJobs, OrderJobsLayer, OrdersQueue } from "#orders/contracts/jobs"
+import { WorkerDefinitionsLayer } from "#worker/orders/Definitions"
 import { ConfirmationHandlerLayer } from "#worker/orders/jobs/SendConfirmation"
 import { InvoiceHandlerLayer } from "#worker/orders/jobs/CreateInvoice"
 import { InvoiceDeliveryHandlerLayer } from "#worker/orders/jobs/SendInvoice"
@@ -69,6 +71,11 @@ export const pollOrders = Effect.never.pipe(
 )
 // #endregion composition
 
+export const WorkerApplicationLayer = Layer.mergeAll(
+  PersistenceLayer,
+  WorkerDefinitionsLayer
+).pipe(Layer.provideMerge(OrderJobsLayer))
+
 const ClientLayer = PgClient.layerConfig({
   url: Config.Redacted("DATABASE_URL"),
   connectTimeout: Config.succeed("2 seconds"),
@@ -90,9 +97,9 @@ const program = Effect.gen(function* () {
     Match.when("drain", () => drainOrders),
     Match.exhaustive
   )
-}).pipe(Effect.provide(ApplicationLayer.pipe(Layer.provideMerge(ClientLayer))))
+}).pipe(Effect.provide(WorkerApplicationLayer.pipe(Layer.provideMerge(ClientLayer))))
 
 // Execute only when invoked as a CLI; importing composition starts no worker.
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   NodeRuntime.runMain(program)
 }

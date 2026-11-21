@@ -6,7 +6,8 @@ import { JobFailures } from "effect-jobs/JobFailure"
 import { Database } from "#database/Database"
 import { invoices } from "#database/schema"
 import { OrderJobs } from "#orders/contracts/jobs"
-import { TransactionalEmails, EmailCodes } from "#worker/orders/jobs/SendConfirmation"
+import { TransactionalEmails } from "#worker/orders/TransactionalEmails"
+import { EmailCodes } from "#worker/orders/jobs/EmailCodes"
 
 const Codes = FailureCode.define({
   missing: "invoice_missing",
