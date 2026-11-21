@@ -13,12 +13,26 @@ The worker emits these observations through Effect's configured logging, tracing
 and metric facilities. The application owns logger/exporter setup and collection;
 there is no jobs-specific exporter installation API.
 
-| Signal    | Name                                    | Meaning                                                                      |
-| --------- | --------------------------------------- | ---------------------------------------------------------------------------- |
-| Counter   | `effect_jobs_operation_total`           | One observation per instrumented operation boundary                          |
-| Histogram | `effect_jobs_operation_duration_millis` | Elapsed operation milliseconds; boundaries 1, 10, 100, 1,000, 10,000, 60,000 |
-| Span      | `effect-jobs.<operation>`               | Instrumented boundary with bounded fields                                    |
-| Info log  | `effect-jobs operation completed`       | Same operation classification                                                |
+| Signal      | Name                                    | Meaning                                                                      |
+| ----------- | --------------------------------------- | ---------------------------------------------------------------------------- |
+| Counter     | `effect_jobs_operation_total`           | One observation per instrumented operation boundary                          |
+| Histogram   | `effect_jobs_operation_duration_millis` | Elapsed operation milliseconds; boundaries 1, 10, 100, 1,000, 10,000, 60,000 |
+| Span        | `effect-jobs.<operation>`               | Instrumented boundary with bounded fields                                    |
+| Debug log   | `effect-jobs operation completed`       | Success, expected retry, or interruption                                     |
+| Warning log | `effect-jobs operation completed`       | Failure, unknown outcome, timeout, isolation, or dead outcome                |
+
+An Info threshold hides the Debug completion logs. To see normal worker activity,
+provide Effect's Debug threshold around the drain. Operation metrics are collected
+independently of the log threshold.
+
+```ts
+import { Effect, References } from "effect"
+import type { JobQueue } from "effect-jobs/JobQueue"
+import * as JobWorker from "effect-jobs/JobWorker"
+
+const drainWithDebugLogs = (queue: JobQueue) =>
+  JobWorker.drain(queue).pipe(Effect.provideService(References.MinimumLogLevel, "Debug"))
+```
 
 These are operation signals, not a durable event history, queue-depth gauge or
 end-to-end report completion counter. A successful claim means the claim operation
@@ -27,13 +41,14 @@ boundaries produce separate observations and must not be summed as unique jobs.
 
 ## Group by bounded fields
 
-| Field                      | Emitted vocabulary                                                                 |
-| -------------------------- | ---------------------------------------------------------------------------------- |
-| `jobs.operation`           | `claim`, `release`, `execute`, `finalize`, `recover-expired`, `polling`, `backoff` |
-| `jobs.phase`               | `dispatch`, `handler`, `finalization`, `reconciliation`, `protocol`, `maintenance` |
-| `jobs.outcome`             | `success`, `failure`, `interrupted`, `unknown`, `timeout`                          |
-| `jobs.cause_kind`          | When a Cause is observed: `failure`, `defect`, `interrupted`, or `mixed`           |
-| `jobs.reason_count_bucket` | When a Cause is observed: `1`, `2`, or `3+`                                        |
+| Field                      | Emitted vocabulary                                                                                                                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `jobs.operation`           | `claim`, `release`, `execute`, `invoke`, `attempt`, `finalize`, `recover-expired`, `polling`, `backoff`, `drain`, `enqueue`, `enqueue-standalone`, `cleanup`, `permit-wait`, `health` |
+| `jobs.phase`               | `dispatch`, `handler`, `finalization`, `reconciliation`, `protocol`, `maintenance`, `provisional`, `committed`                                                                        |
+| `jobs.outcome`             | `success`, `failure`, `interrupted`, `unknown`, `timeout`, `retry`, `dead`, `isolate`                                                                                                 |
+| `jobs.result`              | Allowlisted result tag (for example `Claimed`, `Empty`, or `Retry`), or `none`                                                                                                        |
+| `jobs.cause_kind`          | When a Cause is observed: `failure`, `defect`, `interrupted`, or `mixed`                                                                                                              |
+| `jobs.reason_count_bucket` | When a Cause is observed: `1`, `2`, or `3+`                                                                                                                                           |
 
 Not every operation/phase/outcome combination occurs. An `Unknown` or `Unresolved`
 operation result classifies as `unknown`; a polling `Backoff` result classifies as
