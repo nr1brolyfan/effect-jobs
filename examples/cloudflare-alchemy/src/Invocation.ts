@@ -2,7 +2,7 @@
 // The native HTTP/SQL APIs are intentionally pinned to Effect 4.1.0.
 import * as Pg from "@effect/sql-pg/PgClient"
 import * as Reactivity from "effect/reactivity/Reactivity"
-import { Effect, Layer } from "effect"
+import { Duration, Effect, Layer } from "effect"
 import type { Redacted } from "effect"
 import * as Jobs from "effect-jobs/PostgreSqlJobs"
 import * as Native from "effect-jobs/PostgreSqlNative"
@@ -52,11 +52,11 @@ export const openInvocation = <R = never>(settings: Settings<R>) =>
     })
     const jobs = yield* Jobs.make({
       schema: "alchemy_example",
-      operationResponseBudgetMillis: 500
+      operationResponseBudget: Duration.millis(500)
     }).pipe(
       Effect.provideService(
         PostgreSqlApplication,
-        Native.make({ client, operationTimeoutMillis: 2500 })
+        Native.make({ client, operationTimeout: Duration.millis(2500) })
       )
     )
     yield* jobs.ready

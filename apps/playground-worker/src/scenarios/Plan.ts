@@ -1,4 +1,4 @@
-import { Data, Duration, Effect, Match, Schema } from "effect"
+import { DateTime, Data, Duration, Effect, Match, Schema } from "effect"
 import {
   ScenarioCommand,
   type ScenarioId
@@ -122,7 +122,9 @@ export const enqueue = (job: PlannedJob) =>
       operationId: job.producer.operationId,
       policy: job.policy,
       payload: job.payload,
-      ...(job.availableAt === undefined ? {} : { availableAt: job.availableAt })
+      ...(job.availableAt === undefined
+        ? {}
+        : { availableAt: DateTime.makeUnsafe(job.availableAt) })
     }
     return yield* Match.value(job.workload).pipe(
       Match.when("welcome-email", () =>

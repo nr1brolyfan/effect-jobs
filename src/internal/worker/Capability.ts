@@ -14,7 +14,7 @@ export class JobWorkerConfigurationError extends Data.TaggedError(
     | "catalog"
     | "operationResponseBudgetMillis"
     | "consumer"
-    | "idlePollMillis"
+    | "idlePoll"
     | "queues"
     | "drain"
     | "polling"

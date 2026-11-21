@@ -1,6 +1,7 @@
 import * as JobApi from "../../../src/JobApi.js"
 import assert from "node:assert/strict"
 import {
+  Duration,
   Context,
   Deferred,
   Effect,
@@ -58,7 +59,7 @@ const make = (store: JobStoreService<unknown>) =>
   }).pipe(
     Effect.provide(
       Layer.mergeAll(
-        Storage.layer({ store, operationResponseBudgetMillis: 100 }),
+        Storage.layer({ store, operationResponseBudget: Duration.millis(100) }),
         handlers
       )
     )
@@ -223,19 +224,21 @@ it("validates every plan queue before spawning loops and rejects invalid polling
         ).pipe(Effect.result)
         assert.equal(result._tag, "Failure")
       }
-      for (const idlePollMillis of [0, -1, 0.5, Infinity, NaN]) {
+      for (const idlePollMillis of [0, -1, 0.5, Infinity]) {
         const result = yield* Layer.build(
-          Polling.layer([queue], { ...pollingOptions, idlePollMillis }).pipe(
-            Layer.provide(Layer.succeed(Worker.JobWorker, worker))
-          )
+          Polling.layer([queue], {
+            ...pollingOptions,
+            idlePoll: Duration.millis(idlePollMillis)
+          }).pipe(Layer.provide(Layer.succeed(Worker.JobWorker, worker)))
         ).pipe(Effect.result)
         assert.equal(result._tag, "Failure")
       }
-      for (const shutdownGraceMillis of [-1, 0.5, 300_001, Infinity, NaN]) {
+      for (const shutdownGraceMillis of [-1, 0.5, 300_001, Infinity]) {
         const result = yield* Layer.build(
-          Polling.layer([queue], { ...pollingOptions, shutdownGraceMillis }).pipe(
-            Layer.provide(Layer.succeed(Worker.JobWorker, worker))
-          )
+          Polling.layer([queue], {
+            ...pollingOptions,
+            shutdownGrace: Duration.millis(shutdownGraceMillis)
+          }).pipe(Layer.provide(Layer.succeed(Worker.JobWorker, worker)))
         ).pipe(Effect.result)
         assert.equal(result._tag, "Failure")
       }
@@ -292,7 +295,7 @@ it("captures provider requirements once at worker construction, not as ambient p
       ).pipe(
         Effect.provide(
           Layer.mergeAll(
-            Storage.layer({ store, operationResponseBudgetMillis: 100 }),
+            Storage.layer({ store, operationResponseBudget: Duration.millis(100) }),
             handlers
           )
         ),
@@ -343,14 +346,17 @@ it("zero grace interrupts active executions and never releases after execution b
       ).pipe(
         Effect.provide(
           Layer.mergeAll(
-            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 }),
+            Storage.layer({
+              store: test.store,
+              operationResponseBudget: Duration.millis(100)
+            }),
             activeHandlers
           )
         )
       )
       const scope = yield* Scope.make()
       yield* Scope.provide(scope)(
-        start(worker, { ...pollingOptions, shutdownGraceMillis: 0 })
+        start(worker, { ...pollingOptions, shutdownGrace: Duration.millis(0) })
       )
       yield* Deferred.await(reached)
       for (let index = 0; index < 10; index++) {

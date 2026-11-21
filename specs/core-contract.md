@@ -215,14 +215,16 @@ counts. Enforcing those transitions belongs to the lifecycle unit.
 `JobFailure` is a Schema/type union. `JobFailures` supplies checked frozen factories:
 
 ```ts
-JobFailures.Retry({ code: FailureCode, retryBefore?: number })
+JobFailures.Retry({ code: FailureCode, retryBefore?: DateTime.Utc })
 JobFailures.Dead({ code: FailureCode })
 JobFailures.Isolate({ code: FailureCode })
-JobFailures.OutcomeUnknown({ code: FailureCode })
+JobFailures.OutcomeUnknown()
 ```
 
-Codes are 1–128 characters matching `^[a-z0-9][a-z0-9_-]*$`; cutoffs use
-EpochMillis. Catalog definition validates once and throws an entry-specific `InvalidFailureCode`.
+Codes are 1–128 characters matching `^[a-z0-9][a-z0-9_-]*$`. Cutoffs use
+`DateTime.Utc` within the `EpochMillis` range. The worker converts the cutoff to
+epoch milliseconds before finalization. Catalog definition validates once and
+throws an entry-specific `InvalidFailureCode`.
 Dynamic strings use `FailureCode.parse` returning Result; invalid retry cutoffs throw
 `InvalidJobFailure { field: "retryBefore" }`, without recording input text. Domain errors are mapped by ordinary
 Effect composition. Unknown is not a seventh lifecycle state; mixed causes,
@@ -230,7 +232,8 @@ defects, interruption or timeout never imply known-safe Retry. Runtime boundarie
 must validate even structurally constructed failure values with `JobFailure`.
 
 `EnqueueInput<Payload>` has required producer, decoded payload, resolved policy
-and optional availableAt. No job ID is supplied. `EnqueueResult` is a
+and optional `availableAt: DateTime.Utc`. Preparation converts explicit eligibility
+to epoch milliseconds. No job ID is supplied. `EnqueueResult` is a
 `Data.taggedEnum` factory for `Inserted { jobId } | AlreadyPresent { jobId }`.
 Results remain provisional until application commit.
 

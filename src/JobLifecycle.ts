@@ -2,7 +2,7 @@ import { define as defineFailureCodes } from "./FailureCode.js"
 /**
  * Pure lifecycle transition plans; Persistence implementations own atomic fencing and database-time writes.
  */
-import { Data, Match, Result, Schema } from "effect"
+import { Data, DateTime, Match, Result, Schema } from "effect"
 import { JobId } from "./JobId.js"
 import { FailureCode, JobFailure } from "./JobFailure.js"
 import { EpochMillis, JobPolicy, maximumMillis } from "./JobPolicy.js"
@@ -460,7 +460,18 @@ export const finalizationFromFailure = (
       Schema.decodeUnknownResult(JobFailure, { onExcessProperty: "error" })(input),
       () => invalid("invalid-command")
     ),
-    (failure) => (failure._tag === "OutcomeUnknown" ? null : failure)
+    (failure) => {
+      if (failure._tag === "OutcomeUnknown") {
+        return null
+      }
+      if (failure._tag !== "Retry") {
+        return failure
+      }
+      const { retryBefore, ...retry } = failure
+      return retryBefore === undefined
+        ? retry
+        : { ...retry, retryBefore: DateTime.toEpochMillis(retryBefore) }
+    }
   )
 
 /**

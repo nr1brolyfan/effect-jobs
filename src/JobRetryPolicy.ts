@@ -70,3 +70,6 @@ export const maxFinalizedAttempts =
   (count: number) =>
   (self: JobRetryPolicy): JobRetryPolicy =>
     new RetryPolicy(self.schedule, count)
+
+/** Disable scheduled retries. Bounded expired-lease recovery remains independent. */
+export const none: JobRetryPolicy = maxFinalizedAttempts(1)(fixed(Duration.seconds(5)))

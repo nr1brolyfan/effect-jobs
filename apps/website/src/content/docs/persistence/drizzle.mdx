@@ -15,9 +15,9 @@ transaction: wire the runtime client explicitly.
 2. `drizzle-orm/effect-postgres.makeWithDefaults()` obtains that service for order
    and receipt queries.
 3. Pass that exact client to `PostgreSqlNative.layer({ client,
-operationTimeoutMillis })`, then provide the resulting `PostgreSqlApplication`
+operationTimeout })`, then provide the resulting `PostgreSqlApplication`
    to `PostgreSqlJobs.layerNoDeps({ ...mapping,
-operationResponseBudgetMillis })`.
+operationResponseBudget })`.
 4. Supply the jobs Layer's `JobEnqueue` to the mutation. Run Drizzle queries and
    `PlaceOrder.enqueue({ slot: "send-confirmation", operationId, payload: { orderId } })` inside public `client.withTransaction(body)`.
 

@@ -122,8 +122,8 @@ shutdown result promises that external side effects did not happen.
 
 `JobPolling.layer` owns graceful shutdown through its application Scope. It first
 quiesces admission loops, then gives started executions one shared
-`shutdownGraceMillis` (default 30,000; integer 0–300,000). Zero requests immediate
-interruption. After expiry, remaining execution fibers are interrupted before
+`shutdownGrace` (a whole-millisecond `Duration` from zero through five minutes,
+defaulting to 30 seconds). `Duration.zero` requests immediate interruption. After expiry, remaining execution fibers are interrupted before
 provided worker resources close. Admission/control/release and handler finalizers
 must be finitely bounded and interruption-cooperative; no timer hard-kills arbitrary
 uninterruptible or native code. In-flight claims can remain unknown. Direct bounded

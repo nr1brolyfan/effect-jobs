@@ -1,6 +1,6 @@
 // @effect-diagnostics unstableApiUsage:off
 import { describe, expect, it } from "vitest"
-import { Cause, Data, Effect, Exit, Stream } from "effect"
+import { Duration, Cause, Data, Effect, Exit, Stream } from "effect"
 import * as SqlClient from "effect/sql/SqlClient"
 import type { Connection } from "effect/sql/SqlConnection"
 import { ConnectionError, SqlError } from "effect/sql/SqlError"
@@ -37,7 +37,10 @@ const fixture = (failedControl: "ROLLBACK" | "COMMIT") =>
       compiler: PgClient.makeCompiler(),
       spanAttributes: []
     }).pipe(Effect.provide(Reactivity.layer))
-    return { adapter: Native.make({ client, operationTimeoutMillis: 1000 }), statements }
+    return {
+      adapter: Native.make({ client, operationTimeout: Duration.millis(1000) }),
+      statements
+    }
   })
 
 describe("owned native transaction Cause preservation", () => {

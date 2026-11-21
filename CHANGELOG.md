@@ -36,6 +36,20 @@ Breaking prerelease changes since the published alpha.2 package:
   stored `maxAttempts`/`attempts_made` keys are retained. Upgrade every reader
   before producing `BackoffV1`/`ProportionalV1` jobs; old readers cannot process
   them safely. Existing `FixedDelayV1` policies keep their semantics.
+- Pass `DateTime.Utc` for producer `availableAt` and handler `retryBefore`.
+  Validate dynamic epoch milliseconds with `JobPolicy.EpochMillis` before
+  constructing the instant. Omitting `availableAt` uses database time at first
+  insert. Omitting `retryBefore` leaves no additional retry cutoff.
+- Pass Effect `Duration` values to `JobPolling.layer` as `idlePoll` and
+  `shutdownGrace`, replacing `idlePollMillis` and `shutdownGraceMillis`.
+  Storage constructors take `operationResponseBudget` and the native
+  PostgreSQL adapter takes `operationTimeout`. Use `Duration.millis(oldValue)`
+  for existing constants. Resolved storage budgets and persisted time fields
+  remain in milliseconds.
+- Call `JobFailures.OutcomeUnknown()` with no arguments. Keep any diagnostics
+  associated with a lost response in application code.
+- Use `JobRetryPolicy.none` to allow one finalized attempt with no scheduled
+  retry. Expired-lease recovery still follows `maxStalledCount`.
 - Adapt encrypted codecs to the lazy Schema-native transformation, with explicit
   independent seal/open services. Already-protected envelopes remain supported.
   The application still owns encryption, keys and stable keyed fingerprints.

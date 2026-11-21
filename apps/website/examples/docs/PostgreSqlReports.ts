@@ -1,6 +1,6 @@
 // Native SQL APIs are intentionally pinned to @effect/sql-pg 4.1.0.
 // @effect-diagnostics unstableApiUsage:off
-import { Effect, Layer, Match } from "effect"
+import { Duration, Effect, Layer, Match } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
 import * as JobWorker from "effect-jobs/JobWorker"
@@ -51,9 +51,7 @@ export const recordGeneratedReport = (generatedJobId: string, payload: ReportPay
         Match.when({ _tag: "JobIntegrityConflict" }, () =>
           JobFailures.Isolate({ code: DeliveryCodes.conflict })
         ),
-        Match.when({ commitKnowledge: "Unknown" }, () =>
-          JobFailures.OutcomeUnknown({ code: DeliveryCodes.handoff })
-        ),
+        Match.when({ commitKnowledge: "Unknown" }, () => JobFailures.OutcomeUnknown()),
         Match.orElse(() => JobFailures.Retry({ code: DeliveryCodes.handoff }))
       )
     )
@@ -132,7 +130,7 @@ export const pollReports = (directory: string) =>
     const PollingLayer = JobPolling.layer([ReportsQueue], {
       maxJobs: 20,
       recoveryLimit: 20,
-      shutdownGraceMillis: 30_000
+      shutdownGrace: Duration.millis(30_000)
     }).pipe(Layer.provide(makeWorkerLayer(jobs, directory)))
     return yield* Effect.never.pipe(Effect.provide(PollingLayer))
   }).pipe(Effect.scoped)

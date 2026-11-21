@@ -158,7 +158,7 @@ const deliver = send.pipe(
     InvalidCredentials: () =>
       Effect.fail(JobFailures.Isolate({ code: Codes.InvalidCredentials })),
     ResponseLost: () =>
-      Effect.fail(JobFailures.OutcomeUnknown({ code: Codes.ResponseLost }))
+      Effect.fail(JobFailures.OutcomeUnknown())
   })
 )
 ```

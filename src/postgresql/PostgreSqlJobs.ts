@@ -5,7 +5,7 @@ import { makeHealth } from "./internal/Health.js"
 import { JobOperators, type JobOperatorsService } from "../JobOperators.js"
 import { makeOperators } from "./internal/Operators.js"
 import { PostgreSqlFailure, PostgreSqlInvalidHandle } from "./PostgreSqlTransaction.js"
-import { Cause, Context, Effect, Layer } from "effect"
+import { Cause, type Duration, Context, Effect, Layer } from "effect"
 import { JobPersistenceError, JobEnqueue, type JobEnqueueService } from "../JobEnqueue.js"
 import type { JobsTransaction } from "../JobTransaction.js"
 import { PostgreSqlApplication, type PostgreSqlError } from "./PostgreSqlTransaction.js"
@@ -25,6 +25,7 @@ import {
 import { insertOrCompare } from "./internal/Producer.js"
 import { makeCleanup, makeStore } from "./internal/Store.js"
 import { ready } from "./internal/Readiness.js"
+import { durationMillis } from "../internal/policy/Retry.js"
 import * as Storage from "../JobStorage.js"
 import * as Schedule from "../JobSchedule.js"
 import { makeSchedule } from "./internal/Schedule.js"
@@ -156,7 +157,7 @@ const neutralOperators = (
  */
 export interface Options extends TableOptions {
   /** Positive integer reserve used by claim admission and worker execution. */
-  readonly operationResponseBudgetMillis: number
+  readonly operationResponseBudget: Duration.Duration
 }
 /**
  * Configured persistence and callback bridge. Readiness, workers and cleanup are
@@ -247,7 +248,8 @@ export const make = (options: Options) =>
       try: () => tables(options),
       catch: (error) => error as PostgreSqlConfigurationError
     })
-    const budget = options.operationResponseBudgetMillis
+    const operationResponseBudget = options.operationResponseBudget
+    const budget = durationMillis(operationResponseBudget)
     const { jobs, payloads } = relations(mapping)
     const joinTransaction: Service["joinTransaction"] = (handle, body) =>
       adapter.validate(handle).pipe(
@@ -293,7 +295,7 @@ export const make = (options: Options) =>
     const store = makeStore(adapter, jobs, payloads, budget)
     const storage = yield* Storage.make({
       store,
-      operationResponseBudgetMillis: budget
+      operationResponseBudget
     }).pipe(
       Effect.mapError((error) => new PostgreSqlConfigurationError({ field: error.field }))
     )

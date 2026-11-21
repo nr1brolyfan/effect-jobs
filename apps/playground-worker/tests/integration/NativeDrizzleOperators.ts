@@ -1,6 +1,6 @@
 // Actual pinned Drizzle/native PgClient transaction joining; no library-owned pool.
 // @effect-diagnostics unstableApiUsage:off
-import { Data, Effect, Redacted } from "effect"
+import { Duration, Data, Effect, Redacted } from "effect"
 import * as Reactivity from "effect/reactivity/Reactivity"
 import * as Pg from "@effect/sql-pg/PgClient"
 import * as Drizzle from "drizzle-orm/effect-postgres"
@@ -26,11 +26,11 @@ export const cancel = (
       })
       const jobs = yield* Jobs.make({
         schema,
-        operationResponseBudgetMillis: 500
+        operationResponseBudget: Duration.millis(500)
       }).pipe(
         Effect.provideService(
           PostgreSqlApplication,
-          Native.make({ client, operationTimeoutMillis: 2000 })
+          Native.make({ client, operationTimeout: Duration.millis(2000) })
         )
       )
       const db = yield* Drizzle.makeWithDefaults().pipe(

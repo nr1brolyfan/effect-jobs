@@ -17,7 +17,8 @@ export class PostgreSqlConfigurationError extends Data.TaggedError(
     | "jobsTable"
     | "payloadsTable"
     | "operationResponseBudgetMillis"
-    | "operationTimeoutMillis"
+    | "operationResponseBudget"
+    | "operationTimeout"
 }> {}
 /**
  * Optional lowercase PostgreSQL identifiers; defaults to public.jobs/job_payloads.

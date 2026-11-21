@@ -2,7 +2,7 @@ import * as JobApi from "effect-jobs/JobApi"
 // Executed on Node/Bun against exact source and installed fences. Test stores
 // prove composition only; separate native PG gates prove durable transactions.
 import assert from "node:assert/strict"
-import { Cause, Effect, Exit, Layer, Result, Schema } from "effect"
+import { Duration, Cause, Effect, Exit, Layer, Result, Schema } from "effect"
 import { TestClock } from "effect/testing"
 import { BillingQueue, SendReceipt, BillingJobs, GeneratePdf, CapturedDefinitionsLayer } from "./contracts.js"
 import * as Fixture from "./Fixture.js"
@@ -124,14 +124,14 @@ const storeFor = (prepared: PreparedJob): Store.JobStoreService => ({
   recoverExpired: () => Effect.succeed(0), finalize: () => Effect.sync(() => { finalized++; return Store.FinalizationResult.Applied() }), release: unexpected, reconcileClaim: unexpected, reconcileFinalization: unexpected
 })
 const store = storeFor({ catalog, producer: context.producer, policy: Policy.defaultPolicy, encoded })
-const worker = Worker.layer(Effect.runSync(JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs))), { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(JobStorage.layer({ store, operationResponseBudgetMillis: 100 })), Layer.provide(ReceiptHandler.pipe(Layer.provide(CapturedDefinitionsLayer))), Layer.provide(Fixture.ReceiptMailerLayer))
+const worker = Worker.layer(Effect.runSync(JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs))), { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(JobStorage.layer({ store, operationResponseBudget: Duration.millis(100) })), Layer.provide(ReceiptHandler.pipe(Layer.provide(CapturedDefinitionsLayer))), Layer.provide(Fixture.ReceiptMailerLayer))
 const result = await Effect.runPromise(Effect.scoped(Worker.drain(BillingQueue, { maxJobs: 20, recoveryLimit: 20 }).pipe(Effect.provide(worker))).pipe(Effect.provide(TestClock.layer())))
 assert.equal(result.claimed, 1)
 assert.equal(finalized, 1)
 claims = 0
 finalized = 0
 const privateWorker = Worker.layer(privateDefinitions.PrivateApi, { queues: [{ queue: BillingQueue }] }).pipe(
-  Layer.provide(JobStorage.layer({ store: storeFor(privatePrepared), operationResponseBudgetMillis: 100 })),
+  Layer.provide(JobStorage.layer({ store: storeFor(privatePrepared), operationResponseBudget: Duration.millis(100) })),
   Layer.provide(privateHandler)
 )
 const privateResult = await Effect.runPromise(Effect.scoped(Worker.drain(BillingQueue, { maxJobs: 20, recoveryLimit: 20 }).pipe(Effect.provide(privateWorker))).pipe(Effect.provide(TestClock.layer())))

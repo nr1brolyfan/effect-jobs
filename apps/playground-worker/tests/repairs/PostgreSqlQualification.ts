@@ -3,7 +3,7 @@
 // NOT executed by isolated unit tests; see the handoff prerequisite.
 // @effect-diagnostics unstableApiUsage:off
 import assert from "node:assert/strict"
-import { Effect, Exit, Schema } from "effect"
+import { Duration, Effect, Exit, Schema } from "effect"
 import type { PgClient } from "@effect/sql-pg/PgClient"
 import { SqlClient } from "effect/sql/SqlClient"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
@@ -68,11 +68,11 @@ export const qualify = (client: PgClient, schema: string) =>
       )
       const jobs = yield* Jobs.make({
         schema,
-        operationResponseBudgetMillis: 500
+        operationResponseBudget: Duration.millis(500)
       }).pipe(
         Effect.provideService(
           PostgreSqlApplication,
-          Native.make({ client, operationTimeoutMillis: 2000 })
+          Native.make({ client, operationTimeout: Duration.millis(2000) })
         )
       )
       const transactions = yield* Adapter.make(schema)

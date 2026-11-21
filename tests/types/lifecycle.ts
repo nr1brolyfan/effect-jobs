@@ -56,7 +56,7 @@ export type MissingCleanupRequirement = ExpectFalse<
   typeof cleaned extends Effect.Effect<unknown, unknown> ? true : false
 >
 // @ts-expect-error OutcomeUnknown is not a durable finalization command.
-export const unknown: JobFinalization = { _tag: "OutcomeUnknown", code: "lost_response" }
+export const unknown: JobFinalization = { _tag: "OutcomeUnknown" }
 // @ts-expect-error Only the pre-execution phase can release ownership through the port.
 export const invalidRelease = store.release(finalization.ownership, "Executing")
 // @ts-expect-error The exact original pre-write snapshot is required for reconciliation.

@@ -1,5 +1,6 @@
 /** Configured portable execution storage. Construction starts no database work. */
-import { Cause, Context, Data, Effect, Layer, Schema } from "effect"
+import { Cause, Context, Data, Effect, Layer, Schema, type Duration } from "effect"
+import { durationMillis } from "./internal/policy/Retry.js"
 import { EpochMillis } from "./JobPolicy.js"
 import { JobPolicyIncompatible } from "./JobContract.js"
 import { JobOwnershipLost, JobStoreProtocolError } from "./JobStore.js"
@@ -9,7 +10,7 @@ import type { JobStoreService } from "./JobStore.js"
 export class JobStorageConfigurationError extends Data.TaggedError(
   "JobStorageConfigurationError"
 )<{
-  readonly field: "operationResponseBudgetMillis"
+  readonly field: "operationResponseBudget"
 }> {}
 
 /** Safe infrastructure failure. Does not prove that a dispatched write rolled back. */
@@ -20,7 +21,7 @@ export class JobStorageUnavailable extends Data.TaggedError(
 /** Adapter input. The qualified store must use this same budget for admission. */
 export interface Options<E, R> {
   readonly store: JobStoreService<E, R>
-  readonly operationResponseBudgetMillis: number
+  readonly operationResponseBudget: Duration.Duration
 }
 
 /** Captured execution port and its one positive finite response reserve. */
@@ -50,10 +51,10 @@ const admissionError = (error: unknown) =>
  */
 export const make = <E, R>(options: Options<E, R>) =>
   Effect.gen(function* () {
-    const budget = options.operationResponseBudgetMillis
-    if (!Schema.is(EpochMillis)(budget) || budget === 0) {
+    const budget = durationMillis(options.operationResponseBudget)
+    if (!Schema.is(EpochMillis)(budget)) {
       return yield* new JobStorageConfigurationError({
-        field: "operationResponseBudgetMillis"
+        field: "operationResponseBudget"
       })
     }
     const source = options.store

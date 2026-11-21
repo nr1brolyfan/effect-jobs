@@ -67,7 +67,6 @@ export class InvoiceDelivery extends Context.Service<
 >()("example/InvoiceDelivery") {}
 
 const codes = Codes.define({
-  unconfirmed: "delivery_unconfirmed",
   forbidden: "invoice_forbidden"
 })
 export const Handlers = Layer.unwrap(
@@ -82,8 +81,7 @@ export const Handlers = Layer.unwrap(
               Effect.catchTags({
                 AdmissionRejected: () =>
                   Effect.fail(JobFailures.Dead({ code: codes.forbidden })),
-                OperationUnconfirmed: () =>
-                  Effect.fail(JobFailures.OutcomeUnknown({ code: codes.unconfirmed }))
+                OperationUnconfirmed: () => Effect.fail(JobFailures.OutcomeUnknown())
               })
             )
         })

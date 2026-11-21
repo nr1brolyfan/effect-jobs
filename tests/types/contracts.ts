@@ -1,5 +1,5 @@
 import * as FailureCodes from "../../src/FailureCode.js"
-import { Context, Duration, Effect, Schema } from "effect"
+import { Context, DateTime, Duration, Effect, Schema } from "effect"
 import type {
   HandlerInput,
   EnqueueInput,
@@ -73,12 +73,10 @@ export const overrideId: EnqueueInput<string> = {
   // @ts-expect-error No caller JobId override.
   jobId: id
 }
-export const outcome: JobFailure = JobFailures.OutcomeUnknown({
-  code: FailureCodes.define({ value: "lost_response" }).value
-})
+export const outcome: JobFailure = JobFailures.OutcomeUnknown()
 export const retryCutoff = JobFailures.Retry({
   code: FailureCodes.define({ value: "temporary" }).value,
-  retryBefore: 1000
+  retryBefore: DateTime.makeUnsafe(1000)
 })
 export const removedRetryCutoff = JobFailures.Retry({
   code: FailureCodes.define({ value: "temporary" }).value,

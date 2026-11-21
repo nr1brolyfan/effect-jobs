@@ -4,7 +4,7 @@ import { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 import { integer, pgTable, text } from "drizzle-orm/pg-core"
 import * as Producer from "effect-jobs/JobProducer"
 import * as Queue from "effect-jobs/JobQueue"
-import { Context, Data, Effect, Schema } from "effect"
+import { Duration, Context, Data, Effect, Schema } from "effect"
 import type { SqlError } from "effect/sql/SqlError"
 import * as Native from "effect-jobs/PostgreSqlNative"
 import * as Storage from "effect-jobs/PostgreSqlJobs"
@@ -46,11 +46,11 @@ export const joinedProgram = Effect.gen(function* () {
   const db = yield* Drizzle.makeWithDefaults()
   const jobs = yield* Storage.make({
     schema: "proof",
-    operationResponseBudgetMillis: 100
+    operationResponseBudget: Duration.millis(100)
   }).pipe(
     Effect.provideService(
       PostgreSqlApplication,
-      Native.make({ client, operationTimeoutMillis: 1000 })
+      Native.make({ client, operationTimeout: Duration.millis(1000) })
     )
   )
   return yield* client.withTransaction(

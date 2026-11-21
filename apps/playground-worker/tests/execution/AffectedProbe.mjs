@@ -44,10 +44,10 @@ export const probe = (url, schema, alarm, checks = []) =>
         connectTimeout: "2 seconds",
         idleTimeout: "1 second"
       })
-      const adapter = Native.make({ client, operationTimeoutMillis: 2000 })
+      const adapter = Native.make({ client, operationTimeout: Duration.millis(2000) })
       const jobs = yield* Jobs.make({
         schema,
-        operationResponseBudgetMillis: 500
+        operationResponseBudget: Duration.millis(500)
       }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
       yield* jobs.ready
       const sql = (text, params = []) => client.unsafe(text, params)

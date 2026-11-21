@@ -1,7 +1,7 @@
 /* oxlint-disable effecttsgo/any-unknown-in-error-context -- Private subprocess fixture reports sanitized status over IPC. */
 import { readFileSync } from "node:fs"
 import pg from "pg"
-import { Effect, Layer } from "effect"
+import { Duration, Effect, Layer } from "effect"
 import * as Worker from "../../../dist/JobWorker.js"
 import * as Storage from "../../../dist/JobStorage.js"
 import * as Group from "../../../dist/JobGroup.js"
@@ -75,7 +75,7 @@ try {
           Layer.provide(
             Layer.mergeAll(
               handler,
-              Storage.layer({ store, operationResponseBudgetMillis: 1000 })
+              Storage.layer({ store, operationResponseBudget: Duration.millis(1000) })
             )
           )
         )

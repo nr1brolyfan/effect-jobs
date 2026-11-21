@@ -1,6 +1,6 @@
 // Platform and native SQL APIs are intentionally pinned to Effect 4.1.0 here.
 // @effect-diagnostics unstableApiUsage:off
-import { Config, Effect, Layer, Match } from "effect"
+import { Duration, Config, Effect, Layer, Match } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import { NodeRuntime } from "@effect/platform-node"
 import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
@@ -62,7 +62,7 @@ export const pollOrders = Effect.never.pipe(
     JobPolling.layer([OrdersQueue], {
       maxJobs: 20,
       recoveryLimit: 20,
-      shutdownGraceMillis: 30_000
+      shutdownGrace: Duration.millis(30_000)
     }).pipe(Layer.provide(WorkerLayer))
   ),
   Effect.scoped

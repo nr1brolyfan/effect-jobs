@@ -63,10 +63,10 @@ export const makeJobs = async (connection) => {
   try {
     const client = await runtime.runPromise(PgClient.PgClient)
     const jobs = await runtime.runPromise(
-      Jobs.make({ ...mapping, operationResponseBudgetMillis: 1000 }).pipe(
+      Jobs.make({ ...mapping, operationResponseBudget: Duration.millis(1000) }).pipe(
         Effect.provideService(
           PostgreSqlApplication,
-          Native.make({ client, operationTimeoutMillis: 2000 })
+          Native.make({ client, operationTimeout: Duration.millis(2000) })
         )
       )
     )

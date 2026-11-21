@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
-import { Effect, Metric, Result, Schema } from "effect"
+import { DateTime, Duration, Effect, Metric, Result, Schema } from "effect"
 import { Pool } from "pg"
 import { it } from "vitest"
 import { readQualificationResource } from "../qualification/Resource.mjs"
@@ -64,13 +64,13 @@ it.skipIf(!directory)(
         Effect.gen(function* () {
           const jobs = yield* Jobs.make({
             ...mapping,
-            operationResponseBudgetMillis: 100
+            operationResponseBudget: Duration.millis(100)
           }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
           const input = (id: string) => ({
             payload: "SYNTHETIC_PRIVATE_PAYLOAD",
             operationId: id,
             slot: "run" as const,
-            availableAt: 1000
+            availableAt: DateTime.makeUnsafe(1000)
           })
           for (const id of ["one", "two", "three"]) {
             yield* jobs.withTransaction((tx) =>

@@ -10,7 +10,17 @@ import type { Handle } from "./NativeApplication.mjs"
 import type { PostgreSqlError } from "effect-jobs/PostgreSqlTransaction"
 import type { EnqueueResult } from "effect-jobs/JobContract"
 import type { JobEnqueueError } from "effect-jobs/JobTransaction"
-import { Cause, Context, Deferred, Effect, Exit, Fiber, Redacted, Schema } from "effect"
+import {
+  Duration,
+  Cause,
+  Context,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Redacted,
+  Schema
+} from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import * as Drizzle from "drizzle-orm/effect-postgres"
 import { pgSchema, text } from "drizzle-orm/pg-core"
@@ -140,7 +150,7 @@ try {
           const application = Application.make(client)
           const jobs = yield* Jobs.make({
             ...mapping,
-            operationResponseBudgetMillis: 100
+            operationResponseBudget: Duration.millis(100)
           }).pipe(Effect.provideService(PostgreSqlApplication, application))
           const writes = (id: string, tx: NativeDb, handle: unknown) =>
             jobs.joinTransaction(handle, (jobsTx) =>

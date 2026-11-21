@@ -11,7 +11,6 @@ export const codes = FailureCode.define({
   rejected: "fake_provider_retry_rejected",
   terminal: "fake_provider_terminal_rejected",
   invariant: "fake_provider_invariant",
-  lost: "fake_provider_response_lost",
   conflict: "fake_provider_payload_conflict",
   capacity: "fake_provider_ledger_full",
   codec: "scenario_codec_invalid"
@@ -26,9 +25,7 @@ export const toJobFailure = Match.type<ProviderFailure>().pipe(
   Match.when({ _tag: "InvariantViolation" }, () =>
     JobFailures.Isolate({ code: codes.invariant })
   ),
-  Match.when({ _tag: "ResponseLost" }, () =>
-    JobFailures.OutcomeUnknown({ code: codes.lost })
-  ),
+  Match.when({ _tag: "ResponseLost" }, () => JobFailures.OutcomeUnknown()),
   Match.when({ _tag: "PayloadConflict" }, () =>
     JobFailures.Isolate({ code: codes.conflict })
   ),

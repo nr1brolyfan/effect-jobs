@@ -1,6 +1,6 @@
 // Native SQL APIs are intentionally pinned to Effect 4.1.0 by this checked example.
 // @effect-diagnostics unstableApiUsage:off
-import { Context, Effect, Layer, Schema } from "effect"
+import { Duration, Context, Effect, Layer, Schema } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import * as Drizzle from "drizzle-orm/effect-postgres"
 import { eq } from "drizzle-orm"
@@ -49,10 +49,10 @@ const ReportJobsLayer = Layer.unwrap(
   Effect.gen(function* () {
     const pg = yield* PgClient.PgClient
     const jobs = yield* PostgreSqlJobs.make({
-      operationResponseBudgetMillis: 100
+      operationResponseBudget: Duration.millis(100)
     }).pipe(
       Effect.provide(
-        PostgreSqlNative.layer({ client: pg, operationTimeoutMillis: 2_000 })
+        PostgreSqlNative.layer({ client: pg, operationTimeout: Duration.millis(2_000) })
       )
     )
     yield* jobs.ready

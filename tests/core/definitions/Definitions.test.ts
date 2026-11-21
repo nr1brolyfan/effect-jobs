@@ -1,5 +1,13 @@
-import * as FailureCodes from "../../../src/FailureCode.js"
-import { Cause, Context, Effect, Exit, Layer, Schema, SchemaGetter } from "effect"
+import {
+  DateTime,
+  Cause,
+  Context,
+  Effect,
+  Exit,
+  Layer,
+  Schema,
+  SchemaGetter
+} from "effect"
 import { describe, expect, it } from "vitest"
 import * as Job from "./ProtocolJob.js"
 import * as JobProducer from "../../../src/JobProducer.js"
@@ -154,7 +162,7 @@ describe("explicit transaction enqueue", () => {
         slot: identity.slot
       },
       policy: { ...policy, retrySchedule: { ...policy.retrySchedule } },
-      availableAt: 12,
+      availableAt: DateTime.makeUnsafe(12),
       payload: "value"
     }
     const definition = Effect.runSync(
@@ -167,7 +175,7 @@ describe("explicit transaction enqueue", () => {
           Effect.sync(() => {
             mutable.producer.operationId = "changed"
             mutable.policy.retrySchedule.delayMillis = 99
-            mutable.availableAt = 99
+            mutable.availableAt = DateTime.makeUnsafe(99)
             return encoded
           })
       })
@@ -196,7 +204,8 @@ describe("explicit transaction enqueue", () => {
           prepared = value
           return Effect.succeed(EnqueueResult.Inserted({ jobId }))
         },
-        (tx) => job.enqueueInTransaction(tx, { ...input, availableAt: 12 })
+        (tx) =>
+          job.enqueueInTransaction(tx, { ...input, availableAt: DateTime.makeUnsafe(12) })
       )
     )
     expect(result).toEqual(EnqueueResult.Inserted({ jobId }))
@@ -261,7 +270,7 @@ describe("explicit transaction enqueue", () => {
         { ...input, payload: "ok", policy: { ...policy, maxFinalizedAttempts: 0 } },
         "policy"
       ],
-      [{ ...input, payload: "ok", availableAt: 0 }, "availableAt"]
+      [{ ...input, payload: "ok", availableAt: DateTime.makeUnsafe(0) }, "availableAt"]
     ] as const) {
       const error = await Effect.runPromise(
         failure(
@@ -533,12 +542,7 @@ describe("local registry and Layer dependencies", () => {
         Effect.mapError(() => new JobPayloadCodecError({ reason: "invalid-schema" }))
       )
     const mapped = job.handlerLayer(
-      () =>
-        Effect.fail(
-          JobFailures.OutcomeUnknown({
-            code: FailureCodes.define({ value: "response_lost" }).value
-          })
-        ),
+      () => Effect.fail(JobFailures.OutcomeUnknown()),
       decode
     )
     expect(
@@ -549,11 +553,7 @@ describe("local registry and Layer dependencies", () => {
           )
         )
       )
-    ).toEqual(
-      JobFailures.OutcomeUnknown({
-        code: FailureCodes.define({ value: "response_lost" }).value
-      })
-    )
+    ).toEqual(JobFailures.OutcomeUnknown())
   })
 
   it("detects duplicate handler installation with catalog diagnostics", async () => {

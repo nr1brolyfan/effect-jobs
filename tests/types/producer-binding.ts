@@ -1,4 +1,4 @@
-import { Context, Effect, Schema } from "effect"
+import { DateTime, Duration, Context, Effect, Schema } from "effect"
 import * as Producer from "../../src/JobProducer.js"
 import * as Queue from "../../src/JobQueue.js"
 import * as Policy from "../../src/JobPolicy.js"
@@ -222,7 +222,7 @@ export const selectedExplicit: Effect.Effect<
   payload: "private",
   queue: "billing",
   policy: Policy.defaultPolicy,
-  availableAt: 1
+  availableAt: DateTime.makeUnsafe(1)
 })
 export const generic = <K extends keyof typeof mixed.slots>(
   input: Producer.Input<typeof mixed.slots, K> & { readonly slot: K }
@@ -570,3 +570,18 @@ const unionProducer = Effect.runSync(
 )
 export const enqueueUnion = (payload: number | string) =>
   unionProducer.enqueue({ slot: "union", operationId: "one", payload })
+
+export const numericAvailability = producer.enqueueStandalone({
+  slot: "public",
+  operationId: "time",
+  payload: { id: "one" },
+  // @ts-expect-error Bare numbers cannot express an enqueue instant.
+  availableAt: 60
+})
+export const relativeAvailability = producer.enqueueStandalone({
+  slot: "public",
+  operationId: "time",
+  payload: { id: "one" },
+  // @ts-expect-error A duration cannot express an enqueue instant.
+  availableAt: Duration.seconds(60)
+})

@@ -1,5 +1,5 @@
 import * as JobApi from "../../../src/JobApi.js"
-import { Deferred, Effect, Fiber, Layer, Logger, Schema } from "effect"
+import { Duration, Deferred, Effect, Fiber, Layer, Logger, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { TestClock } from "effect/testing"
 import * as Group from "../../../src/JobGroup.js"
@@ -72,7 +72,10 @@ describe("group-backed worker construction", () => {
           }
         ).pipe(
           Effect.provide(
-            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+            Storage.layer({
+              store: test.store,
+              operationResponseBudget: Duration.millis(100)
+            })
           )
         )
         const result = yield* worker.drain(queue)
@@ -121,7 +124,10 @@ describe("group-backed worker construction", () => {
           }
         ).pipe(
           Effect.provide(
-            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+            Storage.layer({
+              store: test.store,
+              operationResponseBudget: Duration.millis(100)
+            })
           )
         )
         yield* worker.drain(other)
@@ -157,7 +163,10 @@ describe("group-backed worker construction", () => {
           }
         ).pipe(
           Effect.provide(
-            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+            Storage.layer({
+              store: test.store,
+              operationResponseBudget: Duration.millis(100)
+            })
           )
         )
         expect(test.calls.claims).toHaveLength(0)
@@ -220,7 +229,10 @@ describe("group-backed worker construction", () => {
         ).pipe(
           Effect.provide(
             Layer.mergeAll(
-              Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 }),
+              Storage.layer({
+                store: test.store,
+                operationResponseBudget: Duration.millis(100)
+              }),
               handlers
             )
           )
@@ -254,7 +266,10 @@ describe("group-backed worker construction", () => {
         ).pipe(
           Effect.provide(
             Layer.mergeAll(
-              Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 }),
+              Storage.layer({
+                store: test.store,
+                operationResponseBudget: Duration.millis(100)
+              }),
               Group.handlers(group, (_handlers) =>
                 _handlers.handle("receipt", () => Effect.void)
               )
@@ -282,7 +297,7 @@ describe("group-backed worker construction", () => {
             Layer.mergeAll(
               Storage.layer({
                 store: harness().store,
-                operationResponseBudgetMillis: 100
+                operationResponseBudget: Duration.millis(100)
               }),
               Group.handlers(group, (_handlers) =>
                 _handlers.handle("receipt", () => Effect.void)
@@ -305,7 +320,10 @@ describe("group-backed worker construction", () => {
           { queues: [{ queue }] }
         ).pipe(
           Effect.provide(
-            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+            Storage.layer({
+              store: test.store,
+              operationResponseBudget: Duration.millis(100)
+            })
           )
         )
         for (const limits of [
@@ -348,7 +366,10 @@ describe("group-backed worker construction", () => {
           }
         ).pipe(
           Effect.provide(
-            Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
+            Storage.layer({
+              store: test.store,
+              operationResponseBudget: Duration.millis(100)
+            })
           )
         )
         expect(test.calls.claims).toHaveLength(0)
@@ -381,7 +402,7 @@ describe("group-backed worker construction", () => {
         ).pipe(
           Effect.provide(
             Storage.layer({
-              operationResponseBudgetMillis: 100,
+              operationResponseBudget: Duration.millis(100),
               store: {
                 ...test.store,
                 finalize: (request) =>

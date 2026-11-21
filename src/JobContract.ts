@@ -2,7 +2,7 @@
  * Shared handler, enqueue and bounded encoded-artifact contracts.
  */
 import { Data } from "effect"
-import type { Effect, Schema } from "effect"
+import type { DateTime, Effect, Schema } from "effect"
 import type { JobId } from "./JobId.js"
 import type { JobAddress, ProducerIdentity } from "./JobIdentity.js"
 import type { JobPolicy } from "./JobPolicy.js"
@@ -40,7 +40,7 @@ export interface EnqueueInput<Payload> {
   readonly payload: Payload
   readonly policy: JobPolicy
   /** Omitted means database time on first insertion, never on matching duplicate. */
-  readonly availableAt?: number
+  readonly availableAt?: DateTime.Utc
 }
 /**
  * Inserted or AlreadyPresent with the durable job ID. Success inside a joined

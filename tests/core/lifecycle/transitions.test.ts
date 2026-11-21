@@ -270,9 +270,7 @@ describe("portable lifecycle (not database qualification)", () => {
     for (const command of commands.filter((c) => c._tag !== "Complete")) {
       expect(value(L.finalizationFromFailure(command))).toEqual(command)
     }
-    expect(
-      value(L.finalizationFromFailure({ _tag: "OutcomeUnknown", code: "lost_response" }))
-    ).toBeNull()
+    expect(value(L.finalizationFromFailure({ _tag: "OutcomeUnknown" }))).toBeNull()
     for (const input of [
       Cause.fail({ _tag: "Retry", code: "x" }),
       Cause.die("private"),

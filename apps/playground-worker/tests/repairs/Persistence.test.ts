@@ -1,6 +1,6 @@
 import { runPromise } from "../scenarios/Setup.js"
 import { describe, expect, it } from "vitest"
-import { Cause, Effect, Exit, Layer, Schema } from "effect"
+import { Duration, Cause, Effect, Exit, Layer, Schema } from "effect"
 import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
 import * as Storage from "effect-jobs/JobStorage"
 import * as PostgreSqlSchema from "effect-jobs/PostgreSqlSchema"
@@ -87,7 +87,10 @@ const setup = (override: Partial<RepairTransaction> = {}) =>
     }
     const core = Layer.mock(PostgreSqlJobs, {
       operationResponseBudgetMillis: 100,
-      storage: yield* Storage.make({ store, operationResponseBudgetMillis: 100 }),
+      storage: yield* Storage.make({
+        store,
+        operationResponseBudget: Duration.millis(100)
+      }),
       health: { sample: unexpected },
       schedule: { read: unexpected },
       tables: PostgreSqlSchema.tables(),
