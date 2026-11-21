@@ -124,7 +124,7 @@ export const addGroup =
       })
     )
 
-/** Selects a fixed list of existing groups, retaining their installation keys. */
+/** Snapshots the selected group names and retains their original installation keys. */
 export const pick = <
   Name extends string,
   G extends Groups,
@@ -137,10 +137,11 @@ export const pick = <
         ? never
         : { readonly [K in keyof Names]: Names[K] & SingleKey<Names[K]> }
       : never)
-): Effect.Effect<JobApi<Name, Pick<G, Names[number]>>, InvalidJobApi> =>
-  Effect.gen(function* () {
+): Effect.Effect<JobApi<Name, Pick<G, Names[number]>>, InvalidJobApi> => {
+  const requested = [...names]
+  return Effect.gen(function* () {
     const selected = new Map<keyof G & string, Group>()
-    for (const name of names) {
+    for (const name of requested) {
       if (typeof name !== "string" || !Object.hasOwn(self.groups, name)) {
         return yield* new InvalidJobApi({ reason: "unknown-group" })
       }
@@ -151,6 +152,7 @@ export const pick = <
       Object.freeze(Object.fromEntries(selected)) as Pick<G, Names[number]>
     )
   })
+}
 
 /** Every declared group's exact installation requirement. Structural TS types
  * cannot distinguish separate same-shaped declarations; runtime keys do. */

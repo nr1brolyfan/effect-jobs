@@ -83,7 +83,7 @@ Import: `effect-jobs/JobApi`. Source: `src/JobApi.ts`.
 | `InvalidJobApi`   | value + type | Invalid catalog assembly; diagnostics never include payloads.                                                                                     |
 | `JobApi`          | type         | A pipeable declaration; there is no acquisition, registry or finalize step.                                                                       |
 | `make`            | value        | Starts an empty catalog. Workers require at least one runnable definition.                                                                        |
-| `pick`            | value        | Selects a fixed list of existing groups, retaining their installation keys.                                                                       |
+| `pick`            | value        | Snapshots the selected group names and retains their original installation keys.                                                                  |
 
 ## JobIdentity
 

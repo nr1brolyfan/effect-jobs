@@ -58,7 +58,7 @@
   {
     "subpath": "effect-jobs/JobProducer",
     "filename": "src/JobProducer.ts",
-    "sha256": "376b351b2f613b34982312e8a270169610655b05e20a1d54559d1cfeb66952ab",
+    "sha256": "98d8e3fd80143ffa746b648d362fe96b71bd4cd34fde4cda904ef90e7858961d",
     "symbols": [
       {
         "name": "Binding",
@@ -198,7 +198,7 @@
   {
     "subpath": "effect-jobs/JobApi",
     "filename": "src/JobApi.ts",
-    "sha256": "09cd631b39c2db1c3b641f4609f4c674cff9deef5139f90c211296b2d36c80d0",
+    "sha256": "51259d29e517a8c7a9e2ccfd4a01952d4490bf7656d68f99bee384a9d3b417fa",
     "symbols": [
       {
         "name": "addGroup",
@@ -246,7 +246,7 @@
         "name": "pick",
         "kind": "value",
         "category": "contract",
-        "description": "Selects a fixed list of existing groups, retaining their installation keys."
+        "description": "Snapshots the selected group names and retains their original installation keys."
       }
     ]
   },

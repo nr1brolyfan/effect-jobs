@@ -83,6 +83,21 @@ describe("immutable catalogs and complete installation", () => {
     }
   })
 
+  it("snapshots a mutable selection before either execution", () => {
+    const names: ["first", "second"] = ["first", "second"]
+    const setup = Api.pick(api, names)
+    expect(names.pop()).toBe("second")
+    const initial = Effect.runSync(setup)
+    const repeated = Effect.runSync(setup)
+    for (const picked of [initial, repeated]) {
+      expect(Object.keys(picked.groups)).toEqual(["first", "second"])
+      expect(picked.groups.second.definitions.run.payload).toBe(two.payload)
+      expect(picked.groups.first.handlers).toBe(first.handlers)
+      expect(picked.groups.second.handlers).toBe(second.handlers)
+    }
+    expect(Object.keys(api.groups)).toEqual(["first", "second"])
+  })
+
   it("defers build and invocation, captures acquisition dependencies once and permits immutable branches", async () => {
     class Dependency extends Context.Service<Dependency, { readonly value: string }>()(
       "tests/catalog/dependency"

@@ -29,14 +29,25 @@ export type Routing =
   | { readonly queue: JobQueue; readonly queues?: never }
   | { readonly queues: readonly [JobQueue, ...JobQueue[]]; readonly queue?: never }
 
-type ConcreteJob<J extends JobDefinition> =
-  IsUnion<J> extends false
-    ? Schema.Top extends J["payload"]
-      ? never
-      : IsUnion<J["payload"]> extends false
-        ? unknown
-        : never
+// A concrete union schema retains its members. A widened Codec with union
+// input or output types can also describe one selected branch at runtime.
+type ConcretePayload<P extends Schema.Top> = Schema.Top extends P
+  ? never
+  : IsUnion<P> extends false
+    ? true extends IsUnion<P["Type"]> | IsUnion<P["Encoded"]>
+      ? Schema.Codec<
+          P["Type"],
+          P["Encoded"],
+          P["DecodingServices"],
+          P["EncodingServices"]
+        > extends P
+        ? never
+        : unknown
+      : unknown
     : never
+
+type ConcreteJob<J extends JobDefinition> =
+  IsUnion<J> extends false ? ConcretePayload<J["payload"]> : never
 
 type ConcreteRoute<Route extends Routing> = [Route] extends [{ readonly queue: JobQueue }]
   ? unknown

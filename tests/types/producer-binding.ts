@@ -534,3 +534,31 @@ export const narrowSetup = (slot: "public" | "private", routing: Producer.Routin
       payload: "secret"
     })
   })
+
+// An erased Codec can come from one branch even though its annotation admits both.
+const choosePayload = (
+  numeric: boolean
+): Schema.Codec<string | number, string | number> =>
+  numeric ? Schema.Int : Schema.String
+Producer.withSlot(
+  "widened",
+  // @ts-expect-error Reject the widened codec at slot declaration.
+  { name: "billing.widened", version: 1, payload: choosePayload(false) },
+  { queue }
+)
+
+const unionProducer = Effect.runSync(
+  Producer.make("billing.union").pipe(
+    Producer.withSlot(
+      "union",
+      {
+        name: "billing.union",
+        version: 1,
+        payload: Schema.Union([Schema.Int, Schema.String])
+      },
+      { queue }
+    )
+  )
+)
+export const enqueueUnion = (payload: number | string) =>
+  unionProducer.enqueue({ slot: "union", operationId: "one", payload })
