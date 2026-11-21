@@ -1,6 +1,9 @@
-import { Effect, Exit, Schema } from "effect"
+import { Context, Effect, Exit, Schema } from "effect"
 import { expect, it } from "vitest"
 import * as Job from "../../src/Job.js"
+import * as Payload from "../../src/JobPayload.js"
+import { encodeJobPayload, decodeJobPayload } from "../../src/JobPayloadCodec.js"
+import { EncryptedDocument } from "./codec/EncryptedFixture.js"
 
 it("reads each contract option only at execution and takes fresh frozen snapshots", () => {
   const reads = { name: 0, version: 0, payload: 0 }
@@ -97,4 +100,103 @@ it("revalidates on every execution and recovers after caller configuration is co
   }
   options.version = 2
   expect(Effect.runSync(setup).version).toBe(2)
+})
+
+it("identifies nested unsupported schemas using bounded declaration-only diagnostics", () => {
+  const tuple = Schema.Tuple([Schema.Literal("PRIVATE literal"), Schema.String])
+  const issue = (payload: Schema.Top) =>
+    Effect.runSync(Effect.flip(Job.make({ name: "order.check", payload }))).schemaIssue
+  expect(issue(Schema.Struct({ order: Schema.Struct({ range: tuple }) }))).toEqual({
+    path: "/order/range",
+    reason: "unsupported-tuple"
+  })
+  const escaped = issue(Schema.Struct({ "a~/\n": tuple }))
+  expect(escaped).toEqual({ path: "/a~0~1\\u{a}", reason: "unsupported-tuple" })
+  expect(JSON.stringify(escaped)).not.toContain("PRIVATE")
+  const bounded = issue(Schema.Struct({ ["é".repeat(1000)]: tuple }))
+  expect(new TextEncoder().encode(bounded!.path).byteLength).toBeLessThanOrEqual(1024)
+  expect(bounded?.path.endsWith("…")).toBe(true)
+})
+
+it("rejects differing encryption coverage at a root or nested union during setup", () => {
+  const first = Schema.Struct({ note: EncryptedDocument, tag: Schema.Literal("receipt") })
+  const second = Schema.Struct({ tag: Schema.Literal("reminder") })
+  const choice = Schema.Union([first, second])
+  for (const [payload, path] of [
+    [choice, ""],
+    [Schema.Struct({ nested: Schema.Struct({ choice }) }), "/nested/choice"],
+    [Schema.Array(choice), "/0"],
+    [
+      Schema.Union([
+        Schema.Array(EncryptedDocument),
+        Schema.Struct({ "0": EncryptedDocument })
+      ]),
+      ""
+    ]
+  ] as const) {
+    const failure = Effect.runSync(
+      Effect.flip(Job.make({ name: "receipt.send", payload }))
+    )
+    expect(failure).toBeInstanceOf(Job.InvalidJobDefinition)
+    expect(failure.schemaIssue).toEqual({
+      path,
+      reason: "inconsistent-encryption-coverage"
+    })
+  }
+})
+
+it("accepts ordinary unions beside encryption and unions inside an encrypted field without services", () => {
+  class Key extends Context.Service<Key, { readonly label: string }>()("test/Key") {}
+  const channel = Schema.Literals(["email", "sms"])
+  const envelope = Schema.Struct({
+    fingerprint: Schema.String,
+    ciphertext: Schema.String
+  })
+  let providerCalls = 0
+  const seal = (value: "email" | "sms") => {
+    providerCalls++
+    return Effect.map(Key, ({ label }) => ({ fingerprint: label, ciphertext: value }))
+  }
+  const open = () => {
+    providerCalls++
+    return Effect.as(Key, "email" as const)
+  }
+  const encrypted = Effect.runSync(
+    Payload.encrypted({
+      schema: channel,
+      codec: {
+        envelope,
+        seal,
+        open
+      }
+    })
+  )
+  const payload = Schema.Struct({ channel, note: encrypted })
+  expect(Effect.runSync(Job.make({ name: "order.send", payload })).payload).toBe(payload)
+  expect(
+    Effect.runSync(Job.make({ name: "order.send", payload: encrypted })).payload
+  ).toBe(encrypted)
+  expect(providerCalls).toBe(0)
+})
+
+it("accepts and round-trips 1,024-byte plain paths and rejects 1,025 bytes at setup", async () => {
+  for (const key of ["x".repeat(256), "x".repeat(1023), "é".repeat(511) + "x"]) {
+    const payload = Schema.Struct({ [key]: Schema.String })
+    const job = Effect.runSync(Job.make({ name: "order.check", payload }))
+    const value = { [key]: "value" }
+    const encoded = await Effect.runPromise(encodeJobPayload(job.payload, value))
+    expect(await Effect.runPromise(decodeJobPayload(job.payload, encoded))).toEqual(value)
+  }
+  for (const valueSchema of [Schema.String, EncryptedDocument]) {
+    for (const key of ["x".repeat(1024), "é".repeat(512), "~".repeat(512)]) {
+      const payload = Schema.Struct({ [key]: valueSchema })
+      const failure = Effect.runSync(
+        Effect.flip(Job.make({ name: "order.check", payload }))
+      )
+      expect(failure.schemaIssue?.reason).toBe("schema-path-too-long")
+    }
+  }
+  const key = "x".repeat(1021)
+  const payload = Schema.Array(Schema.Struct({ [key]: Schema.String }))
+  expect(Effect.runSync(Job.make({ name: "order.check", payload })).payload).toBe(payload)
 })

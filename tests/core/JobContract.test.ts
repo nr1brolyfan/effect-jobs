@@ -78,6 +78,6 @@ it("freezes accepted codec bounds without claiming a codec implementation", () =
     Contract.maximumJobPayloadDepth,
     Contract.maximumProtectedJobPayloadSubtrees,
     Contract.maximumJobPayloadSchemaPathBytes
-  ]).toEqual([1, 65_536, 65_536, 32, 16, 256])
+  ]).toEqual([1, 65_536, 65_536, 32, 16, 1_024])
   expect(Object.keys(new Contract.JobIntegrityConflict())).not.toContain("payload")
 })

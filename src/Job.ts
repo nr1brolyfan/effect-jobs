@@ -1,11 +1,19 @@
 /** Queue-independent versioned domain contracts. Construction starts no work. */
 import { Data, Effect, Schema } from "effect"
 import { JobName, JobVersion } from "./JobIdentity.js"
+import type { PayloadSchemaIssue } from "./internal/codec/ProtectedProjection.js"
 import { prepareProjection } from "./internal/codec/ProtectedProjection.js"
 
-/** Invalid static declaration; never contains payload values. @category errors */
+/**
+ * Invalid static declaration. Schema issues include a stable reason and a bounded
+ * declaration path. The root path is empty and array elements use index 0.
+ * Control characters are escaped and long diagnostic paths end in an ellipsis.
+ * @category errors
+ */
 export class InvalidJobDefinition extends Data.TaggedError("InvalidJobDefinition")<{
   readonly expected: string
+  /** Present for rejected payload schemas. Paths describe declarations only. */
+  readonly schemaIssue?: PayloadSchemaIssue
 }> {}
 
 /** Schema preserves decoded/encoded types and both service requirements.
@@ -95,8 +103,9 @@ export function make<
     }
     yield* prepareProjection(payload).pipe(
       Effect.mapError(
-        () =>
+        (schemaIssue) =>
           new InvalidJobDefinition({
+            schemaIssue,
             expected: "payload Schema supported by the standard artifact codec"
           })
       )

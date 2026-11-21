@@ -8,13 +8,13 @@
   {
     "subpath": "effect-jobs/Job",
     "filename": "src/Job.ts",
-    "sha256": "108d1cf511147ef68b79c5a570bdf85d1604a9d9871184e7f2e5a30b7e3e02b0",
+    "sha256": "5159462c9900a47dee4a307655654a902b33d5125139f3f71115be5bf5d9bf11",
     "symbols": [
       {
         "name": "InvalidJobDefinition",
         "kind": "value + type",
         "category": "errors",
-        "description": "Invalid static declaration; never contains payload values."
+        "description": "Invalid static declaration. Schema issues include a stable reason and a bounded\ndeclaration path. The root path is empty and array elements use index 0.\nControl characters are escaped and long diagnostic paths end in an ellipsis."
       },
       {
         "name": "JobDefinition",
@@ -352,7 +352,7 @@
   {
     "subpath": "effect-jobs/JobContract",
     "filename": "src/JobContract.ts",
-    "sha256": "735a6d442e26307e903e8c149d4560278d48c392e4633001478c70122cc1a533",
+    "sha256": "05ee9d01e15e32623438dc20ae039561ea03d82cb3268f67d1a0c1cbcbf92aa3",
     "symbols": [
       {
         "name": "EncodedJobPayload",
@@ -442,7 +442,7 @@
         "name": "maximumJobPayloadSchemaPathBytes",
         "kind": "value",
         "category": "constants",
-        "description": "Maximum protected Schema path size in UTF-8 bytes (256)."
+        "description": "Maximum UTF-8 bytes in any JSON Pointer visited by the payload codec (1,024)."
       },
       {
         "name": "maximumJobSemanticProjectionBytes",
@@ -523,13 +523,13 @@
   {
     "subpath": "effect-jobs/JobPayload",
     "filename": "src/JobPayload.ts",
-    "sha256": "fcedc58f13877a29da2729191a08131d9d9cee504cdbc30a3aeea46dab39634b",
+    "sha256": "812fd9926fb3521ab54271cdeb1570d57d98495d894c234e43ec365babf887d4",
     "symbols": [
       {
         "name": "encrypted",
         "kind": "value",
         "category": "schemas",
-        "description": "Bind a decoded domain Schema to an app-owned encrypted JSON envelope.\nDomain encoding/validation precedes seal; open precedes domain decoding/validation.\nMultiple independent fields, structs, arrays, optionals and unions are supported.\nSetup is lazy and fails with InvalidEncryptedSchema in the Effect error channel.\nEach execution snapshots schema, envelope and codec methods into a fresh Schema.\nEncrypted-within-encrypted and recursive domain schemas fail during setup.\nAll encrypted fields are opened before the handler; this is not selective access.\nMalformed envelopes/domain data follow the existing bounded artifact decode path.\nDefects and interruption are not converted to codec failures. No remote key retry\ncontract is added; configured keys must be validated before worker startup."
+        "description": "Bind a decoded domain Schema to an app-owned encrypted JSON envelope.\nDomain encoding/validation precedes seal; open precedes domain decoding/validation.\nSupports independent fields, structs, arrays, optionals and unions. Job setup\nrequires equal encryption coverage across branches of any enclosing union.\nSetup is lazy and fails with InvalidEncryptedSchema in the Effect error channel.\nEach execution snapshots schema, envelope and codec methods into a fresh Schema.\nEncrypted-within-encrypted and recursive domain schemas fail during setup.\nAll encrypted fields are opened before the handler; this is not selective access.\nMalformed envelopes/domain data follow the existing bounded artifact decode path.\nDefects and interruption are not converted to codec failures. No remote key retry\ncontract is added; configured keys must be validated before worker startup."
       },
       {
         "name": "EncryptionCodec",
@@ -560,7 +560,7 @@
   {
     "subpath": "effect-jobs/JobPayloadCodec",
     "filename": "src/JobPayloadCodec.ts",
-    "sha256": "0e250c48e553cc41ad7772b26b20471a3bee479d2c1200e629bce1eab427204e",
+    "sha256": "7d61ad362131e171742ed121398ebff7cd24465681df8a1c1f25f6c066529a25",
     "symbols": [
       {
         "name": "decodeJobPayload",

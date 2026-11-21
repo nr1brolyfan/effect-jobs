@@ -602,7 +602,8 @@ recursive Schemas; unsupported shapes must fail explicitly rather than silently
 skip protection. The known protected-subtree Union regression must be fixed.
 
 Retain initial bounds: 64 KiB each for payload and semantic projection, depth 32,
-at most 16 protected subtrees, and the existing 256-byte UTF-8 schema-path bound.
+and at most 16 protected subtrees. Audit decision D10 raises the UTF-8 codec
+path bound from 256 to 1,024 bytes and adds static validation.
 Exact supported-transform diagnostics and service provisioning must be specified
 and tested before implementation is considered qualified. No new runtime API,
 implementation, or agent dispatch is authorized by acceptance.

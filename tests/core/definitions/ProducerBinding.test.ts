@@ -2,6 +2,7 @@ import * as JobApi from "../../../src/JobApi.js"
 import * as JobApiBuilder from "../../../src/JobApiBuilder.js"
 import { Deferred, Effect, Fiber, Layer, Logger, Schema } from "effect"
 import { describe, expect, it } from "vitest"
+import * as Job from "../../../src/Job.js"
 import * as Producer from "../../../src/JobProducer.js"
 import * as Queue from "../../../src/JobQueue.js"
 import * as Group from "../../../src/JobGroup.js"
@@ -278,6 +279,36 @@ describe("contract-first producer binding", () => {
         )
       )
     ).toThrow(Producer.InvalidProducerBinding)
+  })
+
+  it("returns a typed seal failure without producing a storage artifact", async () => {
+    const prepared: PreparedJob[] = []
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const payload = yield* Payload.encrypted({
+          schema: Schema.String,
+          codec: {
+            envelope: Schema.Struct({ fingerprint: Schema.String }),
+            seal: () => Effect.fail(new Payload.JobEncryptionError()),
+            open: () => Effect.die("Only the producer runs")
+          }
+        })
+        const definition = yield* Job.make({ name: "billing.private", payload })
+        const producer = yield* Producer.make("billing.private").pipe(
+          Producer.withSlot("receipt", definition, { queue })
+        )
+        return yield* producer.enqueue({
+          operationId: "invoice-1",
+          slot: "receipt",
+          payload: "private fixture"
+        })
+      }).pipe(Effect.provideService(JobEnqueue, capture(prepared)), Effect.result)
+    )
+    expect(result).toMatchObject({
+      _tag: "Failure",
+      failure: { _tag: "JobPayloadCodecError", reason: "invalid-schema" }
+    })
+    expect(prepared).toEqual([])
   })
 
   it("checks transaction presence and callback lifetime before encryption", async () => {

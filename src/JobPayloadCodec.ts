@@ -22,6 +22,16 @@ import { prepareProjection, project } from "./internal/codec/ProtectedProjection
 
 const strict = { onExcessProperty: "error" } as const
 
+const prepareCodecProjection = (schema: Schema.Top) =>
+  prepareProjection(schema).pipe(
+    Effect.mapError(
+      ({ reason }) =>
+        new JobPayloadCodecError({
+          reason: reason === "schema-path-too-long" ? reason : "invalid-schema"
+        })
+    )
+  )
+
 /**
  * Encodes the validated wire representation, not the decoded domain object.
  * Structs, arrays, absent optional keys and unions are supported. Domain
@@ -50,7 +60,7 @@ const strict = { onExcessProperty: "error" } as const
 export const encodeJobPayload: JobPayloadEncoder = Effect.fnUntraced(function* <
   S extends Schema.Top
 >(schema: S, payload: S["Type"]) {
-  const ast = yield* prepareProjection(schema)
+  const ast = yield* prepareCodecProjection(schema)
   yield* checkDecodedContainers(payload)
   // Check own marker fields before Schema can rebuild inherited properties.
   yield* project(SchemaAST.toType(schema.ast), payload)
@@ -169,7 +179,7 @@ export const decodeJobPayload: JobPayloadDecoder = Effect.fnUntraced(function* <
   S extends Schema.Top
 >(schema: S, encoded: EncodedJobPayload) {
   const snapshot = yield* readArtifact(encoded)
-  const ast = yield* prepareProjection(schema)
+  const ast = yield* prepareCodecProjection(schema)
   const value = yield* parse(snapshot.payloadBytes)
   const payloadBytes = yield* canonicalBytes(
     value,

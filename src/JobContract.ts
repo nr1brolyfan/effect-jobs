@@ -84,11 +84,11 @@ export const maximumJobSemanticProjectionBytes = 65_536
  */
 export const maximumProtectedJobPayloadSubtrees = 16
 /**
- * Maximum protected Schema path size in UTF-8 bytes (256).
+ * Maximum UTF-8 bytes in any JSON Pointer visited by the payload codec (1,024).
  *
  * @category constants
  */
-export const maximumJobPayloadSchemaPathBytes = 256
+export const maximumJobPayloadSchemaPathBytes = 1_024
 /**
  * Maximum payload nesting depth (32).
  *

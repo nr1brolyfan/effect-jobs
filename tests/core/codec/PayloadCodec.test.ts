@@ -411,14 +411,14 @@ it("enforces precise payload/projection byte, depth, subtree count and UTF-8 pat
     ),
     "too-many-protected-subtrees"
   )
-  for (const key of ["x".repeat(255), "é".repeat(127) + "x"]) {
+  for (const key of ["x".repeat(256), "x".repeat(1023), "é".repeat(511) + "x"]) {
     const S = Schema.Struct({ [key]: Protected })
     const encoded = await Effect.runPromise(
       encodeJobPayload(S, { [key]: protectedValue() })
     )
     await Effect.runPromise(decodeJobPayload(S, encoded))
   }
-  for (const key of ["x".repeat(256), "é".repeat(128), "~".repeat(128)]) {
+  for (const key of ["x".repeat(1024), "é".repeat(512), "~".repeat(512)]) {
     await failure(
       encodeJobPayload(Schema.Struct({ [key]: Protected }), { [key]: protectedValue() }),
       "schema-path-too-long"
@@ -523,7 +523,7 @@ it("rejects malformed, noncanonical, invalid schema and inconsistent decode arti
     ),
     "invalid-protected-value"
   )
-  const path = "x".repeat(256)
+  const path = "x".repeat(1024)
   const pathPayload = JSON.stringify({
     [path]: { ciphertext: "a", fingerprint: { keyId: "x", value: "x" } }
   })
@@ -683,4 +683,20 @@ it("propagates separate runtime services and snapshots artifacts before applicat
     encodeJobPayload(Schema.Unknown, { value: "before" })
   )
   assert.equal(text(next.payloadBytes), '{"value":"before"}')
+})
+
+it("checks the runtime array index in both codec directions", async () => {
+  const key = "x".repeat(1021)
+  const item = { [key]: "value" }
+  const schema = Schema.Array(Schema.Struct({ [key]: Schema.String }))
+  const boundary = Array.from({ length: 10 }, () => item)
+  const encoded = await Effect.runPromise(encodeJobPayload(schema, boundary))
+  assert.deepEqual(await Effect.runPromise(decodeJobPayload(schema, encoded)), boundary)
+
+  const overlong = [...boundary, item]
+  await failure(encodeJobPayload(schema, overlong), "schema-path-too-long")
+  await failure(
+    decodeJobPayload(schema, artifact(JSON.stringify(overlong))),
+    "schema-path-too-long"
+  )
 })

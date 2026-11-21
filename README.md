@@ -500,6 +500,27 @@ const ReceiptDocument = Schema.Struct({
   invoiceNumber: Schema.String,
   total: Schema.Struct({ amount: Schema.String, currency: Schema.String })
 })
+type ReceiptEncoded = typeof ReceiptDocument.Encoded
+const ReceiptEnvelope = Schema.Struct({
+  keyId: Schema.String,
+  nonce: Schema.String,
+  ciphertext: Schema.String,
+  tag: Schema.String,
+  fingerprint: Schema.String
+})
+class ReceiptSealer extends Context.Service<ReceiptSealer, {
+  readonly seal: (value: ReceiptEncoded) => Effect.Effect<typeof ReceiptEnvelope.Type, JobPayload.JobEncryptionError>
+}>()("billing/ReceiptSealer") {}
+class ReceiptOpener extends Context.Service<ReceiptOpener, {
+  readonly open: (value: typeof ReceiptEnvelope.Type) => Effect.Effect<ReceiptEncoded, JobPayload.JobEncryptionError>
+}>()("billing/ReceiptOpener") {}
+
+const ReceiptEncryption = {
+  envelope: ReceiptEnvelope,
+  seal: (value: ReceiptEncoded) => Effect.flatMap(ReceiptSealer, (service) => service.seal(value)),
+  open: (value: typeof ReceiptEnvelope.Type) => Effect.flatMap(ReceiptOpener, (service) => service.open(value))
+}
+
 const PrivateDefinitionsProgram = Effect.gen(function* () {
   const definitions = yield* Definitions
   const document = yield* JobPayload.encrypted({ schema: ReceiptDocument, codec: ReceiptEncryption })
@@ -558,10 +579,23 @@ Its JSON envelope must contain `fingerprint`; other fields and the encryption
 algorithm are application-owned. Use authenticated encryption and a separate,
 stable keyed fingerprint independent of nonce/ciphertext randomness.
 
-Provide the codec's required key service Layers to both producer and consumer;
-validate configured keys before worker startup. No remote KMS retry contract is
-provided. Never log plaintext or keys. Register the private job and handler too.
-`JobPayload.protected` remains the lower-level marker for already-sealed values.
+Shared setup needs neither service. Provide your application’s `ReceiptSealerLayer`
+to the producer and `ReceiptOpenerLayer` to a worker that only consumes jobs.
+Effect Layers express code dependencies. Enforce deployment permissions with
+role-appropriate provider credentials. A producer with a decryption-capable
+key or credential can still decrypt, even with separate service tags.
+
+Validate configured keys before worker startup. Never log plaintext or keys.
+Register the private job and handler too. `JobPayload.protected` remains the
+lower-level marker for already-sealed values.
+
+A union can share a job definition when every branch encrypts the same paths.
+Use separate job definitions for variants with different protection rules.
+
+The payload codec limits every JSON Pointer it visits to 1,024 UTF-8 bytes,
+including plain fields. Upgrade every worker that can consume the affected jobs
+before producers enqueue paths longer than 256 bytes. Keep producer paths within
+256 bytes throughout a mixed-version rollout.
 
 ## Cloudflare + Alchemy
 
