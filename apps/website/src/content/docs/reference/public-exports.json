@@ -896,7 +896,7 @@
   {
     "subpath": "effect-jobs/JobPolling",
     "filename": "src/JobPolling.ts",
-    "sha256": "4f4712c439e011e49b14c440b8e13bbf2a4d657ea6b152cb8968daf8375b3feb",
+    "sha256": "403f7d191db7d5fbe2170abf66df082405e078f815757421f67aa72892da60ad",
     "symbols": [
       {
         "name": "layer",

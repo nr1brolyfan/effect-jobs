@@ -59,6 +59,7 @@ const loop = (
   Effect.gen(function* () {
     let failures = 0
     let recoverNormally = true
+    let retryRecovery = false
     let lastRecovery = 0n
     const recoveryInterval = BigInt(recoveryRetryIntervalMillis) * 1_000_000n
     yield* Effect.whileLoop({
@@ -66,13 +67,16 @@ const loop = (
       body: () =>
         Effect.gen(function* () {
           const now = yield* Clock.monotonicTimeNanos
-          const recover = recoverNormally || now - lastRecovery >= recoveryInterval
+          const recover =
+            recoverNormally || retryRecovery || now - lastRecovery >= recoveryInterval
           if (recover) {
             lastRecovery = now
           }
           const result = yield* drainWithOptions(consumer, { recover, executions }).pipe(
             observe("polling", "dispatch")
           )
+          // Retry a failed recovery after backoff without resetting a claim failure streak.
+          retryRecovery = result._tag === "Backoff" && result.phase === "recovery"
           yield* Match.value(result).pipe(
             Match.tag("Backoff", (result) =>
               Effect.gen(function* () {

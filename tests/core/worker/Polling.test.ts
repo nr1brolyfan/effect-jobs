@@ -22,7 +22,11 @@ import * as Worker from "../../../src/JobWorker.js"
 import * as Storage from "../../../src/JobStorage.js"
 import * as Polling from "../../../src/JobPolling.js"
 import { harness, policy } from "./Harness.js"
-import { ClaimResult, JobOwnershipLost } from "../../../src/JobStore.js"
+import {
+  ClaimReconciliation,
+  ClaimResult,
+  JobOwnershipLost
+} from "../../../src/JobStore.js"
 import type { JobStoreService } from "../../../src/JobStore.js"
 
 const queue = Effect.runSync(Queue.make("polling"))
@@ -201,6 +205,99 @@ it.each(["claim", "reconciliation"] as const)(
           test.rows.map(({ snapshot }) => snapshot.state),
           ["Pending", "Active"]
         )
+        assert.equal(test.calls.releases, 0)
+        assert.equal(test.calls.finalizations.length, 0)
+      })
+    )
+  }
+)
+
+it.each(["claim", "reconciliation"] as const)(
+  "retries failed interval recovery before the next %s round without resetting backoff",
+  async (phase) => {
+    await run(
+      Effect.gen(function* () {
+        const encoded = yield* Codec.encodeJobPayload(job.payload, { value: "recover" })
+        const test = harness(
+          ["first", "second"].map((operationId) => ({
+            catalog: job.catalog,
+            producer: { operation: "polling", operationId, slot: "neutral" },
+            policy: { ...policy, attemptTimeoutMillis: 100, leaseDurationMillis: 500 },
+            encoded
+          }))
+        )
+        for (let i = 0; i < test.rows.length; i++) {
+          const result = yield* test.store.claim({
+            queue: queue.name,
+            supportedCatalog: [job.catalog],
+            leaseToken: globalThis.crypto.randomUUID()
+          })
+          assert.equal(result._tag, "Claimed")
+        }
+
+        const events: Array<string> = []
+        const limits: Array<number> = []
+        const claimEvents = phase === "claim" ? ["claim"] : ["claim", "reconcile"]
+        const worker = yield* make({
+          ...test.store,
+          recoverExpired: (name, limit) =>
+            Effect.suspend(() => {
+              events.push("recover")
+              limits.push(limit)
+              return limits.length === 2
+                ? Effect.fail("temporary recovery failure")
+                : test.store.recoverExpired(name, limit)
+            }),
+          claim: () =>
+            Effect.suspend(() => {
+              events.push("claim")
+              return phase === "claim"
+                ? Effect.fail("claim failure")
+                : Effect.succeed(ClaimResult.Unknown())
+            }),
+          reconcileClaim: () =>
+            Effect.sync(() => {
+              events.push("reconcile")
+              return ClaimReconciliation.Unknown()
+            })
+        })
+        const scope = yield* Scope.make()
+        yield* Scope.provide(scope)(start(worker))
+        yield* Effect.yieldNow
+        assert.deepEqual(events.splice(0), ["recover", ...claimEvents])
+
+        for (const [delay, expected] of [
+          [800, claimEvents],
+          [1600, claimEvents],
+          [3200, claimEvents],
+          [6400, claimEvents],
+          [12_800, claimEvents],
+          [24_000, ["recover"]], // 48,800 ms
+          [24_000, ["recover", ...claimEvents]] // 72,800 ms
+        ] as const) {
+          yield* TestClock.adjust(delay - 1)
+          assert.deepEqual(events, [])
+          assert.deepEqual(
+            test.rows.map(({ snapshot }) => snapshot.state),
+            ["Active", "Active"]
+          )
+          yield* TestClock.adjust(1)
+          assert.deepEqual(events.splice(0), expected)
+        }
+        assert.deepEqual(limits, [1, 1, 1])
+        assert.deepEqual(
+          test.rows.map(({ snapshot }) => snapshot.state),
+          ["Pending", "Active"]
+        )
+        yield* TestClock.adjust(23_999)
+        assert.deepEqual(events, [])
+        yield* TestClock.adjust(1)
+        assert.deepEqual(events.splice(0), claimEvents)
+        assert.deepEqual(limits, [1, 1, 1])
+
+        yield* Scope.close(scope, Exit.void)
+        yield* TestClock.adjust(60_000)
+        assert.deepEqual(events, [])
         assert.equal(test.calls.releases, 0)
         assert.equal(test.calls.finalizations.length, 0)
       })
