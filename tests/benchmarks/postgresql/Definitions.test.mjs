@@ -3,7 +3,7 @@ import { test } from "vitest"
 import { Effect, Layer, ManagedRuntime, Schema } from "effect"
 import * as Definitions from "./Definitions.mjs"
 import { parseOptions } from "./Support.mjs"
-import * as ApiBuilder from "effect-jobs/JobApiBuilder"
+import * as Group from "effect-jobs/JobGroup"
 import * as Worker from "effect-jobs/JobWorker"
 import * as Storage from "effect-jobs/JobStorage"
 import * as Policy from "effect-jobs/JobPolicy"
@@ -99,7 +99,7 @@ test("catalog-backed soak workers recover only their queue and keep bounded clai
     finalize: unexpected,
     reconcileFinalization: unexpected
   }
-  const handlers = ApiBuilder.group(setup.catalog, setup.group.name, (initial) =>
+  const handlers = Group.handlers(setup.group, (initial) =>
     initial.handle("kind0", () => Effect.void).handle("kind1", () => Effect.void)
   )
   const runtime = ManagedRuntime.make(

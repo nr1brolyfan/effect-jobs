@@ -1,7 +1,7 @@
 import { Effect, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import {
-  CatalogIdentity,
+  JobAddress,
   InvalidOperationId,
   JobDeclarationError,
   OperationId,
@@ -40,7 +40,7 @@ describe("identity boundaries", () => {
   })
   it("validates retained catalog name and version bounds", () => {
     const valid = { queue: "a".repeat(64), name: "a".repeat(128), version: 32_767 }
-    expect(Schema.is(CatalogIdentity)(valid)).toBe(true)
+    expect(Schema.is(JobAddress)(valid)).toBe(true)
     for (const invalid of [
       { ...valid, queue: "a".repeat(65) },
       { ...valid, name: "a".repeat(129) },
@@ -50,7 +50,7 @@ describe("identity boundaries", () => {
       { ...valid, version: 32_768 },
       { ...valid, version: 1.5 }
     ]) {
-      expect(Schema.is(CatalogIdentity)(invalid)).toBe(false)
+      expect(Schema.is(JobAddress)(invalid)).toBe(false)
     }
   })
   it("accepts length edges for producer declaration names", () => {

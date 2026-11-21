@@ -15,28 +15,27 @@ import type { Options } from "./internal/worker/GroupWorker.js"
  * ```ts
  * import { Effect, Layer, Schema } from "effect"
  * import * as JobApi from "effect-jobs/JobApi"
- * import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
  * import * as Queue from "effect-jobs/JobQueue"
  * import * as Group from "effect-jobs/JobGroup"
  * import * as Worker from "effect-jobs/JobWorker"
  * import * as Storage from "effect-jobs/JobStorage"
  *
- * const queue = Queue.make("billing")
- * const group = Group.make("billing", {
- *   invoice: { name: "invoice.generate", version: 1,
- *     payload: Schema.Struct({ invoiceId: Schema.String }) }
- * })
- * const api = JobApi.make("application").pipe(JobApi.addGroup(group))
  * // Application supplies qualified storage; construction starts no activity.
- * const runOnce = <E, R>(storage: Storage.Options<E, R>) => {
- *   const HandlerLayer = JobApiBuilder.group(api, "billing", (handlers) => handlers.handle("invoice", () => Effect.void))
+ * const runOnce = <E, R>(storage: Storage.Options<E, R>) => Effect.gen(function* () {
+ *   const queue = yield* Queue.make("billing")
+ *   const group = yield* Group.make("billing", {
+ *     invoice: { name: "invoice.generate", version: 1,
+ *       payload: Schema.Struct({ invoiceId: Schema.String }) }
+ *   })
+ *   const api = yield* JobApi.make("application").pipe(JobApi.addGroup(group))
+ *   const HandlerLayer = Group.handlers(group, (handlers) => handlers.handle("invoice", () => Effect.void))
  *   const WorkerLayer = Worker.layer(api, {
  *     queues: [{ queue, concurrency: 2 }]
  *   }).pipe(Layer.provide(Layer.mergeAll(HandlerLayer, Storage.layer(storage))))
- *   return Worker.drain(queue, { maxJobs: 20, recoveryLimit: 10 }).pipe(
+ *   return yield* Worker.drain(queue, { maxJobs: 20, recoveryLimit: 10 }).pipe(
  *     Effect.provide(WorkerLayer)
  *   )
- * }
+ * })
  * ```
  */
 export const drain = GroupWorker.drain

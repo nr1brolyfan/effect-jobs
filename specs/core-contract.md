@@ -58,11 +58,11 @@ and uniqueness are persistence obligations. No UUID algorithm or caller ID overr
 is selected here. Schema decoding brands persisted IDs; it is not production.
 
 `JobIdentity` exports Schemas `QueueName`, `JobName`, `JobVersion`, `OperationName`,
-`SlotName`, `OperationId`, `CatalogIdentity` and `ProducerIdentity`. The last two
+`SlotName`, `OperationId`, `JobAddress` and `ProducerIdentity`. The last two
 also have literal-preserving structural interfaces:
 
 ```ts
-interface CatalogIdentity<
+interface JobAddress<
   Q extends string = string,
   K extends string = string,
   V extends number = number

@@ -17,8 +17,8 @@ import {
   keysLayer
 } from "../codec/EncryptedFixture.js"
 
-const bulk = Queue.make("emails.bulk")
-const priority = Queue.make("emails.priority")
+const bulk = Effect.runSync(Queue.make("emails.bulk"))
+const priority = Effect.runSync(Queue.make("emails.priority"))
 const job = Effect.runSync(Job.make({ name: "email.send", payload: Schema.String }))
 const producer = Effect.runSync(
   Producer.make("campaign.deliver").pipe(
@@ -233,7 +233,14 @@ describe("fixed and explicit selectable producer routes", () => {
     const mutableBulk = { ...bulk, name: bulk.name as string }
     const destinations: [Queue.JobQueue, ...Queue.JobQueue[]] = [mutableBulk, priority]
     const options = { queues: destinations }
-    const bind = Producer.withSlot("email", job, options)
+    // Bypass the static tuple restriction to exercise snapshots across mutable JS input.
+    const bind = Producer.withSlot(
+      "email",
+      job,
+      options as unknown as {
+        readonly queues: readonly [typeof bulk, typeof priority]
+      }
+    )
     const first = Effect.runSync(Effect.succeed(producer).pipe(bind))
     mutableBulk.name = "emails.changed"
     destinations.pop()

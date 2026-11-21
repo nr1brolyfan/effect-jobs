@@ -1,5 +1,4 @@
 import * as JobApi from "effect-jobs/JobApi"
-import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 // Qualification FFI: identical packed-library program on Node, Bun and workerd.
 import assert from "node:assert/strict"
 import {
@@ -53,7 +52,7 @@ export const probe = (url, schema, alarm, checks = []) =>
       }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
       yield* jobs.ready
       checks.push("real connection and packed backend readiness")
-      const queue = Queue.make("cf-real")
+      const queue = Effect.runSync(Queue.make("cf-real"))
       const definition = yield* Job.make({
         name: "synthetic",
         payload: Schema.String
@@ -225,24 +224,23 @@ export const probe = (url, schema, alarm, checks = []) =>
         checks.push("interruption during genuine SQL; rollback and reusable client")
         yield* producer.enqueueStandalone(input("worker"))
         let calls = 0
-        const group = Group.make("cloudflare-real-pg", { synthetic: definition })
+        const group = Effect.runSync(
+          Group.make("cloudflare-real-pg", { synthetic: definition })
+        )
         const worker = Worker.layer(
-          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
           {
             queues: [{ queue, concurrency: 2 }]
           }
         ).pipe(
           Layer.provide(Layer.succeed(Storage.JobStorage, jobs.storage)),
           Layer.provide(
-            JobApiBuilder.group(
-              JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-              group.name,
-              (_handlers) =>
-                _handlers.handle("synthetic", () =>
-                  Effect.sync(() => {
-                    calls++
-                  })
-                )
+            Group.handlers(group, (_handlers) =>
+              _handlers.handle("synthetic", () =>
+                Effect.sync(() => {
+                  calls++
+                })
+              )
             )
           )
         )

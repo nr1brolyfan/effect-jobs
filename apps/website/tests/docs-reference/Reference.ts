@@ -23,7 +23,6 @@ const groups = {
       "JobProducer",
       "JobGroup",
       "JobApi",
-      "JobApiBuilder",
       "JobIdentity",
       "JobId",
       "JobContract",

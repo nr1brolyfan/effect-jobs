@@ -1,5 +1,4 @@
 import * as JobApi from "effect-jobs/JobApi"
-import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 import { describe, expect, it } from "vitest"
 import { Cause, Effect, Exit, Fiber, Layer } from "effect"
 import * as Job from "effect-jobs/Job"
@@ -12,7 +11,7 @@ import { Schema } from "effect"
 import { TestClock } from "effect/testing"
 import * as WakeCycle from "../../src/cloudflare/WakeCycle.js"
 
-const queue = Queue.make("cloudflare-probe")
+const queue = Effect.runSync(Queue.make("cloudflare-probe"))
 const definition = Effect.runSync(
   Job.make({
     name: "synthetic",
@@ -20,11 +19,9 @@ const definition = Effect.runSync(
   })
 )
 
-const group = Group.make("cloudflare-probe", { synthetic: definition })
-const handlers = JobApiBuilder.group(
-  JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-  group.name,
-  (handlers) => handlers.handle("synthetic", () => Effect.void)
+const group = Effect.runSync(Group.make("cloudflare-probe", { synthetic: definition }))
+const handlers = Group.handlers(group, (handlers) =>
+  handlers.handle("synthetic", () => Effect.void)
 )
 
 const exercise = (
@@ -54,9 +51,12 @@ const exercise = (
     finalize: unexpected,
     reconcileFinalization: unexpected
   }
-  const worker = Worker.layer(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
-    queues: [{ queue, concurrency: 2 }]
-  }).pipe(
+  const worker = Worker.layer(
+    Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
+    {
+      queues: [{ queue, concurrency: 2 }]
+    }
+  ).pipe(
     Layer.provide(Storage.layer({ store, operationResponseBudgetMillis: 100 })),
     Layer.provide(handlers)
   )
@@ -143,9 +143,12 @@ describe("finite wake cycle (mock storage, not PostgreSQL evidence)", () => {
   it("rejects invalid worker concurrency before touching alarm or storage", async () => {
     const program = WakeCycle.run(queue).pipe(
       Effect.provide(
-        Worker.layer(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
-          queues: [{ queue, concurrency: 65 }]
-        }).pipe(
+        Worker.layer(
+          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
+          {
+            queues: [{ queue, concurrency: 65 }]
+          }
+        ).pipe(
           Layer.provide(
             Storage.layer({
               operationResponseBudgetMillis: 100,

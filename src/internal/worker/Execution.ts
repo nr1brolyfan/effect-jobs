@@ -1,7 +1,7 @@
 import { define as defineFailureCodes } from "../../FailureCode.js"
 import { Cause, Data, Effect, Exit, Random, Result, Schema } from "effect"
 import { JobPayloadCodecError } from "../../JobContract.js"
-import { CatalogIdentity, ProducerIdentity } from "../../JobIdentity.js"
+import { JobAddress, ProducerIdentity } from "../../JobIdentity.js"
 import {
   JobFinalizations,
   JobOwnership,
@@ -29,7 +29,7 @@ type AttemptResult = Data.TaggedEnum<{
 const AttemptResult = Data.taggedEnum<AttemptResult>()
 
 const PreparedMetadata = Schema.Struct({
-  catalog: CatalogIdentity,
+  catalog: JobAddress,
   producer: ProducerIdentity,
   policy: JobPolicy,
   availableAt: EpochMillis.pipe(Schema.optional),
@@ -68,8 +68,8 @@ const finalizationFor = (exit: Exit.Exit<void, unknown>): JobFinalization | null
 export const executionFor = <E>(
   store: JobStoreService<E>,
   claim: ClaimedJob,
-  find: (catalog: CatalogIdentity) => JobHandler | undefined,
-  supported: ReadonlyArray<CatalogIdentity>,
+  find: (catalog: JobAddress) => JobHandler | undefined,
+  supported: ReadonlyArray<JobAddress>,
   responseBudgetMillis: number
 ): Effect.Effect<void> =>
   Effect.suspend(() => {

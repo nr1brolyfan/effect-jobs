@@ -7,7 +7,6 @@ import * as Drizzle from "drizzle-orm/effect-postgres"
 import { integer, pgTable, text } from "drizzle-orm/pg-core"
 import * as Job from "effect-jobs/Job"
 import * as JobApi from "effect-jobs/JobApi"
-import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 import * as JobGroup from "effect-jobs/JobGroup"
 import * as JobProducer from "effect-jobs/JobProducer"
 import * as JobQueue from "effect-jobs/JobQueue"
@@ -43,29 +42,32 @@ export class TransactionalEmails extends Context.Service<
 >()("landing/TransactionalEmails") {}
 
 // #region shared
-const OrdersQueue = JobQueue.make("orders")
 const orderJobDefinitions = Effect.gen(function* () {
+  const OrdersQueue = yield* JobQueue.make("orders")
   const ConfirmationJob = yield* Job.make({
     name: "orders.send-confirmation",
     payload: Schema.Struct({ orderId: Schema.String })
   })
-  const ConfirmationJobGroup = JobGroup.make("confirmation", {
+  const ConfirmationJobGroup = yield* JobGroup.make("confirmation", {
     confirmation: ConfirmationJob
   })
-  const OrdersJobApi = JobApi.make("orders").pipe(JobApi.addGroup(ConfirmationJobGroup))
+  const OrdersJobApi = yield* JobApi.make("orders").pipe(
+    JobApi.addGroup(ConfirmationJobGroup)
+  )
   const PlaceOrder = yield* JobProducer.make("order.place").pipe(
     JobProducer.withSlot("send-confirmation", ConfirmationJob, {
       queue: OrdersQueue
     })
   )
-  return { OrdersJobApi, PlaceOrder }
+  return { OrdersQueue, ConfirmationJobGroup, OrdersJobApi, PlaceOrder }
 })
 // #endregion shared
 
 // Application input is already admitted and validated at its boundary. No work
 // starts on import or construction; the caller evaluates placeOrder/processJobs.
 export const example = Effect.gen(function* () {
-  const { OrdersJobApi, PlaceOrder } = yield* orderJobDefinitions
+  const { OrdersQueue, ConfirmationJobGroup, OrdersJobApi, PlaceOrder } =
+    yield* orderJobDefinitions
   const pg = yield* PgClient.PgClient
   const db = yield* Drizzle.makeWithDefaults()
   const jobs = yield* PostgreSqlJobs.PostgreSqlJobs
@@ -101,7 +103,7 @@ export const example = Effect.gen(function* () {
   // #endregion rollback
 
   // #region handler
-  const HandlerLayer = JobApiBuilder.group(OrdersJobApi, "confirmation", (handlers) =>
+  const HandlerLayer = JobGroup.handlers(ConfirmationJobGroup, (handlers) =>
     handlers.handle("confirmation", (input) =>
       Effect.gen(function* () {
         const emails = yield* TransactionalEmails

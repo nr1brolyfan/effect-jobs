@@ -9,8 +9,9 @@ import * as Policy from "effect-jobs/JobPolicy"
 
 export const make = (options) =>
   Effect.gen(function* () {
-    const queues = Array.from({ length: options.queues }, (_, index) =>
-      Queue.make(`soak.q${index}`)
+    const queues = yield* Effect.forEach(
+      Array.from({ length: options.queues }, (_, index) => index),
+      (index) => Queue.make(`soak.q${index}`)
     )
     // One pure contract per name/version, reused across queue routes.
     // parseOptions fixes this maintained workload to exactly two kinds.
@@ -26,8 +27,8 @@ export const make = (options) =>
     const routes = queues.flatMap((queue) =>
       definitions.map((definition) => ({ queue, definition }))
     )
-    const group = Group.make("soak", { kind0, kind1 })
-    const catalog = Api.make("soak").pipe(Api.addGroup(group))
+    const group = yield* Group.make("soak", { kind0, kind1 })
+    const catalog = yield* Api.make("soak").pipe(Api.addGroup(group))
     const makeProducers = (operation) =>
       Effect.forEach(routes, (route) =>
         Producer.make(operation).pipe(

@@ -1,5 +1,5 @@
 import { Effect, Schema, SchemaGetter, SchemaParser } from "effect"
-import { CatalogIdentity } from "effect-jobs/JobIdentity"
+import { JobAddress } from "effect-jobs/JobIdentity"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import type { JobOperatorCommand } from "@effect-jobs/playground-contracts/Operators"
 import type { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
@@ -28,9 +28,9 @@ const CatalogRow = Schema.Struct({
   kind: Schema.Unknown.pipe(Schema.optionalKey),
   version: Schema.Unknown.pipe(Schema.optionalKey)
 }).pipe(
-  Schema.decodeTo(Schema.toType(CatalogIdentity), {
+  Schema.decodeTo(Schema.toType(JobAddress), {
     decode: SchemaGetter.transformEffect((row) =>
-      SchemaParser.decodeUnknownEffect(CatalogIdentity)({
+      SchemaParser.decodeUnknownEffect(JobAddress)({
         queue: row.queue,
         name: row.kind,
         version: Number(row.version)

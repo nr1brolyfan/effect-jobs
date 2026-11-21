@@ -42,7 +42,7 @@ import type { JobFailure } from "../../../src/JobFailure.js"
 import type { JobStoreService } from "../../../src/JobStore.js"
 import * as Retry from "../../../src/JobRetryPolicy.js"
 
-const queue = Queue.make("worker-tests")
+const queue = Effect.runSync(Queue.make("worker-tests"))
 const definition = Effect.runSync(
   Job.make({
     queue,

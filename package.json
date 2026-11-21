@@ -123,10 +123,6 @@
     "./JobApi": {
       "types": "./dist/JobApi.d.ts",
       "import": "./dist/JobApi.js"
-    },
-    "./JobApiBuilder": {
-      "types": "./dist/JobApiBuilder.d.ts",
-      "import": "./dist/JobApiBuilder.js"
     }
   },
   "files": [

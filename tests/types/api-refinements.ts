@@ -50,7 +50,7 @@ Policy.defaultPolicy.retrySchedule.delayMillis = 9
 const job = Effect.runSync(Job.make({ ...base, payload: EncryptedDocument }))
 const producer = Effect.runSync(
   Producer.make("billing.issue").pipe(
-    Producer.withSlot("receipt", job, { queue: Queue.make("billing") })
+    Producer.withSlot("receipt", job, { queue: Effect.runSync(Queue.make("billing")) })
   )
 )
 const input = {

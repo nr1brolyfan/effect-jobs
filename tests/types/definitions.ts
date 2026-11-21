@@ -1,5 +1,3 @@
-import * as JobApi from "../../src/JobApi.js"
-import * as JobApiBuilder from "../../src/JobApiBuilder.js"
 import * as FailureCodes from "../../src/FailureCode.js"
 import { Context, Effect, Layer, Schema } from "effect"
 import * as Job from "../../src/Job.js"
@@ -31,7 +29,7 @@ declare const schema: Schema.Codec<
 declare const tx: JobsTransaction<"jobs-error", TransactionContext>
 declare const appId: string & { readonly AppId: unique symbol }
 
-export const queue = JobQueue.make("billing")
+export const queue = Effect.runSync(JobQueue.make("billing"))
 export const job = Effect.runSync(
   Job.make({ name: "invoice.generate", version: 1, payload: schema })
 )
@@ -98,25 +96,22 @@ Effect.runSync(
 // @ts-expect-error Queue is not contract identity.
 Effect.runSync(Job.make({ name: "invoice.generate", payload: schema, queue }))
 
-export const group = JobGroup.make("typed-invoices", { pdf: job })
-export const handler = JobApiBuilder.group(
-  JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-  group.name,
-  (_handlers) =>
-    _handlers.handle("pdf", (input) =>
-      Effect.gen(function* () {
-        yield* HandlerService
-        const amount: number = input.payload.amount
-        const attempt: number = input.context.nextFinalizationNumber
-        // @ts-expect-error Handler context has no finalization authority.
-        input.context.complete()
-        if (amount < attempt) {
-          return yield* Effect.fail(
-            JobFailures.Dead({ code: FailureCodes.define({ value: "rejected" }).value })
-          )
-        }
-      })
-    )
+export const group = Effect.runSync(JobGroup.make("typed-invoices", { pdf: job }))
+export const handler = JobGroup.handlers(group, (_handlers) =>
+  _handlers.handle("pdf", (input) =>
+    Effect.gen(function* () {
+      yield* HandlerService
+      const amount: number = input.payload.amount
+      const attempt: number = input.context.nextFinalizationNumber
+      // @ts-expect-error Handler context has no finalization authority.
+      input.context.complete()
+      if (amount < attempt) {
+        return yield* Effect.fail(
+          JobFailures.Dead({ code: FailureCodes.define({ value: "rejected" }).value })
+        )
+      }
+    })
+  )
 )
 export const layerChannels: Layer.Layer<
   JobGroup.Handlers<"typed-invoices", typeof group.definitions>,

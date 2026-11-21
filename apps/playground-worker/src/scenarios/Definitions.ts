@@ -44,10 +44,10 @@ export const make = Effect.gen(function* () {
     document: yield* EncryptedDocument
   })
 
-  const communications = JobQueue.make(Catalogs.WelcomeEmail.catalog.queue)
-  const media = JobQueue.make(Catalogs.ImageProcessing.catalog.queue)
-  const commerce = JobQueue.make(Catalogs.CatalogSync.catalog.queue)
-  const privateData = JobQueue.make(Catalogs.PrivateDataExport.catalog.queue)
+  const communications = yield* JobQueue.make(Catalogs.WelcomeEmail.catalog.queue)
+  const media = yield* JobQueue.make(Catalogs.ImageProcessing.catalog.queue)
+  const commerce = yield* JobQueue.make(Catalogs.CatalogSync.catalog.queue)
+  const privateData = yield* JobQueue.make(Catalogs.PrivateDataExport.catalog.queue)
   const WelcomeEmail = yield* Job.make({
     name: Catalogs.WelcomeEmail.catalog.name,
     payload: Payload
@@ -117,7 +117,7 @@ export const make = Effect.gen(function* () {
     name: job.name,
     version: job.version
   })
-  const group = JobGroup.make("playground-scenarios", {
+  const group = yield* JobGroup.make("playground-scenarios", {
     welcomeEmail: WelcomeEmail,
     imageProcessing: ImageProcessing,
     webhookDelivery: WebhookDelivery,

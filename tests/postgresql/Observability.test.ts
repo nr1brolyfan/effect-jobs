@@ -45,7 +45,7 @@ it.skipIf(!directory)(
       await pool.query("CREATE SCHEMA observability_fixture")
       created = true
       await pool.query(Tables.migration(mapping))
-      const queue = Queue.make("observability")
+      const queue = Effect.runSync(Queue.make("observability"))
       const job = Effect.runSync(Job.make({ name: "supported", payload: Schema.String }))
       const unsupported = Effect.runSync(
         Job.make({ name: "unsupported", payload: Schema.String })

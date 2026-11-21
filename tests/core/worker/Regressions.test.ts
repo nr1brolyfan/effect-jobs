@@ -132,7 +132,7 @@ it("keeps telemetry capture invocation-local for reused and concurrent Effects",
   )
 })
 
-const queue = Queue.make("permit-regression")
+const queue = Effect.runSync(Queue.make("permit-regression"))
 const job = Effect.runSync(
   Job.make({
     queue,

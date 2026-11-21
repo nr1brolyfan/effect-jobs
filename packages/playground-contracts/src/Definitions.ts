@@ -5,7 +5,7 @@ import * as JobProducer from "effect-jobs/JobProducer"
 import { SandboxRef } from "./Sandbox.js"
 import { ScenarioId } from "./Scenarios.js"
 
-export const queue = JobQueue.make("playground")
+export const queue = Effect.runSync(JobQueue.make("playground"))
 export const ScenarioPayload = Schema.Struct({
   sandbox: SandboxRef,
   scenario: ScenarioId,

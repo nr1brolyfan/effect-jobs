@@ -17,7 +17,7 @@ import { FinalizationResult } from "../../../src/JobStore.js"
 import type { FinalizationRequest } from "../../../src/JobStore.js"
 import { harness } from "./Harness.js"
 
-const queue = Queue.make("jitter-test")
+const queue = Effect.runSync(Queue.make("jitter-test"))
 const definition = Effect.runSync(
   Job.make({ queue, name: "send", payload: Schema.String })
 )

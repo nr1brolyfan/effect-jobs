@@ -9,7 +9,7 @@ For example, save an invoice and enqueue its receipt email in the same transacti
 then handle delivery in a separate worker.
 
 ```ts
-const BillingQueue = JobQueue.make("billing")
+const BillingQueue = yield* JobQueue.make("billing")
 const SendReceipt = yield* Job.make({
   name: "invoice.receipt",
   payload: Schema.Struct({ invoiceId: Schema.String })
@@ -40,9 +40,9 @@ yield *
   )
 
 // Worker: typed payload, separate deployment, durable retries.
-const BillingJobs = JobGroup.make("billing", { receipt: SendReceipt })
-const ApplicationJobs = JobApi.make("application").pipe(JobApi.addGroup(BillingJobs))
-const ReceiptHandler = JobApiBuilder.group(ApplicationJobs, "billing", (handlers) =>
+const BillingJobs = yield* JobGroup.make("billing", { receipt: SendReceipt })
+const ApplicationJobs = yield* JobApi.make("application").pipe(JobApi.addGroup(BillingJobs))
+const ReceiptHandler = JobGroup.handlers(BillingJobs, (handlers) =>
   handlers.handle("receipt", (input) =>
     Effect.gen(function* () {
       const mailer = yield* ReceiptMailer
@@ -67,12 +67,12 @@ policy, failure-code and encrypted-payload APIs; update callers before upgrading
 npm install ./effect-jobs-0.1.0-alpha.3.tgz effect@4.1.0
 ```
 
-Imports are omitted below. Use package subpaths (`effect-jobs/Job`, `effect-jobs/JobGroup`, `effect-jobs/JobApi`, `effect-jobs/JobApiBuilder`, `effect-jobs/JobPolicy`, …); the root export is empty. `Codec`, `Worker` and `Polling` refer to `JobPayloadCodec`, `JobWorker` and `JobPolling` respectively.
+Imports are omitted below. Use package subpaths (`effect-jobs/Job`, `effect-jobs/JobGroup`, `effect-jobs/JobApi`, `effect-jobs/JobPolicy`, …); the root export is empty. `Codec`, `Worker` and `Polling` refer to `JobPayloadCodec`, `JobWorker` and `JobPolling` respectively.
 
 `invoices`, mailers, credentials and protection services are application code, not library exports. Handler services return explicit `JobFailure` values.
 
 `JobApi` is a pure immutable catalog of groups. Install each group with
-`JobApiBuilder.group(api, name, handlers => ...)`, returning a complete immutable
+`JobGroup.handlers(group, handlers => ...)`, returning a complete immutable
 `.handle(alias, implementation)` chain, directly or through an Effect. A worker
 requires every declared group and shares its configured queue concurrency across
 all groups. Callback dependencies are acquired once per Layer acquisition; each
@@ -96,13 +96,13 @@ Share the contract, not the email provider or database connection.
 ```ts
 // packages/billing-jobs/receipt.ts — build once in each application's live graph.
 export const DefinitionsProgram = Effect.gen(function* () {
-  const BillingQueue = JobQueue.make("billing")
+  const BillingQueue = yield* JobQueue.make("billing")
   const SendReceipt = yield* Job.make({
     name: "invoice.receipt",
     payload: Schema.Struct({ invoiceId: Schema.String })
   })
-  const BillingJobs = JobGroup.make("billing", { receipt: SendReceipt })
-  const ApplicationJobs = JobApi.make("application").pipe(JobApi.addGroup(BillingJobs))
+  const BillingJobs = yield* JobGroup.make("billing", { receipt: SendReceipt })
+  const ApplicationJobs = yield* JobApi.make("application").pipe(JobApi.addGroup(BillingJobs))
   return { BillingQueue, SendReceipt, BillingJobs, ApplicationJobs }
 })
 export class Definitions extends Context.Service<
@@ -138,7 +138,7 @@ const InvoiceApplicationLayer = Layer.effect(InvoiceApplication, ApplicationProg
 ```ts
 // apps/billing-worker — owns email credentials; does not import the API
 const ReceiptHandler = Layer.unwrap(Effect.map(Definitions, (definitions) =>
-  JobApiBuilder.group(definitions.ApplicationJobs, "billing", (handlers) =>
+  JobGroup.handlers(definitions.BillingJobs, (handlers) =>
   handlers.handle("receipt", (input) =>
     Effect.gen(function* () {
       const mailer = yield* ReceiptMailer
@@ -165,7 +165,7 @@ colliding:
 const definitions = yield* Definitions
 const { BillingQueue, SendReceipt } = definitions
 const GeneratePdf = yield* Job.make({ name: "invoice.generate-pdf", payload: Schema.Struct({ invoiceId: Schema.String }) })
-const PriorityBillingQueue = JobQueue.make("billing-priority")
+const PriorityBillingQueue = yield* JobQueue.make("billing-priority")
 const IssueInvoiceWithPdf = yield* JobProducer.make("billing.issue-invoice-with-pdf").pipe(
   JobProducer.withSlot("send-receipt", SendReceipt, { queues: [BillingQueue, PriorityBillingQueue] }),
   JobProducer.withSlot("generate-pdf", GeneratePdf, { queue: BillingQueue })
@@ -387,7 +387,7 @@ const Codes = FailureCode.define({
 
 ```ts
 const ReceiptHandler = Layer.unwrap(Effect.map(Definitions, (definitions) =>
-  JobApiBuilder.group(definitions.ApplicationJobs, "billing", (handlers) =>
+  JobGroup.handlers(definitions.BillingJobs, (handlers) =>
   handlers.handle("receipt", (input) =>
     Effect.gen(function* () {
       const templates = yield* ReceiptTemplates
@@ -531,8 +531,8 @@ const PrivateDefinitionsProgram = Effect.gen(function* () {
   const PrivateReceiptProducer = yield* JobProducer.make("billing.private-receipt").pipe(
     JobProducer.withSlot("receipt", SendPrivateReceipt, { queue: definitions.BillingQueue, policy: receiptPolicy })
   )
-  const PrivateJobs = JobGroup.make("private-receipts", { receipt: SendPrivateReceipt })
-  const PrivateApi = JobApi.make("private").pipe(JobApi.addGroup(PrivateJobs))
+  const PrivateJobs = yield* JobGroup.make("private-receipts", { receipt: SendPrivateReceipt })
+  const PrivateApi = yield* JobApi.make("private").pipe(JobApi.addGroup(PrivateJobs))
   return { SendPrivateReceipt, PrivateReceiptProducer, PrivateJobs, PrivateApi }
 })
 class PrivateDefinitions extends Context.Service<
@@ -555,9 +555,8 @@ const requestPrivateReceipt = (operationId: string, invoiceId: string) => Effect
 ```
 
 ```ts
-const PrivateReceiptHandler = Layer.unwrap(Effect.map(PrivateDefinitions, (definitions) => JobApiBuilder.group(
-  definitions.PrivateApi,
-  definitions.PrivateJobs.name,
+const PrivateReceiptHandler = Layer.unwrap(Effect.map(PrivateDefinitions, (definitions) => JobGroup.handlers(
+  definitions.PrivateJobs,
   (handlers) =>
     handlers.handle("receipt", (input) =>
       Effect.gen(function* () {

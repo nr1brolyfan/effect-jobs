@@ -29,11 +29,11 @@ Import: `effect-jobs/Job`. Source: `src/Job.ts`.
 
 Import: `effect-jobs/JobQueue`. Source: `src/JobQueue.ts`.
 
-| Export            | Kind         | Contract                                                                                                                                                         |
-| ----------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `InvalidJobQueue` | value + type | Thrown synchronously when the queue name violates QueueName.                                                                                                     |
-| `JobQueue`        | type         | Logical queue identity; Name preserves the declaration literal.                                                                                                  |
-| `make`            | value        | Creates a frozen logical queue. Names are 1–64 ASCII characters matching ^[a-z][a-z0-9.-]\*$; invalid names throw InvalidJobQueue. Creates no storage or worker. |
+| Export            | Kind         | Contract                                                                                                                                                             |
+| ----------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `InvalidJobQueue` | value + type | Typed setup failure when the queue name violates QueueName.                                                                                                          |
+| `JobQueue`        | type         | Logical queue identity; Name preserves the declaration literal.                                                                                                      |
+| `make`            | value        | Creates a frozen logical queue. Names are 1–64 ASCII characters matching ^[a-z][a-z0-9.-]\*$; invalid names fail with InvalidJobQueue. Creates no storage or worker. |
 
 ## JobProducer
 
@@ -59,6 +59,8 @@ Import: `effect-jobs/JobGroup`. Source: `src/JobGroup.ts`.
 | `BoundHandler`               | type         | Encoded invocation boundary used by installed handler services.                                                                                                                                                                                                                                                     |
 | `DecodingServices`           | type         | Schema decoding requirements of every contract in the group.                                                                                                                                                                                                                                                        |
 | `Definitions`                | type         | Named job contracts, independent of queue routing.                                                                                                                                                                                                                                                                  |
+| `HandlerBuilder`             | type         | Immutable builder. A union alias cannot prove that every possible member ran.                                                                                                                                                                                                                                       |
+| `handlers`                   | value        | Acquires callback dependencies once per Layer acquisition; invocation services and Schema decoders use the existing per-job scoped installation runtime.                                                                                                                                                            |
 | `Handlers`                   | type         | The group name and definitions participate in the worker's service requirement.                                                                                                                                                                                                                                     |
 | `HandlerServices`            | type         | Union of implementation service requirements captured during installation.                                                                                                                                                                                                                                          |
 | `HandlersFrom`               | type         | Complete decoded handler implementations inferred from the group contracts.                                                                                                                                                                                                                                         |
@@ -81,15 +83,7 @@ Import: `effect-jobs/JobApi`. Source: `src/JobApi.ts`.
 | `InvalidJobApi`   | value + type | Invalid catalog assembly; diagnostics never include payloads.                                                                                     |
 | `JobApi`          | type         | A pipeable declaration; there is no acquisition, registry or finalize step.                                                                       |
 | `make`            | value        | Starts an empty catalog. Workers require at least one runnable definition.                                                                        |
-
-## JobApiBuilder
-
-Import: `effect-jobs/JobApiBuilder`. Source: `src/JobApiBuilder.ts`.
-
-| Export     | Kind  | Contract                                                                                                                                                 |
-| ---------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `group`    | value | Acquires callback dependencies once per Layer acquisition; invocation services and Schema decoders use the existing per-job scoped installation runtime. |
-| `Handlers` | type  | Immutable builder. A union alias cannot prove that every possible member ran.                                                                            |
+| `pick`            | value        | Selects a fixed list of existing groups, retaining their installation keys.                                                                       |
 
 ## JobIdentity
 
@@ -97,8 +91,8 @@ Import: `effect-jobs/JobIdentity`. Source: `src/JobIdentity.ts`.
 
 | Export                        | Kind         | Contract                                                                                                                                               |
 | ----------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `CatalogIdentity`             | value + type | Queue/name/version Schema and literal-preserving structural identity.                                                                                  |
 | `InvalidOperationId`          | value + type | Typed identifier failure; reports the violated rule without echoing the ID.                                                                            |
+| `JobAddress`                  | value + type | Queue/name/version Schema and literal-preserving structural identity.                                                                                  |
 | `JobDeclarationError`         | value + type | Declaration validation failure with an actionable field/name constraint.                                                                               |
 | `JobName`                     | value + type | Job-name Schema: 1–128 ASCII characters matching nameFormat. Stable job-name Schema: 1–128 ASCII characters matching nameFormat.                       |
 | `JobVersion`                  | value        | Explicit catalog version Schema: an integer in 1–32,767.                                                                                               |

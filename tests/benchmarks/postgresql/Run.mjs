@@ -181,7 +181,6 @@ if (!options.run) {
         "JobProducer",
         "JobGroup",
         "JobApi",
-        "JobApiBuilder",
         "JobWorker",
         "JobStorage",
         "JobPolicy",

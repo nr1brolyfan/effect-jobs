@@ -435,7 +435,7 @@ observation inferred from state.
 
 `JobPayloadView` union:
 
-- `Available {formatVersion:1, catalog:CatalogIdentity, encoded:JsonValue,
+- `Available {formatVersion:1, catalog:JobAddress, encoded:JsonValue,
 validation:"Valid", encryption:"None"|"PrivateDocumentV1"|"SyntheticDocumentV1"}`.
 - `Unavailable {reason:"not-stored"|"invalid-artifact"|"unsupported-catalog"}`.
 

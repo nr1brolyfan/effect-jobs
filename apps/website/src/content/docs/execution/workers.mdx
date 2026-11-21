@@ -12,7 +12,7 @@ starts no polling, database pool or migration.
 ## Give execution a lifetime
 
 Build one application-owned graph: configured jobs storage, shared contract groups,
-complete `JobApiBuilder.group` handler Layers, then `JobWorker.layer(catalog,
+complete `JobGroup.handlers` handler Layers, then `JobWorker.layer(catalog,
 { queues: [{ queue, concurrency }] })`. Installation captures Schema decoding and
 application services. Worker construction captures `JobStorage` and every catalog
 group's handler service. Reuse the same group references for both operations.

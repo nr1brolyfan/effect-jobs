@@ -9,10 +9,12 @@ import type {
   TransactionQuery
 } from "../../../src/postgresql/PostgreSqlTransaction.js"
 
-const queue = Queue.make("schedule")
-const group = Group.make("schedule", {
-  run: { name: "supported", version: 2, payload: Schema.String }
-})
+const queue = Effect.runSync(Queue.make("schedule"))
+const group = Effect.runSync(
+  Group.make("schedule", {
+    run: { name: "supported", version: 2, payload: Schema.String }
+  })
+)
 const catalog = { queue: queue.name, name: "supported", version: 2 }
 const request: Schedule.Request = {
   queue: queue.name,

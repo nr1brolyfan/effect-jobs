@@ -6,13 +6,12 @@ import * as JobPolicy from "effect-jobs/JobPolicy"
 import * as JobRetryPolicy from "effect-jobs/JobRetryPolicy"
 import * as JobGroup from "effect-jobs/JobGroup"
 import * as JobApi from "effect-jobs/JobApi"
-import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 import * as FailureCode from "effect-jobs/FailureCode"
 import { JobFailures, type JobFailure } from "effect-jobs/JobFailure"
 
 // #region definition
 // Workers select this named queue; it groups jobs, not business requests.
-export const ReportsQueue = JobQueue.make("reports")
+export const ReportsQueue = Effect.runSync(JobQueue.make("reports"))
 export type ReportPayload = typeof ReportPayload.Type
 export const ReportPayload = Schema.Struct({
   reportId: Schema.String.pipe(Schema.check(Schema.isPattern(/^[a-z0-9-]{1,64}$/))),
@@ -45,9 +44,9 @@ export const reportDefinitions = Effect.gen(function* () {
     JobProducer.withSlot("deliver", DeliverReport, { queue: ReportsQueue })
   )
 
-  const GenerateJobs = JobGroup.make("generate", { report: GenerateReport })
-  const DeliverJobs = JobGroup.make("deliver", { report: DeliverReport })
-  const ApplicationJobs = JobApi.make("reports").pipe(
+  const GenerateJobs = yield* JobGroup.make("generate", { report: GenerateReport })
+  const DeliverJobs = yield* JobGroup.make("deliver", { report: DeliverReport })
+  const ApplicationJobs = yield* JobApi.make("reports").pipe(
     JobApi.addGroup(GenerateJobs),
     JobApi.addGroup(DeliverJobs)
   )
@@ -138,27 +137,22 @@ export class ReportHandoff extends Context.Service<
 // #region handler
 export const ReportHandlerLayer = Layer.unwrap(
   Effect.map(ReportDefinitions, (definitions) =>
-    JobApiBuilder.group(
-      definitions.ApplicationJobs,
-      definitions.GenerateJobs.name,
-      (handlers) =>
-        handlers.handle(
-          "report",
-          Effect.fn("Reports.generate")(function* (input) {
-            const storage = yield* ReportStorage
-            const handoff = yield* ReportHandoff
-            // Stable artifact key + immutable report input make retrying this write safe.
-            // The application must prevent reuse of reportId for a different report.
-            yield* storage
-              .put(input.payload.reportId, renderReport(input.payload))
-              .pipe(
-                Effect.mapError(() =>
-                  JobFailures.Retry({ code: Codes.storageUnavailable })
-                )
-              )
-            yield* handoff.record(input.context.jobId, input.payload)
-          })
-        )
+    JobGroup.handlers(definitions.GenerateJobs, (handlers) =>
+      handlers.handle(
+        "report",
+        Effect.fn("Reports.generate")(function* (input) {
+          const storage = yield* ReportStorage
+          const handoff = yield* ReportHandoff
+          // Stable artifact key + immutable report input make retrying this write safe.
+          // The application must prevent reuse of reportId for a different report.
+          yield* storage
+            .put(input.payload.reportId, renderReport(input.payload))
+            .pipe(
+              Effect.mapError(() => JobFailures.Retry({ code: Codes.storageUnavailable }))
+            )
+          yield* handoff.record(input.context.jobId, input.payload)
+        })
+      )
     )
   )
 )
@@ -192,26 +186,21 @@ export const DeliveryCodes = FailureCode.define({
 })
 export const DeliveryHandlerLayer = Layer.unwrap(
   Effect.map(ReportDefinitions, (definitions) =>
-    JobApiBuilder.group(
-      definitions.ApplicationJobs,
-      definitions.DeliverJobs.name,
-      (handlers) =>
-        handlers.handle(
-          "report",
-          Effect.fn("Reports.deliver")(function* (input) {
-            const delivery = yield* ReportDelivery
-            yield* delivery.send(input.payload).pipe(
-              Effect.catchTags({
-                DeliveryBusy: () =>
-                  Effect.fail(JobFailures.Retry({ code: DeliveryCodes.busy })),
-                DeliveryUncertain: () =>
-                  Effect.fail(
-                    JobFailures.OutcomeUnknown({ code: DeliveryCodes.uncertain })
-                  )
-              })
-            )
-          })
-        )
+    JobGroup.handlers(definitions.DeliverJobs, (handlers) =>
+      handlers.handle(
+        "report",
+        Effect.fn("Reports.deliver")(function* (input) {
+          const delivery = yield* ReportDelivery
+          yield* delivery.send(input.payload).pipe(
+            Effect.catchTags({
+              DeliveryBusy: () =>
+                Effect.fail(JobFailures.Retry({ code: DeliveryCodes.busy })),
+              DeliveryUncertain: () =>
+                Effect.fail(JobFailures.OutcomeUnknown({ code: DeliveryCodes.uncertain }))
+            })
+          )
+        })
+      )
     )
   )
 )

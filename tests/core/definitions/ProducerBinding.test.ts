@@ -1,5 +1,4 @@
 import * as JobApi from "../../../src/JobApi.js"
-import * as JobApiBuilder from "../../../src/JobApiBuilder.js"
 import { Deferred, Effect, Fiber, Layer, Logger, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Job from "../../../src/Job.js"
@@ -25,7 +24,7 @@ import {
 } from "../codec/EncryptedFixture.js"
 import { harness } from "../worker/Harness.js"
 
-const queue = Queue.make("billing")
+const queue = Effect.runSync(Queue.make("billing"))
 const job = {
   name: "billing.receipt",
   version: 1,
@@ -141,14 +140,14 @@ describe("contract-first producer binding", () => {
   )
 
   it("binds slots to one queue-independent contract and executes through the public group worker", async () => {
-    const other = Queue.make("billing-slow")
+    const other = Effect.runSync(Queue.make("billing-slow"))
     const producer = Effect.runSync(
       Producer.make("billing.issue").pipe(
         Producer.withSlot("receipt", job, { queue }),
         Producer.withSlot("deferred", job, { queue: other })
       )
     )
-    const group = Group.make("billing-producer", { receipt: job })
+    const group = Effect.runSync(Group.make("billing-producer", { receipt: job }))
     const prepared: PreparedJob[] = []
     const seen: string[] = []
     await Effect.runPromise(
@@ -178,7 +177,7 @@ describe("contract-first producer binding", () => {
         expect(prepared[0]!.policy).toEqual(Policy.defaultPolicy)
         const test = harness(prepared)
         const worker = yield* Worker.make(
-          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
           {
             queues: [{ queue }, { queue: other }]
           }
@@ -194,15 +193,12 @@ describe("contract-first producer binding", () => {
         Effect.provideService(JobEnqueue, capture(prepared)),
         Effect.provide(
           Layer.mergeAll(
-            JobApiBuilder.group(
-              JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-              group.name,
-              (_handlers) =>
-                _handlers.handle("receipt", (input) =>
-                  Effect.sync(() => {
-                    seen.push(input.payload.invoiceId)
-                  })
-                )
+            Group.handlers(group, (_handlers) =>
+              _handlers.handle("receipt", (input) =>
+                Effect.sync(() => {
+                  seen.push(input.payload.invoiceId)
+                })
+              )
             ),
             Logger.layer([])
           )
@@ -423,11 +419,11 @@ describe("contract-first producer binding", () => {
             Producer.withSlot(
               "receipt",
               { ...job, payload },
-              { queues: [queue, Queue.make("billing-priority")] }
+              { queues: [queue, Effect.runSync(Queue.make("billing-priority"))] }
             )
           )
         )
-        const destination = { ...Queue.make("billing-priority") }
+        const destination = { ...Effect.runSync(Queue.make("billing-priority")) }
         const configured = {
           ...Policy.defaultPolicy,
           maxFinalizedAttempts: 7,

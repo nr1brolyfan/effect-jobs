@@ -64,8 +64,8 @@ job name/version and semantic payload, excluding queue/policy/availability, and
 retain the first complete durable configuration and artifact. Changed job/version
 or semantic content conflicts. This does not provide exactly-once external work.
 
-`JobApi.make(name).pipe(JobApi.addGroup(group), ...)` declares an immutable catalog.
-`JobApiBuilder.group(api, name, handlers => handlers.handle(alias, handler))`
+Yield `JobApi.make(name).pipe(JobApi.addGroup(group), ...)` to assemble an immutable catalog.
+`JobGroup.handlers(group, handlers => handlers.handle(alias, handler))`
 requires complete handler coverage. Worker construction requires all catalog group
 installations and one configured `JobStorage`, with shared queue concurrency and
 one response budget. Queue-scoped recovery and read-only bounded `JobSchedule`
@@ -201,3 +201,47 @@ a historical published alpha is not a compatibility target for this breaking API
 The first-stage PoC snapshot/artifacts remain historical evidence; no second PoC
 or review round is required. No release/version publication or data migration is
 part of this work.
+
+### Typed setup and job addressing
+
+Build a domain's declarations in one setup Effect. Queue, group and catalog
+validation report typed failures in that Effect. Use the resulting group both
+for handler installation and catalog composition.
+
+```ts
+const makeOrderJobs = Effect.gen(function* () {
+  const ordersQueue = yield* JobQueue.make("orders")
+  const sendConfirmation = yield* Job.make({
+    name: "orders.send-confirmation",
+    payload: Schema.Struct({ orderId: Schema.String })
+  })
+  const placeOrder = yield* JobProducer.make("orders.place").pipe(
+    JobProducer.withSlot("confirmation", sendConfirmation, { queue: ordersQueue })
+  )
+  const confirmations = yield* JobGroup.make("confirmations", {
+    confirmation: sendConfirmation
+  })
+  const catalog = yield* JobApi.make("orders").pipe(JobApi.addGroup(confirmations))
+  return { ordersQueue, placeOrder, confirmations, catalog }
+})
+```
+
+Use `JobGroup.handlers(group, build)` in place of
+`JobApiBuilder.group(catalog, name, build)`. Use
+`yield* JobApi.pick(catalog, ["confirmations"])` to select existing groups.
+Both the full and picked catalogs use the same installation key for each
+selected group. A separately constructed group gets a distinct key.
+
+Import the `JobAddress` type and Schema from `effect-jobs/JobIdentity` in
+place of `CatalogIdentity`. The three identities serve different purposes:
+
+- The job contract is `{ name, version }` and binds a payload Schema.
+- The job address is `{ queue, name, version }` and tells the worker where the
+  job is routed and which implementation to use.
+- The enqueue deduplication key is `{ operation, operationId, slot }`.
+
+For example, enqueue `invoice.email` version 1 on `billing` with operation
+`invoice.issue`, operation ID `req-42` and slot `email`. A replay with the
+same deduplication key, job contract and payload targeting `billing-priority`
+returns `AlreadyPresent` with the original job ID. The job remains on
+`billing`. The stored fields and schema are unchanged by the rename.

@@ -21,12 +21,36 @@ import { encodeJobPayload } from "./JobPayloadCodec.js"
 import { observe } from "./JobTelemetry.js"
 import { declaration } from "./internal/ProducerDeclaration.js"
 import { insertPreparing } from "./internal/JobTransaction.js"
+import type { IsUnion, SingleKey } from "./internal/DeclarationTypes.js"
 import { prepareProjection } from "./internal/codec/ProtectedProjection.js"
 
 /** Exactly one route declaration; selectable queues have no implicit default. */
 export type Routing =
   | { readonly queue: JobQueue; readonly queues?: never }
   | { readonly queues: readonly [JobQueue, ...JobQueue[]]; readonly queue?: never }
+
+type ConcreteJob<J extends JobDefinition> =
+  IsUnion<J> extends false
+    ? Schema.Top extends J["payload"]
+      ? never
+      : IsUnion<J["payload"]> extends false
+        ? unknown
+        : never
+    : never
+
+type ConcreteRoute<Route extends Routing> = [Route] extends [{ readonly queue: JobQueue }]
+  ? unknown
+  : [Route] extends [{ readonly queues: infer Queues extends ReadonlyArray<JobQueue> }]
+    ? IsUnion<Queues> extends false
+      ? number extends Queues["length"]
+        ? never
+        : {
+            readonly queues: {
+              readonly [K in keyof Queues]: Queues[K] & SingleKey<Queues[K]["name"]>
+            }
+          }
+      : never
+    : never
 
 /** One consequence's contract, closed routing declaration and resolved policy. */
 export type Binding = Routing & {
@@ -110,10 +134,11 @@ type ResolvedBinding<Job extends JobDefinition, Route extends Routing> = Route &
  * import * as Queue from "effect-jobs/JobQueue"
  *
  * const setup = Effect.gen(function* () {
+ * const queue = yield* Queue.make("billing")
  * const producer = yield* Producer.make("invoice.create").pipe(
  *   Producer.withSlot("generate",
  *     { name: "invoice.generate", version: 1, payload: Schema.String },
- *     { queue: Queue.make("billing") }
+ *     { queue }
  *   )
  * )
  * return producer
@@ -141,9 +166,13 @@ export const withSlot =
     const Job extends JobDefinition,
     const Route extends Routing
   >(
-    slot: Slot,
-    job: Job,
-    options: Route & { readonly policy?: JobPolicy; readonly defaultQueue?: never }
+    slot: Slot & NoInfer<SingleKey<Slot>>,
+    job: Job & NoInfer<ConcreteJob<Job>>,
+    options: Route &
+      NoInfer<ConcreteRoute<Route>> & {
+        readonly policy?: JobPolicy
+        readonly defaultQueue?: never
+      }
   ) =>
   <Operation extends string, D extends Bindings, E, R>(
     effect: Effect.Effect<JobProducer<Operation, D>, E, R> &

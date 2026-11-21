@@ -22,7 +22,7 @@ const producer = Effect.runSync(
       "receipt",
       { name: "billing.receipt", version: 1, payload: Schema.String },
       {
-        queue: Queue.make("billing")
+        queue: Effect.runSync(Queue.make("billing"))
       }
     )
   )

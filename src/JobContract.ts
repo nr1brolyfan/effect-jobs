@@ -4,7 +4,7 @@
 import { Data } from "effect"
 import type { Effect, Schema } from "effect"
 import type { JobId } from "./JobId.js"
-import type { CatalogIdentity, ProducerIdentity } from "./JobIdentity.js"
+import type { JobAddress, ProducerIdentity } from "./JobIdentity.js"
 import type { JobPolicy } from "./JobPolicy.js"
 
 /**
@@ -15,7 +15,7 @@ import type { JobPolicy } from "./JobPolicy.js"
  */
 export interface HandlerContext {
   readonly jobId: JobId
-  readonly catalog: CatalogIdentity
+  readonly catalog: JobAddress
   readonly producer: ProducerIdentity
   /** finalizedAttempts + 1; may repeat after unknown outcomes and stalled recovery. */
   readonly nextFinalizationNumber: number
@@ -131,7 +131,7 @@ export type JobPayloadDecoder = <S extends Schema.Top>(
  * @category models
  */
 export interface PreparedJob {
-  readonly catalog: CatalogIdentity
+  readonly catalog: JobAddress
   readonly producer: ProducerIdentity
   readonly policy: JobPolicy
   readonly availableAt?: number

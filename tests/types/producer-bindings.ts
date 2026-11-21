@@ -10,7 +10,7 @@ import type { JobEnqueue } from "../../src/JobEnqueue.js"
 
 class Encoding extends Context.Service<Encoding, {}>()("types/Encoding") {}
 declare const schema: Schema.Codec<{ readonly total: number }, string, never, Encoding>
-const queue = Queue.make("billing")
+const queue = Effect.runSync(Queue.make("billing"))
 const required = Effect.runSync(Job.make({ name: "invoice.generate", payload: schema }))
 const defaulted = Effect.runSync(
   Job.make({
@@ -28,10 +28,10 @@ const producer = Effect.runSync(
   Producer.make("invoice.create").pipe(
     Producer.withSlot("generate", required, { queue }),
     Producer.withSlot("delivery", defaulted, {
-      queue: Queue.make("mail"),
+      queue: Effect.runSync(Queue.make("mail")),
       policy: Policy.defaultPolicy
     }),
-    Producer.withSlot("copy", defaulted, { queue: Queue.make("mail") }),
+    Producer.withSlot("copy", defaulted, { queue: Effect.runSync(Queue.make("mail")) }),
     Producer.withSlot("dynamic", dynamic, { queue })
   )
 )

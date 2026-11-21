@@ -9,7 +9,7 @@ import { Effect, Exit, Layer, ManagedRuntime, Redacted, References } from "effec
 import * as PgClient from "@effect/sql-pg/PgClient"
 import * as Policy from "effect-jobs/JobPolicy"
 import * as Worker from "effect-jobs/JobWorker"
-import * as ApiBuilder from "effect-jobs/JobApiBuilder"
+import * as Group from "effect-jobs/JobGroup"
 import * as Storage from "effect-jobs/JobStorage"
 import * as Definitions from "./Definitions.mjs"
 import * as Jobs from "effect-jobs/PostgreSqlJobs"
@@ -224,7 +224,7 @@ try {
     Effect.sync(() => {
       createHash("sha256").update(input.payload.data).digest()
     }).pipe(Effect.andThen(Effect.sleep(index % 2 === 0 ? 5 : 15)))
-  const handlers = ApiBuilder.group(catalog, group.name, (initial) =>
+  const handlers = Group.handlers(group, (initial) =>
     initial.handle("kind0", handler(0)).handle("kind1", handler(1))
   )
   // Independent catalog-backed worker instances share the same finite native pool.

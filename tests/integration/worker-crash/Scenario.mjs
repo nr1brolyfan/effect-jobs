@@ -14,7 +14,7 @@ import { PostgreSqlApplication } from "../../../dist/postgresql/PostgreSqlTransa
 
 export const mapping = Tables.tables({ schema: "crash_fixture" })
 export const migration = Tables.migration(mapping)
-export const queue = Queue.make("crash.delivery")
+export const queue = Effect.runSync(Queue.make("crash.delivery"))
 const declarations = Effect.runSync(
   Effect.gen(function* () {
     const definition = yield* Job.make({
@@ -39,8 +39,8 @@ export const catalog = {
   name: definition.name,
   version: definition.version
 }
-export const group = Group.make("crash", { delivery: definition })
-export const api = JobApi.make("crash-test").pipe(JobApi.addGroup(group))
+export const group = Effect.runSync(Group.make("crash", { delivery: definition }))
+export const api = Effect.runSync(JobApi.make("crash-test").pipe(JobApi.addGroup(group)))
 
 export const makeJobs = async (connection) => {
   const runtime = ManagedRuntime.make(

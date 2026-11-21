@@ -13,7 +13,7 @@ import { layer as registryLayer } from "../definitions/ProtocolRegistry.js"
 import { FinalizationResult } from "../../../src/JobStore.js"
 import { harness, policy } from "./Harness.js"
 
-const queue = Queue.make("review-probe")
+const queue = Effect.runSync(Queue.make("review-probe"))
 const job = Effect.runSync(
   Job.make({
     queue,

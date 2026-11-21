@@ -3,7 +3,7 @@ import { Cause, Context, Data, Effect, Layer, Schema } from "effect"
 import { BatchLimit } from "./JobLifecycle.js"
 import { EpochMillis } from "./JobPolicy.js"
 import type { JobGroup, Definitions } from "./JobGroup.js"
-import type { CatalogIdentity } from "./JobIdentity.js"
+import type { JobAddress } from "./JobIdentity.js"
 import type { JobQueue } from "./JobQueue.js"
 
 /** Invalid observation request or malformed storage metadata; never includes row values. */
@@ -21,7 +21,7 @@ export class JobScheduleUnavailable extends Data.TaggedError(
 /** One queue and at most 500 supported contracts; limit is an integer in 1–500. */
 export interface Request {
   readonly queue: string
-  readonly supportedCatalog: ReadonlyArray<CatalogIdentity>
+  readonly supportedCatalog: ReadonlyArray<JobAddress>
   readonly limit: number
 }
 

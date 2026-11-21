@@ -101,7 +101,6 @@ writeFileSync(join(work, "Strict.mts"), nonDrizzle)
 writeFileSync(
   join(work, "Runtime.mts"),
   `import * as JobApi from "effect-jobs/JobApi"
-import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 
 import assert from "node:assert/strict"
 import { Cause, Duration, Effect, Exit, Layer, Result, Schema } from "effect"
@@ -117,6 +116,7 @@ import * as JobsModule from "effect-jobs/PostgreSqlJobs"
 import { EnqueueResult, type PreparedJob } from "effect-jobs/JobContract"
 import { JobOperators, JobOperatorExpected } from "effect-jobs/JobOperators"
 import { JobId } from "effect-jobs/JobId"
+import * as Identity from "effect-jobs/JobIdentity"
 import * as Group from "effect-jobs/JobGroup"
 import * as Producer from "effect-jobs/JobProducer"
 import * as Storage from "effect-jobs/JobStorage"
@@ -126,11 +126,14 @@ import * as Schedule from "effect-jobs/JobSchedule"
 import * as Polling from "effect-jobs/JobPolling"
 import { encodeJobPayload, decodeJobPayload } from "effect-jobs/JobPayloadCodec"
 import { DocumentKeys, EncryptedDocument, keys, keysLayer } from "./EncryptedFixture.mjs"
-for (const name of ["JobRegistry", "JobConsumer", "JobPlan", "JobWorkerRuntime", "PollingJobWorker"]) {
+for (const name of ["JobRegistry", "JobConsumer", "JobPlan", "JobWorkerRuntime", "PollingJobWorker", "JobApiBuilder"]) {
   await assert.rejects(import("effect-jobs/" + name), {
     code: process.versions.bun ? "ERR_MODULE_NOT_FOUND" : "ERR_PACKAGE_PATH_NOT_EXPORTED"
   })
 }
+const address: Identity.JobAddress<"billing", "receipt", 1> = { queue: "billing", name: "receipt", version: 1 }
+assert.deepEqual(Schema.decodeSync(Identity.JobAddress)(address), address)
+assert.equal("CatalogIdentity" in Identity, false)
 assert.equal("JobBackendError" in EnqueueModule, false)
 assert.equal("Backend" in JobsModule, false)
 assert.equal(new JobPersistenceError({ reason: "unqualified-storage", commitKnowledge: "NotCommitted" })._tag, "JobPersistenceError")
@@ -163,14 +166,14 @@ for (const removed of [{ retryDelay: Duration.seconds(5) }, { maxAttempts: 3 }])
   assert(reason.error instanceof Policy.JobPolicyConfigurationError)
   assert.equal(reason.error.field, "options")
 }
-const queue = Queue.make("billing")
+const queue = Effect.runSync(Queue.make("billing"))
 const definition = Effect.runSync(Job.make({ name: "receipt", payload: Schema.Struct({ invoiceId: Schema.String, document: EncryptedDocument }) }))
 const producer = Effect.runSync(Producer.make("billing.issue").pipe(Producer.withSlot("receipt", definition, { queue })))
 assert.equal(Object.keys(Effect.runSync(Producer.make("empty.operation")).slots).length, 0)
 assert.equal(producer.operation, "billing.issue")
 assert.throws(() => Effect.runSync(Producer.make({ operation: "removed", slots: {} } as never)), { _tag: "JobDeclarationError" })
 const dynamicSlot: string = "receipt"
-assert.throws(() => Effect.runSync(Effect.succeed(producer).pipe(Producer.withSlot(dynamicSlot, definition, { queue }))), { _tag: "JobDeclarationError" })
+assert.throws(() => Effect.runSync(Effect.succeed(producer).pipe(Producer.withSlot(dynamicSlot as "runtime-only", definition, { queue }))), { _tag: "JobDeclarationError" })
 assert.equal("replaceSlot" in Producer, false)
 assert.equal("build" in producer, false)
 const catalog = { queue: queue.name, name: definition.name, version: definition.version }
@@ -187,7 +190,7 @@ assert.deepEqual(prepared[0]!.encoded.semanticProjectionBytes, prepared[1]!.enco
 assert.deepEqual(prepared[0]!.encoded.semanticProjectionBytes, prepared[2]!.encoded.semanticProjectionBytes)
 assert(!new TextDecoder().decode(prepared[0]!.encoded.payloadBytes).includes("PRIVATE"))
 assert.deepEqual(await Effect.runPromise(decodeJobPayload(definition.payload, prepared[0]!.encoded).pipe(Effect.provide(keysLayer(keys("two"))))), input.payload)
-const priority = Queue.make("billing-priority")
+const priority = Effect.runSync(Queue.make("billing-priority"))
 const selectable = Effect.runSync(Producer.make(producer.operation).pipe(Producer.withSlot("receipt", definition, { queues: [queue, priority] })))
 const overridePolicy = { ...Policy.defaultPolicy, maxFinalizedAttempts: 7 }
 await Effect.runPromise(selectable.enqueue({ ...input, queue: priority.name, policy: overridePolicy }).pipe(Effect.provideService(JobEnqueue, enqueueService), Effect.provide(keysLayer(keys()))))
@@ -202,8 +205,8 @@ for (const invalid of [{ queue: queue.name }, { queue: undefined }, { queue }, {
 }
 assert.equal(prepared.length, 4)
 let calls = 0
-const group = Group.make("installed-receipts", { receipt: definition })
-const handler = JobApiBuilder.group(JobApi.make(group.name).pipe(JobApi.addGroup(group)), group.name, (_handlers) => _handlers.handle("receipt", (input) => Effect.sync(() => { assert.equal(input.payload.document.total, 12n); calls++ }))).pipe(Layer.provide(keysLayer(keys())))
+const group = Effect.runSync(Group.make("installed-receipts", { receipt: definition }))
+const handler = Group.handlers(group, (_handlers) => _handlers.handle("receipt", (input) => Effect.sync(() => { assert.equal(input.payload.document.total, 12n); calls++ }))).pipe(Layer.provide(keysLayer(keys())))
 await Effect.runPromise(Effect.gen(function* () {
    const handlers = yield* group.handlers
    const context = { jobId: yield* Schema.decodeEffect(JobId)("fixture-job"), catalog, producer: prepared[0]!.producer, nextFinalizationNumber: 1 }
@@ -221,7 +224,10 @@ const storageLayer = Storage.layer({ operationResponseBudgetMillis: 100, store: 
   reconcileFinalization: () => Effect.succeed(Store.FinalizationReconciliation.Unknown()),
   recoverExpired: () => Effect.succeed(0)
 } })
-const workerLayer = Worker.layer(JobApi.make(group.name).pipe(JobApi.addGroup(group)), { queues: [{ queue }] }).pipe(Layer.provide(Layer.mergeAll(handler, storageLayer)))
+const catalogWithHandlers = Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group)))
+const picked = Effect.runSync(JobApi.pick(catalogWithHandlers, ["installed-receipts"]))
+assert.strictEqual(picked.groups["installed-receipts"].handlers, group.handlers)
+const workerLayer = Worker.layer(picked, { queues: [{ queue }] }).pipe(Layer.provide(Layer.mergeAll(handler, storageLayer)))
 assert.equal(claims, 0)
 assert.deepEqual(await Effect.runPromise(Worker.drain(queue).pipe(Effect.provide(workerLayer))), { _tag: "Idle", claimed: 0, recovered: 0 })
 assert.equal(claims, 1)
@@ -318,7 +324,7 @@ const negativeDiagnostics = [
     /^CatalogNegative\.mts\(\d+,\d+\): error TS(\d+):/gm
   )
 ]
-assert.equal(negativeDiagnostics.length, 9)
+assert.equal(negativeDiagnostics.length, 8)
 assert(
   negativeDiagnostics.every((entry) =>
     ["2322", "2339", "2739", "2345"].includes(entry[1])
@@ -327,9 +333,8 @@ assert(
 for (const proof of ["toLayer", "JobApi", "Complete", "missing"]) {
   assert((negative.stdout ?? "").includes(proof), `Missing negative diagnostic ${proof}`)
 }
-// Preserve the original catalog negatives above. These additional controls prove
-// that inferred/explicit unions, unresolved generics and broad strings cannot
-// turn one installation into simultaneous output of every possible service.
+// A selected catalog exposes only its actual groups. A dynamic group or a
+// selection whose precise membership is unknown cannot claim multiple services.
 writeFileSync(
   join(work, "GroupSelectionNegative.mts"),
   readFileSync(join(work, "GroupSelectionTypes.mts"), "utf8").replace(
@@ -366,8 +371,15 @@ const selectionDiagnostics = [
     /^GroupSelectionNegative\.mts\(\d+,\d+\): error TS(\d+):/gm
   )
 ]
-assert.equal(selectionDiagnostics.length, 5)
-assert(selectionDiagnostics.every((entry) => entry[1] === "2345"))
+assert.deepEqual(selectionDiagnostics.map((entry) => entry[1]).sort(), [
+  "2322",
+  "2339",
+  "2345",
+  "2345",
+  "2345",
+  "2345",
+  "2345"
+])
 assert((groupSelectionNegative.stdout ?? "").includes("never"))
 for (const runtime of ["node", "bun"]) {
   run(`${runtime}-runtime`, runtime, ["compiled/Runtime.mjs"])
@@ -380,7 +392,7 @@ writeFileSync(
       publicTypes: "PASS",
       catalogNegativeControls: "PASS rejected stripped expect-error fixture",
       groupSelectionControls:
-        "PASS five stripped union/generic/broad-name rejections; literal composition preserves missing services",
+        "PASS seven stripped selection/installation rejections; literal composition preserves missing services",
       strictCoreDeclarations: "PASS skipLibCheck:false",
       drizzleDeclarations:
         "skipLibCheck:true; upstream limitation separately recorded by native runner",
