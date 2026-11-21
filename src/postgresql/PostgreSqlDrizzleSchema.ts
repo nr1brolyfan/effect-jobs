@@ -22,7 +22,7 @@ import type {
   IndexBuilder
 } from "drizzle-orm/pg-core"
 import { indexPrefix, tables, type TableOptions } from "./PostgreSqlSchema.js"
-import type { JobPolicy } from "../JobPolicy.js"
+import type { PersistedJobPolicy } from "../JobPolicy.js"
 
 const bytes = customType<{ data: Uint8Array; driverData: Buffer }>({
   dataType: () => "bytea",
@@ -37,7 +37,7 @@ const makeJobsColumns = () => ({
   queue: text("queue").notNull(),
   name: text("kind").notNull(),
   version: integer("version").notNull(),
-  policy: jsonb("policy").$type<JobPolicy>().notNull(),
+  policy: jsonb("policy").$type<typeof PersistedJobPolicy.Encoded>().notNull(),
   initialAvailableAt: bigint("initial_available_at", { mode: "number" }),
   state: text("state").notNull(),
   availableAt: bigint("available_at", { mode: "number" }).notNull(),

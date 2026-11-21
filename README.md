@@ -639,18 +639,25 @@ Run DDL through your application's migration system, with migration credentialsâ
 
 ```ts
 // Application migration
-const tables = PostgreSqlSchema.tables() // public.jobs and public.job_payloads
+const tables = PostgreSqlSchema.tables({
+  schema: "billing",
+  jobsTable: "tasks",
+  payloadsTable: "task_artifacts"
+})
 
 const ddl = PostgreSqlSchema.migration(tables)
 // Execute `ddl` using your migration runner.
 
-// Runtime: configure the same schema/table mapping, without DDL permissions.
-const jobs = yield* PostgreSqlJobs.make({
+// ApplicationPostgresLayer is PostgreSqlNative.layer({ client, operationTimeout }).
+const JobsLayer = PostgreSqlJobs.layerNoDeps({
   ...tables,
   operationResponseBudget: Duration.millis(100)
-}).pipe(Effect.provide(ApplicationPostgresLayer))
+}).pipe(Layer.provide(ApplicationPostgresLayer))
 
-yield* jobs.ready
+yield* Effect.gen(function* () {
+  const jobs = yield* PostgreSqlJobs.PostgreSqlJobs
+  yield* jobs.ready
+}).pipe(Effect.provide(JobsLayer))
 ```
 
 ```ts
@@ -670,6 +677,11 @@ const jobTables = makeJobTables({
   ]
 })
 ```
+
+Use the same mapping for migration generation, producer and worker. Both runtime
+deployments must connect to the intended database. Building `JobsLayer` runs no
+migrations and starts no worker. Use `PostgreSqlJobs.make` to assemble a narrower
+service set explicitly.
 
 Generate migrations from these declarations. The SQL migration helper includes
 only the library's baseline indexes; it does not know about `extraIndexes`.

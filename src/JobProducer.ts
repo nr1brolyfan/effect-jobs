@@ -91,6 +91,8 @@ export interface JobProducer<Operation extends string, D extends Bindings>
   extends Pipeable.Pipeable {
   readonly operation: Operation
   readonly slots: D
+  /** Joins the configured client's active transaction. Providing JobEnqueue alone
+   * does not open one. The enqueue result is provisional until the outer commit. */
   readonly enqueue: <const K extends keyof D & string>(
     input: Input<D, K> & { readonly slot: K }
   ) => Effect.Effect<
@@ -98,6 +100,9 @@ export interface JobProducer<Operation extends string, D extends Bindings>
     JobEnqueueError | JobPersistenceError,
     JobEnqueue | D[K]["job"]["payload"]["EncodingServices"]
   >
+  /** For a job without an accompanying business write. Requires JobEnqueue and
+   * rejects an active transaction on the configured client. Success acknowledges
+   * the standalone commit. */
   readonly enqueueStandalone: <const K extends keyof D & string>(
     input: Input<D, K> & { readonly slot: K }
   ) => Effect.Effect<
@@ -105,6 +110,8 @@ export interface JobProducer<Operation extends string, D extends Bindings>
     JobEnqueueError | JobPersistenceError,
     JobEnqueue | D[K]["job"]["payload"]["EncodingServices"]
   >
+  /** Joins a qualified custom adapter's explicit JobsTransaction. The application
+   * owns commit and rollback. The result is provisional until that commit. */
   readonly enqueueInTransaction: <E, R, const K extends keyof D & string>(
     tx: JobsTransaction<E, R>,
     input: Input<D, K> & { readonly slot: K }

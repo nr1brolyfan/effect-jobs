@@ -43,8 +43,17 @@ cleanup_at is null; claims, recovery and cleanup exclude it. Active cancellation
 is unavailable because no handler interruption contract exists. Cancelling future
 execution cannot undo an earlier external effect.
 
-Both redrive forms accept a queue-independent `{ kind, version, payload }` contract.
-Its kind/version must match the locked source. Queue routing is inherited from
+Both redrive forms accept a queue-independent `{ name, version, payload }` contract.
+The public `name` maps to the persisted PostgreSQL `kind` column. The definition's
+name and version must match the locked source. Pass the definition created with
+`Job.make` directly to both methods:
+
+```ts
+yield* operators.redrive(SendInvoiceEmail, request)
+yield* operators.correctedRedrive(SendInvoiceEmail, correctedRequest)
+```
+
+Queue routing is inherited from
 that source, never selected by a current deployment's producer or handler contract.
 Redrive validates the supported contract, complete stored policy/metadata,
 configured lease response reserve, canonical payload/projection and corresponding

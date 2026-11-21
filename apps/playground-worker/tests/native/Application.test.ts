@@ -14,6 +14,9 @@ import { afterAll, expect } from "bun:test"
 import { Effect, Schedule } from "effect"
 import * as HttpClient from "effect/http/HttpClient"
 import Stack from "./ApplicationStack.js"
+import * as OperatorProbe from "../integration/OperatorProbe.js"
+import { JobOperatorResult } from "@effect-jobs/playground-contracts/Operators"
+import { routes } from "@effect-jobs/playground-contracts/Routes"
 
 const api = Test.make({
   providers: Cloudflare.providers(),
@@ -124,6 +127,82 @@ const issue = async (): Promise<Actor> => {
       .split("=")[1]!
   }
 }
+api.test(
+  "commits operator state with its receipt and reconciles a lost commit response",
+  Effect.promise(async () => {
+    const owner = await issue()
+    const { ref } = owner.sandbox
+    const credentialName = Cookies.names(origin(), true).credential
+    const credential = owner.cookie
+      .split("; ")
+      .find((cookie) => cookie.startsWith(credentialName + "="))!
+      .slice(credentialName.length + 1)
+    const config = {
+      localPrivate: true,
+      connectionString: process.env.PG_connectionString!,
+      schema: "native_application",
+      encryptionKey: process.env.ENCRYPTION_KEY!,
+      fingerprintKey: process.env.FINGERPRINT_KEY!,
+      cursorKey: process.env.CURSOR_KEY!
+    }
+
+    for (const variant of ["acknowledged", "lost"] as const) {
+      const jobId = await Effect.runPromise(OperatorProbe.seed(config, ref))
+      const command = {
+        sandbox: ref,
+        requestId: crypto.randomUUID(),
+        jobId,
+        expectedState: "Pending",
+        expectedLifecycleVersion: 0,
+        action: "cancel"
+      } as const
+      if (variant === "acknowledged") {
+        const response = await post(routes.operator, owner, command)
+        expect(response.status).toBe(200)
+        expect(
+          Schema.decodeUnknownSync(JobOperatorResult)(await response.json())
+        ).toMatchObject({
+          _tag: "Committed",
+          resultJobId: jobId
+        })
+      } else {
+        const unknown = await Effect.runPromise(
+          OperatorProbe.lostCommit(config, credential, command)
+        )
+        expect(unknown).toMatchObject({
+          _tag: "OutcomeUnknown",
+          requestId: command.requestId
+        })
+      }
+
+      // Read the original receipt through a separate invocation without resending the write.
+      const response = await post(routes.operatorReceipt, owner, {
+        sandbox: ref,
+        requestId: command.requestId
+      })
+      expect(response.status).toBe(200)
+      expect(
+        Schema.decodeUnknownSync(JobOperatorResult)(await response.json())
+      ).toMatchObject({
+        _tag: "Committed",
+        requestId: command.requestId,
+        resultJobId: jobId,
+        resultState: "Cancelled",
+        resultLifecycleVersion: 1
+      })
+      const { rows } = await pool.query(
+        `SELECT j.state, j.lifecycle_version::int AS version, j.xmin = r.xmin AS atomic
+         FROM native_application.jobs j
+         JOIN native_application.command_receipts r
+           ON r.sandbox_id=$2 AND r.generation=$3 AND r.operation='Operator' AND r.request_id=$4
+         WHERE j.id=$1`,
+        [jobId, ref.sandboxId, ref.generation, command.requestId]
+      )
+      expect(rows).toEqual([{ state: "Cancelled", version: 1, atomic: true }])
+    }
+  }),
+  { timeout: 20000 }
+)
 const waitUntil = async (
   predicate: () => Promise<boolean>,
   label: string,

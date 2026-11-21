@@ -912,15 +912,19 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
         operationResponseBudget: Duration.millis(100)
       }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
     )
-    await expect(Effect.runPromise(missing.ready)).rejects.toMatchObject({
+    const missingResult = await Effect.runPromise(Effect.flip(missing.ready))
+    expect(missingResult).toMatchObject({
       _tag: "PostgreSqlFailure",
       commitKnowledge: "NotCommitted"
     })
+    expect(missingResult).not.toHaveProperty("readiness")
     const name = Tables.indexPrefix(mapping) + "_due"
     await admin.query(`DROP INDEX jobs_fixture."${name}"`)
     try {
       await expect(Effect.runPromise(jobs.ready)).rejects.toMatchObject({
-        _tag: "PostgreSqlFailure"
+        _tag: "PostgreSqlFailure",
+        commitKnowledge: "NotCommitted",
+        readiness: { reason: "missing-required-index", check: "claim" }
       })
     } finally {
       await admin.query(

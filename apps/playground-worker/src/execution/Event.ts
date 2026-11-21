@@ -13,7 +13,7 @@ import * as Pg from "@effect/sql-pg/PgClient"
 import { SqlClient } from "effect/sql/SqlClient"
 import * as Native from "effect-jobs/PostgreSqlNative"
 import * as Jobs from "effect-jobs/PostgreSqlJobs"
-import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
+import { JobOperators } from "effect-jobs/JobOperators"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import {
   JobsRead,
@@ -106,6 +106,7 @@ export const run = <A, E>(
     | DocumentKeys
     | CommandPersistence
     | JobWorker
+    | JobOperators
     | Repairs.SyntheticRepairs
     | JobsRead
     | Definitions.Definitions
@@ -128,15 +129,15 @@ export const run = <A, E>(
           idle_in_transaction_session_timeout: "5000"
         }
       })
-      const jobs = yield* Jobs.make({
-        schema: config.schema,
-        operationResponseBudget: Duration.millis(500)
-      }).pipe(
-        Effect.provideService(
-          PostgreSqlApplication,
-          Native.make({ client, operationTimeout: Duration.millis(2000) })
+      const jobsContext = yield* Layer.build(
+        Jobs.layerNoDeps({
+          schema: config.schema,
+          operationResponseBudget: Duration.millis(500)
+        }).pipe(
+          Layer.provide(Native.layer({ client, operationTimeout: Duration.millis(2000) }))
         )
       )
+      const jobs = yield* Effect.provide(Jobs.PostgreSqlJobs, jobsContext)
       yield* jobs.ready
       const stable = yield* keys(config)
       const authority = (yield* Authority.make(config.schema, client).pipe(
@@ -205,7 +206,7 @@ export const run = <A, E>(
         Effect.provideService(Definitions.Definitions, definitions),
         Effect.provideService(SqlClient, client),
         Effect.provideService(Pg.PgClient, client),
-        Effect.provideService(Jobs.PostgreSqlJobs, jobs),
+        Effect.provide(jobsContext),
         Effect.provideService(DocumentKeys, stable)
       )
     })

@@ -28,6 +28,20 @@ live in `src/postgresql/internal/`; these paths are not public deep exports.
   Neither core nor the PostgreSQL runtime imports Drizzle. These declarations do
   **not** qualify a Drizzle transaction adapter.
 
+### Readiness
+
+Readiness performs explicit, bounded checks on the configured relations,
+including column access, selected column definitions, keys, cascade and indexes.
+Confirmed mismatches include a fixed `readiness.reason` and `readiness.check`
+on `PostgreSqlFailure`. Failed queries or transaction controls retain their
+adapter error. Readiness does not scan retained policies or payloads.
+
+Check local handler and queue setup separately. Deployment must connect producers
+and workers to the intended database and mapping, check declared route coverage
+([D25](https://github.com/nr1brolyfan/effect-jobs/issues/55)), and separately verify
+retained policy compatibility when raising the worker reserve
+([D06](https://github.com/nr1brolyfan/effect-jobs/issues/36)).
+
 ### Read-only wake observations
 
 `JobSchedule.observe(api, queue, { limit })` uses the same `JobApi` catalog as the

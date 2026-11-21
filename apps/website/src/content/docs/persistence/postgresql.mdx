@@ -23,10 +23,27 @@ Start with a database and migration runner your application already owns.
 4. Explicitly run `jobs.ready` before admitting work. It checks required
    columns, keys, cascade and valid indexes; it never repairs the schema.
 
-The application migration example generates SQL without opening a connection.
-Run it once through your migration runner:
+Define the mapping in a shared application module. Apply the generated SQL
+through your migration runner, and give both producer and worker this same
+mapping when building their runtime Layers.
 
-<CodeExample sourcePath="orders/packages/database/src/Migrations.ts" role="Composition" />
+```ts
+export const JobTables = PostgreSqlSchema.tables({
+  schema: "billing",
+  jobsTable: "tasks",
+  payloadsTable: "task_artifacts"
+})
+
+const ddl = PostgreSqlSchema.migration(JobTables)
+const drizzleTables = makeJobTables(JobTables)
+const JobsLayer = PostgreSqlJobs.layerNoDeps({
+  ...JobTables,
+  operationResponseBudget: Duration.millis(500)
+})
+```
+
+Both deployments must also connect to the same intended database. Identical
+names can exist in different databases.
 
 Names must match `^[a-z_][a-z0-9_]{0,62}$`; the jobs and payload table names must
 be different. The mapping configures relation names, not arbitrary columns.
@@ -45,19 +62,34 @@ Layer to `PostgreSqlJobs.layerNoDeps`. The jobs Layer supplies `PostgreSqlJobs`,
 `JobEnqueue` and `JobOperators`; the native Layer supplies `PostgreSqlApplication`.
 Build Drizzle from the same `PgClient` service when using it for order queries.
 
-The shared setup in the complete order example captures that client:
+The checked report example captures that client and supplies the native Layer.
+The jobs Layer also provides the configured `JobStorage` and `JobSchedule`. Use
+`PostgreSqlJobs.make` when you intentionally assemble a narrower set of services.
 
-<CodeExample
-  sourcePath="orders/packages/database/src/Database.ts"
-  region="setup"
-  role="Composition"
-/>
+<CodeExample sourcePath="DrizzleReportRequest.ts" region="setup" role="Composition" />
+
+After providing the Layer, explicitly check readiness before admitting work.
+
+<CodeExample sourcePath="DrizzleReportRequest.ts" region="readiness" role="Composition" />
 
 The application owns client/pool lifetime and finite acquisition, statement,
 transaction-control and release timeouts. `operationTimeout` is a positive whole-millisecond `Duration` that bounds adapter
 operations; it does not replace those native timeout settings. Reuse the configured
-Layer graph and close its scope during shutdown. Imports start no SQL. This application setup explicitly checks readiness;
-construction starts no migrations, cleanup or workers.
+Layer graph and close its scope during shutdown. Building the jobs Layer runs
+no migrations and starts no worker.
+
+## Interpret readiness
+
+`jobs.ready` checks the configured relations. A confirmed schema mismatch has a
+bounded `PostgreSqlFailure.readiness` reason and check, for example
+`{ reason: "missing-required-index", check: "claim" }`. A failed SQL/control
+operation may report a generic `PostgreSqlFailure` without a readiness reason.
+The diagnostic carries no relation names, SQL, payloads or provider errors.
+
+Install the local worker's declared handlers and queues separately. Validate
+[producer route coverage and running consumers](/docs/execution/workers/) in
+the intended deployment, and use the [response-budget preflight](https://github.com/nr1brolyfan/effect-jobs/issues/36)
+for outstanding policy compatibility before raising the worker reserve.
 
 See [atomic transactions](/docs/persistence/transactions/) before writing an order
 and enqueuing its job. See [workers](/docs/execution/workers/) for the separate

@@ -5,7 +5,11 @@ import { NodeRuntime } from "@effect/platform-node"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import { drainReports, pollReports } from "./PostgreSqlReports.js"
 
-import { ReportsLayer, requestReport } from "./DrizzleReportRequest.js"
+import {
+  ReportsLayer,
+  checkReportsStorage,
+  requestReport
+} from "./DrizzleReportRequest.js"
 
 // #region main
 const ClientLayer = PgClient.layerConfig({
@@ -31,6 +35,7 @@ const program = Effect.gen(function* () {
   if (mode === "request") {
     const operationId = yield* Config.String("OPERATION_ID")
     const reportId = yield* Config.String("REPORT_ID")
+    yield* checkReportsStorage
     yield* requestReport(operationId, {
       reportId,
       rows: [{ product: "widget", units: 3 }]

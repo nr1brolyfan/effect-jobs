@@ -1,9 +1,9 @@
 import { runPromise } from "../scenarios/Setup.js"
 import { describe, expect, it } from "vitest"
-import { Duration, Effect, Layer, Schema } from "effect"
-import { PostgreSqlJobs } from "effect-jobs/PostgreSqlJobs"
-import * as Storage from "effect-jobs/JobStorage"
-import * as Tables from "effect-jobs/PostgreSqlSchema"
+import { Cause, Effect, Exit, Layer, Schema } from "effect"
+import { JobOperators } from "effect-jobs/JobOperators"
+import type { JobOperatorsService } from "effect-jobs/JobOperators"
+import { JobPersistenceError } from "effect-jobs/JobEnqueue"
 import {
   JobOperatorCommand,
   type JobOperatorResult
@@ -39,33 +39,10 @@ const access = {
   }
 }
 const unexpected = () => Effect.die("Legacy redrive must not invoke core")
-const store = {
-  claim: unexpected,
-  reconcileClaim: unexpected,
-  release: unexpected,
-  finalize: unexpected,
-  reconcileFinalization: unexpected,
-  recoverExpired: unexpected
-}
-const jobs = Layer.mock(PostgreSqlJobs, {
-  operationResponseBudgetMillis: 100,
-  storage: Effect.runSync(
-    Storage.make({ store, operationResponseBudget: Duration.millis(100) })
-  ),
-  health: { sample: unexpected },
-  schedule: { read: unexpected },
-  tables: Tables.tables(),
-  producer: { enqueue: unexpected, enqueueStandalone: unexpected },
-  store,
-  cleanup: { cleanup: unexpected },
-  operators: {
-    retryNow: unexpected,
-    cancel: unexpected,
-    redrive: unexpected,
-    correctedRedrive: unexpected
-  }
-})
-const make = (stored: StoredOperatorReceipt | null = null) =>
+const make = (
+  stored: StoredOperatorReceipt | null = null,
+  cancel: JobOperatorsService<JobPersistenceError>["cancel"] = unexpected
+) =>
   Effect.gen(function* () {
     const saved: JobOperatorResult[] = []
     const tx: OperatorTransaction = {
@@ -86,8 +63,14 @@ const make = (stored: StoredOperatorReceipt | null = null) =>
       owned: (_access, _command, body) => body(tx),
       lookup: () => Effect.succeed(stored)
     })
+    const operators = Layer.succeed(JobOperators, {
+      retryNow: unexpected,
+      cancel,
+      redrive: unexpected,
+      correctedRedrive: unexpected
+    })
     const service = yield* Legacy.make.pipe(
-      Effect.provide(Layer.merge(jobs, transactions))
+      Effect.provide(Layer.merge(operators, transactions))
     )
     return { service, saved }
   })
@@ -137,4 +120,43 @@ describe("legacy operator redrive admission", () => {
       })
     )
   })
+})
+
+it("reconciles a single portable Unknown and preserves a mixed failure with interruption", async () => {
+  const cancel = Schema.decodeUnknownSync(JobOperatorCommand)({
+    sandbox: Fixture.ref,
+    requestId: "cancel",
+    jobId: Fixture.sourceId,
+    expectedState: "Pending",
+    expectedLifecycleVersion: 2,
+    action: "cancel"
+  })
+  const unknown = new JobPersistenceError({
+    reason: "storage-failure",
+    commitKnowledge: "Unknown"
+  })
+  await runPromise(
+    Effect.gen(function* () {
+      const app = yield* make(null, () => Effect.fail(unknown))
+      expect(yield* app.service.execute(access, cancel)).toMatchObject({
+        _tag: "OutcomeUnknown",
+        requestId: cancel.requestId
+      })
+      expect(app.saved).toEqual([])
+
+      const mixed = Cause.fromReasons([
+        Cause.makeFailReason(unknown),
+        Cause.makeInterruptReason(42)
+      ])
+      const interrupted = yield* make(null, () => Effect.failCause(mixed))
+      const exit = yield* Effect.exit(interrupted.service.execute(access, cancel))
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        expect(exit.cause.reasons).toHaveLength(2)
+        expect(Cause.hasInterrupts(exit.cause)).toBe(true)
+        expect(Cause.hasFails(exit.cause)).toBe(true)
+      }
+      expect(interrupted.saved).toEqual([])
+    })
+  )
 })

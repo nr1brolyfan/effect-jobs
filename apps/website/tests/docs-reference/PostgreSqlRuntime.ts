@@ -17,7 +17,11 @@ import {
   recordGeneratedReport,
   drainReports
 } from "../../examples/docs/PostgreSqlReports.js"
-import { ReportsLayer, requestReport } from "../../examples/docs/DrizzleReportRequest.js"
+import {
+  ReportsLayer,
+  checkReportsStorage,
+  requestReport
+} from "../../examples/docs/DrizzleReportRequest.js"
 // Native SQL APIs are intentionally pinned to Effect 4.1.0 by this qualification.
 // @effect-diagnostics unstableApiUsage:off
 
@@ -38,7 +42,7 @@ try {
   await Effect.runPromise(
     Effect.gen(function* () {
       const client = yield* PgClient.PgClient
-      // Migrate before constructing ReportsLayer, whose readiness check requires tables.
+      // Apply the migrations before explicitly checking readiness.
       for (const statement of migrationSql.split(";").filter((part) => part.trim())) {
         yield* client.unsafe(statement)
       }
@@ -63,6 +67,7 @@ try {
           ).reason,
           "transaction-required"
         )
+        yield* checkReportsStorage
         const first = yield* requestReport("op-1", payload)
         const duplicate = yield* requestReport("op-1", payload)
         assert.equal(first._tag, "Inserted")

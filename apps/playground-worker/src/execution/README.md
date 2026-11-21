@@ -1,6 +1,6 @@
 # Bounded PostgreSQL executor
 
-The shared registrar composes `Application.layerNoDeps(schema)` with the SAME
+The shared registrar composes `Application.layerNoDeps(schema)` with `JobOperators` from the configured jobs Layer and the SAME
 application-owned `PgClient@4.0.0`/`SqlClient`, `PostgreSqlNative` adapter and
 `PostgreSqlJobs` backend (response budget 500 ms). The caller supplies stable
 `DocumentKeys`, `WakeAlarm` and an internal `ExecutionHints` adapter. Imports do

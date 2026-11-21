@@ -53,6 +53,7 @@ assert.deepEqual(Object.keys(sourceHashes), [
   "Migrations.ts",
   "NodeReportFiles.ts",
   "PostgreSqlReports.ts",
+  "ReportOperators.ts",
   "ReportWorkflow.ts",
   "RunReports.ts"
 ])

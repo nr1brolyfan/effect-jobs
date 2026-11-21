@@ -9,7 +9,6 @@ import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
 import * as PostgreSqlNative from "effect-jobs/PostgreSqlNative"
 import * as PostgreSqlDrizzleSchema from "effect-jobs/PostgreSqlDrizzleSchema"
 import { OperationId } from "effect-jobs/JobIdentity"
-import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import { enqueueReport, ReportPayload, ReportDefinitionsLayer } from "./ReportWorkflow.js"
 
 // #region schema
@@ -46,21 +45,16 @@ export class Database extends Context.Service<
 // Build once for the application lifetime, with ONE host-owned PgClient Layer.
 const DatabaseLayer = Layer.effect(Database, Drizzle.makeWithDefaults())
 const ReportJobsLayer = Layer.unwrap(
-  Effect.gen(function* () {
-    const pg = yield* PgClient.PgClient
-    const jobs = yield* PostgreSqlJobs.make({
+  Effect.map(PgClient.PgClient, (client) =>
+    PostgreSqlJobs.layerNoDeps({
+      ...jobTables.mapping,
       operationResponseBudget: Duration.millis(100)
     }).pipe(
-      Effect.provide(
-        PostgreSqlNative.layer({ client: pg, operationTimeout: Duration.millis(2_000) })
+      Layer.provide(
+        PostgreSqlNative.layer({ client, operationTimeout: Duration.seconds(2) })
       )
     )
-    yield* jobs.ready
-    return Layer.mergeAll(
-      Layer.succeed(PostgreSqlJobs.PostgreSqlJobs, jobs),
-      Layer.succeed(JobEnqueue, jobs.producer)
-    )
-  })
+  )
 )
 export const ReportsLayer = Layer.mergeAll(
   DatabaseLayer,
@@ -70,6 +64,13 @@ export const ReportsLayer = Layer.mergeAll(
 // ProvideMerge the same scoped PgClient Layer to ReportsLayer at composition;
 // keep its PgClient output for requestReport. Close the app Scope at shutdown.
 // #endregion setup
+
+// #region readiness
+export const checkReportsStorage = Effect.gen(function* () {
+  const jobs = yield* PostgreSqlJobs.PostgreSqlJobs
+  yield* jobs.ready
+})
+// #endregion readiness
 
 export class ReportRequestRejected extends Schema.TaggedError<ReportRequestRejected>()(
   "ReportRequestRejected",

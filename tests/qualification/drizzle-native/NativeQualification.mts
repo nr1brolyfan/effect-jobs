@@ -35,6 +35,7 @@ import {
 import * as Job from "effect-jobs/Job"
 import * as Queue from "effect-jobs/JobQueue"
 import * as Producer from "effect-jobs/JobProducer"
+import * as Policy from "effect-jobs/JobPolicy"
 import { encodeJobPayload } from "effect-jobs/JobPayloadCodec"
 import * as Application from "./NativeApplication.mjs"
 
@@ -74,10 +75,12 @@ const definition = Effect.runSync(
     payload: Schema.Struct({ invoiceId: Schema.String })
   })
 )
+const policy = Effect.runSync(Policy.make({ completedRetention: Duration.days(7) }))
 const producer = Effect.runSync(
   Producer.make("billing.native").pipe(
     Producer.withSlot("generate", definition, {
-      queue: Effect.runSync(Queue.make("billing"))
+      queue: Effect.runSync(Queue.make("billing")),
+      policy
     })
   )
 )
@@ -177,7 +180,15 @@ try {
                 .select()
                 .from(tables.jobs)
                 .where(eq(tables.jobs.id, result.jobId))
-              assert.equal(selected[0]!.availableAt > 0, true)
+              const row = selected[0]!
+              assert.equal(row.availableAt > 0, true)
+              const attempts: number = row.policy.maxAttempts
+              assert.equal(attempts, policy.maxFinalizedAttempts)
+              assert.equal(Object.hasOwn(row.policy, "maxFinalizedAttempts"), false)
+              const decoded = yield* Schema.decodeUnknownEffect(
+                Policy.PersistedJobPolicy
+              )(row.policy)
+              assert.deepEqual(decoded, policy)
               const artifacts = yield* db
                 .select()
                 .from(tables.payloads)

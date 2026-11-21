@@ -47,10 +47,13 @@ export const probe = (url, schema, alarm, checks = []) =>
         idleTimeout: "1 second"
       })
       const adapter = Native.make({ client, operationTimeout: Duration.millis(2000) })
-      const jobs = yield* Jobs.make({
-        schema,
-        operationResponseBudget: Duration.millis(500)
-      }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
+      const jobsContext = yield* Layer.build(
+        Jobs.layerNoDeps({
+          schema,
+          operationResponseBudget: Duration.millis(500)
+        }).pipe(Layer.provide(Layer.succeed(PostgreSqlApplication, adapter)))
+      )
+      const jobs = yield* Effect.provide(Jobs.PostgreSqlJobs, jobsContext)
       yield* jobs.ready
       const sql = (text, params = []) => client.unsafe(text, params)
       const services = yield* Authority.make(schema, client).pipe(
@@ -129,7 +132,7 @@ export const probe = (url, schema, alarm, checks = []) =>
         Executor.run(schema, queue).pipe(
           Effect.provide(workerLayer),
           Effect.provideService(CommandPersistence, command),
-          Effect.provideService(Jobs.PostgreSqlJobs, jobs),
+          Effect.provide(jobsContext),
           Effect.provideService(SqlClient, client),
           Effect.provideService(WakeAlarm, alarm),
           Effect.provideService(Executor.ExecutionHints, {
