@@ -190,25 +190,28 @@ export interface Service {
    *
    * @example
    * ```ts
-   * import { Effect, type Schema } from "effect"
+   * import { Effect, Schema } from "effect"
    * import type { Service } from "effect-jobs/PostgreSqlJobs"
-   * import type { JobDefinition } from "effect-jobs/Job"
-   * import type { JobQueue } from "effect-jobs/JobQueue"
+   * import * as Job from "effect-jobs/Job"
+   * import * as Queue from "effect-jobs/JobQueue"
    * import * as Producer from "effect-jobs/JobProducer"
    *
-   * // Call inside the application's owning transaction with its registered handle.
-   * const enqueueInside = <S extends Schema.Top>(
-   *   jobs: Service, handle: unknown,
-   *   definition: JobDefinition<S>, queue: JobQueue,
-   *   operationId: string, payload: S["Type"]
-   * ) => Effect.gen(function* () {
-   *   const producer = yield* Producer.make("invoice.issue").pipe(
+   * const InvoicePayload = Schema.Struct({ invoiceId: Schema.String })
+   * const setup = Effect.gen(function* () {
+   *   const queue = yield* Queue.make("billing")
+   *   const definition = yield* Job.make({ name: "invoice.generate", payload: InvoicePayload })
+   *   return yield* Producer.make("invoice.issue").pipe(
    *     Producer.withSlot("generate", definition, { queue })
    *   )
-   *   return yield* jobs.joinTransaction(handle, (tx) => producer.enqueueInTransaction(tx, {
-   *     slot: "generate", operationId, payload
-   *   }))
    * })
+   *
+   * // Call inside the application's owning transaction with its registered handle.
+   * const enqueueInside = (
+   *   jobs: Service, handle: unknown, producer: Effect.Success<typeof setup>,
+   *   operationId: string, payload: typeof InvoicePayload.Type
+   * ) => jobs.joinTransaction(handle, (tx) => producer.enqueueInTransaction(tx, {
+   *   slot: "generate", operationId, payload
+   * }))
    * ```
    */
   readonly joinTransaction: <A, E, R>(
