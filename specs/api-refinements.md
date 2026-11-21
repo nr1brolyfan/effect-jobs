@@ -114,7 +114,8 @@ interface EncryptionCodec<Encoded, Envelope extends Schema.Codec<unknown>, RE, R
 Domain validation/encoding precedes seal. Open returns encoded domain data before
 Schema decoding/validation. The helper propagates independent encoding/decoding
 services. Multiple fields may have independent codecs/key Layers. Native structs,
-arrays, optionals and unions are supported; recursive schemas, encrypted-within-
+arrays, optionals and unions with consistent declared encryption coverage are
+supported. Recursive schemas, encrypted-within-
 encrypted and unsupported protected mappings reject explicitly. Envelope transforms,
 records and tuples are unsupported. The decoded handler receives domain fields,
 never an envelope or codec wrapper. All encrypted fields open before invocation;
@@ -137,7 +138,7 @@ tampered artifacts and invalid opened domain data follow existing bounded decode
 isolation semantics. Defects, interruption and timeouts keep existing worker behavior.
 
 Encoded ciphertext and semantic projection each retain the 64 KiB bound, depth 32,
-16 protected subtrees and 256-byte schema paths. Projection excludes encrypted
+16 protected subtrees and a 1,024-byte UTF-8 limit on codec paths. Projection excludes encrypted
 content/randomness and uses only the app fingerprint; it is not authentication.
 Local encryption may run inside the owning transaction: apps must keep codec work
 bounded and account for lock duration. `protected(schema)` remains independently

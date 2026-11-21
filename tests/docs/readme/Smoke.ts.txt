@@ -10,7 +10,7 @@ import { snippet as overview } from "./overview.js"
 import { IssueInvoice, issueInvoice } from "./application.js"
 import { snippet as slots } from "./slots.js"
 import { snippet as standalone } from "./standalone.js"
-import { capturedPrivateDefinitions, CapturedPrivateDefinitionsLayer, requestPrivateReceipt } from "./encrypted.js"
+import { capturedPrivateDefinitions, CapturedPrivateDefinitionsLayer, requestPrivateReceipt, ReceiptSealer, ReceiptOpener } from "./encrypted.js"
 import { snippet as policySnippet } from "./policy.js"
 import { snippet as migration } from "./migration.js"
 import { ReceiptHandler } from "./handler.js"
@@ -56,25 +56,32 @@ assert.equal(policy.attemptTimeoutMillis, 20000)
 assert.equal(policy.maxFinalizedAttempts, 4)
 assert(Exit.isFailure(await Effect.runPromiseExit(migration)), "readiness requires real app SQL, never silently runs DDL")
 const ring = Fixture.keys()
+const sealerLayer = (keyring: Fixture.Keyring) => Layer.effect(ReceiptSealer,
+  Fixture.validateKeys(keyring).pipe(Effect.map((valid) => ({ seal: (value) => Fixture.sealReceipt(valid, value) })))
+)
+const openerLayer = (keyring: Fixture.Keyring) => Layer.effect(ReceiptOpener,
+  Fixture.validateKeys(keyring).pipe(Effect.map((valid) => ({ open: (value) => Fixture.openReceipt(valid, value) })))
+)
 const privateDefinitions = capturedPrivateDefinitions
-await Effect.runPromise(requestPrivateReceipt(Fixture.operationId, Fixture.invoiceId).pipe(Effect.provide(CapturedPrivateDefinitionsLayer), Effect.provide(Fixture.keysLayer(ring))))
+await Effect.runPromise(requestPrivateReceipt(Fixture.operationId, Fixture.invoiceId).pipe(Effect.provide(CapturedPrivateDefinitionsLayer), Effect.provide(sealerLayer(ring))))
 assert.equal(privateDefinitions.PrivateReceiptProducer.slots.receipt.job.name, privateDefinitions.SendPrivateReceipt.name)
 assert.equal(privateDefinitions.PrivateReceiptProducer.slots.receipt.job.payload, privateDefinitions.SendPrivateReceipt.payload)
 assert(Object.isFrozen(privateDefinitions.PrivateReceiptProducer.slots.receipt.job))
 const privatePrepared = prepared.at(-1)!
+assert.equal(privatePrepared.catalog.name, privateDefinitions.SendPrivateReceipt.name)
 const stored = new TextDecoder().decode(privatePrepared.encoded.payloadBytes)
 assert(!stored.includes("alex@example.com"))
 assert(!stored.includes("INV-2026-1042"))
 const privateValue = { invoiceId: "private-invoice", document: { recipient: "alex@example.com", invoiceNumber: "INV-2026-1042", total: { amount: "49.00", currency: "EUR" } } }
-const encode = (keyring: Fixture.Keyring) => Effect.runPromise(Codec.encodeJobPayload(privateDefinitions.SendPrivateReceipt.payload, privateValue).pipe(Effect.provide(Fixture.keysLayer(keyring))))
+const encode = (keyring: Fixture.Keyring) => Effect.runPromise(Codec.encodeJobPayload(privateDefinitions.SendPrivateReceipt.payload, privateValue).pipe(Effect.provide(sealerLayer(keyring))))
 const a = await encode(ring), b = await encode(ring), rotated = await encode({ ...ring, active: "two" })
 assert.notDeepEqual(a.payloadBytes, b.payloadBytes)
 assert.deepEqual(a.semanticProjectionBytes, b.semanticProjectionBytes)
 assert.deepEqual(a.semanticProjectionBytes, rotated.semanticProjectionBytes)
-assert.deepEqual(await Effect.runPromise(Codec.decodeJobPayload(privateDefinitions.SendPrivateReceipt.payload, a).pipe(Effect.provide(Fixture.keysLayer({ ...ring, active: "two" })))), privateValue)
-assert(Exit.isFailure(await Effect.runPromiseExit(Codec.encodeJobPayload(privateDefinitions.SendPrivateReceipt.payload, privateValue).pipe(Effect.provide(Fixture.keysLayer({ ...ring, encryption: {} }))))))
-assert(Exit.isFailure(await Effect.runPromiseExit(Effect.void.pipe(Effect.provide(Fixture.keysLayer({ ...ring, encryption: {} }))))))
-assert(Exit.isFailure(await Effect.runPromiseExit(Codec.decodeJobPayload(privateDefinitions.SendPrivateReceipt.payload, a).pipe(Effect.provide(Fixture.keysLayer({ ...ring, encryption: { one: new Uint8Array(32) } }))))))
+assert.deepEqual(await Effect.runPromise(Codec.decodeJobPayload(privateDefinitions.SendPrivateReceipt.payload, a).pipe(Effect.provide(openerLayer({ ...ring, active: "two" })))), privateValue)
+assert(Exit.isFailure(await Effect.runPromiseExit(Codec.encodeJobPayload(privateDefinitions.SendPrivateReceipt.payload, privateValue).pipe(Effect.provide(sealerLayer({ ...ring, encryption: {} }))))))
+assert(Exit.isFailure(await Effect.runPromiseExit(Effect.void.pipe(Effect.provide(openerLayer({ ...ring, encryption: {} }))))))
+assert(Exit.isFailure(await Effect.runPromiseExit(Codec.decodeJobPayload(privateDefinitions.SendPrivateReceipt.payload, a).pipe(Effect.provide(openerLayer({ ...ring, encryption: { one: new Uint8Array(32) } }))))))
 const catalog = { queue: BillingQueue.name, name: SendReceipt.name, version: SendReceipt.version }
 const PrivateJobs = privateDefinitions.PrivateJobs
 const context = { jobId: Schema.decodeSync(JobId)("handler-job"), catalog, producer: { operation: IssueInvoice.operation, operationId: "op", slot: "receipt" }, nextFinalizationNumber: 1 }
@@ -95,22 +102,40 @@ for (const [tag, expected] of [["Accepted", null], ["RateLimited", "Retry"], ["I
   else { assert(Exit.isFailure(exit)); const reasons = exit.cause.reasons; assert(Cause.isFailReason(reasons[0]!)); assert.equal(reasons[0]!.error._tag, expected) }
 }
 let privateCalls = 0
+const privateHandler = PrivateReceiptHandler.pipe(
+  Layer.provide(CapturedPrivateDefinitionsLayer),
+  Layer.provide(openerLayer(ring)),
+  Layer.provide(Layer.succeed(Fixture.PrivateReceiptMailer, {
+    send: (input) => Effect.sync(() => { assert.deepEqual(input.document, privateValue.document); privateCalls++ })
+  }))
+)
 await Effect.runPromise(Effect.gen(function* () {
    const handlers = yield* PrivateJobs.handlers
-   yield* handlers.receipt(a, { ...context, catalog: { ...catalog, name: privateDefinitions.SendPrivateReceipt.name, version: Fixture.SendPrivateReceipt.version } })
-}).pipe(Effect.provide(PrivateReceiptHandler.pipe(Layer.provide(CapturedPrivateDefinitionsLayer), Layer.provide(CapturedDefinitionsLayer), Layer.provide(Fixture.keysLayer(ring)), Layer.provide(Layer.succeed(Fixture.PrivateReceiptMailer, { send: (input) => Effect.sync(() => { assert.deepEqual(input.document, privateValue.document); privateCalls++ }) }))))))
+   yield* handlers.receipt(a, { ...context, catalog: { ...catalog, name: privateDefinitions.SendPrivateReceipt.name, version: privateDefinitions.SendPrivateReceipt.version } })
+}).pipe(Effect.provide(privateHandler)))
 assert.equal(privateCalls, 1)
 // A real worker consumes a claimed job and owns finalization. The store is a double.
 let claims = 0, finalized = 0
 const snapshot = Result.getOrThrow(Lifecycle.claim({ jobId: context.jobId, policy: Policy.defaultPolicy, state: "Pending", availableAt: 100000, createdAt: 100000, updatedAt: 100000, finalizedAttempts: 0, stalledCount: 0, lifecycleVersion: 0, leaseToken: null, leaseExpiresAt: null, completedAt: null, lastFailureCode: null }, "abcd-1234-feed-5678", 100000, 100))
 const ownership = Result.getOrThrow(Lifecycle.ownershipOf(snapshot))
 const unexpected = () => Effect.die("Unexpected harness operation")
-const store: Store.JobStoreService = {
-  claim: (request) => Effect.sync(() => ++claims === 1 ? Store.ClaimResult.Claimed({ claim: { snapshot: { ...snapshot, leaseToken: request.leaseToken }, ownership: { ...ownership, leaseToken: request.leaseToken }, prepared: { catalog, producer: context.producer, policy: Policy.defaultPolicy, encoded } } }) : Store.ClaimResult.Empty()),
+const storeFor = (prepared: PreparedJob): Store.JobStoreService => ({
+  claim: (request) => Effect.sync(() => ++claims === 1 ? Store.ClaimResult.Claimed({ claim: { snapshot: { ...snapshot, leaseToken: request.leaseToken }, ownership: { ...ownership, leaseToken: request.leaseToken }, prepared } }) : Store.ClaimResult.Empty()),
   recoverExpired: () => Effect.succeed(0), finalize: () => Effect.sync(() => { finalized++; return Store.FinalizationResult.Applied() }), release: unexpected, reconcileClaim: unexpected, reconcileFinalization: unexpected
-}
+})
+const store = storeFor({ catalog, producer: context.producer, policy: Policy.defaultPolicy, encoded })
 const worker = Worker.layer(JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs)), { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(JobStorage.layer({ store, operationResponseBudgetMillis: 100 })), Layer.provide(ReceiptHandler.pipe(Layer.provide(CapturedDefinitionsLayer))), Layer.provide(Fixture.ReceiptMailerLayer))
 const result = await Effect.runPromise(Effect.scoped(Worker.drain(BillingQueue, { maxJobs: 20, recoveryLimit: 20 }).pipe(Effect.provide(worker))).pipe(Effect.provide(TestClock.layer())))
 assert.equal(result.claimed, 1)
 assert.equal(finalized, 1)
+claims = 0
+finalized = 0
+const privateWorker = Worker.layer(privateDefinitions.PrivateApi, { queues: [{ queue: BillingQueue }] }).pipe(
+  Layer.provide(JobStorage.layer({ store: storeFor(privatePrepared), operationResponseBudgetMillis: 100 })),
+  Layer.provide(privateHandler)
+)
+const privateResult = await Effect.runPromise(Effect.scoped(Worker.drain(BillingQueue, { maxJobs: 20, recoveryLimit: 20 }).pipe(Effect.provide(privateWorker))).pipe(Effect.provide(TestClock.layer())))
+assert.equal(privateResult.claimed, 1)
+assert.equal(finalized, 1)
+assert.equal(privateCalls, 2)
 console.log("README exact fences: producer slots/service, policy/migration/indexes, handler outcomes, AES-GCM/HMAC typed keys and finite worker PASS")

@@ -64,7 +64,6 @@ const fixtures = [
   "ReceiptTemplates",
   "EmailProvider",
   "PrivateReceiptMailer",
-  "ReceiptEncryption",
   "InvoicePdfRenderer",
   "InvoicePdfRendererLayer",
   "receiptPolicy",
@@ -72,7 +71,6 @@ const fixtures = [
   "ReceiptHandler",
   "issueInvoice",
   "IssueInvoice",
-  "SendPrivateReceipt",
   "tables",
   "BillingWorkerLayer"
 ]
@@ -143,7 +141,7 @@ export const GeneratePdf = Effect.runSync(Job.make({ name: "invoice.generate-pdf
 export const { IssueInvoice, issueInvoice } = application`,
     encrypted: `export const capturedPrivateDefinitions = Effect.runSync(PrivateDefinitionsProgram.pipe(Effect.provide(CapturedDefinitionsLayer)))
 export const CapturedPrivateDefinitionsLayer = Layer.succeed(PrivateDefinitions, capturedPrivateDefinitions)
-export { PrivateDefinitions, PrivateDefinitionsLayer, requestPrivateReceipt }`
+export { PrivateDefinitions, PrivateDefinitionsLayer, requestPrivateReceipt, ReceiptSealer, ReceiptOpener }`
   }
   const exportBindings = {
     contracts: null,

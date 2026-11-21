@@ -150,7 +150,7 @@ describe("schema-bound local encrypted fields", () => {
     )
     const item = Schema.Union([
       Schema.Struct({ tag: Schema.Literal("private"), value: EncryptedDocument }),
-      Schema.Struct({ tag: Schema.Literal("public"), value: Schema.String })
+      Schema.Struct({ tag: Schema.Literal("personal"), value: personal })
     ])
     const matrix = Schema.Struct({
       nested: Schema.Struct({
@@ -164,7 +164,7 @@ describe("schema-bound local encrypted fields", () => {
       nested: { first: document, second: document },
       items: [
         { tag: "private" as const, value: document },
-        { tag: "public" as const, value: "visible" }
+        { tag: "personal" as const, value: document }
       ]
     }
     const layers = Layer.merge(configured, Layer.succeed(PersonalKeys, keys("one", 10)))

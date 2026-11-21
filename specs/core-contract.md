@@ -271,7 +271,10 @@ forwarding deliberately does not implement serialization or pretend to validate
 fake byte fixtures.
 
 Shared constants: payload and projection each 65,536 bytes; maximum depth 32;
-maximum protected subtrees 16; maximum UTF-8 schema path 256 bytes; formatVersion 1.
+maximum protected subtrees 16; maximum UTF-8 JSON Pointer visited by the codec
+1,024 bytes; formatVersion 1. Statically overlong paths fail in `Job.make`.
+The codec also checks actual paths, including array indices. Upgrade all workers
+that consume affected jobs before producing paths longer than 256 bytes.
 The codec implements exported function-type contracts:
 
 ```ts

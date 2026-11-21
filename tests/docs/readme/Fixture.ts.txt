@@ -12,7 +12,6 @@ import * as Policy from "effect-jobs/JobPolicy"
 import * as Tables from "effect-jobs/PostgreSqlSchema"
 import * as Producer from "effect-jobs/JobProducer"
 import * as Queue from "effect-jobs/JobQueue"
-import * as Job from "effect-jobs/Job"
 import type { JobFailure } from "effect-jobs/JobFailure"
 import { BillingQueue, SendReceipt, BillingJobs } from "./contracts.js"
 export const IssueInvoice = Effect.runSync(Producer.make("billing.issue-invoice").pipe(Producer.withSlot("receipt", SendReceipt, { queue: BillingQueue })))
@@ -34,24 +33,21 @@ export class EmailProvider extends Context.Service<EmailProvider, { readonly sen
 export const Document = Schema.Struct({ recipient: Schema.String, invoiceNumber: Schema.String, total: Schema.Struct({ amount: Schema.String, currency: Schema.String }) })
 export const Envelope = Schema.Struct({ keyId: Schema.String, nonce: Schema.String, ciphertext: Schema.String, tag: Schema.String, fingerprint: Schema.String })
 export interface Keyring { readonly active: string; readonly encryption: Readonly<Record<string, Uint8Array>>; readonly fingerprint: Uint8Array }
-export class ReceiptKeys extends Context.Service<ReceiptKeys, Keyring>()("readme/ReceiptKeys") {}
 export const keys = (): Keyring => ({ active: "one", encryption: { one: randomBytes(32), two: randomBytes(32) }, fingerprint: randomBytes(32) })
-export const keysLayer = (ring: Keyring) => Layer.effect(ReceiptKeys, Effect.gen(function* () {
+export const validateKeys = (ring: Keyring) => Effect.gen(function* () {
   if (ring.encryption[ring.active]?.byteLength !== 32 || ring.fingerprint.byteLength !== 32) return yield* new Payload.JobEncryptionError()
   return ring
-}))
+})
 const canonical = (value: typeof Document.Encoded) => JSON.stringify({ recipient: value.recipient, invoiceNumber: value.invoiceNumber, total: { amount: value.total.amount, currency: value.total.currency } })
-export const ReceiptEncryption: Payload.EncryptionCodec<typeof Document.Encoded, typeof Envelope, ReceiptKeys, ReceiptKeys> = {
-  envelope: Envelope,
-  seal: (value) => Effect.flatMap(ReceiptKeys, (ring) => Effect.try({
+export const sealReceipt = (ring: Keyring, value: typeof Document.Encoded) => Effect.try({
     try: () => {
       const plain = canonical(value), nonce = randomBytes(12)
       const cipher = createCipheriv("aes-256-gcm", ring.encryption[ring.active]!, nonce)
       const ciphertext = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()])
       return { keyId: ring.active, nonce: nonce.toString("base64"), ciphertext: ciphertext.toString("base64"), tag: cipher.getAuthTag().toString("base64"), fingerprint: createHmac("sha256", ring.fingerprint).update(plain).digest("hex") }
     }, catch: () => new Payload.JobEncryptionError()
-  })),
-  open: (envelope) => Effect.flatMap(ReceiptKeys, (ring) => Effect.try({
+  })
+export const openReceipt = (ring: Keyring, envelope: typeof Envelope.Type) => Effect.try({
     try: () => {
       const key = ring.encryption[envelope.keyId]
       if (!key) throw new Error("Unknown fixture key")
@@ -61,15 +57,13 @@ export const ReceiptEncryption: Payload.EncryptionCodec<typeof Document.Encoded,
       if (createHmac("sha256", ring.fingerprint).update(plain).digest("hex") !== envelope.fingerprint) throw new Error("Fingerprint mismatch")
       return JSON.parse(plain) as typeof Document.Encoded
     }, catch: () => new Payload.JobEncryptionError()
-  }))
-}
+  })
 export class PrivateReceiptMailer extends Context.Service<PrivateReceiptMailer, { readonly send: (input: { document: typeof Document.Type; idempotencyKey: string }) => Effect.Effect<void, JobFailure> }>()("readme/PrivateReceiptMailer") {}
 export class InvoicePdfRenderer extends Context.Service<InvoicePdfRenderer, { readonly generate: (input: { invoiceId: string; idempotencyKey: string }) => Effect.Effect<void, JobFailure> }>()("readme/InvoicePdfRenderer") {}
 export const InvoicePdfRendererLayer = Layer.succeed(InvoicePdfRenderer, { generate: () => Effect.void })
 export const receiptPolicy = Policy.defaultPolicy
 export const tables = Tables.tables()
 export const ReceiptHandler = JobApiBuilder.group(JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs)), BillingJobs.name, (_handlers) => _handlers.handle("receipt", () => Effect.void))
-export const SendPrivateReceipt = Effect.runSync(Effect.gen(function* () { const document = yield* Payload.encrypted({ schema: Document, codec: ReceiptEncryption }); return yield* Job.make({ name: "invoice.private-receipt", payload: Schema.Struct({ invoiceId: Schema.String, document }) }) }))
 export const WorkerLayer = Worker.layer(JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs)), { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(Layer.succeed(JobStorage.JobStorage, jobs.storage)), Layer.provide(ReceiptHandler))
 export const BillingWorkerLayer = WorkerLayer
 export const issueInvoice = (operationId: string, invoiceId: string) => jobs.withTransaction(() => IssueInvoice.enqueue({ operationId, slot: "receipt", payload: { invoiceId } }))

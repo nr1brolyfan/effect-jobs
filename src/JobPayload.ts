@@ -170,7 +170,8 @@ const inspectEnvelope = (
 
 /** Bind a decoded domain Schema to an app-owned encrypted JSON envelope.
  * Domain encoding/validation precedes seal; open precedes domain decoding/validation.
- * Multiple independent fields, structs, arrays, optionals and unions are supported.
+ * Supports independent fields, structs, arrays, optionals and unions. Job setup
+ * requires equal encryption coverage across branches of any enclosing union.
  * Setup is lazy and fails with InvalidEncryptedSchema in the Effect error channel.
  * Each execution snapshots schema, envelope and codec methods into a fresh Schema.
  * Encrypted-within-encrypted and recursive domain schemas fail during setup.
