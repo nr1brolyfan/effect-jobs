@@ -6,6 +6,7 @@ export type DrainResult = Data.TaggedEnum<{
   Backoff: {
     readonly phase: "claim" | "recovery" | "reconciliation"
     readonly claimed: number
+    readonly reason?: "JobPolicyIncompatible"
   }
 }>
 export const DrainResult = Data.taggedEnum<DrainResult>()

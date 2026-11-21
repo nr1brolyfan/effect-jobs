@@ -175,8 +175,14 @@ retry internally. Applications must not blindly replay these maintenance calls.
 Malformed snapshot rows are isolated in a bounded locked operation, never repaired
 into an executable payload. Encoded artifacts remain untrusted until the worker's
 existing structure/codec checks; malformed payloads can be fenced to Isolated.
-An incompatible stored lease/budget is not dispatched. Both cases remove a poison
-head row from scheduling without claiming to have handled its payload.
+A valid stored policy with insufficient reserve fails with `JobPolicyIncompatible`
+and stays unchanged. The worker reports claim backoff and observes the available
+and required reserve in milliseconds without recording job identifiers or
+payloads. If the same row remains the first eligible claim, another claim can
+select it again and delay compatible jobs behind it. This failure grants no
+authority to isolate, delete, or rewrite the job's persisted policy. See
+[D06](https://github.com/nr1brolyfan/effect-jobs/issues/36) for the diagnostic and
+budget rollout decision.
 
 `cleanup_at` is a derived scheduling index, not a generic retention hold. Confirmed
 Completed/Dead transitions derive it from their persisted policy; Forever or
@@ -190,6 +196,56 @@ Readiness is explicit, bounded introspection of only the configured relations:
 required columns, PK/UNIQUE/FK/cascade and valid partial indexes. It does not run
 DDL or claim to audit every application migration/data constraint. The readiness
 correction passed the recovered-resource phase-B runs on both runtimes.
+
+### Optional response budget rollout check
+
+When raising the response budget, first deploy a producer policy whose lease
+reserves enough time for the proposed budget. Keep the current worker budget in
+that deployment. Once old producers can no longer write incompatible policies,
+run the following check manually or as a CI step before the second deployment,
+which raises the budget.
+
+Use `psql -v ON_ERROR_STOP=1` with an application-owned read-only connection that
+can see **all** relevant rows in the primary database. Edit the proposed budget,
+table name, and supported queue/kind/version tuples for the deployment. Run a
+complete check for every affected table and worker catalog with its corresponding
+budget. Scheduled, retrying and Active rows can still require a future claim.
+A nonzero exit or an incomplete check blocks the increase. Recheck if the
+catalog changes or any writer can still introduce an incompatible policy.
+
+<!-- response-budget-preflight -->
+```sql
+BEGIN READ ONLY;
+SET LOCAL row_security = off;
+DO $preflight$
+DECLARE
+  required_millis constant bigint := 500;
+  incompatible bigint;
+BEGIN
+  SELECT count(*) INTO incompatible
+  FROM jobs_fixture.tasks AS j
+  JOIN (VALUES ('billing', 'invoice.generate', 1)) AS supported(queue, kind, version)
+    USING (queue, kind, version)
+  WHERE j.state IN ('Pending', 'RetryScheduled', 'Active')
+    AND CASE
+      WHEN jsonb_typeof(j.policy->'leaseDurationMillis') = 'number'
+       AND jsonb_typeof(j.policy->'attemptTimeoutMillis') = 'number'
+      THEN (j.policy->>'leaseDurationMillis')::numeric
+         - (j.policy->>'attemptTimeoutMillis')::numeric < required_millis
+      ELSE true
+    END;
+
+  IF incompatible > 0 THEN
+    RAISE EXCEPTION 'Response budget preflight blocked by % outstanding job(s)', incompatible;
+  END IF;
+END
+$preflight$;
+COMMIT;
+```
+
+The check reports a count without job identifiers or payloads. An empty result
+from a limited scan, a replica with unknown lag, or a role with incomplete row
+visibility cannot establish compatibility.
 
 ## Historical phase-B qualification and integration blockers
 

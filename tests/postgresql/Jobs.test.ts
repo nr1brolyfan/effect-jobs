@@ -12,7 +12,9 @@ import {
   Fiber,
   Option,
   Layer,
-  Scope
+  Logger,
+  Scope,
+  Tracer
 } from "effect"
 import type { PoolConfig } from "pg"
 import { Pool } from "../qualification/d6-pg/PgDriver.js"
@@ -50,6 +52,7 @@ import { createRequire } from "node:module"
 import { JobEnqueue } from "../../src/JobEnqueue.js"
 import type { JobPersistenceError } from "../../src/JobEnqueue.js"
 import * as Group from "../../src/JobGroup.js"
+import { verifyClaimReserve } from "../contracts/ClaimReserve.js"
 
 const directory = process.env.D6_RESOURCE_DIRECTORY
 const queue = Effect.runSync(Queue.make("billing"))
@@ -985,69 +988,261 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
         .rows[0].n
     ).toBe(0)
   })
-  test("deployment budget incompatibility backs off without isolating or modifying retained jobs", async () => {
-    await clear()
-    await enqueue("retained-policy", "same")
-    const before = await row("retained-policy")
-    const incompatible = await Effect.runPromise(
-      Jobs.make({
-        ...mapping,
-        operationResponseBudget: Duration.millis(
-          Policy.defaultPolicy.leaseDurationMillis -
-            Policy.defaultPolicy.attemptTimeoutMillis +
-            1
-        )
-      }).pipe(Effect.provideService(PostgreSqlApplication, adapter))
-    )
-    const claimResult = await Effect.runPromise(
-      incompatible.store.claim(request()).pipe(Effect.result)
-    )
-    expect(claimResult).toMatchObject({
-      _tag: "Failure",
-      failure: { _tag: "JobPolicyIncompatible" }
-    })
-    expect(await row("retained-policy")).toEqual(before)
-    let executions = 0
-    const group = Effect.runSync(Group.make("retained-policy", { generate: definition }))
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const blocked = yield* Worker.make(
-          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
-          {
-            queues: [{ queue }]
-          }
-        ).pipe(Effect.provideService(Storage.JobStorage, incompatible.storage))
-        expect(yield* blocked.drain(queue)).toMatchObject({
-          _tag: "Backoff",
-          phase: "claim",
-          claimed: 0
+  test("conforms to the claim reserve boundary on real PostgreSQL", async () => {
+    await verifyClaimReserve(async (reserveMillis) => {
+      await clear()
+      const id = `claim-reserve-${reserveMillis}`
+      const configured = await Effect.runPromise(
+        Policy.make({
+          attemptTimeout: Duration.seconds(5),
+          leaseDuration: Duration.millis(5_000 + reserveMillis)
         })
-        expect(yield* Effect.promise(() => row("retained-policy"))).toEqual(before)
-        expect(executions).toBe(0)
-        const restored = yield* Worker.make(
-          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
-          {
-            queues: [{ queue }]
-          }
-        ).pipe(Effect.provideService(Storage.JobStorage, jobs.storage))
-        expect(yield* restored.drain(queue)).toMatchObject({
-          _tag: "Idle",
-          claimed: 1
-        })
-      }).pipe(
-        Effect.provide(
-          Group.handlers(group, (_handlers) =>
-            _handlers.handle("generate", () =>
-              Effect.sync(() => {
-                executions++
-              })
-            )
-          )
+      )
+      const oldBudget = await Effect.runPromise(
+        Jobs.make({ ...mapping, operationResponseBudget: Duration.millis(99) }).pipe(
+          Effect.provideService(PostgreSqlApplication, adapter)
         )
       )
+      await Effect.runPromise(
+        oldBudget.withTransaction((tx) =>
+          makeProducer(configured).enqueueInTransaction(tx, input(id, id, 1_000))
+        )
+      )
+      const dbTimes: Array<number> = []
+      const measured = await make({
+        ...adapter,
+        ownedTransaction: (body) =>
+          adapter.ownedTransaction((query) =>
+            body({
+              query: (sql, values) =>
+                query.query(sql, values).pipe(
+                  Effect.tap((rows) =>
+                    Effect.sync(() => {
+                      if (sql.includes(" AS now")) {
+                        dbTimes.push(Number(rows[0]?.now))
+                      }
+                    })
+                  )
+                )
+            })
+          )
+      })
+      return {
+        catalog,
+        claim: (claimRequest) =>
+          Effect.runPromise(measured.store.claim(claimRequest).pipe(Effect.result)),
+        read: async () => {
+          const snapshot = await row(id)
+          return { state: snapshot.state, leaseToken: snapshot.lease_token, snapshot }
+        },
+        expectAccepted: (result) => {
+          expect(dbTimes).toHaveLength(2)
+          const [selected, afterCommit] = dbTimes
+          expect(selected).toBeGreaterThan(1_000)
+          expect(afterCommit).toBeGreaterThanOrEqual(selected!)
+          expect(result._tag).toBe(afterCommit === selected ? "Claimed" : "Unknown")
+        }
+      }
+    })
+  })
+
+  test("reports a sanitized claim diagnostic and retains an incompatible head", async () => {
+    await clear()
+    const tight = await Effect.runPromise(
+      Policy.make({
+        attemptTimeout: Duration.seconds(5),
+        leaseDuration: Duration.millis(5_100)
+      })
     )
+    const wide = await Effect.runPromise(
+      Policy.make({
+        attemptTimeout: Duration.seconds(5),
+        leaseDuration: Duration.millis(5_500)
+      })
+    )
+    const head = await enqueue("retained-head", "PRIVATE_RESERVE_PAYLOAD", tight, 1_000)
+    await enqueue("retained-tail", "tail", wide, 1_001)
+    const before = await row("retained-head")
+    const tail = await row("retained-tail")
+    const statements: Array<string> = []
+    const measured: ApplicationAdapter = {
+      ...adapter,
+      ownedTransaction: (body) =>
+        adapter.ownedTransaction((query) =>
+          body({
+            query: (sql, values) => {
+              statements.push(sql)
+              return query.query(sql, values)
+            }
+          })
+        )
+    }
+    const incompatible = await Effect.runPromise(
+      Jobs.make({ ...mapping, operationResponseBudget: Duration.millis(500) }).pipe(
+        Effect.provideService(PostgreSqlApplication, measured)
+      )
+    )
+    for (let attempt = 0; attempt < 2; attempt++) {
+      statements.length = 0
+      expect(
+        await Effect.runPromise(incompatible.store.claim(request()).pipe(Effect.result))
+      ).toMatchObject({
+        _tag: "Failure",
+        failure: {
+          _tag: "JobPolicyIncompatible",
+          reserveMillis: 100,
+          requiredMillis: 500
+        }
+      })
+      expect(statements).toEqual([
+        expect.stringContaining("clock_timestamp()"),
+        expect.stringContaining(
+          "ORDER BY j.available_at,j.id LIMIT 1 FOR UPDATE OF j SKIP LOCKED"
+        )
+      ])
+    }
+
+    const logs: Array<string> = []
+    const spans: Array<Tracer.NativeSpan> = []
+    const logger = Logger.make((options) => logs.push(Logger.formatJson.log(options)))
+    const tracer = Tracer.make({
+      span(options) {
+        const span = new Tracer.NativeSpan(options)
+        spans.push(span)
+        return span
+      }
+    })
+    let executions = 0
+    const handlers = Group.handlers(workerGroup, (installer) =>
+      installer.handle("generate", () =>
+        Effect.sync(() => {
+          executions++
+        })
+      )
+    )
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const api = yield* JobApi.make(workerGroup.name).pipe(
+          JobApi.addGroup(workerGroup)
+        )
+        const worker = yield* Worker.make(api, { queues: [{ queue }] })
+        return yield* worker.drain(queue)
+      }).pipe(
+        Effect.provide(Layer.mergeAll(handlers, Logger.layer([logger]))),
+        Effect.provideService(Storage.JobStorage, incompatible.storage),
+        Effect.provideService(Tracer.Tracer, tracer)
+      )
+    )
+    expect(result).toEqual({
+      _tag: "Backoff",
+      phase: "claim",
+      claimed: 0,
+      reason: "JobPolicyIncompatible"
+    })
+    expect(executions).toBe(0)
+    expect(await row("retained-head")).toEqual(before)
+    expect(await row("retained-tail")).toEqual(tail)
+    const claimSpan = spans.find((span) => span.name === "effect-jobs.claim")
+    expect(Object.fromEntries(claimSpan!.attributes)).toMatchObject({
+      "jobs.reason": "JobPolicyIncompatible",
+      "jobs.reserve_millis": 100,
+      "jobs.required_millis": 500
+    })
+    expect(claimSpan!.status).toMatchObject({ _tag: "Ended", exit: Exit.void })
+    expect(
+      logs.some(
+        (line) =>
+          line.includes('"jobs.reason":"JobPolicyIncompatible"') &&
+          line.includes('"jobs.reserve_millis":100') &&
+          line.includes('"jobs.required_millis":500')
+      )
+    ).toBe(true)
+    const telemetry = JSON.stringify([logs, spans.map((span) => [...span.attributes])])
+    for (const secret of [
+      head.jobId,
+      tail.id,
+      "retained-head",
+      "PRIVATE_RESERVE_PAYLOAD"
+    ]) {
+      expect(telemetry).not.toContain(secret)
+    }
+    const priorBudget = await Effect.runPromise(
+      Jobs.make({ ...mapping, operationResponseBudget: Duration.millis(50) }).pipe(
+        Effect.provideService(PostgreSqlApplication, adapter)
+      )
+    )
+    const restored = await Effect.runPromise(
+      Effect.gen(function* () {
+        const api = yield* JobApi.make(workerGroup.name).pipe(
+          JobApi.addGroup(workerGroup)
+        )
+        const worker = yield* Worker.make(api, { queues: [{ queue }] })
+        return yield* worker.drain(queue, { maxJobs: 1 })
+      }).pipe(
+        Effect.provide(handlers),
+        Effect.provideService(Storage.JobStorage, priorBudget.storage)
+      )
+    )
+    expect(restored).toMatchObject({ _tag: "MoreWork", claimed: 1 })
     expect(executions).toBe(1)
-    expect((await row("retained-policy")).state).toBe("Completed")
+    expect((await row("retained-head")).state).toBe("Completed")
+    expect(await row("retained-tail")).toEqual(tail)
+  })
+
+  test("the documented preflight blocks even future outstanding work", async () => {
+    await clear()
+    const spec = readFileSync(
+      new URL("../../specs/postgresql-jobs.md", import.meta.url),
+      "utf8"
+    )
+    const sql = spec
+      .split("<!-- response-budget-preflight -->")[1]
+      ?.split("```sql\n")[1]
+      ?.split("```")[0]
+    expect(sql).toBeDefined()
+    const tight = await Effect.runPromise(
+      Policy.make({
+        attemptTimeout: Duration.seconds(5),
+        leaseDuration: Duration.millis(5_300)
+      })
+    )
+    const wide = await Effect.runPromise(
+      Policy.make({
+        attemptTimeout: Duration.seconds(5),
+        leaseDuration: Duration.millis(5_500)
+      })
+    )
+    const later = (await serverNow()) + 86_400_000
+    await enqueue("future-incompatible", "pending", tight, later)
+    await enqueue("retry-incompatible", "retry", tight, 1_000)
+    await enqueue("compatible", "eligible", wide, later)
+    const active = await claim()
+    await finish(active, {
+      _tag: "Retry",
+      code: FailureCodes.define({ retry: "preflight_retry" }).retry
+    })
+    await observer.query(
+      "UPDATE jobs_fixture.tasks SET available_at=$1 WHERE operation_id='retry-incompatible'",
+      [later]
+    )
+    expect((await row("retry-incompatible")).state).toBe("RetryScheduled")
+    const connection = await observer.connect()
+    try {
+      await expect(connection.query(sql!)).rejects.toThrow(
+        "Response budget preflight blocked by 2 outstanding job(s)"
+      )
+      await connection.query("ROLLBACK")
+      expect((await row("future-incompatible")).state).toBe("Pending")
+      expect((await row("retry-incompatible")).state).toBe("RetryScheduled")
+      // Remove only the fixture rows to prove the exact-budget control passes.
+      await observer.query(
+        "DELETE FROM jobs_fixture.tasks WHERE operation_id IN ('future-incompatible','retry-incompatible')"
+      )
+      await expect(connection.query(sql!)).resolves.toBeDefined()
+    } finally {
+      await connection.query("ROLLBACK")
+      connection.release()
+    }
   })
 
   test.each(["Redrive", "CorrectedRedrive"] as const)(

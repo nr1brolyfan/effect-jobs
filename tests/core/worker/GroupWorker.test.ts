@@ -5,9 +5,12 @@ import { TestClock } from "effect/testing"
 import * as Group from "../../../src/JobGroup.js"
 import * as Queue from "../../../src/JobQueue.js"
 import * as Codec from "../../../src/JobPayloadCodec.js"
-import { FinalizationResult } from "../../../src/JobStore.js"
+import { FinalizationResult, ClaimResult } from "../../../src/JobStore.js"
 import * as Worker from "../../../src/JobWorker.js"
 import * as Storage from "../../../src/JobStorage.js"
+import { makeWithHandlers } from "../../../src/internal/worker/Runtime.js"
+import { drainWithOptions } from "../../../src/internal/worker/Drain.js"
+import type { JobAddress } from "../../../src/JobIdentity.js"
 import { harness, policy } from "./Harness.js"
 
 const queue = Effect.runSync(Queue.make("billing"))
@@ -34,6 +37,95 @@ const seed = Effect.fnUntraced(function* (count = 1) {
 })
 
 describe("group-backed worker construction", () => {
+  it("checks immutable readiness once and rejects a claim from another configured queue", async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const other = yield* Queue.make("billing-other")
+        const catalog = [
+          { queue: queue.name, name: definition.name, version: 1 },
+          { queue: queue.name, name: definition.name, version: 2 },
+          { queue: other.name, name: definition.name, version: 1 }
+        ] satisfies ReadonlyArray<JobAddress>
+        const encoded = yield* Codec.encodeJobPayload(definition.payload, {
+          invoiceId: "one"
+        })
+        const fixture = harness([
+          {
+            catalog: catalog[2]!,
+            producer: {
+              operation: "billing.issue",
+              operationId: "wrong-queue",
+              slot: "receipt"
+            },
+            policy,
+            encoded
+          }
+        ])
+        let lookups = 0
+        let executions = 0
+        let misroute = false
+        const options = {
+          catalog: catalog.map((catalog) => ({ catalog })),
+          operationResponseBudgetMillis: 100
+        }
+        const missing = yield* makeWithHandlers(fixture.store, options, {
+          immutable: true,
+          find: () => undefined
+        }).pipe(Effect.result)
+        expect(missing).toMatchObject({
+          _tag: "Failure",
+          failure: { _tag: "JobWorkerConfigurationError", field: "catalog" }
+        })
+        const worker = yield* makeWithHandlers(
+          {
+            ...fixture.store,
+            claim: (input) => {
+              expect(input.supportedCatalog).toEqual(catalog.slice(0, 2))
+              return misroute
+                ? fixture.store.claim({
+                    ...input,
+                    queue: other.name,
+                    supportedCatalog: [catalog[2]!]
+                  })
+                : Effect.succeed(ClaimResult.Empty())
+            }
+          },
+          options,
+          {
+            immutable: true,
+            find: (catalog) => {
+              lookups++
+              return {
+                catalog,
+                execute: () =>
+                  Effect.sync(() => {
+                    executions++
+                  })
+              }
+            }
+          }
+        )
+        const run = drainWithOptions({
+          queue,
+          localConcurrency: 1,
+          claimLimitPerRun: 1,
+          recoveryLimitPerRun: 1
+        }).pipe(Effect.provideService(Worker.JobWorker, worker))
+        expect(lookups).toBe(catalog.length)
+        for (let i = 0; i < 3; i++) {
+          expect(yield* run).toEqual({ _tag: "Idle", claimed: 0, recovered: 0 })
+        }
+        expect(lookups).toBe(catalog.length)
+        misroute = true
+        expect(yield* run).toMatchObject({ _tag: "MoreWork", claimed: 1 })
+        expect(lookups).toBe(catalog.length)
+        expect(executions).toBe(0)
+        expect(fixture.rows[0]!.snapshot.state).toBe("Active")
+        expect(fixture.calls.finalizations).toHaveLength(0)
+      }).pipe(Effect.provide(Layer.mergeAll(TestClock.layer(), Logger.layer([]))))
+    )
+  })
+
   it("recovers only the drained queue, preserving another queue's expired ownership", async () => {
     await Effect.runPromise(
       Effect.gen(function* () {

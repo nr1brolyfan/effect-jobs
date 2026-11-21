@@ -22,7 +22,7 @@ import * as Worker from "../../../src/JobWorker.js"
 import * as Storage from "../../../src/JobStorage.js"
 import * as Polling from "../../../src/JobPolling.js"
 import { harness, policy } from "./Harness.js"
-import { JobOwnershipLost } from "../../../src/JobStore.js"
+import { ClaimResult, JobOwnershipLost } from "../../../src/JobStore.js"
 import type { JobStoreService } from "../../../src/JobStore.js"
 
 const queue = Effect.runSync(Queue.make("polling"))
@@ -95,7 +95,7 @@ it("performs one recovery and one empty claim, idles, and closes all polling wor
   )
 })
 
-it("uses the capped infrastructure backoff sequence without job retry or repeated recovery", async () => {
+it("preserves capped claim backoff while retrying recovery at the default threshold", async () => {
   await run(
     Effect.gen(function* () {
       const test = harness()
@@ -109,18 +109,104 @@ it("uses the capped infrastructure backoff sequence without job retry or repeate
       })
       yield* start(worker)
       yield* Effect.yieldNow
-      for (const delay of [800, 1600, 3200, 6400, 12_800, 24_000, 24_000]) {
+      for (const [delay, recoveries] of [
+        [800, 1],
+        [1600, 1],
+        [3200, 1],
+        [6400, 1],
+        [12_800, 1],
+        [24_000, 2],
+        [24_000, 2]
+      ] as const) {
         const before = claims
         yield* TestClock.adjust(delay - 1)
         assert.equal(claims, before)
         yield* TestClock.adjust(1)
         assert.equal(claims, before + 1)
+        assert.deepEqual(
+          test.calls.recoveries,
+          Array.from({ length: recoveries }, () => 1)
+        )
       }
       assert.equal(claims, 8)
-      assert.deepEqual(test.calls.recoveries, [1])
     })
   )
 })
+
+it.each(["claim", "reconciliation"] as const)(
+  "recovers an expired job during sustained %s failures at the next eligible round",
+  async (phase) => {
+    await run(
+      Effect.gen(function* () {
+        const shortPolicy = {
+          ...policy,
+          attemptTimeoutMillis: 100,
+          leaseDurationMillis: 500
+        }
+        const catalog = job.catalog
+        const encoded = yield* Codec.encodeJobPayload(job.payload, { value: "recover" })
+        const test = harness(
+          ["first", "second"].map((operationId) => ({
+            catalog,
+            producer: { operation: "polling", operationId, slot: "neutral" },
+            policy: shortPolicy,
+            encoded
+          }))
+        )
+        const request = {
+          queue: queue.name,
+          supportedCatalog: [catalog]
+        }
+        for (let i = 0; i < 2; i++) {
+          const claimed = yield* test.store.claim({
+            ...request,
+            leaseToken: globalThis.crypto.randomUUID()
+          })
+          assert.equal(claimed._tag, "Claimed")
+        }
+        let claims = 0
+        let reconciliations = 0
+        const worker = yield* make({
+          ...test.store,
+          claim: () =>
+            Effect.suspend(() => {
+              claims++
+              return phase === "claim"
+                ? Effect.fail("RAW_CLAIM")
+                : Effect.succeed(ClaimResult.Unknown())
+            }),
+          reconcileClaim: () =>
+            Effect.suspend(() => {
+              reconciliations++
+              return Effect.fail("RAW_RECONCILIATION")
+            })
+        })
+        yield* start(worker, { ...pollingOptions, recoveryRetryIntervalMillis: 801 })
+        yield* Effect.yieldNow
+        assert.deepEqual(test.calls.recoveries, [1])
+        yield* TestClock.adjust(800)
+        assert.equal(claims, 2)
+        assert.deepEqual(test.calls.recoveries, [1])
+        yield* TestClock.adjust(1599)
+        assert.equal(claims, 2)
+        assert.deepEqual(
+          test.rows.map(({ snapshot }) => snapshot.state),
+          ["Active", "Active"]
+        )
+        yield* TestClock.adjust(1)
+        assert.equal(claims, 3)
+        assert.equal(reconciliations, phase === "reconciliation" ? 3 : 0)
+        assert.deepEqual(test.calls.recoveries, [1, 1])
+        assert.deepEqual(
+          test.rows.map(({ snapshot }) => snapshot.state),
+          ["Pending", "Active"]
+        )
+        assert.equal(test.calls.releases, 0)
+        assert.equal(test.calls.finalizations.length, 0)
+      })
+    )
+  }
+)
 
 it("resets backoff after Empty and applies upper polling jitter", async () => {
   await run(
@@ -222,6 +308,19 @@ it("validates every plan queue before spawning loops and rejects invalid polling
             Layer.provide(Layer.succeed(Worker.JobWorker, worker))
           )
         ).pipe(Effect.result)
+        assert.equal(result._tag, "Failure")
+      }
+      for (const recoveryRetryIntervalMillis of [
+        0,
+        -1,
+        0.5,
+        NaN,
+        Infinity,
+        Number.MAX_SAFE_INTEGER
+      ]) {
+        const result = yield* start(worker, { recoveryRetryIntervalMillis }).pipe(
+          Effect.result
+        )
         assert.equal(result._tag, "Failure")
       }
       for (const idlePollMillis of [0, -1, 0.5, Infinity]) {
