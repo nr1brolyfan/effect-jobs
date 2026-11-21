@@ -15,7 +15,10 @@ Build one application-owned graph: configured jobs storage, shared contract grou
 complete `JobGroup.handlers` handler Layers, then `JobWorker.layer(catalog,
 { queues: [{ queue, concurrency }] })`. Installation captures Schema decoding and
 application services. Worker construction captures `JobStorage` and every catalog
-group's handler service. Reuse the same group references for both operations.
+group's handler service. Within one worker installation, reuse the same
+`JobGroup` instance for handler registration and worker setup. Recreating a
+group with the same name and jobs creates a different installation key.
+Separate installations can create their own groups.
 
 The catalog contains queue-independent name/version contracts. Unsupported
 versions are excluded from claims rather than dispatched to another decoder.
@@ -45,6 +48,19 @@ native client. The synthetic mail adapter needs no provider credentials.
 
 Keep the polling Layer alive until application shutdown. The API does not import
 this worker composition; importing its definitions starts no processing.
+
+## Choose groups for independent deployments
+
+Groups determine which handlers a worker installs. Queues determine where that
+worker claims jobs. Package, team, group and queue boundaries can differ. For
+example, a billing package can define separate groups for email and PDF work so
+the email worker installs every handler in its email group and needs no PDF
+handler or renderer service.
+
+<CodeExample sourcePath="BillingWorker.ts" role="Composition" />
+
+If email and PDF were in one selected group, both handlers would be required,
+even when the worker listens only on the email queue.
 
 ## Run different catalogs on different queues
 
@@ -76,6 +92,22 @@ their scoped dependencies alive while it serves wakes. Both `JobWorker.layer`
 values would provide the same service key, so merging them cannot combine the
 instances. The two instances above have independent limits of four billing
 jobs and one report.
+
+## Retire an old queue
+
+A producer route change applies to new jobs. A matching replay returns
+`AlreadyPresent` with the original job ID and leaves that job in its first queue.
+An immediate wake sent to the producer's new route cannot wake work left on the
+old route.
+
+1. Start the new consumers and their fallback wakeups before switching producers.
+2. Route new jobs to the new queue and keep the old consumers and wakeups running.
+3. Retire the old consumers and wakeups after old producers can no longer refill
+   the queue and no jobs there still need processing. Include delayed,
+   retry-scheduled and active jobs that could still require recovery.
+
+An empty drain only observes that no eligible job was claimed in that drain.
+It does not show that the old queue has drained permanently.
 
 ## Read the limits correctly
 

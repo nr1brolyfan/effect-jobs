@@ -125,6 +125,17 @@ application bootstrap path before routing producers. If native alarms/state are
 administratively removed, an operator/traffic repair must bootstrap again. No
 remote repair service is installed by this example.
 
+The logical queue selects PostgreSQL work. The application separately chooses
+the wake target, including the Durable Object namespace, name, jurisdiction and
+shard where applicable. A queue name does not encode that target. When switching
+routes, bootstrap the new target's fallback before routing producers to it. Keep
+the old target and fallback active until old producers cannot refill the queue
+and delayed, retry-scheduled or active work that can require recovery has
+cleared. A matching replay keeps its original queue, so a nudge sent to the new
+target alone is insufficient. If enqueue joins an application transaction,
+send any immediate nudge only after the outer commit succeeds and retain the
+fallback wake.
+
 Follow one wake through [`src/Wake.ts`](./src/Wake.ts),
 [`src/Coordinator.ts`](./src/Coordinator.ts) and [`src/Invocation.ts`](./src/Invocation.ts).
 

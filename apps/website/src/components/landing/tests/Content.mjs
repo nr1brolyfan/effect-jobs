@@ -6,19 +6,37 @@ import * as content from "../Content.ts"
 import { codeOperations } from "../PlaybackClock.ts"
 
 const fixturePath = "apps/website/src/components/landing/LandingExample.ts"
+const sharedPath = "apps/website/src/components/landing/shared/jobs/orders.ts"
 const fixture = await readFile(fixturePath, "utf8")
+const sharedFixture = await readFile(sharedPath, "utf8")
 const tokens = (text) =>
   parse(text, { sourceType: "module", plugins: ["typescript"], tokens: true })
     .tokens.filter((token) => token.type.label !== "eof")
     .map((token) => text.slice(token.start, token.end))
 
-for (const name of ["shared", "transaction", "rollback", "handler", "execution"]) {
-  const region = fixture
+const region = (source, name) => {
+  const excerpt = source
     .split(`// #region ${name}\n`)[1]
     ?.split(`// #endregion ${name}`)[0]
-  assert(region, `Missing complete fixture region: ${name}`)
-  // Each displayed block must parse on its own, with no artificial closing tail.
-  assert.deepEqual(tokens(content[name]), tokens(region), name)
+  assert(excerpt, `Missing fixture region: ${name}`)
+  return excerpt
+}
+assert.deepEqual(
+  tokens(content.shared),
+  tokens(region(sharedFixture, "shared")),
+  "shared"
+)
+for (const name of ["transaction", "rollback", "handler", "execution"]) {
+  assert.deepEqual(tokens(content[name]), tokens(region(fixture, name)), name)
+}
+// Setup excerpts pair a module import with a line from inside an Effect generator.
+const setupTokens = (text) => {
+  const [importLine, ...body] = text.split("\n")
+  return tokens(`${importLine}\nfunction* setup() {\n${body.join("\n")}\n}`)
+}
+for (const name of ["apiSetup", "workerSetup"]) {
+  const excerpt = region(fixture, "setupImport") + region(fixture, name)
+  assert.deepEqual(setupTokens(content[name]), setupTokens(excerpt), name)
 }
 assert(
   content.shared.includes(
@@ -73,9 +91,11 @@ console.log(
     {
       status: "PASS",
       verification:
-        "Independently parsed, complete TypeScript regions match the typechecked landing fixture token-for-token; chronological page and table structure",
+        "Displayed TypeScript matches the typechecked landing sources token-for-token; chronological page and table structure",
       fixturePath,
-      fixtureSha256: createHash("sha256").update(fixture).digest("hex")
+      fixtureSha256: createHash("sha256").update(fixture).digest("hex"),
+      sharedPath,
+      sharedSha256: createHash("sha256").update(sharedFixture).digest("hex")
     },
     null,
     2

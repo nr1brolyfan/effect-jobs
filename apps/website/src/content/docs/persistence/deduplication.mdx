@@ -40,13 +40,46 @@ confirmation enqueue inside the order transaction. Its receipt and unique order
 state protect whole-operation replay. The expanded tutorial uses two independent
 slots; a slot itself never establishes a dependency between jobs.
 
+## Replay after adding a slot
+
+Deduplication applies per slot. Suppose operation ID `order-041` originally
+enqueued only the `email` slot. Replaying the same operation after adding an
+`invoice` slot can yield both results:
+
+```text
+email   → AlreadyPresent, while the original evidence is retained
+invoice → Inserted, because this slot has never been enqueued for order-041
+```
+
+The application decides whether a replay may add a new effect. If a replay
+must preserve the original request, consult its persisted intent before
+enqueuing a new slot. The [Orders tutorial](/docs/start/tutorial) records
+`invoiceRequested` and checks it when validating a submission replay.
+
+## Fan out to persisted deliveries
+
+With `operationId: campaignId` and slot `send`, two recipients would share
+one deduplication key. The first payload inserts a job and the second,
+with a different recipient ID, fails with `JobIntegrityConflict`.
+Persist a stable application-owned ID for each intended delivery and reuse it
+with the same named slot, even when the delivery list is reordered.
+
+<CodeExample sourcePath="CampaignDelivery.ts" region="fan-out" role="Producer" />
+
+Use the IDs from the application's delivery records. Array positions, email
+addresses used as slot names and fresh IDs generated on each retry make
+unsuitable delivery keys. Each `enqueueStandalone` owns a separate
+transaction. If a later enqueue fails, earlier deliveries may already be
+committed. Retrying the same deliveries deduplicates each earlier write
+while its evidence is retained.
+
 ## Interpret the result
 
-| Same producer identity, incoming content  | Result                                      |
-| ----------------------------------------- | ------------------------------------------- |
-| No retained identity                      | `Inserted` with a library-generated job ID. |
-| Matching catalog and semantic payload     | `AlreadyPresent` with the original job ID.  |
-| Changed name, version or semantic payload | `JobIntegrityConflict`; no overwrite.       |
+| Same producer identity, incoming content                    | Result                                      |
+| ----------------------------------------------------------- | ------------------------------------------- |
+| No retained identity                                        | `Inserted` with a library-generated job ID. |
+| Matching name, version, payload format and semantic payload | `AlreadyPresent` with the original job ID.  |
+| Changed name, version, payload format or semantic payload   | `JobIntegrityConflict`; no overwrite.       |
 
 Concurrent producers are protected by storage uniqueness and conflict comparison,
 not a check-then-insert in application code. READ COMMITTED is required so the
@@ -62,8 +95,9 @@ on first insertion; a retry does not reset it.
 
 ## Semantic equality is more than matching JSON text
 
-Object property order does not matter; array order does. Equality compares catalog and payload format alongside the persisted semantic
-projection, including protected-field fingerprints.
+Object property order does not matter. Array order does. Equality compares job
+name, version and payload format alongside the persisted semantic projection,
+including protected-field fingerprints.
 Lifecycle counters, leases, current retry availability and randomized ciphertext
 do not decide equality. Protected envelopes need stable compatible application
 fingerprints; routine encryption-key rotation must not change their meaning.
@@ -87,6 +121,6 @@ See [atomic receipt writes](/docs/persistence/transactions/) and
 [unknown execution outcomes](/docs/execution/recovery/).
 
 `producer.enqueue({ slot, operationId, payload, ...options })` enforces the
-bound job, exact payload and routing choice. Different selected queues under the
-same matching tuple return the original row; a matching duplicate never reroutes
-accepted work. Job contracts expose no enqueue or producer-identity escape.
+bound job, exact payload and routing choice. See
+[retiring an old queue](/docs/execution/workers/#retire-an-old-queue) when
+changing that routing. Job contracts expose no enqueue or producer-identity escape.

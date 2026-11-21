@@ -122,8 +122,12 @@ try {
     )
     await assertCleanCode()
     await expect(page.locator("#shared .file-label")).toHaveText("shared/jobs/orders.ts")
-    await expect(page.locator("#shared pre")).toContainText("ConfirmationJobGroup")
-    await expect(page.locator("#shared pre")).toContainText("OrdersJobApi")
+    await expect(page.locator("#shared .scene-pair > .code-panel pre")).toContainText(
+      "ConfirmationJobGroup"
+    )
+    await expect(page.locator("#shared .scene-pair > .code-panel pre")).toContainText(
+      "OrdersJobApi"
+    )
     await expect(
       page.locator("#shared .stage-button, #shared [data-code-seek]")
     ).toHaveCount(0)

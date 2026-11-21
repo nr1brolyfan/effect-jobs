@@ -9,6 +9,25 @@ The [Getting started guide](/docs/start/tutorial) builds an order application.
 The API produces work, the worker processes it, and both share job contracts.
 Find the complete example in `apps/website/examples/docs/orders`.
 
+## Share a payload schema with another module
+
+When a module needs to validate a payload independently, export the named Schema
+directly and reuse it in the lazy job declaration. Keep concrete database,
+mailer, worker and key-provider wiring in the applications that use them.
+
+<CodeExample sourcePath="ReceiptJob.ts" role="Shared contract" />
+
+The API can validate input using only the imported schema:
+
+<CodeExample sourcePath="ReceiptValidation.ts" />
+
+The worker evaluates `SendReceipt` during
+[its setup](/docs/execution/workers/#choose-groups-for-independent-deployments).
+Local setup can keep its schema inline when it has no independent consumers.
+If multiple modules in one worker installation need the same resolved group
+instance, share it through a small domain Layer. The schema import works on
+its own.
+
 ## Source map
 
 | File                                              | Responsibility                                                       |
@@ -43,9 +62,9 @@ Each role composes its own startup with the shared `PersistenceLayer`.
   role="Shared contract"
 />
 
-`(operation, operationId, slot)` locates retained job evidence. Matching catalog
-and semantic payload return the original ID; changes conflict. Policy and initial
-availability remain first-write-wins. Removing all evidence ends that deduplication
+`(operation, operationId, slot)` locates retained job evidence. Matching job name,
+version, payload format and semantic payload return the original ID. Changes to
+those fields conflict. Queue, policy and initial availability remain first-write-wins. Removing all evidence ends that deduplication
 window. Whole-operation safety additionally needs the unique order and receipt.
 
 ## Producer and application schema
