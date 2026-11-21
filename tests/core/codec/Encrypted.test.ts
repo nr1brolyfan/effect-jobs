@@ -76,7 +76,7 @@ describe("schema-bound local encrypted fields", () => {
     let calls = 0
     const definition = Effect.runSync(
       Job.make({
-        queue: Queue.make("billing"),
+        queue: Effect.runSync(Queue.make("billing")),
         name: "receipt",
         payload: schema
       })
@@ -270,7 +270,7 @@ it("actual worker isolates invalid opened artifacts before the handler under exi
     ])
   const definition = Effect.runSync(
     Job.make({
-      queue: Queue.make("encrypted-worker"),
+      queue: Effect.runSync(Queue.make("encrypted-worker")),
       name: "receipt",
       payload: schema
     })

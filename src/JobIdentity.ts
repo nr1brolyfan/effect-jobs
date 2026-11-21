@@ -48,7 +48,7 @@ export const JobVersion = Schema.Int.pipe(
  *
  * @category schemas
  */
-export const CatalogIdentity = Schema.Struct({
+export const JobAddress = Schema.Struct({
   queue: QueueName,
   name: JobName,
   version: JobVersion
@@ -58,7 +58,7 @@ export const CatalogIdentity = Schema.Struct({
  *
  * @category models
  */
-export interface CatalogIdentity<
+export interface JobAddress<
   Queue extends string = string,
   Name extends string = string,
   Version extends number = number

@@ -1,5 +1,4 @@
 import * as JobApi from "effect-jobs/JobApi"
-import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 import { Context, Data, Effect, Layer, Match, Schema } from "effect"
 import * as Job from "effect-jobs/Job"
 import * as Group from "effect-jobs/JobGroup"
@@ -32,7 +31,7 @@ export const admitDevelopment = (authorization: string) =>
     Match.orElse(() => Effect.fail(new AdmissionRejected()))
   )
 
-export const BillingQueue = Queue.make("billing")
+export const BillingQueue = Effect.runSync(Queue.make("billing"))
 // One explicit setup graph owns the contract, producer, group and catalog.
 // Importing this module does not validate, execute Schema services or register handlers.
 export const definitions = Effect.gen(function* () {
@@ -46,8 +45,8 @@ export const definitions = Effect.gen(function* () {
       policy: Policy.defaultPolicy
     })
   )
-  const BillingJobs = Group.make("alchemy-billing", { deliver: DeliverInvoice })
-  const api = JobApi.make("billing").pipe(JobApi.addGroup(BillingJobs))
+  const BillingJobs = yield* Group.make("alchemy-billing", { deliver: DeliverInvoice })
+  const api = yield* JobApi.make("billing").pipe(JobApi.addGroup(BillingJobs))
   return { DeliverInvoice, IssueInvoice, BillingJobs, api }
 })
 export class Definitions extends Context.Service<
@@ -73,7 +72,7 @@ const codes = Codes.define({
 })
 export const Handlers = Layer.unwrap(
   Effect.map(Definitions, (declarations) =>
-    JobApiBuilder.group(declarations.api, declarations.BillingJobs.name, (_handlers) =>
+    Group.handlers(declarations.BillingJobs, (_handlers) =>
       _handlers.handle("deliver", (input) =>
         Effect.gen(function* () {
           const delivery = yield* InvoiceDelivery

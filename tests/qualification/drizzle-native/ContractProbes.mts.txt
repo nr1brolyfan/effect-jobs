@@ -117,10 +117,10 @@ export const invalidInputProgram = Effect.gen(function* () {
   return yield* db.insert(users).values({ id: "wrong", name: "fixture" })
 })
 
-const fixed = Effect.runSync(Producer.make("proof.fixed").pipe(Producer.withSlot("job", { name: "proof.job", version: 1, payload: Schema.String }, { queue: Queue.make("proof") })))
+const fixed = Effect.runSync(Producer.make("proof.fixed").pipe(Producer.withSlot("job", { name: "proof.job", version: 1, payload: Schema.String }, { queue: Effect.runSync(Queue.make("proof")) })))
 // @ts-expect-error -- ORACLE: the removed object override must stay forbidden in installed declarations.
-export const badQueueObject = fixed.enqueue({ slot: "job", operationId: "one", payload: "one", queue: Queue.make("proof") })
-const selectable = Effect.runSync(Producer.make("proof.selectable").pipe(Producer.withSlot("job", { name: "proof.job", version: 1, payload: Schema.String }, { queues: [Queue.make("proof")] })))
+export const badQueueObject = fixed.enqueue({ slot: "job", operationId: "one", payload: "one", queue: Effect.runSync(Queue.make("proof")) })
+const selectable = Effect.runSync(Producer.make("proof.selectable").pipe(Producer.withSlot("job", { name: "proof.job", version: 1, payload: Schema.String }, { queues: [Effect.runSync(Queue.make("proof"))] })))
 // @ts-expect-error -- ORACLE: a singleton choice still requires explicit selection.
 export const missingQueueChoice = selectable.enqueue({ slot: "job", operationId: "one", payload: "one" })
 export const selectedQueue = selectable.enqueue({ slot: "job", operationId: "one", payload: "one", queue: "proof" })

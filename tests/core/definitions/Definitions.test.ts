@@ -26,7 +26,7 @@ import * as JobPolicy from "../../../src/JobPolicy.js"
 import type { JobsTransaction, JobEnqueueError } from "../../../src/JobTransaction.js"
 import { withJoinedTransaction } from "../../../src/internal/JobTransaction.js"
 
-const queue = JobQueue.make("billing")
+const queue = Effect.runSync(JobQueue.make("billing"))
 const policy = JobPolicy.defaultPolicy
 const jobId = Schema.decodeSync(JobId)("generated-id")
 // Deliberately opaque test fixtures: only forwarding is qualified here, not codec bytes.
@@ -64,7 +64,7 @@ const failure = <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.flip(effect)
 describe("immutable declarations", () => {
   it("copies and freezes slots without freezing or retaining caller configuration", () => {
     const slots = {
-      pdf: { job, queue: JobQueue.make<string>("billing") },
+      pdf: { job, queue: Effect.runSync(JobQueue.make<string>("billing")) },
       email: { job, queue }
     }
     const declaration = Effect.runSync(
@@ -73,7 +73,7 @@ describe("immutable declarations", () => {
         JobProducer.withSlot("email", slots.email.job, { queue: slots.email.queue })
       )
     )
-    slots.pdf = { job, queue: JobQueue.make("sms") }
+    slots.pdf = { job, queue: Effect.runSync(JobQueue.make("sms")) }
     expect(declaration.operation).toBe("billing.issue")
     expect(Object.keys(declaration.slots)).toEqual(["pdf", "email"])
     expect(declaration.slots.pdf.queue.name).toBe("billing")
@@ -89,7 +89,7 @@ describe("immutable declarations", () => {
   ])("validates declarations synchronously: %j", (options) => {
     const pending = Effect.forEach(Object.entries(options.slots), (entry) =>
       JobProducer.make(options.operation).pipe(
-        JobProducer.withSlot(entry[0], entry[1].job, { queue: entry[1].queue })
+        JobProducer.withSlot(entry[0] as "pdf", entry[1].job, { queue: entry[1].queue })
       )
     )
     expect(Effect.runSync(Effect.flip(pending))).toBeInstanceOf(JobDeclarationError)
@@ -107,8 +107,12 @@ describe("immutable declarations", () => {
 
   it("preserves exact IDs and validates queue/catalog boundaries", () => {
     expect(Schema.decodeSync(OperationId)(" Opé ")).toBe(" Opé ")
-    expect(() => JobQueue.make("Bad")).toThrow(JobQueue.InvalidJobQueue)
-    expect(() => JobQueue.make("x".repeat(65))).toThrow(JobQueue.InvalidJobQueue)
+    expect(Effect.runSync(Effect.flip(JobQueue.make("Bad")))).toBeInstanceOf(
+      JobQueue.InvalidJobQueue
+    )
+    expect(Effect.runSync(Effect.flip(JobQueue.make("x".repeat(65))))).toBeInstanceOf(
+      JobQueue.InvalidJobQueue
+    )
     expect(
       Effect.runSync(
         Effect.flip(
@@ -610,7 +614,7 @@ describe("local registry and Layer dependencies", () => {
     expect(Object.isFrozen(entries)).toBe(true)
     const duplicate = Effect.runSync(
       Job.make({
-        queue: JobQueue.make("billing"),
+        queue: Effect.runSync(JobQueue.make("billing")),
         name: job.name,
         version: 1,
         payload: job.payload,

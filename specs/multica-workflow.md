@@ -6,9 +6,9 @@ Ten dokument opisuje zasady pracy w projekcie effect-jobs. Nie jest raportem bie
 
 ## 1. Model i role
 
-**Wszystkie role używają GPT-6.1 Sol z reasoning Medium:** `openai/gpt-6.1-sol#medium`, z jawnym `thinking_level: medium`. Dotyczy to implementora, jednego reviewera, triage i koordynatora. Nie używamy High, innych modeli ani fallbacków.
+**Wszystkie role używają GPT-6.2 Sol z reasoning Medium:** `openai/gpt-6.2-sol#medium`, z jawnym `thinking_level: medium`. Dotyczy to implementora, jednego reviewera, triage i koordynatora. Nie używamy High, innych modeli ani fallbacków.
 
-W Multica używamy runtime **Codex** zamiast OpenCode jako workaround błędów zakończenia streamu. Dla Codex zapis modelu to `gpt-6.1-sol` z osobnym `thinking_level: medium` — ten sam model i reasoning. Zmiana profilu dotyczy kolejnych wykonań; nie przerywamy zdrowych sesji ani nie powtarzamy ukończonych etapów. Workaround nie oznacza naprawy OpenCode.
+W Multica używamy runtime **Codex** zamiast OpenCode jako workaround błędów zakończenia streamu. Dla Codex zapis modelu to `gpt-6.2-sol` z osobnym `thinking_level: medium` — ten sam model i reasoning. Zmiana profilu dotyczy kolejnych wykonań; nie przerywamy zdrowych sesji ani nie powtarzamy ukończonych etapów. Workaround nie oznacza naprawy OpenCode.
 
 Każdy projekt ma własny podstawowy roster czterech wielorazowych profili:
 

@@ -298,8 +298,8 @@ Choose ordinary Effect composition in the handler adapter rather than a separate
 `classifyError` callback in handler configuration. Domain services retain their
 domain errors. The application-owned adapter maps those errors into explicit job
 failures, for example using `Effect.mapError` and exhaustive matching, before
-installing the complete group through `JobApiBuilder.group(catalog, name, build)`.
-Pure `JobApi` catalogs aggregate declared groups; workers require every group
+installing the complete group through `JobGroup.handlers(group, build)`.
+Immutable `JobApi` catalogs aggregate declared groups; workers require every group
 installation and use one shared engine and configured queue concurrency.
 
 Both proposed variants can preserve exhaustive typing, shared mapping, and

@@ -1,5 +1,4 @@
 import * as JobApi from "../../../src/JobApi.js"
-import * as JobApiBuilder from "../../../src/JobApiBuilder.js"
 import { Deferred, Effect, Fiber, Layer, Logger, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { TestClock } from "effect/testing"
@@ -11,13 +10,13 @@ import * as Worker from "../../../src/JobWorker.js"
 import * as Storage from "../../../src/JobStorage.js"
 import { harness, policy } from "./Harness.js"
 
-const queue = Queue.make("billing")
+const queue = Effect.runSync(Queue.make("billing"))
 const definition = {
   name: "billing.receipt",
   version: 1,
   payload: Schema.Struct({ invoiceId: Schema.String })
 }
-const group = Group.make("billing-worker", { receipt: definition })
+const group = Effect.runSync(Group.make("billing-worker", { receipt: definition }))
 const seed = Effect.fnUntraced(function* (count = 1) {
   const encoded = yield* Codec.encodeJobPayload(definition.payload, { invoiceId: "one" })
   return harness(
@@ -38,7 +37,7 @@ describe("group-backed worker construction", () => {
   it("recovers only the drained queue, preserving another queue's expired ownership", async () => {
     await Effect.runPromise(
       Effect.gen(function* () {
-        const other = Queue.make("billing-other")
+        const other = Effect.runSync(Queue.make("billing-other"))
         const encoded = yield* Codec.encodeJobPayload(definition.payload, {
           invoiceId: "one"
         })
@@ -67,7 +66,7 @@ describe("group-backed worker construction", () => {
         const untouched = test.rows[1]!.snapshot
         yield* TestClock.adjust(policy.leaseDurationMillis)
         const worker = yield* Worker.make(
-          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
           {
             queues: [{ queue }, { queue: other }]
           }
@@ -85,10 +84,8 @@ describe("group-backed worker construction", () => {
       }).pipe(
         Effect.provide(
           Layer.mergeAll(
-            JobApiBuilder.group(
-              JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-              group.name,
-              (_handlers) => _handlers.handle("receipt", () => Effect.void)
+            Group.handlers(group, (_handlers) =>
+              _handlers.handle("receipt", () => Effect.void)
             ),
             TestClock.layer(),
             Logger.layer([])
@@ -98,7 +95,7 @@ describe("group-backed worker construction", () => {
     )
   })
   it("routes one queue-independent contract through two explicitly configured queues", async () => {
-    const other = Queue.make("billing-slow")
+    const other = Effect.runSync(Queue.make("billing-slow"))
     const seen: string[] = []
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -118,7 +115,7 @@ describe("group-backed worker construction", () => {
           }))
         )
         const worker = yield* Worker.make(
-          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
           {
             queues: [{ queue }, { queue: other }]
           }
@@ -134,15 +131,12 @@ describe("group-backed worker construction", () => {
       }).pipe(
         Effect.provide(
           Layer.mergeAll(
-            JobApiBuilder.group(
-              JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-              group.name,
-              (_handlers) =>
-                _handlers.handle("receipt", (input) =>
-                  Effect.sync(() => {
-                    seen.push(input.context.catalog.queue)
-                  })
-                )
+            Group.handlers(group, (_handlers) =>
+              _handlers.handle("receipt", (input) =>
+                Effect.sync(() => {
+                  seen.push(input.context.catalog.queue)
+                })
+              )
             ),
             Logger.layer([])
           )
@@ -157,7 +151,7 @@ describe("group-backed worker construction", () => {
       Effect.gen(function* () {
         const test = yield* seed(2)
         const worker = yield* Worker.make(
-          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
           {
             queues: [{ queue, concurrency: 1 }]
           }
@@ -177,16 +171,13 @@ describe("group-backed worker construction", () => {
       }).pipe(
         Effect.provide(
           Layer.mergeAll(
-            JobApiBuilder.group(
-              JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-              group.name,
-              (_handlers) =>
-                _handlers.handle("receipt", (input) =>
-                  Effect.sync(() => {
-                    expect(input.payload.invoiceId).toBe("one")
-                    calls++
-                  })
-                )
+            Group.handlers(group, (_handlers) =>
+              _handlers.handle("receipt", (input) =>
+                Effect.sync(() => {
+                  expect(input.payload.invoiceId).toBe("one")
+                  calls++
+                })
+              )
             ),
             Logger.layer([])
           )
@@ -205,27 +196,24 @@ describe("group-backed worker construction", () => {
         const test = yield* seed(2)
         const entered = yield* Deferred.make<void>()
         const gate = yield* Deferred.make<void>()
-        const handlers = JobApiBuilder.group(
-          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-          group.name,
-          (_handlers) =>
-            _handlers.handle("receipt", () =>
-              Effect.gen(function* () {
-                active++
-                maximum = Math.max(maximum, active)
-                yield* Deferred.succeed(entered, undefined)
-                yield* Deferred.await(gate)
-              }).pipe(
-                Effect.ensuring(
-                  Effect.sync(() => {
-                    active--
-                  })
-                )
+        const handlers = Group.handlers(group, (_handlers) =>
+          _handlers.handle("receipt", () =>
+            Effect.gen(function* () {
+              active++
+              maximum = Math.max(maximum, active)
+              yield* Deferred.succeed(entered, undefined)
+              yield* Deferred.await(gate)
+            }).pipe(
+              Effect.ensuring(
+                Effect.sync(() => {
+                  active--
+                })
               )
             )
+          )
         )
         const worker = yield* Worker.make(
-          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
           {
             queues: [{ queue, concurrency: 1 }]
           }
@@ -258,16 +246,17 @@ describe("group-backed worker construction", () => {
     async (concurrency) => {
       const test = harness()
       const result = await Effect.runPromise(
-        Worker.make(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
-          queues: [{ queue, concurrency }]
-        }).pipe(
+        Worker.make(
+          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
+          {
+            queues: [{ queue, concurrency }]
+          }
+        ).pipe(
           Effect.provide(
             Layer.mergeAll(
               Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 }),
-              JobApiBuilder.group(
-                JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-                group.name,
-                (_handlers) => _handlers.handle("receipt", () => Effect.void)
+              Group.handlers(group, (_handlers) =>
+                _handlers.handle("receipt", () => Effect.void)
               )
             )
           ),
@@ -283,19 +272,20 @@ describe("group-backed worker construction", () => {
   it("rejects repeated or empty queue configuration", async () => {
     for (const queues of [[], [{ queue }, { queue }]]) {
       const result = await Effect.runPromise(
-        Worker.make(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
-          queues
-        }).pipe(
+        Worker.make(
+          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
+          {
+            queues
+          }
+        ).pipe(
           Effect.provide(
             Layer.mergeAll(
               Storage.layer({
                 store: harness().store,
                 operationResponseBudgetMillis: 100
               }),
-              JobApiBuilder.group(
-                JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-                group.name,
-                (_handlers) => _handlers.handle("receipt", () => Effect.void)
+              Group.handlers(group, (_handlers) =>
+                _handlers.handle("receipt", () => Effect.void)
               )
             )
           ),
@@ -311,7 +301,7 @@ describe("group-backed worker construction", () => {
       Effect.gen(function* () {
         const test = yield* seed()
         const worker = yield* Worker.make(
-          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
           { queues: [{ queue }] }
         ).pipe(
           Effect.provide(
@@ -331,16 +321,16 @@ describe("group-backed worker construction", () => {
           const result = yield* worker.drain(queue, limits).pipe(Effect.result)
           expect(result).toMatchObject({ _tag: "Failure", failure: { field: "drain" } })
         }
-        const foreign = yield* worker.drain(Queue.make("other")).pipe(Effect.result)
+        const foreign = yield* worker
+          .drain(Effect.runSync(Queue.make("other")))
+          .pipe(Effect.result)
         expect(foreign).toMatchObject({ _tag: "Failure", failure: { field: "queues" } })
         expect(test.calls.claims).toHaveLength(0)
         expect(test.calls.recoveries).toHaveLength(0)
       }).pipe(
         Effect.provide(
-          JobApiBuilder.group(
-            JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-            group.name,
-            (_handlers) => _handlers.handle("receipt", () => Effect.void)
+          Group.handlers(group, (_handlers) =>
+            _handlers.handle("receipt", () => Effect.void)
           )
         )
       )
@@ -352,7 +342,7 @@ describe("group-backed worker construction", () => {
       Effect.gen(function* () {
         const test = harness()
         const worker = yield* Worker.make(
-          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
           {
             queues: [{ queue, concurrency: 64 }]
           }
@@ -372,10 +362,8 @@ describe("group-backed worker construction", () => {
         expect(test.calls.recoveries).toEqual([500])
       }).pipe(
         Effect.provide(
-          JobApiBuilder.group(
-            JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-            group.name,
-            (_handlers) => _handlers.handle("receipt", () => Effect.void)
+          Group.handlers(group, (_handlers) =>
+            _handlers.handle("receipt", () => Effect.void)
           )
         )
       )
@@ -388,7 +376,7 @@ describe("group-backed worker construction", () => {
       Effect.gen(function* () {
         const test = yield* seed()
         const worker = yield* Worker.make(
-          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
           { queues: [{ queue }] }
         ).pipe(
           Effect.provide(
@@ -411,15 +399,12 @@ describe("group-backed worker construction", () => {
       }).pipe(
         Effect.provide(
           Layer.mergeAll(
-            JobApiBuilder.group(
-              JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-              group.name,
-              (_handlers) =>
-                _handlers.handle("receipt", () =>
-                  Effect.sync(() => {
-                    executions++
-                  })
-                )
+            Group.handlers(group, (_handlers) =>
+              _handlers.handle("receipt", () =>
+                Effect.sync(() => {
+                  executions++
+                })
+              )
             ),
             Logger.layer([])
           )

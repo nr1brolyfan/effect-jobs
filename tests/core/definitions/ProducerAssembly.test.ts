@@ -10,7 +10,7 @@ import { EnqueueResult, type PreparedJob } from "../../../src/JobContract.js"
 import { JobId } from "../../../src/JobId.js"
 import { withJoinedTransaction } from "../../../src/internal/JobTransaction.js"
 
-const queue = Queue.make("emails")
+const queue = Effect.runSync(Queue.make("emails"))
 const job = Effect.runSync(Job.make({ name: "email.send", payload: Schema.String }))
 const jobId = Schema.decodeSync(JobId)("assembly-result")
 
@@ -86,8 +86,8 @@ describe("immutable pipeable producer assembly", () => {
     expect(() =>
       Effect.runSync(
         Effect.succeed(producer).pipe(
-          Producer.withSlot(dynamicName, job, {
-            queue: Queue.make("priority")
+          Producer.withSlot(dynamicName as "other", job, {
+            queue: Effect.runSync(Queue.make("priority"))
           })
         )
       )
@@ -106,7 +106,9 @@ describe("immutable pipeable producer assembly", () => {
   it.each(["", "Bad", "a!", "a".repeat(129)])("rejects declaration name %j", (name) => {
     expect(() => Effect.runSync(Producer.make(name))).toThrow(JobDeclarationError)
     expect(() =>
-      Effect.runSync(Producer.make("valid").pipe(Producer.withSlot(name, job, { queue })))
+      Effect.runSync(
+        Producer.make("valid").pipe(Producer.withSlot(name as "email", job, { queue }))
+      )
     ).toThrow(JobDeclarationError)
   })
 
@@ -123,7 +125,17 @@ describe("immutable pipeable producer assembly", () => {
   ])("validates the new binding synchronously: $field", (input) => {
     expect(() =>
       Effect.runSync(
-        Producer.make("valid").pipe(Producer.withSlot("email", input.job, input))
+        Producer.make("valid").pipe(
+          Producer.withSlot(
+            "email",
+            {
+              name: input.job.name,
+              version: input.job.version,
+              payload: input.job.payload
+            },
+            input
+          )
+        )
       )
     ).toThrow(
       expect.objectContaining({

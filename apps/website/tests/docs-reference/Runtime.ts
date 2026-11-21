@@ -127,18 +127,24 @@ try {
     )._tag,
     "Retry"
   )
-  assert.throws(
-    // Runtime bypass preserves the catalog's duplicate-group negative control.
-    () => ApplicationJobs.pipe(Api.addGroup(GenerateJobs) as never),
-    (error: unknown) =>
-      error instanceof Api.InvalidJobApi && error.reason === "duplicate-group"
+  // Erase the known group names to exercise the runtime duplicate check.
+  const existing: Api.JobApi<typeof ApplicationJobs.name, {}> = ApplicationJobs
+  const duplicateGroup = await Effect.runPromise(
+    Effect.succeed(existing).pipe(Api.addGroup(GenerateJobs), Effect.flip)
   )
+  assert(duplicateGroup instanceof Api.InvalidJobApi)
+  assert.equal(duplicateGroup.reason, "duplicate-group")
   const unexpectedStorage = () =>
     Effect.die("duplicate queues must fail before storage activity")
   const duplicateQueue = await Effect.runPromiseExit(
-    Worker.make(Api.make("duplicate-queue-control").pipe(Api.addGroup(GenerateJobs)), {
-      queues: [{ queue: ReportsQueue }, { queue: ReportsQueue }]
-    }).pipe(
+    Worker.make(
+      Effect.runSync(
+        Api.make("duplicate-queue-control").pipe(Api.addGroup(GenerateJobs))
+      ),
+      {
+        queues: [{ queue: ReportsQueue }, { queue: ReportsQueue }]
+      }
+    ).pipe(
       Effect.provide(
         Layer.mergeAll(
           Layer.succeed(Storage.JobStorage, {

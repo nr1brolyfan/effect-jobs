@@ -12,7 +12,6 @@ persisted retry protocol.
 | `Job`           | Immutable, namespaced name/version and payload Schema contract.     |
 | `JobGroup`      | Pure named collection of job definitions.                           |
 | `JobApi`        | Pure immutable aggregate of named groups.                           |
-| `JobApiBuilder` | Complete typed group handler installation.                          |
 | `JobProducer`   | Immutable operation/slot bindings to job and default queue/policy.  |
 | `JobWorker`     | Worker construction, queue concurrency and bounded `drain`.         |
 | `JobPolling`    | Explicit scoped polling; independent of storage and migrations.     |
@@ -77,17 +76,17 @@ not authorize reinterpretation or destruction of retained artifacts.
 
 ## Group handler contract
 
-`JobGroup.make(name, { alias: definition, ... })` produces an immutable declaration.
+`JobGroup.make(name, { alias: definition, ... })` produces an immutable declaration through an Effect.
 The name distinguishes group service requirements statically; it is not a durable
 job identity. Separately constructed groups have distinct runtime Context keys.
-`JobApi.make(name).pipe(JobApi.addGroup(group), ...)` aggregates groups without
+Yielding `JobApi.make(name).pipe(JobApi.addGroup(group), ...)` aggregates groups without
 routing or infrastructure. Assembly snapshots declaration structure, retaining exact
 Schema and installation identity, without freezing caller-owned values. Earlier and
 sibling catalogs stay unchanged. Names must be unique; duplicate name/version pairs
 across groups fail rather than selecting a handler. Repeated aliases and differing
 versions are valid. An empty catalog can be assembled but cannot run a worker.
 
-`JobApiBuilder.group(api, name, handlers => ...)` selects a declared literal group.
+`JobGroup.handlers(group, handlers => ...)` installs one existing group.
 Chain `handlers.handle(alias, implementation)` for every alias exactly once; return
 the complete builder directly or through an Effect. Builders are immutable. Unknown,
 duplicate, missing and foreign implementations fail static checks where knowable

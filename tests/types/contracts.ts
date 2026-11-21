@@ -10,7 +10,7 @@ import type {
 } from "../../src/JobContract.js"
 import { JobFailures, type JobFailure } from "../../src/JobFailure.js"
 import { JobId } from "../../src/JobId.js"
-import type { CatalogIdentity, ProducerIdentity } from "../../src/JobIdentity.js"
+import type { JobAddress, ProducerIdentity } from "../../src/JobIdentity.js"
 import * as JobPolicy from "../../src/JobPolicy.js"
 import * as Retry from "../../src/JobRetryPolicy.js"
 import type { JobsTransaction, JobTransactionsService } from "../../src/JobTransaction.js"
@@ -31,12 +31,12 @@ export const producer: ProducerIdentity<"billing.issue", "email"> = {
   slot: "email",
   operationId
 }
-export const catalog: CatalogIdentity<"billing", "email", 1> = {
+export const catalog: JobAddress<"billing", "email", 1> = {
   queue: "billing",
   name: "email",
   version: 1
 }
-export const wrongCatalog: CatalogIdentity<"billing", "email", 1> = {
+export const wrongCatalog: JobAddress<"billing", "email", 1> = {
   queue: "billing",
   name: "email",
   // @ts-expect-error Wrong catalog version literal.

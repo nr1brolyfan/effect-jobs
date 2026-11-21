@@ -25,16 +25,16 @@ export const rollback = `const rollbackOrder = (input: OrderInput) =>
     })
   )`
 
-export const shared = `const OrdersQueue = JobQueue.make("orders")
-const orderJobDefinitions = Effect.gen(function* () {
+export const shared = `const orderJobDefinitions = Effect.gen(function* () {
+  const OrdersQueue = yield* JobQueue.make("orders")
   const ConfirmationJob = yield* Job.make({
     name: "orders.send-confirmation",
     payload: Schema.Struct({ orderId: Schema.String })
   })
-  const ConfirmationJobGroup = JobGroup.make("confirmation", {
+  const ConfirmationJobGroup = yield* JobGroup.make("confirmation", {
     confirmation: ConfirmationJob
   })
-  const OrdersJobApi = JobApi.make("orders").pipe(
+  const OrdersJobApi = yield* JobApi.make("orders").pipe(
     JobApi.addGroup(ConfirmationJobGroup)
   )
   const PlaceOrder = yield* JobProducer.make("order.place").pipe(
@@ -42,20 +42,19 @@ const orderJobDefinitions = Effect.gen(function* () {
       queue: OrdersQueue
     })
   )
-  return { OrdersJobApi, PlaceOrder }
+  return { OrdersQueue, ConfirmationJobGroup, OrdersJobApi, PlaceOrder }
 })`
 
-export const handler = `const HandlerLayer = JobApiBuilder.group(
-  OrdersJobApi, "confirmation", (handlers) =>
-    handlers.handle("confirmation", (input) =>
-      Effect.gen(function* () {
-        const emails = yield* TransactionalEmails
-        yield* emails.send({
-          deliveryKey: input.context.jobId,
-          orderId: input.payload.orderId
-        })
+export const handler = `const HandlerLayer = JobGroup.handlers(ConfirmationJobGroup, (handlers) =>
+  handlers.handle("confirmation", (input) =>
+    Effect.gen(function* () {
+      const emails = yield* TransactionalEmails
+      yield* emails.send({
+        deliveryKey: input.context.jobId,
+        orderId: input.payload.orderId
       })
-    )
+    })
+  )
 )`
 
 export const execution = `const WorkerLayer = JobWorker.layer(OrdersJobApi, {

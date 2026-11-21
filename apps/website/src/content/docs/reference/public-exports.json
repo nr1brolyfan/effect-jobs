@@ -33,13 +33,13 @@
   {
     "subpath": "effect-jobs/JobQueue",
     "filename": "src/JobQueue.ts",
-    "sha256": "9f18a11a766a368caee5daf2e0ed7aae13bdf1769c38166e10a3a6f437287759",
+    "sha256": "ca1cdb3e13118f43f4aab9a18df8330487f52e78eafe385100094ba1a7ae292a",
     "symbols": [
       {
         "name": "InvalidJobQueue",
         "kind": "value + type",
         "category": "errors",
-        "description": "Thrown synchronously when the queue name violates QueueName."
+        "description": "Typed setup failure when the queue name violates QueueName."
       },
       {
         "name": "JobQueue",
@@ -51,14 +51,14 @@
         "name": "make",
         "kind": "value",
         "category": "constructors",
-        "description": "Creates a frozen logical queue. Names are 1–64 ASCII characters matching\n^[a-z][a-z0-9.-]*$; invalid names throw InvalidJobQueue. Creates no storage or worker."
+        "description": "Creates a frozen logical queue. Names are 1–64 ASCII characters matching\n^[a-z][a-z0-9.-]*$; invalid names fail with InvalidJobQueue. Creates no storage or worker."
       }
     ]
   },
   {
     "subpath": "effect-jobs/JobProducer",
     "filename": "src/JobProducer.ts",
-    "sha256": "816b4c348c53a6db6b4774c4540e0aefc10624b408439a61f5a9ce191fb92b1a",
+    "sha256": "f9d096a09da18f08771fc38ede3a4ffafce56c18a82c334eecb6389a98867aad",
     "symbols": [
       {
         "name": "Binding",
@@ -113,7 +113,7 @@
   {
     "subpath": "effect-jobs/JobGroup",
     "filename": "src/JobGroup.ts",
-    "sha256": "a1cfd6df573bdcf0b4b1bf844a2c659562e1f68d998dca47cda7ed0926900508",
+    "sha256": "644dfcc3c58165cc33c1714c63e2a6508a67bf4a1076bdcaaa954f5aa11e8dae",
     "symbols": [
       {
         "name": "BoundHandler",
@@ -132,6 +132,18 @@
         "kind": "type",
         "category": "contract",
         "description": "Named job contracts, independent of queue routing."
+      },
+      {
+        "name": "HandlerBuilder",
+        "kind": "type",
+        "category": "contract",
+        "description": "Immutable builder. A union alias cannot prove that every possible member ran."
+      },
+      {
+        "name": "handlers",
+        "kind": "value",
+        "category": "contract",
+        "description": "Acquires callback dependencies once per Layer acquisition; invocation services\nand Schema decoders use the existing per-job scoped installation runtime."
       },
       {
         "name": "Handlers",
@@ -186,7 +198,7 @@
   {
     "subpath": "effect-jobs/JobApi",
     "filename": "src/JobApi.ts",
-    "sha256": "ed0ccd5c8dfa5f80e16522035a39a2f9dfa8e79b85f82e656abd76bbb3817088",
+    "sha256": "51259d29e517a8c7a9e2ccfd4a01952d4490bf7656d68f99bee384a9d3b417fa",
     "symbols": [
       {
         "name": "addGroup",
@@ -229,44 +241,31 @@
         "kind": "value",
         "category": "contract",
         "description": "Starts an empty catalog. Workers require at least one runnable definition."
-      }
-    ]
-  },
-  {
-    "subpath": "effect-jobs/JobApiBuilder",
-    "filename": "src/JobApiBuilder.ts",
-    "sha256": "08478918698c559e4eff606e826f8f5e6e6a10d1365d656ce3c17a05d895fa1a",
-    "symbols": [
-      {
-        "name": "group",
-        "kind": "value",
-        "category": "contract",
-        "description": "Acquires callback dependencies once per Layer acquisition; invocation services\nand Schema decoders use the existing per-job scoped installation runtime."
       },
       {
-        "name": "Handlers",
-        "kind": "type",
+        "name": "pick",
+        "kind": "value",
         "category": "contract",
-        "description": "Immutable builder. A union alias cannot prove that every possible member ran."
+        "description": "Snapshots the selected group names and retains their original installation keys."
       }
     ]
   },
   {
     "subpath": "effect-jobs/JobIdentity",
     "filename": "src/JobIdentity.ts",
-    "sha256": "ec376d0ffad0ac31d07b7441eb8b85ec533f9e8f534da6e27968de6393aa9415",
+    "sha256": "ca154f4fdeabf8697f1cb2d8a15def79c6879ae07e3017c792a27c1efb40b718",
     "symbols": [
-      {
-        "name": "CatalogIdentity",
-        "kind": "value + type",
-        "category": "schemas",
-        "description": "Queue/name/version Schema and literal-preserving structural identity."
-      },
       {
         "name": "InvalidOperationId",
         "kind": "value + type",
         "category": "errors",
         "description": "Typed identifier failure; reports the violated rule without echoing the ID."
+      },
+      {
+        "name": "JobAddress",
+        "kind": "value + type",
+        "category": "schemas",
+        "description": "Queue/name/version Schema and literal-preserving structural identity."
       },
       {
         "name": "JobDeclarationError",
@@ -352,7 +351,7 @@
   {
     "subpath": "effect-jobs/JobContract",
     "filename": "src/JobContract.ts",
-    "sha256": "05ee9d01e15e32623438dc20ae039561ea03d82cb3268f67d1a0c1cbcbf92aa3",
+    "sha256": "0464e311c7356b6eb236b0eddb1d9ab88b6437412a220fc7f3cb0e0ee1c2838d",
     "symbols": [
       {
         "name": "EncodedJobPayload",
@@ -812,7 +811,7 @@
   {
     "subpath": "effect-jobs/JobWorker",
     "filename": "src/JobWorker.ts",
-    "sha256": "3a7c697ec7d0cde3c8b19c82d681d6bc3399f57c961c72f15f93018ccbb2cfe9",
+    "sha256": "b5f3819659d4fd953dcdabc53f7ceffea6ad13522e9332a0c00967c1bdb8c53b",
     "symbols": [
       {
         "name": "drain",
@@ -910,7 +909,7 @@
   {
     "subpath": "effect-jobs/JobSchedule",
     "filename": "src/JobSchedule.ts",
-    "sha256": "55596377bafd8ce983aa055e940756e81974cf8c6f59da299d49ff0a3b972ab8",
+    "sha256": "db4d9b7d7cc7c4581359536121cc598cd06b9bd121fc2fad3fb2cd66d4dd28f8",
     "symbols": [
       {
         "name": "JobSchedule",
@@ -1128,7 +1127,7 @@
   {
     "subpath": "effect-jobs/JobStore",
     "filename": "src/JobStore.ts",
-    "sha256": "89711279ee48aeb24fab1212fb88e4f163932942a177f169e1b67e4d7f0130b6",
+    "sha256": "f27803332edd80de4030bdc8fbd4153cf491b2e113a06dce6a9815e5f5dbdb9f",
     "symbols": [
       {
         "name": "ClaimedJob",
@@ -1274,7 +1273,7 @@
   {
     "subpath": "effect-jobs/PostgreSqlJobs",
     "filename": "src/postgresql/PostgreSqlJobs.ts",
-    "sha256": "791329a84b8298adf3afa9bec269c7cee7d9f01886213af9d68a6b02e0c1e87f",
+    "sha256": "6de4a23dcd8ee95b7a827ee110a678903cd86d373d88b530433549442c0a6c39",
     "symbols": [
       {
         "name": "layerNoDeps",

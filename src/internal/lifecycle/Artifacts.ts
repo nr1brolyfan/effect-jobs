@@ -1,6 +1,6 @@
 import { Result, Schema } from "effect"
 import * as Contract from "../../JobContract.js"
-import { CatalogIdentity, ProducerIdentity } from "../../JobIdentity.js"
+import { JobAddress, ProducerIdentity } from "../../JobIdentity.js"
 import { EpochMillis, JobPolicy } from "../../JobPolicy.js"
 import * as Lifecycle from "../../JobLifecycle.js"
 import { JobStoreProtocolError, type ClaimedJob } from "../../JobStore.js"
@@ -12,7 +12,7 @@ const bytes = (maximum: number) =>
     )
   )
 export const PreparedArtifact = Schema.Struct({
-  catalog: CatalogIdentity,
+  catalog: JobAddress,
   producer: ProducerIdentity,
   policy: JobPolicy,
   availableAt: EpochMillis.pipe(Schema.optional),

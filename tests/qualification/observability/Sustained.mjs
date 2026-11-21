@@ -35,40 +35,35 @@ const library = (name) => {
   libraryProvenance.modules[name] = path
   return import(pathToFileURL(path).href)
 }
-const [Job, JobQueue, Codec, Policy, Group, Worker, Storage, JobApi, JobApiBuilder] =
-  await Promise.all(
-    [
-      "Job",
-      "JobQueue",
-      "JobPayloadCodec",
-      "JobPolicy",
-      "JobGroup",
-      "JobWorker",
-      "JobStorage",
-      "JobApi",
-      "JobApiBuilder"
-    ].map(library)
-  )
-const queue = JobQueue.make("load-proof")
+const [Job, JobQueue, Codec, Policy, Group, Worker, Storage, JobApi] = await Promise.all(
+  [
+    "Job",
+    "JobQueue",
+    "JobPayloadCodec",
+    "JobPolicy",
+    "JobGroup",
+    "JobWorker",
+    "JobStorage",
+    "JobApi"
+  ].map(library)
+)
+const queue = Effect.runSync(JobQueue.make("load-proof"))
 const definition = Effect.runSync(
   Job.make({ name: "load-proof", payload: Schema.String })
 )
 const catalog = { queue: queue.name, name: definition.name, version: definition.version }
-const group = Group.make("load-proof", { synthetic: definition })
+const group = Effect.runSync(Group.make("load-proof", { synthetic: definition }))
 const runJob = () =>
   Effect.gen(function* () {
     const encoded = yield* Codec.encodeJobPayload(definition.payload, "synthetic")
     let invoked = 0
     let finalized = false
-    const handlers = JobApiBuilder.group(
-      JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-      group.name,
-      (_handlers) =>
-        _handlers.handle("synthetic", () =>
-          Effect.sync(() => {
-            invoked++
-          })
-        )
+    const handlers = Group.handlers(group, (_handlers) =>
+      _handlers.handle("synthetic", () =>
+        Effect.sync(() => {
+          invoked++
+        })
+      )
     )
     const store = {
       recoverExpired: () => Effect.succeed(0),
@@ -118,7 +113,7 @@ const runJob = () =>
       reconcileFinalization: () => Effect.succeed({ _tag: "Unknown" })
     }
     const worker = yield* Worker.make(
-      JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+      Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
       { queues: [{ queue }] }
     ).pipe(
       Effect.provide(

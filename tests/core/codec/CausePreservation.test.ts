@@ -44,7 +44,7 @@ const assertUnfinalized = async (
 ) => {
   const definition = Effect.runSync(
     Job.make({
-      queue: Queue.make("mixed-codec"),
+      queue: Effect.runSync(Queue.make("mixed-codec")),
       name: "receipt",
       payload: schema
     })

@@ -4,8 +4,8 @@ import pg from "pg"
 import { Effect, Layer } from "effect"
 import * as Worker from "../../../dist/JobWorker.js"
 import * as Storage from "../../../dist/JobStorage.js"
-import * as JobApiBuilder from "../../../dist/JobApiBuilder.js"
-import { api, queue, makeJobs } from "./Scenario.mjs"
+import * as Group from "../../../dist/JobGroup.js"
+import { api, group, queue, makeJobs } from "./Scenario.mjs"
 
 const configuration = JSON.parse(readFileSync(process.argv[2], "utf8"))
 const connection = configuration.connection
@@ -49,7 +49,7 @@ try {
         )
       )
   }
-  const handler = JobApiBuilder.group(api, "crash", (handlers) =>
+  const handler = Group.handlers(group, (handlers) =>
     handlers.handle("delivery", (input) =>
       Effect.gen(function* () {
         // Separate committed provider ledger, outside the queue transaction. The key is

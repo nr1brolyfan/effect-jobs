@@ -20,7 +20,11 @@ for (const name of ["shared", "transaction", "rollback", "handler", "execution"]
   // Each displayed block must parse on its own, with no artificial closing tail.
   assert.deepEqual(tokens(content[name]), tokens(region), name)
 }
-assert(content.shared.includes("return { OrdersJobApi, PlaceOrder }"))
+assert(
+  content.shared.includes(
+    "return { OrdersQueue, ConfirmationJobGroup, OrdersJobApi, PlaceOrder }"
+  )
+)
 assert(content.shared.includes("queue: OrdersQueue"))
 assert(content.transaction.includes("PlaceOrder.enqueue"))
 assert(content.rollback.includes("return yield* new OrderRejected()"))

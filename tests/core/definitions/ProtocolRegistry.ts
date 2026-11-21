@@ -1,7 +1,7 @@
 /** Test-only mutable handler installation for direct protocol fault controls.
  * Public workers require complete JobGroup handlers, not this fixture service. */
 import { Context, Data, Effect, Layer } from "effect"
-import type { CatalogIdentity } from "../../../src/JobIdentity.js"
+import type { JobAddress } from "../../../src/JobIdentity.js"
 import type { JobHandler } from "../../../src/internal/worker/Handler.js"
 
 /**
@@ -11,7 +11,7 @@ import type { JobHandler } from "../../../src/internal/worker/Handler.js"
  */
 export class DuplicateJobHandler extends Data.TaggedError(
   "DuplicateJobHandler"
-)<CatalogIdentity> {
+)<JobAddress> {
   override get message(): string {
     return `Handler already installed for ${this.queue}/${this.name}@${this.version}; install one handler per catalog entry`
   }
@@ -24,7 +24,7 @@ export class DuplicateJobHandler extends Data.TaggedError(
  */
 export class DuplicateJobCatalogEntry extends Data.TaggedError(
   "DuplicateJobCatalogEntry"
-)<CatalogIdentity> {
+)<JobAddress> {
   override get message(): string {
     return `Duplicate catalog entry ${this.queue}/${this.name}@${this.version}; use a unique queue/name/version`
   }
@@ -39,7 +39,7 @@ export interface JobRegistryService {
   /** Rejects a second handler for the same queue/name/version. */
   readonly install: (handler: JobHandler) => Effect.Effect<void, DuplicateJobHandler>
   /** Exact catalog lookup; undefined means no handler is installed. */
-  readonly find: (catalog: CatalogIdentity) => JobHandler | undefined
+  readonly find: (catalog: JobAddress) => JobHandler | undefined
 }
 
 /**
@@ -51,7 +51,7 @@ export class JobRegistry extends Context.Service<JobRegistry, JobRegistryService
   "tests/protocol/JobRegistry"
 ) {}
 
-const key = (catalog: CatalogIdentity) =>
+const key = (catalog: JobAddress) =>
   `${catalog.queue}\u0000${catalog.name}\u0000${catalog.version}`
 
 /**
@@ -87,7 +87,7 @@ export const layer = Layer.sync(JobRegistry, () => {
  * @category models
  */
 export interface CatalogEntry {
-  readonly catalog: CatalogIdentity
+  readonly catalog: JobAddress
 }
 
 /**

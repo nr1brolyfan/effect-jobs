@@ -306,7 +306,7 @@ const UnmarkedPayload = Schema.Struct({
 })
 const definition = Effect.runSync(
   Job.make({
-    queue: Queue.make("poc"),
+    queue: Effect.runSync(Queue.make("poc")),
     name: "encrypted.document",
     version: 1,
     payload: UnmarkedPayload,

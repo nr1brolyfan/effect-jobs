@@ -70,16 +70,20 @@ export class ExecutionDeadline extends Schema.TaggedError<ExecutionDeadline>()(
   {}
 ) {}
 
-export const queues = Object.freeze(queueNames.map((name) => Queue.make(name)))
+export const queues = Object.freeze(
+  queueNames.map((name) => Effect.runSync(Queue.make(name)))
+)
 export const workerLayerNoDeps = (schema: string) =>
   Layer.unwrap(
     Effect.gen(function* () {
       const definitions = yield* Definitions.Definitions
       const jobs = yield* PostgreSqlJobs
-      return Worker.layer(
-        JobApi.make(definitions.group.name).pipe(JobApi.addGroup(definitions.group)),
-        { queues: queues.map((queue) => ({ queue, concurrency: limits.concurrency })) }
-      ).pipe(
+      const api = yield* JobApi.make(definitions.group.name).pipe(
+        JobApi.addGroup(definitions.group)
+      )
+      return Worker.layer(api, {
+        queues: queues.map((queue) => ({ queue, concurrency: limits.concurrency }))
+      }).pipe(
         Layer.provide(Layer.succeed(Storage.JobStorage, jobs.storage)),
         Layer.provide(Handlers.layerNoDeps),
         Layer.provide(Provider.layerNoDeps(schema))

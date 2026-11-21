@@ -5,7 +5,7 @@ import * as Queue from "../../src/JobQueue.js"
 import type { JobDeclarationError } from "../../src/JobIdentity.js"
 const job = Effect.runSync(Job.make({ name: "setup.run", payload: Schema.String }))
 export const setup = Producer.make("typed.run").pipe(
-  Producer.withSlot("execute", job, { queue: Queue.make("typed") })
+  Producer.withSlot("execute", job, { queue: Effect.runSync(Queue.make("typed")) })
 )
 type Assert<T extends true> = T
 type Equal<A, B> =

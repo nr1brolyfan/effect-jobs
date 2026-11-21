@@ -11,11 +11,14 @@ declare const store: JobStoreService<"provider-error", Database>
 const definitions = {
   receipt: { name: "billing.receipt", version: 1, payload: Schema.String }
 } as const
-const group = Group.make("billing-worker", definitions)
-const queue = Queue.make("billing")
-export const made = Worker.make(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
-  queues: [{ queue, concurrency: 2 }]
-})
+const group = Effect.runSync(Group.make("billing-worker", definitions))
+const queue = Effect.runSync(Queue.make("billing"))
+export const made = Worker.make(
+  Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
+  {
+    queues: [{ queue, concurrency: 2 }]
+  }
+)
 export const storage = Storage.layer({ store, operationResponseBudgetMillis: 100 })
 export const composed = made.pipe(Effect.provide(storage))
 
@@ -47,7 +50,7 @@ export const invalidDrain = worker.drain(queue, {
   concurrency: 3
 })
 export const invalidBudget = Worker.make(
-  JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+  Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
   {
     queues: [{ queue }],
     // @ts-expect-error The worker cannot duplicate or override its storage budget.

@@ -6,10 +6,10 @@ import type {
   JobPayloadCodecError
 } from "../../JobContract.js"
 import type { JobFailure } from "../../JobFailure.js"
-import type { CatalogIdentity } from "../../JobIdentity.js"
+import type { JobAddress } from "../../JobIdentity.js"
 
 export interface JobHandler {
-  readonly catalog: CatalogIdentity
+  readonly catalog: JobAddress
   readonly execute: (
     encoded: EncodedJobPayload,
     context: HandlerContext
@@ -18,5 +18,5 @@ export interface JobHandler {
 
 /** Immutable group lookup in production; protocol fixtures may install handlers. */
 export interface HandlerLookup {
-  readonly find: (catalog: CatalogIdentity) => JobHandler | undefined
+  readonly find: (catalog: JobAddress) => JobHandler | undefined
 }

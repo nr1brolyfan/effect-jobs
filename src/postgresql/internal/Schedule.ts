@@ -1,6 +1,6 @@
 import { Effect, Result, Schema } from "effect"
 import * as Schedule from "../../JobSchedule.js"
-import { CatalogIdentity, JobName, JobVersion, QueueName } from "../../JobIdentity.js"
+import { JobAddress, JobName, JobVersion, QueueName } from "../../JobIdentity.js"
 import { BatchLimit } from "../../JobLifecycle.js"
 import { EpochMillis } from "../../JobPolicy.js"
 import type { ApplicationAdapter, PostgreSqlError } from "../PostgreSqlTransaction.js"
@@ -8,7 +8,7 @@ import { Integer } from "./Rows.js"
 
 const Request = Schema.Struct({
   queue: QueueName,
-  supportedCatalog: Schema.Array(CatalogIdentity).pipe(
+  supportedCatalog: Schema.Array(JobAddress).pipe(
     Schema.check(Schema.isMinLength(1), Schema.isMaxLength(500))
   ),
   limit: BatchLimit

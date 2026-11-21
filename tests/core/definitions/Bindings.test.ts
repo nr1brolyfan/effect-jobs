@@ -11,7 +11,7 @@ import { JobId } from "../../../src/JobId.js"
 import { JobDeclarationError } from "../../../src/JobIdentity.js"
 import { withJoinedTransaction } from "../../../src/internal/JobTransaction.js"
 
-const queue = Queue.make("billing")
+const queue = Effect.runSync(Queue.make("billing"))
 const id = Schema.decodeSync(JobId)("first")
 const identity = { operation: "invoice.create", operationId: "one", slot: "delivery" }
 const input = {
@@ -110,7 +110,9 @@ describe("bound production and defaults", () => {
       Producer.make("order.place").pipe(
         Producer.withSlot("invoice", first, { queue }),
         Producer.withSlot("copy", first, { queue }),
-        Producer.withSlot("confirmation", second, { queue: Queue.make("mail") })
+        Producer.withSlot("confirmation", second, {
+          queue: Effect.runSync(Queue.make("mail"))
+        })
       )
     )
     const seen: Array<PreparedJob> = []

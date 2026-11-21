@@ -13,7 +13,7 @@ export const OrderPolicy = JobPolicy.make({
   )
 })
 
-export const OrdersQueue = JobQueue.make("orders")
+export const OrdersQueue = Effect.runSync(JobQueue.make("orders"))
 
 export const OrderId = Schema.String.pipe(
   Schema.check(Schema.isPattern(/^[a-z0-9-]{1,64}$/))
@@ -41,13 +41,13 @@ export const orderJobs = Effect.gen(function* () {
   const confirmation = yield* SendOrderConfirmation
   const invoice = yield* CreateOrderInvoice
   const delivery = yield* SendInvoice
-  const ConfirmationJobs = JobGroup.make("confirmation", { confirmation })
-  const InvoiceJobs = JobGroup.make("invoice", { invoice })
-  const DeliveryJobs = JobGroup.make("delivery", { delivery })
-  const ConfirmationApi = JobApi.make("confirmations").pipe(
+  const ConfirmationJobs = yield* JobGroup.make("confirmation", { confirmation })
+  const InvoiceJobs = yield* JobGroup.make("invoice", { invoice })
+  const DeliveryJobs = yield* JobGroup.make("delivery", { delivery })
+  const ConfirmationApi = yield* JobApi.make("confirmations").pipe(
     JobApi.addGroup(ConfirmationJobs)
   )
-  const ApplicationJobs = JobApi.make("orders").pipe(
+  const ApplicationJobs = yield* JobApi.make("orders").pipe(
     JobApi.addGroup(ConfirmationJobs),
     JobApi.addGroup(InvoiceJobs),
     JobApi.addGroup(DeliveryJobs)

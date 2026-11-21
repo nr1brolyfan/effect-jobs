@@ -1,6 +1,6 @@
 import { Schema } from "effect"
 import { JobId } from "effect-jobs/JobId"
-import { CatalogIdentity, ProducerIdentity } from "effect-jobs/JobIdentity"
+import { JobAddress, ProducerIdentity } from "effect-jobs/JobIdentity"
 import { Counter, JobState } from "effect-jobs/JobLifecycle"
 import { EpochMillis, JobPolicy } from "effect-jobs/JobPolicy"
 import { FailureCode } from "effect-jobs/JobFailure"
@@ -21,7 +21,7 @@ export const Cursor = Schema.String.pipe(
 export type JobFilters = typeof JobFilters.Type
 export const JobFilters = Schema.Struct({
   state: JobState.pipe(Schema.optional),
-  name: CatalogIdentity.fields.name.pipe(Schema.optional),
+  name: JobAddress.fields.name.pipe(Schema.optional),
   resolution: JobResolutionState.pipe(Schema.optional),
   needsAttention: Schema.Literal(true).pipe(Schema.optional)
 })
@@ -36,7 +36,7 @@ export const ListJobs = Schema.Struct({
 export type JobSummary = typeof JobSummary.Type
 export const JobSummary = Schema.Struct({
   jobId: JobId,
-  catalog: CatalogIdentity,
+  catalog: JobAddress,
   state: JobState,
   availableAt: EpochMillis,
   updatedAt: EpochMillis,
@@ -129,7 +129,7 @@ export type JobPayloadView = typeof JobPayloadView.Type
 export const JobPayloadView = Schema.Union([
   Schema.TaggedStruct("Available", {
     formatVersion: Schema.Literal(1),
-    catalog: CatalogIdentity,
+    catalog: JobAddress,
     encoded: JsonValue,
     validation: Schema.Literal("Valid"),
     encryption: Schema.Literals(["None", "PrivateDocumentV1", "SyntheticDocumentV1"])

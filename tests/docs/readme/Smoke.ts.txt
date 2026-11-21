@@ -124,7 +124,7 @@ const storeFor = (prepared: PreparedJob): Store.JobStoreService => ({
   recoverExpired: () => Effect.succeed(0), finalize: () => Effect.sync(() => { finalized++; return Store.FinalizationResult.Applied() }), release: unexpected, reconcileClaim: unexpected, reconcileFinalization: unexpected
 })
 const store = storeFor({ catalog, producer: context.producer, policy: Policy.defaultPolicy, encoded })
-const worker = Worker.layer(JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs)), { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(JobStorage.layer({ store, operationResponseBudgetMillis: 100 })), Layer.provide(ReceiptHandler.pipe(Layer.provide(CapturedDefinitionsLayer))), Layer.provide(Fixture.ReceiptMailerLayer))
+const worker = Worker.layer(Effect.runSync(JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs))), { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(JobStorage.layer({ store, operationResponseBudgetMillis: 100 })), Layer.provide(ReceiptHandler.pipe(Layer.provide(CapturedDefinitionsLayer))), Layer.provide(Fixture.ReceiptMailerLayer))
 const result = await Effect.runPromise(Effect.scoped(Worker.drain(BillingQueue, { maxJobs: 20, recoveryLimit: 20 }).pipe(Effect.provide(worker))).pipe(Effect.provide(TestClock.layer())))
 assert.equal(result.claimed, 1)
 assert.equal(finalized, 1)

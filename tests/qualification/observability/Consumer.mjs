@@ -39,38 +39,26 @@ const { OtlpExporter, OtlpLogger, OtlpMetrics, OtlpSerialization, OtlpTracer } =
   await pkg("effect/observability")
 const { makeWithTransaction } = await pkg("effect/sql/SqlClient")
 const { ConnectionError, SqlError } = await pkg("effect/sql/SqlError")
-const [
-  Job,
-  Queue,
-  Producer,
-  Enqueue,
-  Policy,
-  Group,
-  Worker,
-  Native,
-  Storage,
-  JobApi,
-  JobApiBuilder
-] = await Promise.all(
-  [
-    "Job",
-    "JobQueue",
-    "JobProducer",
-    "JobEnqueue",
-    "JobPolicy",
-    "JobGroup",
-    "JobWorker",
-    "PostgreSqlNative",
-    "JobStorage",
-    "JobApi",
-    "JobApiBuilder"
-  ].map(library)
-)
+const [Job, Queue, Producer, Enqueue, Policy, Group, Worker, Native, Storage, JobApi] =
+  await Promise.all(
+    [
+      "Job",
+      "JobQueue",
+      "JobProducer",
+      "JobEnqueue",
+      "JobPolicy",
+      "JobGroup",
+      "JobWorker",
+      "PostgreSqlNative",
+      "JobStorage",
+      "JobApi"
+    ].map(library)
+  )
 const base = process.env.OBS_COLLECTOR_URL
 const metricBase = process.env.OBS_METRIC_URL
 assert.match(base, /^http:\/\/127\.0\.0\.1:\d+$/)
 assert.match(metricBase, /^http:\/\/127\.0\.0\.1:\d+$/)
-const queue = Queue.make("synthetic")
+const queue = Effect.runSync(Queue.make("synthetic"))
 const job = Effect.runSync(
   Job.make({
     name: "synthetic",
@@ -81,7 +69,7 @@ const policy = Policy.defaultPolicy
 const production = Effect.runSync(
   Producer.make("synthetic").pipe(Producer.withSlot("run", job, { queue, policy }))
 )
-const group = Group.make("synthetic", { synthetic: job })
+const group = Effect.runSync(Group.make("synthetic", { synthetic: job }))
 const controlCanary = "SYNTHETIC_NATIVE_CONTROL_CANARY"
 const transactionService = Context.Service("synthetic/transaction")
 const withTransaction = makeWithTransaction({
@@ -204,18 +192,15 @@ const program = Effect.gen(function* () {
           slot: "run"
         })
         .pipe(Effect.provideService(Enqueue.JobEnqueue, producer))
-      const handlers = JobApiBuilder.group(
-        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-        group.name,
-        (_handlers) =>
-          _handlers.handle("synthetic", () =>
-            Effect.sync(() => {
-              invoked++
-            })
-          )
+      const handlers = Group.handlers(group, (_handlers) =>
+        _handlers.handle("synthetic", () =>
+          Effect.sync(() => {
+            invoked++
+          })
+        )
       )
       const worker = yield* Worker.make(
-        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+        Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
         { queues: [{ queue }] }
       ).pipe(
         Effect.provide(

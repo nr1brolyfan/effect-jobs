@@ -2,9 +2,9 @@
  * Store and replaceable cleanup ports for fixed leases and bounded reconciliation.
  */
 import { Data, Effect, Result, Schema } from "effect"
-import { CatalogIdentity as CatalogSchema, QueueName } from "./JobIdentity.js"
+import { JobAddress as CatalogSchema, QueueName } from "./JobIdentity.js"
 import { LeaseToken } from "./JobLifecycle.js"
-import type { CatalogIdentity } from "./JobIdentity.js"
+import type { JobAddress } from "./JobIdentity.js"
 import type { JobFinalization, JobOwnership, JobSnapshot } from "./JobLifecycle.js"
 import type { JobPolicyIncompatible } from "./JobContract.js"
 
@@ -107,7 +107,7 @@ export class JobStoreProtocolError extends Data.TaggedError("JobStoreProtocolErr
 export interface ClaimRequest {
   readonly queue: string
   /** Nonempty supported catalogs only. No process-global catalog or unsupported-version dispatch. */
-  readonly supportedCatalog: ReadonlyArray<CatalogIdentity>
+  readonly supportedCatalog: ReadonlyArray<JobAddress>
   /** Fresh unique caller token per claim operation, retained verbatim for reconciliation. */
   readonly leaseToken: string
 }

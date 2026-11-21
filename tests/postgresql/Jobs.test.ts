@@ -1,5 +1,4 @@
 import * as JobApi from "../../src/JobApi.js"
-import * as JobApiBuilder from "../../src/JobApiBuilder.js"
 import * as FailureCodes from "../../src/FailureCode.js"
 import { readFileSync, writeFileSync } from "node:fs"
 import { randomBytes, randomUUID } from "node:crypto"
@@ -52,7 +51,7 @@ import type { JobPersistenceError } from "../../src/JobEnqueue.js"
 import * as Group from "../../src/JobGroup.js"
 
 const directory = process.env.D6_RESOURCE_DIRECTORY
-const queue = Queue.make("billing")
+const queue = Effect.runSync(Queue.make("billing"))
 const definition = Effect.runSync(
   Job.make({
     name: "invoice.generate",
@@ -61,7 +60,7 @@ const definition = Effect.runSync(
   })
 )
 const catalog = { queue: queue.name, name: definition.name, version: definition.version }
-const workerGroup = Group.make("jobs-fixture", { generate: definition })
+const workerGroup = Effect.runSync(Group.make("jobs-fixture", { generate: definition }))
 const policy = Effect.runSync(
   Policy.make({
     completedRetention: Duration.millis(1),
@@ -273,17 +272,17 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const worker = yield* Worker.make(
-            JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup)),
+            Effect.runSync(
+              JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup))
+            ),
             {
               queues: [{ queue }]
             }
           ).pipe(
             Effect.provideService(Storage.JobStorage, jobs.storage),
             Effect.provide(
-              JobApiBuilder.group(
-                JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup)),
-                workerGroup.name,
-                (_handlers) => _handlers.handle("generate", execute)
+              Group.handlers(workerGroup, (_handlers) =>
+                _handlers.handle("generate", execute)
               )
             )
           )
@@ -307,16 +306,18 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
 
   test("dispatches complete catalogs with repeated aliases and versions on several queues", async () => {
     await clear()
-    const slow = Queue.make("catalog-slow")
+    const slow = Effect.runSync(Queue.make("catalog-slow"))
     const next = Effect.runSync(Job.make({ ...definition, version: 2 }))
     const other = Effect.runSync(Job.make({ ...definition, name: "invoice.other" }))
-    const a = Group.make("catalog-a", { run: definition })
-    const b = Group.make("catalog-b", { run: next })
-    const c = Group.make("catalog-c", { run: other })
-    const api = JobApi.make("application").pipe(
-      JobApi.addGroup(a),
-      JobApi.addGroup(b),
-      JobApi.addGroup(c)
+    const a = Effect.runSync(Group.make("catalog-a", { run: definition }))
+    const b = Effect.runSync(Group.make("catalog-b", { run: next }))
+    const c = Effect.runSync(Group.make("catalog-c", { run: other }))
+    const api = Effect.runSync(
+      JobApi.make("application").pipe(
+        JobApi.addGroup(a),
+        JobApi.addGroup(b),
+        JobApi.addGroup(c)
+      )
     )
     const configured = Effect.runSync(
       Policy.make({ retry: Retry.fixed(Duration.millis(1)) })
@@ -324,7 +325,11 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
     for (const job of [definition, next, other]) {
       const producer = Effect.runSync(
         Producer.make("catalog.dispatch").pipe(
-          Producer.withSlot("run", job, { queues: [queue, slow], policy: configured })
+          Producer.withSlot(
+            "run",
+            { ...job, name: job.name, version: job.version },
+            { queues: [queue, slow], policy: configured }
+          )
         )
       )
       for (const destination of [queue, slow]) {
@@ -372,9 +377,9 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
       }).pipe(
         Effect.provide(
           Layer.mergeAll(
-            JobApiBuilder.group(api, "catalog-a", (h) => h.handle("run", execute)),
-            JobApiBuilder.group(api, "catalog-b", (h) => h.handle("run", execute)),
-            JobApiBuilder.group(api, "catalog-c", (h) => h.handle("run", execute)),
+            Group.handlers(a, (h) => h.handle("run", execute)),
+            Group.handlers(b, (h) => h.handle("run", execute)),
+            Group.handlers(c, (h) => h.handle("run", execute)),
             Layer.succeed(Storage.JobStorage, jobs.storage)
           )
         )
@@ -437,7 +442,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
         })
       )
     )
-    const otherQueue = Queue.make("schedule-other")
+    const otherQueue = Effect.runSync(Queue.make("schedule-other"))
     const other = Effect.runSync(
       Producer.make("billing.schedule-other").pipe(
         Producer.withSlot("generate", definition, { queue: otherQueue, policy })
@@ -542,21 +547,20 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
             const reached = yield* Deferred.make<void>()
             const finish = yield* Deferred.make<void>()
             const worker = Worker.layer(
-              JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup)),
+              Effect.runSync(
+                JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup))
+              ),
               { queues: [{ queue }] }
             ).pipe(
               Layer.provide(
                 Layer.mergeAll(
                   Layer.succeed(Storage.JobStorage, jobs.storage),
-                  JobApiBuilder.group(
-                    JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup)),
-                    workerGroup.name,
-                    (_handlers) =>
-                      _handlers.handle("generate", () =>
-                        Deferred.succeed(reached, undefined).pipe(
-                          Effect.andThen(Deferred.await(finish))
-                        )
+                  Group.handlers(workerGroup, (_handlers) =>
+                    _handlers.handle("generate", () =>
+                      Deferred.succeed(reached, undefined).pipe(
+                        Effect.andThen(Deferred.await(finish))
                       )
+                    )
                   )
                 )
               )
@@ -598,15 +602,13 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
       operationResponseBudgetMillis: 100
     }).pipe(Layer.provide(Layer.succeed(PostgreSqlApplication, adapter)))
     const workerLayer = Worker.layer(
-      JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup)),
+      Effect.runSync(JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup))),
       { queues: [{ queue }] }
     ).pipe(
       Layer.provideMerge(jobsLayer),
       Layer.provide(
-        JobApiBuilder.group(
-          JobApi.make(workerGroup.name).pipe(JobApi.addGroup(workerGroup)),
-          workerGroup.name,
-          (_handlers) => _handlers.handle("generate", () => Effect.void)
+        Group.handlers(workerGroup, (_handlers) =>
+          _handlers.handle("generate", () => Effect.void)
         )
       )
     )
@@ -691,7 +693,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
   })
   test("recovery locks and changes only expired rows in the requested queue", async () => {
     await clear()
-    const otherQueue = Queue.make("billing-other")
+    const otherQueue = Effect.runSync(Queue.make("billing-other"))
     const other = Effect.runSync(
       Producer.make(producer.operation).pipe(
         Producer.withSlot("generate", definition, { queue: otherQueue, policy })
@@ -966,11 +968,11 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
     })
     expect(await row("retained-policy")).toEqual(before)
     let executions = 0
-    const group = Group.make("retained-policy", { generate: definition })
+    const group = Effect.runSync(Group.make("retained-policy", { generate: definition }))
     await Effect.runPromise(
       Effect.gen(function* () {
         const blocked = yield* Worker.make(
-          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
           {
             queues: [{ queue }]
           }
@@ -983,7 +985,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
         expect(yield* Effect.promise(() => row("retained-policy"))).toEqual(before)
         expect(executions).toBe(0)
         const restored = yield* Worker.make(
-          JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
           {
             queues: [{ queue }]
           }
@@ -994,15 +996,12 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
         })
       }).pipe(
         Effect.provide(
-          JobApiBuilder.group(
-            JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-            group.name,
-            (_handlers) =>
-              _handlers.handle("generate", () =>
-                Effect.sync(() => {
-                  executions++
-                })
-              )
+          Group.handlers(group, (_handlers) =>
+            _handlers.handle("generate", () =>
+              Effect.sync(() => {
+                executions++
+              })
+            )
           )
         )
       )
@@ -1167,7 +1166,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
     "%s persists overrides and matching replays retain the first route, policy and artifact",
     async (method) => {
       await clear()
-      const priority = Queue.make("billing-priority")
+      const priority = Effect.runSync(Queue.make("billing-priority"))
       const selectable = Effect.runSync(
         Producer.make("billing.issue").pipe(
           Producer.withSlot("generate", definition, { queues: [queue, priority], policy })
@@ -1260,7 +1259,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
     const incompatible = Effect.runSync(
       Producer.make(producer.operation).pipe(
         Producer.withSlot("generate", definition, {
-          queue: Queue.make("billing-new-route"),
+          queue: Effect.runSync(Queue.make("billing-new-route")),
           policy: { ...changed, leaseDurationMillis: changed.attemptTimeoutMillis + 1 }
         })
       )
@@ -1280,7 +1279,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
     const rerouted = Effect.runSync(
       Producer.make(producer.operation).pipe(
         Producer.withSlot("generate", definition, {
-          queues: [Queue.make("billing-slow")]
+          queues: [Effect.runSync(Queue.make("billing-slow"))]
         })
       )
     )
@@ -1342,7 +1341,7 @@ describe.skipIf(directory === undefined)("production PostgreSQL jobs", () => {
   })
   test("concurrent producer routing changes converge without changing the winner's route", async () => {
     await clear()
-    const routes = [queue, Queue.make("billing-slow")] as const
+    const routes = [queue, Effect.runSync(Queue.make("billing-slow"))] as const
     const selectable = Effect.runSync(
       Producer.make("billing.issue").pipe(
         Producer.withSlot("generate", definition, { queues: routes, policy })

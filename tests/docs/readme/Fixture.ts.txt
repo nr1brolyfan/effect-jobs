@@ -1,5 +1,5 @@
 import * as JobApi from "effect-jobs/JobApi"
-import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
+import * as Group from "effect-jobs/JobGroup"
 // Application fixtures used by exact extracted fences. No production connection.
 import { Context, Effect, Layer, Schema } from "effect"
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto"
@@ -63,15 +63,15 @@ export class InvoicePdfRenderer extends Context.Service<InvoicePdfRenderer, { re
 export const InvoicePdfRendererLayer = Layer.succeed(InvoicePdfRenderer, { generate: () => Effect.void })
 export const receiptPolicy = Policy.defaultPolicy
 export const tables = Tables.tables()
-export const ReceiptHandler = JobApiBuilder.group(JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs)), BillingJobs.name, (_handlers) => _handlers.handle("receipt", () => Effect.void))
-export const WorkerLayer = Worker.layer(JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs)), { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(Layer.succeed(JobStorage.JobStorage, jobs.storage)), Layer.provide(ReceiptHandler))
+export const ReceiptHandler = Group.handlers(BillingJobs, (_handlers) => _handlers.handle("receipt", () => Effect.void))
+export const WorkerLayer = Worker.layer(Effect.runSync(JobApi.make(BillingJobs.name).pipe(JobApi.addGroup(BillingJobs))), { queues: [{ queue: BillingQueue, concurrency: 2 }] }).pipe(Layer.provide(Layer.succeed(JobStorage.JobStorage, jobs.storage)), Layer.provide(ReceiptHandler))
 export const BillingWorkerLayer = WorkerLayer
 export const issueInvoice = (operationId: string, invoiceId: string) => jobs.withTransaction(() => IssueInvoice.enqueue({ operationId, slot: "receipt", payload: { invoiceId } }))
 
 // Installed/readme declarations must reject the removed queue-object override.
 // @ts-expect-error Fixed routing never accepts an enqueue queue field.
 export const forbiddenQueueObject = IssueInvoice.enqueue({ slot: "receipt", operationId: "one", payload: { invoiceId: "one" }, queue: BillingQueue })
-const selectable = Effect.runSync(Producer.make("readme.selection").pipe(Producer.withSlot("receipt", SendReceipt, { queues: [BillingQueue, Queue.make("priority")] })))
+const selectable = Effect.runSync(Producer.make("readme.selection").pipe(Producer.withSlot("receipt", SendReceipt, { queues: [BillingQueue, Effect.runSync(Queue.make("priority"))] })))
 export const selected = selectable.enqueue({ slot: "receipt", operationId: "one", payload: { invoiceId: "one" }, queue: "priority" })
 // @ts-expect-error Explicit selection is required, including readonly inline lists.
 export const missingChoice = selectable.enqueue({ slot: "receipt", operationId: "one", payload: { invoiceId: "one" } })

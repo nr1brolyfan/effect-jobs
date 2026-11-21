@@ -8,7 +8,6 @@ import * as Policy from "effect-jobs/JobPolicy"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import * as Group from "effect-jobs/JobGroup"
 import * as Api from "effect-jobs/JobApi"
-import * as Builder from "effect-jobs/JobApiBuilder"
 import * as Storage from "effect-jobs/JobStorage"
 import * as Retry from "effect-jobs/JobRetryPolicy"
 import * as Worker from "effect-jobs/JobWorker"
@@ -26,7 +25,8 @@ import {
 /** @param {import("effect/sql/SqlClient").SqlClient} pg */
 export const qualifyBindings = (pg: SqlClient) =>
   Effect.gen(function* () {
-    const queue = Queue.make("binding-fixture")
+    const queue = yield* Queue.make("binding-fixture")
+    const other = yield* Queue.make("binding-other")
     const definition = yield* Job.make({
       name: "invoice.binding",
       payload: Schema.String
@@ -40,13 +40,13 @@ export const qualifyBindings = (pg: SqlClient) =>
     const producer = yield* Producer.make("binding.operation").pipe(
       Producer.withSlot("invoice", definition, { queue }),
       Producer.withSlot("copy", definition, { queue }),
-      Producer.withSlot("other", definition, { queue: Queue.make("binding-other") })
+      Producer.withSlot("other", definition, { queue: other })
     )
     const nextDefault = yield* Producer.make("binding.operation").pipe(
       Producer.withSlot("invoice", definition, { queue, policy: nextPolicy })
     )
     const otherQueue = yield* Producer.make("binding.operation").pipe(
-      Producer.withSlot("copy", definition, { queue: Queue.make("binding-other") })
+      Producer.withSlot("copy", definition, { queue: other })
     )
     const encoded = yield* Codec.encodeJobPayload(definition.payload, "pre-existing")
     // Exact original physical columns and V1 bytes. No rename/ALTER/UPDATE/backfill.
@@ -73,11 +73,11 @@ export const qualifyBindings = (pg: SqlClient) =>
     assert.equal(prior.jobId, "pre-existing-kind")
     let handled = 0
     const jobs = yield* PostgreSqlJobs
-    const bindings = Group.make("bindings", { invoice: definition })
-    const catalog = Api.make("binding-fixture").pipe(Api.addGroup(bindings))
+    const bindings = yield* Group.make("bindings", { invoice: definition })
+    const catalog = yield* Api.make("binding-fixture").pipe(Api.addGroup(bindings))
     const worker = Worker.layer(catalog, { queues: [{ queue, concurrency: 1 }] }).pipe(
       Layer.provide(
-        Builder.group(catalog, "bindings", (handlers) =>
+        Group.handlers(bindings, (handlers) =>
           handlers.handle("invoice", (input) =>
             Effect.sync(() => {
               assert.equal(input.context.catalog.name, definition.name)

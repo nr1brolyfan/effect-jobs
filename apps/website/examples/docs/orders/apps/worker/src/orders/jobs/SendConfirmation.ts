@@ -1,6 +1,5 @@
 import { Context, Effect, Layer, Schema } from "effect"
-import * as JobApi from "effect-jobs/JobApi"
-import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
+import * as Group from "effect-jobs/JobGroup"
 import * as FailureCode from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
 import { OrderJobs } from "#orders/contracts/jobs"
@@ -30,35 +29,28 @@ export const EmailCodes = FailureCode.define({
 // #region handler
 export const ConfirmationHandlerLayer = Layer.unwrap(
   Effect.map(OrderJobs, (jobs) =>
-    JobApiBuilder.group(
-      JobApi.make(jobs.ConfirmationJobs.name).pipe(
-        JobApi.addGroup(jobs.ConfirmationJobs)
-      ),
-      jobs.ConfirmationJobs.name,
-      (handlers) =>
-        handlers.handle(
-          "confirmation",
-          Effect.fn("Orders.sendConfirmation")(function* (input) {
-            const emails = yield* TransactionalEmails
+    Group.handlers(jobs.ConfirmationJobs, (handlers) =>
+      handlers.handle(
+        "confirmation",
+        Effect.fn("Orders.sendConfirmation")(function* (input) {
+          const emails = yield* TransactionalEmails
 
-            yield* emails
-              .send({
-                deliveryKey: input.context.jobId,
-                subject: "Order confirmation",
-                body: `Order ${input.payload.orderId} received.`
+          yield* emails
+            .send({
+              deliveryKey: input.context.jobId,
+              subject: "Order confirmation",
+              body: `Order ${input.payload.orderId} received.`
+            })
+            .pipe(
+              Effect.catchTags({
+                EmailBusy: () =>
+                  Effect.fail(JobFailures.Retry({ code: EmailCodes.busy })),
+                EmailUncertain: () =>
+                  Effect.fail(JobFailures.OutcomeUnknown({ code: EmailCodes.uncertain }))
               })
-              .pipe(
-                Effect.catchTags({
-                  EmailBusy: () =>
-                    Effect.fail(JobFailures.Retry({ code: EmailCodes.busy })),
-                  EmailUncertain: () =>
-                    Effect.fail(
-                      JobFailures.OutcomeUnknown({ code: EmailCodes.uncertain })
-                    )
-                })
-              )
-          })
-        )
+            )
+        })
+      )
     )
   )
 )

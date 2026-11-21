@@ -19,8 +19,8 @@ enqueue methods. Schema encoding and decoding services remain explicit on later
 operations. Incompatible payload changes require a new version and its Schema.
 
 Declare handlers separately with `JobGroup.make(name, definitions)` and compose an
-immutable catalog using `JobApi.make(name).pipe(JobApi.addGroup(group))`. Install a
-complete group using `JobApiBuilder.group(catalog, groupName, handlers =>
+immutable catalog by yielding `JobApi.make(name).pipe(JobApi.addGroup(group))`. Install a
+complete group using `JobGroup.handlers(group, handlers =>
 handlers.handle(alias, handler))`. Missing aliases and ambiguous group names cannot
 prove completeness. Install every catalog group before constructing the worker.
 Reuse the same group references: each declaration owns its distinct Context key.
@@ -35,8 +35,8 @@ stable producer identity `(operation, operationId, slot)` within one jobs storag
 Slots describe consequences, not concurrency permits or workflow dependencies.
 
 ```ts
-const MailQueue = Queue.make("mail")
-const PriorityMailQueue = Queue.make("mail.priority")
+const MailQueue = yield* Queue.make("mail")
+const PriorityMailQueue = yield* Queue.make("mail.priority")
 const Confirmation = yield* Job.make({
   name: "order.confirmation",
   payload: Schema.Struct({ orderId: Schema.String })

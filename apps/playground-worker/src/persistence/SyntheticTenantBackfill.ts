@@ -2,7 +2,7 @@ import { Effect, Schema, SchemaGetter, SchemaParser } from "effect"
 import { SqlClient } from "effect/sql/SqlClient"
 import * as Codec from "effect-jobs/JobPayloadCodec"
 import { JobId } from "effect-jobs/JobId"
-import { CatalogIdentity } from "effect-jobs/JobIdentity"
+import { JobAddress } from "effect-jobs/JobIdentity"
 import { SandboxRef } from "@effect-jobs/playground-contracts/Sandbox"
 import { ApplicationRelations } from "@effect-jobs/playground-contracts/Jobs"
 import * as Definitions from "../scenarios/Definitions.js"
@@ -28,9 +28,9 @@ const CatalogRow = Schema.Struct({
   kind: Schema.Unknown.pipe(Schema.optionalKey),
   version: Schema.Unknown.pipe(Schema.optionalKey)
 }).pipe(
-  Schema.decodeTo(Schema.toType(CatalogIdentity), {
+  Schema.decodeTo(Schema.toType(JobAddress), {
     decode: SchemaGetter.transformEffect((row) =>
-      SchemaParser.decodeUnknownEffect(CatalogIdentity)({
+      SchemaParser.decodeUnknownEffect(JobAddress)({
         queue: row.queue,
         name: row.kind,
         version: Number(row.version)

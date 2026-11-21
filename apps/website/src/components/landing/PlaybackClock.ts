@@ -180,8 +180,8 @@ export const codeOperations: ReadonlyArray<CodeOperation> = [
   {
     kind: "worker",
     selector: ".registration-code",
-    first: 3,
-    last: 5,
+    first: 2,
+    last: 4,
     phase: 3,
     active: [3],
     label: "Run confirmation handler"
@@ -189,8 +189,8 @@ export const codeOperations: ReadonlyArray<CodeOperation> = [
   {
     kind: "worker",
     selector: ".registration-code",
-    first: 6,
-    last: 9,
+    first: 5,
+    last: 8,
     phase: 4,
     active: [4],
     label: "Call email adapter"

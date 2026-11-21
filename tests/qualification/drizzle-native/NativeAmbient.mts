@@ -63,7 +63,7 @@ const mapping = Tables.tables({ schema })
 const domain = pgSchema(schema).table("invoices", { id: text("id").primaryKey() })
 const receipts = pgSchema(schema).table("receipts", { id: text("id").primaryKey() })
 const traceReceipts: Array<{ id: string; pid: number; xid: string }> = []
-const queue = Queue.make("billing")
+const queue = Effect.runSync(Queue.make("billing"))
 const definition = Effect.runSync(
   Job.make({
     name: "receipt",
@@ -272,7 +272,7 @@ try {
       assert.equal(conflict.filter(Exit.isSuccess).length, 1)
       assert.equal(conflict.filter(Exit.isFailure).length, 1)
       checks.push("parallel isolated transactions and matching/conflicting dedup")
-      const priority = Queue.make("billing-priority")
+      const priority = Effect.runSync(Queue.make("billing-priority"))
       const selectable = Effect.runSync(
         Producer.make("billing.issue").pipe(
           Producer.withSlot("receipt", definition, { queues: [queue, priority] })

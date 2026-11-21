@@ -2,7 +2,7 @@
  * Constructs inert workers; finite drains and scoped polling start execution explicitly.
  */
 import { Cause, Effect, Schema, Semaphore } from "effect"
-import { CatalogIdentity } from "../../JobIdentity.js"
+import { JobAddress } from "../../JobIdentity.js"
 import { EpochMillis } from "../../JobPolicy.js"
 import { observe } from "../../JobTelemetry.js"
 import { JobOwnership } from "../../JobLifecycle.js"
@@ -19,7 +19,7 @@ import type { ClaimedJob, JobStoreService } from "../../JobStore.js"
 import type { RuntimeCapability } from "./Capability.js"
 
 export interface RuntimeOptions {
-  readonly catalog: ReadonlyArray<{ readonly catalog: CatalogIdentity }>
+  readonly catalog: ReadonlyArray<{ readonly catalog: JobAddress }>
   readonly operationResponseBudgetMillis: number
 }
 
@@ -64,7 +64,7 @@ export const makeWithHandlers = <E, R>(
     )
     if (
       catalogs.length === 0 ||
-      !catalogs.every(Schema.is(CatalogIdentity)) ||
+      !catalogs.every(Schema.is(JobAddress)) ||
       new Set(keys).size !== keys.length
     ) {
       return yield* new JobWorkerConfigurationError({ field: "catalog" })

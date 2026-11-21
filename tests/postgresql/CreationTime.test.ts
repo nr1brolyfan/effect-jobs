@@ -31,7 +31,7 @@ describe.skipIf(config === undefined)("creation metadata on real PostgreSQL", ()
     payloadsTable: "artifacts"
   })
   const { jobs: jobsRelation } = Tables.relations(mapping)
-  const queue = Queue.make("creation")
+  const queue = Effect.runSync(Queue.make("creation"))
   const definition = Effect.runSync(
     Job.make({
       name: "fixture",

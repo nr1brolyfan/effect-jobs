@@ -28,7 +28,7 @@ Effect.runSync(Producer.make({ operation: "old", slots: {} }))
 export const removedReplacement = Producer.replaceSlot
 declare const privatePayload: Schema.Codec<string, string, never, Keys>
 declare const tx: JobsTransaction<"database-error", Database>
-const queue = Queue.make("billing")
+const queue = Effect.runSync(Queue.make("billing"))
 const producer = Effect.runSync(
   Producer.make("billing.issue").pipe(
     Producer.withSlot(
@@ -142,7 +142,7 @@ export const routedPrivate: Effect.Effect<
   operationId: "one",
   payload: "private",
   // @ts-expect-error Fixed slots prohibit even a valid queue reference.
-  queue: Queue.make("priority"),
+  queue: Effect.runSync(Queue.make("priority")),
   policy: Policy.defaultPolicy
 })
 export const routedExplicit = producer.enqueueInTransaction(tx, {
@@ -150,7 +150,7 @@ export const routedExplicit = producer.enqueueInTransaction(tx, {
   operationId: "one",
   payload: "private",
   // @ts-expect-error Fixed slots prohibit even a valid queue reference.
-  queue: Queue.make("priority"),
+  queue: Effect.runSync(Queue.make("priority")),
   policy: Policy.defaultPolicy
 })
 export const wrongQueue = producer.enqueue({
@@ -175,7 +175,7 @@ export const changedContract = producer.enqueue({
   job: { name: "other", version: 1, payload: Schema.String }
 })
 
-const priority = Queue.make("priority")
+const priority = Effect.runSync(Queue.make("priority"))
 export const choices = [queue, priority] as const
 const mixed = Effect.runSync(
   Effect.succeed(producer).pipe(
@@ -485,3 +485,88 @@ export const sameObjectenqueueInTransaction = mixed.enqueueInTransaction(tx, {
   // @ts-expect-error Even the exact fixed queue object is forbidden.
   queue
 })
+
+// Each setup call installs one statically known slot.
+declare const pickedSlot: "public" | "private"
+declare const broadSlot: string
+declare const patternedSlot: `email-${string}`
+declare const numericPatternSlot: `email-${number}`
+// @ts-expect-error One value cannot declare both slots.
+Producer.withSlot(pickedSlot, producer.slots.public.job, { queue })
+// @ts-expect-error A string index would claim arbitrary slots.
+Producer.withSlot(broadSlot, producer.slots.public.job, { queue })
+// @ts-expect-error An open template literal is not a single known slot.
+Producer.withSlot(patternedSlot, producer.slots.public.job, { queue })
+// @ts-expect-error A numeric template placeholder still leaves the slot open.
+Producer.withSlot(numericPatternSlot, producer.slots.public.job, { queue })
+
+// These independently erase a different part of the slot's enqueue input.
+declare const widenedRouting: Producer.Routing
+declare const widenedJob:
+  | typeof producer.slots.public.job
+  | typeof producer.slots.private.job
+declare const widenedQueue: Queue.JobQueue
+declare const unionQueue: Queue.JobQueue<"billing" | "priority">
+// @ts-expect-error The binding must know whether enqueue requires a queue.
+Producer.withSlot("route", producer.slots.public.job, widenedRouting)
+// @ts-expect-error The binding installs just one job and its payload contract.
+Producer.withSlot("job", widenedJob, { queue })
+// @ts-expect-error Selectable queue members need single known names.
+Producer.withSlot("queue", producer.slots.public.job, { queues: [widenedQueue] })
+// @ts-expect-error One member with a union name does not install both choices.
+Producer.withSlot("union-queue", producer.slots.public.job, { queues: [unionQueue] })
+
+export const narrowSetup = (slot: "public" | "private", routing: Producer.Routing) =>
+  Effect.gen(function* () {
+    if (slot === "public" && routing.queue) {
+      const configured = yield* Producer.make("billing.narrowed").pipe(
+        Producer.withSlot(slot, producer.slots.public.job, { queue: routing.queue })
+      )
+      return yield* configured.enqueue({
+        slot,
+        operationId: "one",
+        payload: { id: "one" }
+      })
+    }
+    return yield* producer.enqueue({
+      slot: "private",
+      operationId: "one",
+      payload: "secret"
+    })
+  })
+
+// An erased Codec can come from one branch even though its annotation admits both.
+const choosePayload = (
+  numeric: boolean
+): Schema.Codec<string | number, string | number> =>
+  numeric ? Schema.Int : Schema.String
+Producer.withSlot(
+  "widened",
+  // @ts-expect-error Reject the widened codec at slot declaration.
+  { name: "billing.widened", version: 1, payload: choosePayload(false) },
+  { queue }
+)
+
+// Multiple encoded representations do not widen the decoded enqueue input.
+declare const unionEncoding: Schema.Codec<string, string | number, never, Keys>
+export const unionEncodingSlot = Producer.withSlot(
+  "union-encoding",
+  { name: "billing.union-encoding", version: 1, payload: unionEncoding },
+  { queue }
+)
+
+const unionProducer = Effect.runSync(
+  Producer.make("billing.union").pipe(
+    Producer.withSlot(
+      "union",
+      {
+        name: "billing.union",
+        version: 1,
+        payload: Schema.Union([Schema.Int, Schema.String])
+      },
+      { queue }
+    )
+  )
+)
+export const enqueueUnion = (payload: number | string) =>
+  unionProducer.enqueue({ slot: "union", operationId: "one", payload })

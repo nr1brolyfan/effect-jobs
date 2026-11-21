@@ -1,5 +1,4 @@
 import * as JobApi from "../../../src/JobApi.js"
-import * as JobApiBuilder from "../../../src/JobApiBuilder.js"
 import assert from "node:assert/strict"
 import {
   Context,
@@ -24,9 +23,9 @@ import * as Codec from "../../../src/JobPayloadCodec.js"
 import type { JobStoreService, JobOwnershipLost } from "../../../src/JobStore.js"
 import { harness, policy } from "./Harness.js"
 
-const queue = Queue.make("shutdown")
+const queue = Effect.runSync(Queue.make("shutdown"))
 const definition = Effect.runSync(Job.make({ name: "shutdown", payload: Schema.String }))
-const group = Group.make("shutdown", { run: definition })
+const group = Effect.runSync(Group.make("shutdown", { run: definition }))
 const run = <A, E>(effect: Effect.Effect<A, E, Scope.Scope>) =>
   Effect.runPromise(
     effect.pipe(
@@ -63,28 +62,25 @@ const fixture = Effect.fnUntraced(function* (
   const reached = yield* Deferred.make<void>()
   let started = 0
   let interrupted = 0
-  const handlers = JobApiBuilder.group(
-    JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-    group.name,
-    (_handlers) =>
-      _handlers.handle("run", () =>
-        Effect.gen(function* () {
-          started++
-          if (started === 2) {
-            yield* Deferred.succeed(reached, undefined)
-          }
-          return yield* execute.pipe(
-            Effect.onInterrupt(() =>
-              Effect.sync(() => {
-                interrupted++
-              })
-            )
+  const handlers = Group.handlers(group, (_handlers) =>
+    _handlers.handle("run", () =>
+      Effect.gen(function* () {
+        started++
+        if (started === 2) {
+          yield* Deferred.succeed(reached, undefined)
+        }
+        return yield* execute.pipe(
+          Effect.onInterrupt(() =>
+            Effect.sync(() => {
+              interrupted++
+            })
           )
-        })
-      )
+        )
+      })
+    )
   )
   const worker = yield* Worker.make(
-    JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+    Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
     {
       queues: queues.map((selected) => ({
         queue: selected,
@@ -167,7 +163,9 @@ it.each([false, true])(
   async (multiple) => {
     await run(
       Effect.gen(function* () {
-        const queues = multiple ? [queue, Queue.make("shutdown-second")] : [queue]
+        const queues = multiple
+          ? [queue, Effect.runSync(Queue.make("shutdown-second"))]
+          : [queue]
         const test = yield* fixture(Effect.never, queues)
         yield* test.start(1000)
         yield* Deferred.await(test.reached)
@@ -348,18 +346,18 @@ it("retains provided handler resources until graceful finalization is done", asy
             })
         )
       )
-      const worker = Worker.layer(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
-        queues: [{ queue }]
-      }).pipe(
+      const worker = Worker.layer(
+        Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
+        {
+          queues: [{ queue }]
+        }
+      ).pipe(
         Layer.provide(
           Layer.mergeAll(
-            JobApiBuilder.group(
-              JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-              group.name,
-              (_handlers) =>
-                _handlers.handle("run", () =>
-                  Effect.flatMap(Resource, (resource) => resource.execute)
-                )
+            Group.handlers(group, (_handlers) =>
+              _handlers.handle("run", () =>
+                Effect.flatMap(Resource, (resource) => resource.execute)
+              )
             ),
             Storage.layer({ store: test.store, operationResponseBudgetMillis: 100 })
           )

@@ -1,5 +1,4 @@
 import * as JobApi from "effect-jobs/JobApi"
-import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 import assert from "node:assert/strict"
 import { inspect } from "node:util"
 import {
@@ -27,7 +26,7 @@ import * as Store from "effect-jobs/JobStore"
 import { JobId } from "effect-jobs/JobId"
 
 const sentinel = "PRIVATE_INSTALLED_PAYLOAD"
-const queue = Queue.make("installed")
+const queue = Effect.runSync(Queue.make("installed"))
 const definition = Effect.runSync(
   Job.make({
     name: "neutral",
@@ -35,7 +34,7 @@ const definition = Effect.runSync(
     payload: Schema.Struct({ value: Schema.String })
   })
 )
-const group = Group.make("installed", { neutral: definition })
+const group = Effect.runSync(Group.make("installed", { neutral: definition }))
 const catalog = { queue: queue.name, name: definition.name, version: definition.version }
 const limits = { maxJobs: 1, recoveryLimit: 1 }
 const policy = Policy.defaultPolicy
@@ -116,19 +115,16 @@ await Effect.runPromise(
         release: () => Effect.die("unexpected release"),
         reconcileFinalization: () => Effect.die("unexpected finalization reconciliation")
       }
-      const handlers = JobApiBuilder.group(
-        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-        group.name,
-        (_handlers) =>
-          _handlers.handle("neutral", (input) =>
-            Effect.sync(() => {
-              assert.equal(input.payload.value, sentinel)
-              executions++
-            })
-          )
+      const handlers = Group.handlers(group, (_handlers) =>
+        _handlers.handle("neutral", (input) =>
+          Effect.sync(() => {
+            assert.equal(input.payload.value, sentinel)
+            executions++
+          })
+        )
       )
       const worker = yield* Worker.make(
-        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+        Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
         { queues: [{ queue }] }
       ).pipe(
         Effect.provide(

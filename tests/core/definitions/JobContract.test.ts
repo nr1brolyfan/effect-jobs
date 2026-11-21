@@ -1,5 +1,3 @@
-import * as JobApi from "../../../src/JobApi.js"
-import * as JobApiBuilder from "../../../src/JobApiBuilder.js"
 import { Context, Effect, Schema, SchemaGetter } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Job from "../../../src/Job.js"
@@ -41,7 +39,9 @@ describe("pure Job contracts", () => {
   it("rejects superseded options even when passed indirectly at runtime", () => {
     const base = { name: "invoice.generate", payload: Schema.String }
     expect(() =>
-      Effect.runSync(Job.make({ ...base, queue: Queue.make("billing") } as typeof base))
+      Effect.runSync(
+        Job.make({ ...base, queue: Effect.runSync(Queue.make("billing")) } as typeof base)
+      )
     ).toThrow(Job.InvalidJobDefinition)
     expect(() =>
       Effect.runSync(
@@ -76,8 +76,8 @@ describe("pure Job contracts", () => {
       })
     )
     const job = Effect.runSync(Job.make({ name: "invoice.generate", payload }))
-    const a = Queue.make("billing-a")
-    const b = Queue.make("billing-b")
+    const a = Effect.runSync(Queue.make("billing-a"))
+    const b = Effect.runSync(Queue.make("billing-b"))
     const producer = Effect.runSync(
       Producer.make("billing.issue").pipe(
         Producer.withSlot("a", job, { queue: a }),
@@ -85,7 +85,7 @@ describe("pure Job contracts", () => {
       )
     )
     const prepared: PreparedJob[] = []
-    const group = Group.make("pure-contract", { generate: job })
+    const group = Effect.runSync(Group.make("pure-contract", { generate: job }))
     const seen: string[] = []
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -125,15 +125,12 @@ describe("pure Job contracts", () => {
           })
         ),
         Effect.provide(
-          JobApiBuilder.group(
-            JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-            group.name,
-            (_handlers) =>
-              _handlers.handle("generate", (input) =>
-                Effect.sync(() => {
-                  seen.push(input.payload)
-                })
-              )
+          Group.handlers(group, (_handlers) =>
+            _handlers.handle("generate", (input) =>
+              Effect.sync(() => {
+                seen.push(input.payload)
+              })
+            )
           )
         ),
         Effect.provideService(Prefix, { value: "prefix:" })

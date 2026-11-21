@@ -7,10 +7,12 @@ class Source extends Context.Service<Source, {}>()("types/schedule/Source") {}
 class Keys extends Context.Service<Keys, {}>()("types/schedule/Keys") {}
 declare const schema: Schema.Codec<string, string, Keys>
 declare const reader: Schedule.Reader<"provider-error", Source>
-const group = Group.make("schedule", {
-  run: { name: "run", version: 1, payload: schema }
-})
-const queue = Queue.make("schedule")
+const group = Effect.runSync(
+  Group.make("schedule", {
+    run: { name: "run", version: 1, payload: schema }
+  })
+)
+const queue = Effect.runSync(Queue.make("schedule"))
 
 export const configured: Layer.Layer<Schedule.JobSchedule, never, Source> =
   Schedule.layer(reader)

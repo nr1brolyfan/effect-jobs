@@ -17,9 +17,19 @@ Breaking prerelease changes since the published alpha.2 package:
   require a declared queue-name string. Job-level enqueue and producer `identity`
   are removed. See [the API migration contract](./specs/api-refinements.md).
 - Replace `JobRegistry`, `JobConsumer`, `JobWorkerRuntime` and `PollingJobWorker`
-  public entrypoints with `JobGroup`, `JobApi`, `JobApiBuilder`, `JobStorage`,
+  public entrypoints with `JobGroup`, `JobApi`, `JobStorage`,
   `JobSchedule` and `JobPolling`. Declare complete catalog handlers and compose
   the shared worker/storage graph explicitly; old imports are not aliases.
+- Yield `JobQueue.make`, `JobGroup.make` and catalog composition with
+  `JobApi.make(...).pipe(JobApi.addGroup(...))` in setup. Install complete
+  handlers with `JobGroup.handlers(group, build)` and reuse those group instances
+  in worker catalogs. `JobApi.pick(catalog, ["group"])` selects an existing group
+  through the same typed setup channel.
+- Rename the public `JobIdentity.CatalogIdentity` type and Schema to
+  `JobIdentity.JobAddress`. Existing values and deduplication are unchanged.
+- Declare each producer slot with a single known name, a concrete payload
+  contract, and a fixed route or a tuple of concrete selectable queues. Enqueue
+  may still choose among the declared slots and queue names.
 - Configure retries through `JobRetryPolicy` and `yield* JobPolicy.make({ retry })`.
   Replace `retryDelay`/`maxAttempts` options with `fixed`/`exponential`, optional
   cap/jitter, and `maxFinalizedAttempts`. Public counters use `finalizedAttempts`;

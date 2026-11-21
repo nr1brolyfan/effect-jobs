@@ -35,7 +35,9 @@ const definition = Effect.runSync(
 )
 const producer = Effect.runSync(
   Producer.make("billing.issue").pipe(
-    Producer.withSlot("generate", definition, { queue: Queue.make("billing") })
+    Producer.withSlot("generate", definition, {
+      queue: Effect.runSync(Queue.make("billing"))
+    })
   )
 )
 class CallerValue extends Context.Service<CallerValue, { readonly value: number }>()(
@@ -336,7 +338,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
     const changed = Effect.runSync(
       Producer.make(producer.operation).pipe(
         Producer.withSlot("generate", definition, {
-          queue: Queue.make("billing"),
+          queue: Effect.runSync(Queue.make("billing")),
           policy: Effect.runSync(
             Policy.make({
               retry: Retry.fixed(Duration.seconds(5)).pipe(Retry.maxFinalizedAttempts(7))
@@ -358,7 +360,7 @@ describe.skipIf(!enabled)("D6 real pg qualification", () => {
     const rerouted = Effect.runSync(
       Producer.make(producer.operation).pipe(
         Producer.withSlot("generate", definition, {
-          queue: Queue.make("billing.alternate")
+          queue: Effect.runSync(Queue.make("billing.alternate"))
         })
       )
     )

@@ -1,5 +1,4 @@
 import * as JobApi from "../../../src/JobApi.js"
-import * as JobApiBuilder from "../../../src/JobApiBuilder.js"
 import assert from "node:assert/strict"
 import {
   Context,
@@ -25,7 +24,7 @@ import { harness, policy } from "./Harness.js"
 import { JobOwnershipLost } from "../../../src/JobStore.js"
 import type { JobStoreService } from "../../../src/JobStore.js"
 
-const queue = Queue.make("polling")
+const queue = Effect.runSync(Queue.make("polling"))
 const job = Effect.runSync(
   Job.make({
     queue,
@@ -35,11 +34,9 @@ const job = Effect.runSync(
     encodePayload: Codec.encodeJobPayload
   })
 )
-const group = Group.make("polling", { neutral: job })
-const handlers = JobApiBuilder.group(
-  JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-  group.name,
-  (_handlers) => _handlers.handle("neutral", () => Effect.void)
+const group = Effect.runSync(Group.make("polling", { neutral: job }))
+const handlers = Group.handlers(group, (_handlers) =>
+  _handlers.handle("neutral", () => Effect.void)
 )
 const pollingOptions = { maxJobs: 2, recoveryLimit: 1 }
 const random = (value: number) =>
@@ -56,7 +53,7 @@ const run = <A, E>(program: Effect.Effect<A, E, Scope.Scope>, value = 0) =>
     )
   )
 const make = (store: JobStoreService<unknown>) =>
-  Worker.make(JobApi.make(group.name).pipe(JobApi.addGroup(group)), {
+  Worker.make(Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))), {
     queues: [{ queue, concurrency: 2 }]
   }).pipe(
     Effect.provide(
@@ -198,7 +195,7 @@ it("validates every plan queue before spawning loops and rejects invalid polling
     Effect.gen(function* () {
       const test = harness()
       const worker = yield* make(test.store)
-      const mixed = [queue, Queue.make("missing")]
+      const mixed = [queue, Effect.runSync(Queue.make("missing"))]
       const failed = yield* Layer.build(
         Polling.layer(mixed, pollingOptions).pipe(
           Layer.provide(Layer.succeed(Worker.JobWorker, worker))
@@ -288,7 +285,7 @@ it("captures provider requirements once at worker construction, not as ambient p
           })
       }
       const worker = yield* Worker.make(
-        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+        Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
         {
           queues: [{ queue, concurrency: 2 }]
         }
@@ -323,26 +320,23 @@ it("zero grace interrupts active executions and never releases after execution b
       const reached = yield* Deferred.make<void>()
       let handlers = 0
       let stopped = 0
-      const activeHandlers = JobApiBuilder.group(
-        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
-        group.name,
-        (_handlers) =>
-          _handlers.handle("neutral", () =>
-            Effect.sync(() => {
-              handlers++
-            }).pipe(
-              Effect.andThen(Deferred.succeed(reached, undefined)),
-              Effect.andThen(Effect.never),
-              Effect.ensuring(
-                Effect.sync(() => {
-                  stopped++
-                })
-              )
+      const activeHandlers = Group.handlers(group, (_handlers) =>
+        _handlers.handle("neutral", () =>
+          Effect.sync(() => {
+            handlers++
+          }).pipe(
+            Effect.andThen(Deferred.succeed(reached, undefined)),
+            Effect.andThen(Effect.never),
+            Effect.ensuring(
+              Effect.sync(() => {
+                stopped++
+              })
             )
           )
+        )
       )
       const worker = yield* Worker.make(
-        JobApi.make(group.name).pipe(JobApi.addGroup(group)),
+        Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
         {
           queues: [{ queue, concurrency: 2 }]
         }

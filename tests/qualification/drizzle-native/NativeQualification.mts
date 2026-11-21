@@ -66,7 +66,9 @@ const definition = Effect.runSync(
 )
 const producer = Effect.runSync(
   Producer.make("billing.native").pipe(
-    Producer.withSlot("generate", definition, { queue: Queue.make("billing") })
+    Producer.withSlot("generate", definition, {
+      queue: Effect.runSync(Queue.make("billing"))
+    })
   )
 )
 const input = (id: string, value = id) => ({

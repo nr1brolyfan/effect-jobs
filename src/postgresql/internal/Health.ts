@@ -1,5 +1,5 @@
 import { Effect, Result, Schema, SchemaGetter } from "effect"
-import { CatalogIdentity, QueueName } from "../../JobIdentity.js"
+import { JobAddress, QueueName } from "../../JobIdentity.js"
 import { BatchLimit } from "../../JobLifecycle.js"
 import { JobStoreProtocolError } from "../../JobStore.js"
 import { observe, recordHealth } from "../../JobTelemetry.js"
@@ -10,7 +10,7 @@ import type { ApplicationAdapter, PostgreSqlError } from "../PostgreSqlTransacti
  * never a page count presented as a global exact queue depth. */
 export interface HealthRequest {
   readonly queue: string
-  readonly supportedCatalog: ReadonlyArray<CatalogIdentity>
+  readonly supportedCatalog: ReadonlyArray<JobAddress>
   readonly limit: number
 }
 export interface HealthBucket {
@@ -27,7 +27,7 @@ export interface HealthSample {
 }
 const Request = Schema.Struct({
   queue: QueueName,
-  supportedCatalog: Schema.Array(CatalogIdentity).pipe(
+  supportedCatalog: Schema.Array(JobAddress).pipe(
     Schema.check(Schema.isMinLength(1), Schema.isMaxLength(500))
   ),
   limit: BatchLimit

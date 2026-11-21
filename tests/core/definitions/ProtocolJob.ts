@@ -12,7 +12,7 @@ import type {
   JobPayloadEncoder
 } from "../../../src/JobContract.js"
 import type { JobFailure } from "../../../src/JobFailure.js"
-import { CatalogIdentity, ProducerIdentity } from "../../../src/JobIdentity.js"
+import { JobAddress, ProducerIdentity } from "../../../src/JobIdentity.js"
 import type { JobQueue } from "../../../src/JobQueue.js"
 import { EpochMillis, PersistedJobPolicy } from "../../../src/JobPolicy.js"
 import { JobRegistry, type DuplicateJobHandler } from "./ProtocolRegistry.js"
@@ -45,7 +45,7 @@ export interface JobDefinition<
   readonly version: Version
   readonly queue: JobQueue<Queue>
   readonly payload: Payload
-  readonly catalog: CatalogIdentity<Queue, Kind, Version>
+  readonly catalog: JobAddress<Queue, Kind, Version>
   /** Enqueues in the active configured enqueueService transaction; runs no commit or replay.
    * Same producer tuple compares name/version and semantic payload, returning the first ID
    * for a match or JobIntegrityConflict for changed content. Results are provisional
@@ -145,7 +145,7 @@ export function make<
     const version = options.version === undefined ? 1 : options.version
     const encodePayload = options.encodePayload ?? encodeJobPayload
     const catalog = Object.freeze({ queue: queue.name, name, version })
-    if (!Schema.is(CatalogIdentity)(catalog) || !Schema.isSchema(payload)) {
+    if (!Schema.is(JobAddress)(catalog) || !Schema.isSchema(payload)) {
       return Effect.fail(
         new InvalidJobDefinition({
           expected: "valid queue/name/version and payload Schema"

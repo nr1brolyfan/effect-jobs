@@ -13,7 +13,7 @@ const job = Effect.runSync(Job.make({ name: "setup.run", payload: Schema.String 
 
 it("lazily snapshots Effect producer binding configuration independently on reexecution", () => {
   let queueReads = 0
-  let queue = Queue.make<string>("before")
+  let queue = Effect.runSync(Queue.make<string>("before"))
   const options = {
     get queue() {
       queueReads++
@@ -25,9 +25,9 @@ it("lazily snapshots Effect producer binding configuration independently on reex
   )
   expect(Effect.isEffect(pending)).toBe(true)
   expect(queueReads).toBe(0)
-  queue = Queue.make("first")
+  queue = Effect.runSync(Queue.make("first"))
   const first = Effect.runSync(pending)
-  queue = Queue.make("second")
+  queue = Effect.runSync(Queue.make("second"))
   const second = Effect.runSync(pending)
   expect(first.slots.execute.queue.name).toBe("first")
   expect(second.slots.execute.queue.name).toBe("second")
@@ -53,7 +53,10 @@ it.each(["", "Bad", "a!", "a".repeat(129)])(
 it("revalidates policy on each execution while preserving previously returned declarations", () => {
   const policy = { ...Policy.defaultPolicy }
   const pending = Producer.make("setup.run").pipe(
-    Producer.withSlot("execute", job, { queue: Queue.make("setup"), policy })
+    Producer.withSlot("execute", job, {
+      queue: Effect.runSync(Queue.make("setup")),
+      policy
+    })
   )
   const first = Effect.runSync(pending)
   policy.maxFinalizedAttempts = 0
@@ -68,7 +71,7 @@ it("preserves caller getter defects in binding configuration", () => {
   const defect = new Error("synthetic caller getter")
   const pending = Producer.make("setup.run").pipe(
     Producer.withSlot("execute", job, {
-      get queue(): ReturnType<typeof Queue.make> {
+      get queue(): Queue.JobQueue {
         throw defect
       }
     })
@@ -86,7 +89,7 @@ it("uses the validated fixed route snapshot when caller getters change on subseq
     get queue() {
       reads++
       return reads === 1
-        ? Queue.make("validated")
+        ? Effect.runSync(Queue.make("validated"))
         : ({ name: "INVALID/private" } as never)
     }
   }
@@ -102,7 +105,7 @@ it("uses the validated fixed route snapshot when caller getters change on subseq
 it("reads each queue member name once before validating its owned snapshot", () => {
   let reads = 0
   const queue = {
-    ...Queue.make<string>("setup.valid"),
+    ...Effect.runSync(Queue.make<string>("setup.valid")),
     get name() {
       reads++
       return reads === 1 ? "setup.valid" : "INVALID/member"
@@ -129,7 +132,7 @@ it("validates the same policy field snapshot exposed by setup and preparation", 
     const producer = Effect.runSync(
       Producer.make("setup.policy").pipe(
         Producer.withSlot("execute", job, {
-          queue: Queue.make("setup"),
+          queue: Effect.runSync(Queue.make("setup")),
           ...(boundary === "binding" ? { policy } : {})
         })
       )

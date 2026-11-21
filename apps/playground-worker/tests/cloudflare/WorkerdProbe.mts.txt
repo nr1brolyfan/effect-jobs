@@ -1,5 +1,4 @@
 import * as JobApi from "effect-jobs/JobApi"
-import * as JobApiBuilder from "effect-jobs/JobApiBuilder"
 // @effect-diagnostics unstableApiUsage:off
 // Qualification-only native Cloudflare FFI. No public route or deployment registrar.
 import { DurableObject } from "cloudflare:workers"
@@ -26,7 +25,7 @@ import * as WakeCycle from "../../src/cloudflare/WakeCycle.js"
 // Workerd supplies this global; use its official type instead of Node fetch types.
 declare const Response: typeof import("@cloudflare/workers-types").Response
 
-const queue = Queue.make("cloudflare-probe")
+const queue = Effect.runSync(Queue.make("cloudflare-probe"))
 const setup = Effect.gen(function* () {
   const definition = yield* Job.make({
     name: "synthetic",
@@ -72,7 +71,7 @@ export class Probe extends DurableObject {
     return this.ctx.blockConcurrencyWhile(async () => {
       const definitions = await this.definitions
       const { definition } = definitions
-      const group = Group.make("cloudflare-probe", { synthetic: definition })
+      const group = Effect.runSync(Group.make("cloudflare-probe", { synthetic: definition }))
       if (new URL(request.url).pathname === "/native") {
         return Response.json(await Effect.runPromise(nativeProbe(definitions)))
       }
@@ -85,11 +84,11 @@ export class Probe extends DurableObject {
         finalize: unexpected,
         reconcileFinalization: unexpected
       }
-      const worker = Worker.layer(JobApi.make(group.name).pipe(JobApi.addGroup(group)), { queues: [{ queue, concurrency: 2 }] }).pipe(Layer.provide(Storage.layer({
+      const worker = Worker.layer(Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))), { queues: [{ queue, concurrency: 2 }] }).pipe(Layer.provide(Storage.layer({
         store,
         operationResponseBudgetMillis: 100
       })),
-        Layer.provide(JobApiBuilder.group(JobApi.make(group.name).pipe(JobApi.addGroup(group)), group.name, (_handlers) => _handlers.handle("synthetic", () => Effect.void)))
+        Layer.provide(Group.handlers(group, (_handlers) => _handlers.handle("synthetic", () => Effect.void)))
       )
       const result = await Effect.runPromise(
         WakeCycle.run(queue).pipe(

@@ -18,7 +18,7 @@ const job = Effect.runSync(
 )
 const producer = Effect.runSync(
   Producer.make("identity.test").pipe(
-    Producer.withSlot("run", job, { queue: Queue.make("identity") })
+    Producer.withSlot("run", job, { queue: Effect.runSync(Queue.make("identity")) })
   )
 )
 
