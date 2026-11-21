@@ -817,7 +817,7 @@
   {
     "subpath": "effect-jobs/JobWorker",
     "filename": "src/JobWorker.ts",
-    "sha256": "b5f3819659d4fd953dcdabc53f7ceffea6ad13522e9332a0c00967c1bdb8c53b",
+    "sha256": "5c1fd060758233bf5da4c482186b01f5ff3fd9cf4ecd65aeadb1d9837eedd115",
     "symbols": [
       {
         "name": "drain",
@@ -871,13 +871,13 @@
         "name": "layer",
         "kind": "value",
         "category": "contract",
-        "description": "Construction is inert; drain and polling have explicit application-owned lifetimes."
+        "description": "Requires installed handlers for every group in the supplied JobApi. Construction is inert; drain and polling have explicit application-owned lifetimes."
       },
       {
         "name": "make",
         "kind": "value",
         "category": "contract",
-        "description": "Captures a complete handler group and configures queue concurrency before use."
+        "description": "Requires installed handlers for every group in the supplied JobApi and configures queue concurrency before use."
       },
       {
         "name": "Options",

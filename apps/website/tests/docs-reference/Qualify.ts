@@ -49,10 +49,14 @@ const sourceHashes = Object.fromEntries(
     .map((file) => [file, hash(readFileSync(join(sources, file)))])
 )
 assert.deepEqual(Object.keys(sourceHashes), [
+  "BillingWorker.ts",
+  "CampaignDelivery.ts",
   "DrizzleReportRequest.ts",
   "Migrations.ts",
   "NodeReportFiles.ts",
   "PostgreSqlReports.ts",
+  "ReceiptJob.ts",
+  "ReceiptValidation.ts",
   "ReportOperators.ts",
   "ReportWorkflow.ts",
   "RunReports.ts"

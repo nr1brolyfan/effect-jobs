@@ -1,6 +1,6 @@
 ---
 import { Code } from "astro:components"
-import { transaction, rollback, shared, handler, execution } from "../components/landing/Content.js"
+import { apiSetup, transaction, rollback, shared, workerSetup, handler, execution } from "../components/landing/Content.js"
 import Postgres from "../components/landing/Postgres.astro"
 import "../components/landing/Walkthrough.css"
 import "../components/landing/Rows.css"
@@ -106,7 +106,10 @@ const { default: ScenePlayback } = await import("../components/landing/Playback.
         <div class="scene-heading"><h2 id="shared-title">Shared definitions.</h2></div>
         <div class="scene-pair">
           <div class="code-panel"><div class="file-label">shared/jobs/orders.ts</div><Code code={shared} lang="ts" theme="github-dark" /></div>
-          <div class="shared-roles"><p>One contract, used on both sides.</p><div><h3>Application / API</h3><code>PlaceOrder.enqueue(…)</code><p>The slot selects the confirmation job and its orders queue.</p></div><div><h3>Worker</h3><code>JobWorker.layer(OrdersJobApi, …)</code><p>The same catalog installs the handler; the same queue selects its work.</p></div><p class="reference-note">Definitions configure the route. Only the transaction writes rows; only an explicit drain or poll executes jobs.</p></div>
+          <div class="shared-roles">
+            <div><h3>Application / API setup</h3><div class="code-panel"><Code code={apiSetup} lang="ts" theme="github-dark" /></div><p>Use this producer for <code>PlaceOrder.enqueue</code> inside the order transaction.</p></div>
+            <div><h3>Worker setup</h3><div class="code-panel"><Code code={workerSetup} lang="ts" theme="github-dark" /></div><p>Evaluate setup once per worker installation. Use the resolved group to register handlers and its catalog to build the worker.</p></div>
+          </div>
         </div>
       </section>
 

@@ -1,19 +1,18 @@
 // Landing-owned, compile-checked composition. The host supplies one configured
 // PgClient, PostgreSqlJobs and an email adapter with mapped JobFailure outcomes.
 // @effect-diagnostics unstableApiUsage:off
-import { Context, Data, Effect, Layer, Schema } from "effect"
+import { Context, Data, Effect, Layer } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import * as Drizzle from "drizzle-orm/effect-postgres"
 import { integer, pgTable, text } from "drizzle-orm/pg-core"
-import * as Job from "effect-jobs/Job"
-import * as JobApi from "effect-jobs/JobApi"
 import * as JobGroup from "effect-jobs/JobGroup"
-import * as JobProducer from "effect-jobs/JobProducer"
-import * as JobQueue from "effect-jobs/JobQueue"
 import * as JobStorage from "effect-jobs/JobStorage"
 import * as JobWorker from "effect-jobs/JobWorker"
 import * as PostgreSqlJobs from "effect-jobs/PostgreSqlJobs"
 import type { JobFailure } from "effect-jobs/JobFailure"
+// #region setupImport
+import { orderJobDefinitions } from "./shared/jobs/orders.js"
+// #endregion setupImport
 
 interface OrderInput {
   readonly orderId: string
@@ -41,36 +40,13 @@ export class TransactionalEmails extends Context.Service<
   }
 >()("landing/TransactionalEmails") {}
 
-// #region shared
-const orderJobDefinitions = Effect.gen(function* () {
-  const OrdersQueue = yield* JobQueue.make("orders")
-  const ConfirmationJob = yield* Job.make({
-    name: "orders.send-confirmation",
-    payload: Schema.Struct({ orderId: Schema.String })
-  })
-  const ConfirmationJobGroup = yield* JobGroup.make("confirmation", {
-    confirmation: ConfirmationJob
-  })
-  const OrdersJobApi = yield* JobApi.make("orders").pipe(
-    JobApi.addGroup(ConfirmationJobGroup)
-  )
-  const PlaceOrder = yield* JobProducer.make("order.place").pipe(
-    JobProducer.withSlot("send-confirmation", ConfirmationJob, {
-      queue: OrdersQueue
-    })
-  )
-  return { OrdersQueue, ConfirmationJobGroup, OrdersJobApi, PlaceOrder }
-})
-// #endregion shared
-
-// Application input is already admitted and validated at its boundary. No work
-// starts on import or construction; the caller evaluates placeOrder/processJobs.
-export const example = Effect.gen(function* () {
-  const { OrdersQueue, ConfirmationJobGroup, OrdersJobApi, PlaceOrder } =
-    yield* orderJobDefinitions
+// Application input is already admitted and validated at its boundary.
+const apiSetup = Effect.gen(function* () {
+  // #region apiSetup
+  const { PlaceOrder } = yield* orderJobDefinitions
+  // #endregion apiSetup
   const pg = yield* PgClient.PgClient
   const db = yield* Drizzle.makeWithDefaults()
-  const jobs = yield* PostgreSqlJobs.PostgreSqlJobs
 
   // #region transaction
   const placeOrder = (input: OrderInput) =>
@@ -102,6 +78,15 @@ export const example = Effect.gen(function* () {
     )
   // #endregion rollback
 
+  return { placeOrder, rollbackOrder }
+})
+
+const workerSetup = Effect.gen(function* () {
+  // #region workerSetup
+  const { OrdersQueue, ConfirmationJobGroup, OrdersJobApi } = yield* orderJobDefinitions
+  // #endregion workerSetup
+  const jobs = yield* PostgreSqlJobs.PostgreSqlJobs
+
   // #region handler
   const HandlerLayer = JobGroup.handlers(ConfirmationJobGroup, (handlers) =>
     handlers.handle("confirmation", (input) =>
@@ -129,5 +114,12 @@ export const example = Effect.gen(function* () {
   }).pipe(Effect.provide(WorkerLayer))
   // #endregion execution
 
+  return processJobs
+})
+
+// The caller explicitly evaluates placeOrder or processJobs.
+export const example = Effect.gen(function* () {
+  const { placeOrder, rollbackOrder } = yield* apiSetup
+  const processJobs = yield* workerSetup
   return { placeOrder, rollbackOrder, processJobs }
 })

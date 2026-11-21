@@ -98,7 +98,9 @@ try {
     await shot("reduced-rollback", tx)
     await page.getByRole("radio", { name: "Commit", exact: true }).check()
     await expect(main).toHaveAttribute("data-result", "saved")
-    await expect(page.locator("#shared pre")).toBeVisible()
+    const shared = page.locator("#shared .scene-pair > .code-panel pre")
+    await expect(shared).toBeVisible()
+    await expect(shared).toContainText("export const orderJobDefinitions")
     for (const symbol of [
       "JobProducer.make",
       "JobProducer.withSlot",
@@ -106,7 +108,18 @@ try {
       "JobGroup.make",
       "JobApi.make"
     ]) {
-      await expect(page.locator("#shared pre")).toContainText(symbol)
+      await expect(shared).toContainText(symbol)
+    }
+    for (const [name, binding] of [
+      ["Application / API setup", "{ PlaceOrder }"],
+      ["Worker setup", "{ OrdersQueue, ConfirmationJobGroup, OrdersJobApi }"]
+    ]) {
+      const excerpt = page
+        .getByRole("heading", { name, exact: true })
+        .locator("..")
+        .locator("pre")
+      await expect(excerpt).toContainText("import { orderJobDefinitions }")
+      await expect(excerpt).toContainText(`const ${binding} = yield* orderJobDefinitions`)
     }
     const overflow = async () => {
       assert(

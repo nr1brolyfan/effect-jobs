@@ -1,4 +1,4 @@
-/** Complete syntax regions from LandingExample.ts; checked by tests/Content.mjs. */
+/** Syntax regions from the landing example; checked by tests/Content.mjs. */
 export const transaction = `const placeOrder = (input: OrderInput) =>
   pg.withTransaction(
     Effect.gen(function* () {
@@ -25,7 +25,7 @@ export const rollback = `const rollbackOrder = (input: OrderInput) =>
     })
   )`
 
-export const shared = `const orderJobDefinitions = Effect.gen(function* () {
+export const shared = `export const orderJobDefinitions = Effect.gen(function* () {
   const OrdersQueue = yield* JobQueue.make("orders")
   const ConfirmationJob = yield* Job.make({
     name: "orders.send-confirmation",
@@ -66,3 +66,13 @@ export const execution = `const WorkerLayer = JobWorker.layer(OrdersJobApi, {
 const processJobs = JobWorker.drain(OrdersQueue, {
   maxJobs: 20, recoveryLimit: 20
 }).pipe(Effect.provide(WorkerLayer))`
+
+const setupImport = 'import { orderJobDefinitions } from "./shared/jobs/orders.js"'
+
+export const apiSetup = `${setupImport}
+
+const { PlaceOrder } = yield* orderJobDefinitions`
+
+export const workerSetup = `${setupImport}
+
+const { OrdersQueue, ConfirmationJobGroup, OrdersJobApi } = yield* orderJobDefinitions`

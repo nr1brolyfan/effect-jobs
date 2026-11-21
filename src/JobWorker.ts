@@ -58,9 +58,9 @@ export class JobWorker extends Context.Service<JobWorker, JobWorkerService>()(
   "effect-jobs/JobWorker"
 ) {}
 
-/** Captures a complete handler group and configures queue concurrency before use. */
+/** Requires installed handlers for every group in the supplied JobApi and configures queue concurrency before use. */
 export const make = GroupWorker.make
 
-/** Construction is inert; drain and polling have explicit application-owned lifetimes. */
+/** Requires installed handlers for every group in the supplied JobApi. Construction is inert; drain and polling have explicit application-owned lifetimes. */
 export const layer = <A extends JobApi<string, Groups>>(api: A, options: Options) =>
   Layer.effect(JobWorker, make(api, options))
