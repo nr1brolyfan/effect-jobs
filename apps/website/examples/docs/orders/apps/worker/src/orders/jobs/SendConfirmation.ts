@@ -1,29 +1,9 @@
-import { Context, Effect, Layer, Schema } from "effect"
+import { Effect, Layer } from "effect"
 import * as Group from "effect-jobs/JobGroup"
-import * as FailureCode from "effect-jobs/FailureCode"
 import { JobFailures } from "effect-jobs/JobFailure"
 import { OrderJobs } from "#orders/contracts/jobs"
-
-export class EmailBusy extends Schema.TaggedError<EmailBusy>()("EmailBusy", {}) {}
-export class EmailUncertain extends Schema.TaggedError<EmailUncertain>()(
-  "EmailUncertain",
-  {}
-) {}
-
-export class TransactionalEmails extends Context.Service<
-  TransactionalEmails,
-  {
-    readonly send: (message: {
-      readonly deliveryKey: string
-      readonly subject: string
-      readonly body: string
-    }) => Effect.Effect<void, EmailBusy | EmailUncertain>
-  }
->()("worker/orders/TransactionalEmails") {}
-
-export const EmailCodes = FailureCode.define({
-  busy: "mail_busy"
-})
+import { TransactionalEmails } from "#worker/orders/TransactionalEmails"
+import { EmailCodes } from "#worker/orders/jobs/EmailCodes"
 
 // #region handler
 export const ConfirmationHandlerLayer = Layer.unwrap(

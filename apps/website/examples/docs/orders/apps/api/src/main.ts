@@ -1,13 +1,17 @@
 // Platform and native SQL APIs are intentionally pinned to Effect 4.1.0 here.
 // @effect-diagnostics unstableApiUsage:off
+import { pathToFileURL } from "node:url"
 import { Config, Effect, Layer } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"
 import { NodeRuntime } from "@effect/platform-node"
-import { ApplicationLayer } from "#database/Database"
+import { PersistenceLayer } from "#database/Database"
+import { OrderJobsLayer } from "#orders/contracts/jobs"
+import { InvoiceDeliveryJobsLayer } from "#orders/contracts/invoice-delivery"
+import { ApiDefinitionsLayer } from "#api/orders/Definitions"
 import { placeOrder } from "#api/orders/PlaceOrder"
 import { placeOrderWithInvoice } from "#api/orders/PlaceOrderWithInvoice"
 
-export const ClientLayer = PgClient.layerConfig({
+const ClientLayer = PgClient.layerConfig({
   url: Config.Redacted("DATABASE_URL"),
   connectTimeout: Config.succeed("2 seconds"),
   idleTimeout: Config.succeed("10 seconds"),
@@ -19,7 +23,9 @@ export const ClientLayer = PgClient.layerConfig({
 })
 
 // #region composition
-const ProducerLayer = ApplicationLayer.pipe(Layer.provideMerge(ClientLayer))
+export const ProducerLayer = Layer.mergeAll(PersistenceLayer, ApiDefinitionsLayer).pipe(
+  Layer.provideMerge(Layer.mergeAll(OrderJobsLayer, InvoiceDeliveryJobsLayer))
+)
 const submit = Effect.gen(function* () {
   const operationId = yield* Config.String("OPERATION_ID")
   const orderId = yield* Config.String("ORDER_ID")
@@ -30,5 +36,9 @@ const submit = Effect.gen(function* () {
   return yield* withInvoice ? placeOrderWithInvoice(input) : placeOrder(input)
 })
 // CLI boundary; an HTTP host instead supplies its admitted/authorized request.
-NodeRuntime.runMain(submit.pipe(Effect.provide(ProducerLayer)))
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  NodeRuntime.runMain(
+    submit.pipe(Effect.provide(ProducerLayer.pipe(Layer.provideMerge(ClientLayer))))
+  )
+}
 // #endregion composition

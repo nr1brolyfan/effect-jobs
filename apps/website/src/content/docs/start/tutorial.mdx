@@ -229,10 +229,17 @@ that is a synthetic adapter property, not a production provider guarantee.
 <details className="ej-setup">
 <summary>Set up the checked application</summary>
 
-Use the [local installation](/docs/start/installation) with Effect `4.0.5`,
-`@effect/sql-pg@4.0.5`, Drizzle `1.0.0-rc.5-ab785fc` and
-`@effect/platform-node@4.0.5`. Copy the complete `orders` source tree listed in
-[checked order examples](/docs/reference/examples), preserving its paths.
+Copy the complete `apps/website/examples/docs/orders` directory, preserving its
+paths and manifest. [Pack the local candidate](/docs/start/installation), then run
+this command from the copied source root:
+
+```sh
+npm install --save-exact /path/to/effect-jobs-0.1.0-alpha.3.tgz
+```
+
+The Orders manifest pins Effect, `@effect/sql-pg`, `@effect/platform-node` and
+its shared runtime `@effect/platform-node-shared` to `4.1.0`. It pins `pg` to
+`8.23.0` and Drizzle to `1.0.0-rc.5`.
 
 <CodeExample
   sourcePath="orders/packages/database/src/Database.ts"
@@ -240,9 +247,11 @@ Use the [local installation](/docs/start/installation) with Effect `4.0.5`,
   role="Composition"
 />
 
-The application owns one scoped PgClient, its pool lifetime, migrations and
-finite acquisition/control/release deadlines. This supported native route uses
-`PgClient.withTransaction`, not Drizzle `db.transaction` or a second client.
+The API and worker compose startup separately over `PersistenceLayer`. In the
+API, a single scoped `PgClient` supplies both Drizzle and jobs so the order,
+job and receipt can share one `PgClient.withTransaction` transaction. Each
+process owns its pool lifetime and finite acquisition, control and release
+deadlines.
 
 <CodeExample
   sourcePath="orders/packages/database/src/schema.ts"
@@ -266,6 +275,12 @@ order code. They are configured in `package.json`, not in the job library:
   code={JSON.stringify({ imports: orderProject.imports }, null, 2)}
   lang="json"
   title="package.json"
+/>
+
+<CodeExample
+  sourcePath="orders/apps/api/src/main.ts"
+  region="composition"
+  role="Composition"
 />
 
 Use the `development` condition to run the TypeScript sources directly:

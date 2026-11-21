@@ -7,9 +7,11 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  rmSync,
   statSync,
   writeFileSync
 } from "node:fs"
+import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { publicModules } from "../../../../scripts/SourceExports.mjs"
 // Finite installed/source contract + owned real PG qualification of the order example.
@@ -38,7 +40,14 @@ const receipt: {
   status?: string
   sourceUnchanged?: boolean
 } = {
+  node: process.version,
   sourceHashes: hashes(),
+  qualificationHashes: Object.fromEntries(
+    ["Qualify.ts", "PostgreSql.ts", "Bindings.ts", "Negative.ts.txt"].map((file) => [
+      file,
+      hash(readFileSync(join(import.meta.dirname, file)))
+    ])
+  ),
   results: [],
   limitations:
     "Synthetic local mail and PDF stand-in only; post-durable-COMMIT injected acknowledgement loss, not network/server crash. Supported native dependencies use approved skipLibCheck:true; no foreign declaration-C PASS."
@@ -69,9 +78,23 @@ const run = (
   return result.stdout.trim()
 }
 let container: string | undefined
+let consumer: string | undefined
 try {
   assert.equal(process.version, "v24.15.0")
   assert.equal(run("bun-version", "bun", ["--version"]), "1.4.2")
+  const suppliedArchive = process.env.EFFECT_JOBS_ARCHIVE
+  if (!suppliedArchive) {
+    run("build", "bun", ["run", "build"])
+    run("pack", "npm", ["pack", "--ignore-scripts", "--pack-destination", work])
+  }
+  const archive = suppliedArchive
+    ? resolve(suppliedArchive)
+    : join(
+        work,
+        readdirSync(work).find((file) => file.endsWith(".tgz"))!
+      )
+  assert(statSync(archive).isFile(), "Qualification requires a package archive file")
+  receipt.archiveSha256 = hash(readFileSync(archive))
   run(
     "source-diagnostics",
     "node",
@@ -119,111 +142,102 @@ try {
     "-p",
     join(work, "tsconfig.source.json")
   ])
-  const suppliedArchive = process.env.EFFECT_JOBS_ARCHIVE
-  if (!suppliedArchive) {
-    run("build", "bun", ["run", "build"])
-    run("pack", "npm", ["pack", "--ignore-scripts", "--pack-destination", work])
+  consumer = mkdtempSync(join(tmpdir(), "effect-jobs-order-consumer-"))
+  for (const entry of ["apps", "packages", "package.json", "tsconfig.json"]) {
+    cpSync(join(sources, entry), join(consumer, entry), { recursive: true })
   }
-  const archive = suppliedArchive
-    ? resolve(suppliedArchive)
-    : join(
-        work,
-        readdirSync(work).find((file) => file.endsWith(".tgz"))!
-      )
-  assert(statSync(archive).isFile(), "Qualification requires a package archive file")
-  receipt.archiveSha256 = hash(readFileSync(archive))
-  const consumer = join(work, "consumer")
-  mkdirSync(consumer)
-  writeFileSync(
-    join(consumer, "package.json"),
-    JSON.stringify({
-      private: true,
-      type: "module",
-      dependencies: {
-        "effect-jobs": `file:${archive}`,
-        effect: "4.1.0",
-        "drizzle-orm": "1.0.0-rc.5",
-        "@effect/sql-pg": "4.1.0",
-        "@effect/platform-node": "4.1.0",
-        "@effect/platform-node-shared": "4.1.0",
-        typescript: "7.0.2",
-        "@types/node": "26.4.1"
-      }
-    })
-  )
   run(
     "install",
     "npm",
-    ["install", "--ignore-scripts", "--no-audit", "--no-fund"],
+    ["install", "--save-exact", "--ignore-scripts", "--no-audit", "--no-fund", archive],
     consumer
   )
   run("peers", "npm", ["ls", "--all"], consumer)
-  cpSync(sources, join(consumer, "source"), { recursive: true })
-  cpSync(
-    join(import.meta.dirname, "Negative.ts.txt"),
-    join(consumer, "source/Negative.ts")
+  const lock = readFileSync(join(consumer, "package-lock.json"), "utf8")
+  writeFileSync(join(work, "consumer-package-lock.json"), lock)
+  assert.deepEqual(
+    Object.keys(JSON.parse(lock).packages).filter((path) =>
+      path.endsWith("node_modules/effect")
+    ),
+    ["node_modules/effect"],
+    "The installed example and package must share one Effect runtime"
   )
+  run("installed-build", "npm", ["run", "build"], consumer)
+
+  cpSync(join(import.meta.dirname, "Negative.ts.txt"), join(consumer, "Negative.ts"))
   writeFileSync(
-    join(consumer, "source/tsconfig.json"),
+    join(consumer, "tsconfig.qualification.json"),
     JSON.stringify({
-      compilerOptions: {
-        target: "ES2022",
-        module: "NodeNext",
-        moduleResolution: "NodeNext",
-        strict: true,
-        exactOptionalPropertyTypes: true,
-        noUncheckedIndexedAccess: true,
-        verbatimModuleSyntax: true,
-        skipLibCheck: true,
-        rootDir: ".",
-        outDir: "dist"
-      },
-      include: ["**/*.ts"]
+      extends: "./tsconfig.json",
+      include: ["apps/**/*.ts", "packages/**/*.ts", "Negative.ts"]
     })
   )
   run(
     "installed-types",
     "node",
-    ["node_modules/typescript/bin/tsc", "-p", "source/tsconfig.json"],
+    ["node_modules/typescript/bin/tsc", "-p", "tsconfig.qualification.json", "--noEmit"],
     consumer
   )
-  writeFileSync(
-    join(consumer, "PostgreSql.ts"),
-    readFileSync(join(import.meta.dirname, "PostgreSql.ts"), "utf8").replaceAll(
-      '"../../examples/docs/orders/',
-      '"./source/dist/'
+  for (const fixture of ["PostgreSql.ts", "Bindings.ts"]) {
+    writeFileSync(
+      join(consumer, fixture),
+      readFileSync(join(import.meta.dirname, fixture), "utf8").replaceAll(
+        '"../../examples/docs/orders/',
+        '"./dist/'
+      )
     )
-  )
-  writeFileSync(
-    join(consumer, "Bindings.ts"),
-    readFileSync(join(import.meta.dirname, "Bindings.ts"), "utf8").replaceAll(
-      '"../../examples/docs/orders/',
-      '"./source/dist/'
-    )
-  )
+  }
   // Loader records the actual transitive runtime graph, not just source import names.
   writeFileSync(
     join(consumer, "ImportLoader.mjs"),
     `import { appendFileSync } from 'node:fs'; export async function resolve(specifier, context, next) { const result = await next(specifier, context); appendFileSync(process.env.ORDER_IMPORT_LOG, result.url + '\\n'); return result; }`
   )
-  const importLog = join(work, "producer-imports.log")
-  run(
+  const importGraph = (name: string, module: string) => {
+    const importLog = join(work, `${name}.graph.log`)
+    run(
+      name,
+      "node",
+      [
+        "--experimental-loader",
+        "./ImportLoader.mjs",
+        "--input-type=module",
+        "-e",
+        `await import(${JSON.stringify(module)})`
+      ],
+      consumer,
+      { ORDER_IMPORT_LOG: importLog }
+    )
+    return readFileSync(importLog, "utf8")
+  }
+  const graph = importGraph(
     "producer-imports",
-    "node",
-    [
-      "--experimental-loader",
-      "./ImportLoader.mjs",
-      "--input-type=module",
-      "-e",
-      "await import('./source/dist/apps/api/src/orders/PlaceOrderWithInvoice.js')"
-    ],
-    consumer,
-    { ORDER_IMPORT_LOG: importLog }
+    "./dist/apps/api/src/orders/PlaceOrderWithInvoice.js"
   )
-  const graph = readFileSync(importLog, "utf8")
   assert(
     !/\/apps\/worker\/|SyntheticMail|SendConfirmation|NodeRuntime/.test(graph),
     "Producer must not load consumer/mail/runtime composition"
+  )
+  assert.doesNotMatch(
+    importGraph("producer-startup-imports", "./dist/apps/api/src/main.js"),
+    /\/apps\/worker\/|SyntheticMail|SendConfirmation/
+  )
+  assert.doesNotMatch(
+    importGraph("worker-startup-imports", "./dist/apps/worker/src/main.js"),
+    /\/apps\/api\//
+  )
+  assert.doesNotMatch(
+    importGraph(
+      "invoice-handler-imports",
+      "./dist/apps/worker/src/orders/jobs/SendInvoice.js"
+    ),
+    /SendConfirmation/
+  )
+  assert.doesNotMatch(
+    importGraph(
+      "mail-provider-imports",
+      "./dist/apps/worker/src/orders/SyntheticMail.js"
+    ),
+    /\/jobs\/(?:SendConfirmation|EmailCodes)\.js/
   )
   const startDatabase = () => {
     container = run("pg-start", "docker", [
@@ -286,6 +300,9 @@ try {
 } finally {
   if (container) {
     run("pg-stop", "docker", ["stop", container!])
+  }
+  if (consumer) {
+    rmSync(consumer, { recursive: true, force: true })
   }
   receipt.sourceUnchanged =
     JSON.stringify(receipt.sourceHashes) === JSON.stringify(hashes())
