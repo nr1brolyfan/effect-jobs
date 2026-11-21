@@ -547,6 +547,14 @@ Producer.withSlot(
   { queue }
 )
 
+// Multiple encoded representations do not widen the decoded enqueue input.
+declare const unionEncoding: Schema.Codec<string, string | number, never, Keys>
+export const unionEncodingSlot = Producer.withSlot(
+  "union-encoding",
+  { name: "billing.union-encoding", version: 1, payload: unionEncoding },
+  { queue }
+)
+
 const unionProducer = Effect.runSync(
   Producer.make("billing.union").pipe(
     Producer.withSlot(

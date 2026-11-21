@@ -58,7 +58,7 @@
   {
     "subpath": "effect-jobs/JobProducer",
     "filename": "src/JobProducer.ts",
-    "sha256": "98d8e3fd80143ffa746b648d362fe96b71bd4cd34fde4cda904ef90e7858961d",
+    "sha256": "f9d096a09da18f08771fc38ede3a4ffafce56c18a82c334eecb6389a98867aad",
     "symbols": [
       {
         "name": "Binding",
