@@ -38,6 +38,36 @@ or pool survives into another RPC, alarm or hibernation. This uses native
 could be misunderstood. The pinned Alchemy SQL implementation also memoizes
 pools by the current execution Scope, not by isolate Layer lifetime.
 
+## Check declared routes before rollout
+
+In application CI, compare the routes your producers can select with the
+contracts your configured workers cover. Make this comparison separately for
+each environment and jobs storage. Read the producer and worker declarations
+from that deployment's configuration. For a selectable producer slot, include
+every allowed queue. For each worker, pair each configured queue with every
+name and version in its catalog.
+
+```ts
+type Route = readonly [queue: string, name: string, version: number]
+
+const missingRoutes = (produced: readonly Route[], consumed: readonly Route[]) => {
+  const covered = new Set(consumed.map((route) => JSON.stringify(route)))
+  return produced.filter((route) => !covered.has(JSON.stringify(route)))
+}
+
+// Example declarations for one environment and one jobs storage.
+const produced = [["billing", "invoice.deliver", 2]] as const
+const v1Only = [["billing", "invoice.deliver", 1]] as const
+const bothVersions = [...v1Only, ["billing", "invoice.deliver", 2]] as const
+missingRoutes(produced, v1Only) // [["billing", "invoice.deliver", 2]] — CI fails
+missingRoutes(produced, bothVersions) // [] — CI passes
+```
+
+Fail CI if any route is missing. Deploy Alchemy/Cloudflare handlers for both
+versions first, then switch the producer to v2. Keep v1 handlers until old jobs
+no longer need them. CI verifies declared coverage. Whether a consumer is
+deployed, running or healthy requires runtime evidence.
+
 ## Tenant and transaction authority
 
 The example's DEVELOPMENT admission maps `Bearer development-alice` to tenant-a
@@ -93,10 +123,27 @@ application bootstrap path before routing producers. If native alarms/state are
 administratively removed, an operator/traffic repair must bootstrap again. No
 remote repair service is installed by this example.
 
-A running callback durably replaces its pending ID with a repair wake BEFORE SQL
-or external work. It drains at most four jobs and recovers at most four leases,
-then observes at most twenty pending rows plus the storage port's lookahead.
-One worker with concurrency one owns execution. A twelve-second invocation budget
+Follow one wake through [`src/Wake.ts`](./src/Wake.ts),
+[`src/Coordinator.ts`](./src/Coordinator.ts) and [`src/Invocation.ts`](./src/Invocation.ts).
+
+1. The callback durably replaces the current callback ID with a repair wake
+   before opening PostgreSQL or running jobs.
+2. Inside a fresh invocation Scope, acquire the PostgreSQL client and jobs services.
+3. Drain at most four jobs and recover at most four leases.
+4. Observe the same `JobApi` as the worker, with a sample of up to twenty pending
+   rows plus the storage port's lookahead. Release the database Scope.
+5. Use the drain result and the observation to schedule an earlier wake if needed.
+
+If database acquisition, drain or observation fails, the prearmed repair wake
+remains pending. The DO alarm and PostgreSQL changes commit independently.
+The application owns resource lifetime, alarm scheduling and repair policy.
+
+The application-owned Durable Object coordinator schedules wakeups for the
+billing queue. Group membership places no requirement on coordinator count.
+Concurrency belongs to one worker instance on one queue. Concurrent drains
+of that instance and queue share its permit, including across groups. Separate
+instances each have their own limit. The example configures one permit per
+worker instance. A twelve-second invocation budget
 bounds normal drain orchestration; library attempt/lease and bounded reconciliation
 rules still apply. Client acquisition/connection are limited to two seconds,
 statements to two seconds, locks to one second and idle transactions to five
@@ -104,11 +151,13 @@ seconds, with a 2.5-second native operation budget and 500ms response reserve.
 These are local configured bounds, not proof of deadlines under a network/server
 crash or an uninterruptible foreign finalizer.
 
-The next delay uses `timestamp - observedAt` from PostgreSQL, capped by the
-60-second repair interval. Due timestamps, MoreWork or saturation request a
-one-second continuation. Null/saturated hints never prove emptiness; Idle still
-retains repair for future availability, retries, expired leases and lost nudges.
-SQL/hint failures or interruption leave the prearmed wake for a future invocation.
+The next delay uses `timestamp - observedAt` from PostgreSQL, with a one-second
+minimum for due or nearly due timestamps. `MoreWork` continues after one second.
+An idle, saturated sample rechecks within five seconds, sooner if a known
+availability or recovery deadline warrants it. A saturated sample with
+`nextAvailableAt: null` leaves availability unknown. The 60-second repair
+interval covers backoff and bounds idle waits when the sample is unsaturated.
+The five-second recheck is an example policy.
 
 The pinned Alchemy source replaces each callback row with a fresh version.
 Acknowledgement deletes only `(callback, id, deliveredVersion)`, preserving a
@@ -158,7 +207,9 @@ workerd bundle loads successfully without importing it.
 It executes explicit migrations, real atomic production/receipt replay, a
 cross-tenant rejection and bounded workerd drain through both the focused callback
 harness and the complete maintained Worker/DO entrypoint, then checks durable results and
-zero surviving SQL sessions. The all-four-exit cleanup fixture covers success,
+zero surviving SQL sessions. The callback harness also verifies that an idle
+saturated PostgreSQL sample schedules a finite recheck and a later wake claims
+the supported job once due. The all-four-exit cleanup fixture covers success,
 typed failure, defect and interruption. Without that private environment, the
 ordinary runtime test explicitly reports PG **NotTested**, never PASS.
 

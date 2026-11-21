@@ -46,6 +46,37 @@ native client. The synthetic mail adapter needs no provider credentials.
 Keep the polling Layer alive until application shutdown. The API does not import
 this worker composition; importing its definitions starts no processing.
 
+## Run different catalogs on different queues
+
+A worker supports every group in its catalog on every configured queue. For
+queue-specific coverage, create separate worker instances in the same
+application. This Effect uses the configured `JobStorage`. Each handler Layer
+installs the exact group used to build its catalog.
+
+```ts
+const run = Effect.gen(function* () {
+  const billingApi = yield* JobApi.make("billing").pipe(JobApi.addGroup(Billing))
+  const reportingApi = yield* JobApi.make("reporting").pipe(JobApi.addGroup(Reports))
+  const billing = yield* JobWorker.make(billingApi, {
+    queues: [{ queue: FastQueue, concurrency: 4 }]
+  })
+  const reporting = yield* JobWorker.make(reportingApi, {
+    queues: [{ queue: SlowQueue, concurrency: 1 }]
+  })
+  yield* serveWakeRequests({
+    billing: billing.drain(FastQueue),
+    reports: reporting.drain(SlowQueue)
+  })
+}).pipe(Effect.provide(Layer.mergeAll(BillingHandlers, ReportHandlers)))
+```
+
+Here `serveWakeRequests` is your application code. Run the corresponding bound
+drain for each wake. Providing both handler Layers around the whole Effect keeps
+their scoped dependencies alive while it serves wakes. Both `JobWorker.layer`
+values would provide the same service key, so merging them cannot combine the
+instances. The two instances above have independent limits of four billing
+jobs and one report.
+
 ## Read the limits correctly
 
 Set `idlePoll` to a positive whole-millisecond `Duration`. The default is one

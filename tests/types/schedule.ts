@@ -1,4 +1,5 @@
 import { Context, Effect, Layer, Schema } from "effect"
+import * as JobApi from "../../src/JobApi.js"
 import * as Schedule from "../../src/JobSchedule.js"
 import * as Group from "../../src/JobGroup.js"
 import * as Queue from "../../src/JobQueue.js"
@@ -21,6 +22,8 @@ export const observed: Effect.Effect<
   Schedule.JobScheduleProtocolError | Schedule.JobScheduleUnavailable,
   Schedule.JobSchedule
 > = Schedule.observe(group, queue)
+const api = Effect.runSync(JobApi.make("schedule").pipe(JobApi.addGroup(group)))
+export const observedCatalog: typeof observed = Schedule.observe(api, queue, { limit: 1 })
 export const captured: Effect.Effect<
   Schedule.Observation,
   Schedule.JobScheduleProtocolError | Schedule.JobScheduleUnavailable,

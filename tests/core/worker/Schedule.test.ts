@@ -1,5 +1,6 @@
 import { Cause, Context, Effect, Exit, Schema } from "effect"
 import { describe, expect, it } from "vitest"
+import * as JobApi from "../../../src/JobApi.js"
 import * as Schedule from "../../../src/JobSchedule.js"
 import * as Group from "../../../src/JobGroup.js"
 import * as Queue from "../../../src/JobQueue.js"
@@ -203,6 +204,43 @@ describe("JobSchedule observations", () => {
       ).toMatchObject({ _tag: "Failure", failure: { reason: "invalid-input" } })
     }
     expect(seen).toHaveLength(1)
+  })
+
+  it("accepts 500 catalog identities and rejects 501 before reading", async () => {
+    const definitions = Object.fromEntries(
+      Array.from({ length: 500 }, (_, i) => [
+        `report-${i}`,
+        { name: `report-${i}`, version: 1, payload: Schema.String }
+      ])
+    )
+    const reports = Effect.runSync(Group.make("reports", definitions))
+    const api = Effect.runSync(JobApi.make("schedule").pipe(JobApi.addGroup(reports)))
+    const oversized = Effect.runSync(
+      JobApi.make("schedule").pipe(JobApi.addGroup(reports), JobApi.addGroup(group))
+    )
+    const test = fixture([row("report-499", 1, "1200")])
+    const observed = await Effect.runPromise(
+      Schedule.observe(api, queue, { limit: 1 }).pipe(
+        Effect.provide(Schedule.layer(test.reader))
+      )
+    )
+    expect(observed.nextAvailableAt).toBe(1200)
+    expect(test.queries[0]!.values).toEqual([queue.name, 2])
+    const rejected = await Effect.runPromise(
+      Schedule.observe(oversized, queue, { limit: 1 }).pipe(
+        Effect.provide(Schedule.layer(test.reader)),
+        Effect.result
+      )
+    )
+    expect(rejected).toMatchObject({
+      _tag: "Failure",
+      failure: {
+        _tag: "JobScheduleProtocolError",
+        reason: "invalid-input",
+        message: "Schedule observation accepts at most 500 catalog identities"
+      }
+    })
+    expect(test.transactions()).toBe(1)
   })
 
   it("sanitizes provider failures but preserves protocol errors, defects and interruption", async () => {

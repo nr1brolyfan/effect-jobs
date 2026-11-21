@@ -20,13 +20,21 @@ const empty = {
   saturated: false
 }
 assert.equal(nextDelay(idle, empty), repairMillis)
-assert.equal(nextDelay(idle, { ...empty, saturated: true }), 1000)
+assert.equal(nextDelay(idle, { ...empty, saturated: true }), 5000)
+assert.equal(
+  nextDelay(idle, { ...empty, saturated: true, nextAvailableAt: 502000 }),
+  2000
+)
+assert.equal(nextDelay(idle, { ...empty, saturated: true, nextRecoveryAt: 503000 }), 3000)
 assert.equal(nextDelay(idle, { ...empty, nextAvailableAt: 499999 }), 1000)
 assert.equal(nextDelay(idle, { ...empty, nextRecoveryAt: 505000 }), 5000)
 assert.equal(nextDelay(idle, { ...empty, nextAvailableAt: 900000 }), repairMillis)
 assert.equal(nextDelay({ _tag: "MoreWork", claimed: 4, recovered: 4 }, empty), 1000)
 assert.equal(
-  nextDelay({ _tag: "Backoff", phase: "claim", claimed: 0 }, empty),
+  nextDelay(
+    { _tag: "Backoff", phase: "claim", claimed: 0 },
+    { ...empty, saturated: true, nextAvailableAt: 499999 }
+  ),
   repairMillis
 )
 assert.equal(

@@ -30,8 +30,11 @@ live in `src/postgresql/internal/`; these paths are not public deep exports.
 
 ### Read-only wake observations
 
-`JobSchedule.observe(group, queue, { limit })` uses the configured observation
-service without requiring handlers or a worker. PostgreSQL exposes its native-error
+`JobSchedule.observe(api, queue, { limit })` uses the same `JobApi` catalog as the
+worker, including future jobs from any group in that catalog. Use
+`JobSchedule.observe(group, queue, { limit })` for single-group reads.
+Both forms use the configured observation service without requiring handlers
+or a worker. PostgreSQL exposes its native-error
 port as `jobs.schedule`; `JobSchedule.layer(jobs.schedule)` captures it for
 portable callers. `PostgreSqlJobs.layerNoDeps` already provides that service.
 

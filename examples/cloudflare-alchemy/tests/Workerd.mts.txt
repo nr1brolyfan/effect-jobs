@@ -68,7 +68,8 @@ export class Probe extends DurableObject {
       if (self.mode === "interrupt") return yield* Effect.interrupt
       if (self.mode === "pg") {
         const invocation = yield* openInvocation({ databaseUrl: Redacted.make(self.env.PG.connectionString), providerUrl: "https://provider.invalid/deliver" })
-        return { result: yield* invocation.drain, hint: yield* invocation.observe }
+        self.observed = { result: yield* invocation.drain, hint: yield* invocation.observe }
+        return self.observed
       }
       return { result: { _tag: "Idle", claimed: 0, recovered: 0 }, hint: { observedAt: 1000, nextAvailableAt: null, nextRecoveryAt: null, saturated: false } }
     }).pipe(Effect.scoped))).finally(seal)
@@ -139,7 +140,7 @@ export class Probe extends DurableObject {
     }
     const rows = self.state.storage.sql.exec("SELECT name FROM sqlite_master WHERE name = 'alchemy_alarm_callbacks'").toArray().length
       ? self.state.storage.sql.exec("SELECT id, version, attempts, parked, scheduled_at, retry_at FROM alchemy_alarm_callbacks").toArray() : []
-    return Response.json({ calls: self.calls, closed: self.closed, rows, transactions: self.transactions, alarm: await self.state.storage.getAlarm() })
+    return Response.json({ calls: self.calls, closed: self.closed, rows, transactions: self.transactions, alarm: await self.state.storage.getAlarm(), now: self.now, observed: self.observed })
   }
 }
 

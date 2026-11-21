@@ -168,7 +168,7 @@ export const openInvocation = <R = never>(settings: Settings<R>) =>
       drain: Worker.drain(BillingQueue, { maxJobs: 4, recoveryLimit: 4 }).pipe(
         Effect.provide(WorkerLayer)
       ),
-      observe: Schedule.observe(declarations.BillingJobs, BillingQueue, {
+      observe: Schedule.observe(declarations.api, BillingQueue, {
         limit: 20
       }).pipe(Effect.provide(Schedule.layer(jobs.schedule)))
     }

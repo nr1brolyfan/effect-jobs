@@ -915,7 +915,7 @@
   {
     "subpath": "effect-jobs/JobSchedule",
     "filename": "src/JobSchedule.ts",
-    "sha256": "db4d9b7d7cc7c4581359536121cc598cd06b9bd121fc2fad3fb2cd66d4dd28f8",
+    "sha256": "cbeb4337bc72e726cdd7101c62b71392edf4dd9a6378641348a85387ed808a41",
     "symbols": [
       {
         "name": "JobSchedule",
@@ -963,7 +963,7 @@
         "name": "observe",
         "kind": "value",
         "category": "contract",
-        "description": "Observe the selected group's contracts in one queue, without requiring handlers.\nRecovery is queue-scoped, including expired leases for other contracts, just like drain.\nHints can become stale immediately after reading. Keep a finite repair wakeup even\nwhen timestamps are null; saturated samples especially cannot establish emptiness.\nThe application owns authorization, activation expiry and exclusive alarm ownership."
+        "description": "Observe one group's contracts or the worker's JobApi catalog in one queue.\nThis read requires no handlers and accepts at most 500 catalog identities,\nindependently of the metadata sample limit.\nRecovery is queue-scoped, including expired leases for other contracts, just like drain.\nHints can become stale immediately after reading. Keep a finite repair wakeup even\nwhen timestamps are null; saturated samples especially cannot establish emptiness.\nThe application owns authorization, activation expiry and exclusive alarm ownership."
       },
       {
         "name": "Options",
