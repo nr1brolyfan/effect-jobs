@@ -54,26 +54,28 @@ application. This Effect uses the configured `JobStorage`. Each handler Layer
 installs the exact group used to build its catalog.
 
 ```ts
-const workers = Effect.gen(function* () {
+const run = Effect.gen(function* () {
   const billingApi = yield* JobApi.make("billing").pipe(JobApi.addGroup(Billing))
   const reportingApi = yield* JobApi.make("reporting").pipe(JobApi.addGroup(Reports))
   const billing = yield* JobWorker.make(billingApi, {
     queues: [{ queue: FastQueue, concurrency: 4 }]
-  }).pipe(Effect.provide(BillingHandlers))
+  })
   const reporting = yield* JobWorker.make(reportingApi, {
     queues: [{ queue: SlowQueue, concurrency: 1 }]
-  }).pipe(Effect.provide(ReportHandlers))
-  return {
-    drainBilling: billing.drain(FastQueue),
-    drainReports: reporting.drain(SlowQueue)
-  }
-})
+  })
+  yield* serveWakeRequests({
+    billing: billing.drain(FastQueue),
+    reports: reporting.drain(SlowQueue)
+  })
+}).pipe(Effect.provide(Layer.mergeAll(BillingHandlers, ReportHandlers)))
 ```
 
-Run the bound drain for the corresponding wake or execution path. Both
-`JobWorker.layer` values would provide the same service key, so merging them
-cannot combine the instances. The two instances above have independent limits
-of four billing jobs and one report.
+Here `serveWakeRequests` is your application code. Run the corresponding bound
+drain for each wake. Providing both handler Layers around the whole Effect keeps
+their scoped dependencies alive while it serves wakes. Both `JobWorker.layer`
+values would provide the same service key, so merging them cannot combine the
+instances. The two instances above have independent limits of four billing
+jobs and one report.
 
 ## Read the limits correctly
 
