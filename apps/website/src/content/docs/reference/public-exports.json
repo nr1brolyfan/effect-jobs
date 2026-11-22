@@ -1359,7 +1359,7 @@
   {
     "subpath": "effect-jobs/PostgreSqlNative",
     "filename": "src/postgresql/PostgreSqlNative.ts",
-    "sha256": "46dedce128751b45eadf0a9a5f19beb321dcd7ed306234e2d77f453700f50745",
+    "sha256": "15dc19b873198039031a0472f7fe68ce9c154a60bd8f299e642d30d38fdb6ae0",
     "symbols": [
       {
         "name": "layer",
@@ -1377,7 +1377,7 @@
         "name": "Options",
         "kind": "type",
         "category": "models",
-        "description": "Pass the same application-owned client to Drizzle and jobs: the bundled\nDrizzlePostgresClient on rc.6 or the qualified PgClient from"
+        "description": "Pass the same application-owned client to Drizzle and jobs: the bundled\nDrizzlePostgresClient on rc.6 or the qualified PgClient from `@effect/sql-pg@4.1.3`.\nOther SQL drivers/clients require\nseparate qualification; structural type compatibility is not a driver guarantee."
       }
     ]
   },

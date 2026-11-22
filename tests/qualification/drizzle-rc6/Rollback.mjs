@@ -1,5 +1,4 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
 import { Cause, Duration, Effect, Exit, Redacted } from "effect"
 import * as Native from "effect-jobs/PostgreSqlNative"
 import { PostgreSqlFailure } from "effect-jobs/PostgreSqlTransaction"
@@ -10,12 +9,14 @@ import { PostgreSqlFailure } from "effect-jobs/PostgreSqlTransaction"
 /** @param {string} url
  * @param {typeof import('drizzle-orm/postgres/effect').DrizzlePostgresClient} Pg
  * @param {typeof import('drizzle-orm/postgres/effect').DrizzlePostgresClient.DrizzlePostgresClient} tag
+ * @param {string} installedVersion
  */
-export const qualifyRollback = (url, Pg, tag) => {
+export const qualifyRollback = (url, Pg, tag, installedVersion) => {
   const options = { url: Redacted.make(url), maxConnections: 1 }
   return Effect.runPromise(
     Effect.gen(function* () {
       const observer = yield* tag
+      yield* observer.unsafe("CREATE TABLE rollback_marker (marker int primary key)")
       yield* Effect.gen(function* () {
         const writer = yield* tag
         assert.notEqual(observer, writer)
@@ -31,6 +32,7 @@ export const qualifyRollback = (url, Pg, tag) => {
               Effect.gen(function* () {
                 calls++
                 const [{ pid }] = yield* query.query("select pg_backend_pid() as pid")
+                yield* query.query("INSERT INTO rollback_marker VALUES (1)")
                 const count = observer.unsafe(
                   "select count(*)::int as n from pg_stat_activity where pid=$1",
                   [pid]
@@ -53,6 +55,11 @@ export const qualifyRollback = (url, Pg, tag) => {
             )
           )
           assert.equal(calls, 1)
+          assert.equal(
+            (yield* observer.unsafe("SELECT count(*)::int AS n FROM rollback_marker"))[0]
+              .n,
+            0
+          )
           assert(Exit.isFailure(exit))
           const reasons = exit.cause.reasons
           assert(Cause.isFailReason(reasons[0]) && reasons[0].error === domainError)
@@ -61,12 +68,7 @@ export const qualifyRollback = (url, Pg, tag) => {
           } else if (
             reasons.length === 1 &&
             writer.driver === "drizzle-postgres" &&
-            JSON.parse(
-              readFileSync(
-                new URL("./package.json", import.meta.resolve("drizzle-orm")),
-                "utf8"
-              )
-            ).version === "1.0.0-rc.6"
+            installedVersion === "1.0.0-rc.6"
           ) {
             console.warn(
               "KNOWN LIMITATION (drizzle-orm#6709): rc.6 discarded the rollback failure after observed session expiry"

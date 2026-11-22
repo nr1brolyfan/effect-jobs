@@ -120,7 +120,7 @@ Additional release gates include `check:docs:reference`, `qualify:docs:orders`,
 `node tests/qualification/creation-time/Installed.mjs`, `qualify:observability`
 and the frozen standalone Alchemy example qualification. Packed UI honors the
 same `EFFECT_JOBS_ARCHIVE`; do not let a consumer silently pack another candidate.
-The selected Drizzle pin is only `1.0.0-rc.5`, not the historical snapshots.
+The selected Drizzle pin is only `1.0.0-rc.6`, not the historical snapshots.
 
 The full handoff also records compiled browser/UI, public docs/islands, native
 private/public/observation/concurrency, provider cleanup, bounded export and

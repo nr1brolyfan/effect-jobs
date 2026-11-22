@@ -26,6 +26,7 @@ const mf = new Miniflare(
     compatibilityDate: "2026-10-01",
     compatibilityFlags: ["nodejs_compat"],
     hyperdrives: { DB: process.env.PROBE_URL },
+    bindings: { DRIVER_VERSION: process.env.DRIVER_VERSION },
     durableObjects: { COORDINATOR: { className: "Probe", useSQLite: true } },
     durableObjectsPersist: false
   })

@@ -19,7 +19,7 @@ import type {
 } from "./PostgreSqlTransaction.js"
 
 /** Pass the same application-owned client to Drizzle and jobs: the bundled
- * DrizzlePostgresClient on rc.6 or the qualified PgClient from @effect/sql-pg 4.1.3.
+ * DrizzlePostgresClient on rc.6 or the qualified PgClient from `@effect/sql-pg@4.1.3`.
  * Other SQL drivers/clients require
  * separate qualification; structural type compatibility is not a driver guarantee.
  * @category models

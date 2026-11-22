@@ -62,6 +62,9 @@ export const compose = Effect.gen(function* () {
 TS
 node -e 'require("node:fs").writeFileSync("tsconfig.consumer.json", JSON.stringify({extends:"./tsconfig.json",include:["Integration.mts"]}))'
 ./node_modules/.bin/tsc -p tsconfig.consumer.json
+sed -e 's|import \* as Pg from "@effect/sql-pg/PgClient"|import { DrizzlePostgresClient as Pg } from "drizzle-orm/postgres/effect"|' -e 's|drizzle-orm/effect-postgres|drizzle-orm/postgres/effect|g' -e 's/Pg\.PgClient/Pg.DrizzlePostgresClient/g' "$here/../drizzle-native/ContractProbes.mts.txt" > Contract.mts
+node "$here/CheckContracts.mjs" "$PWD"
+export DRIVER_VERSION=$(node --input-type=module -e 'import fs from "node:fs";console.log(JSON.parse(fs.readFileSync(new URL("./package.json",import.meta.resolve("drizzle-orm")))).version)')
 pass=$(node -p 'crypto.randomUUID()')
 id=$(docker run --rm -d -p 127.0.0.1::5432 -e POSTGRES_PASSWORD="$pass" postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea -c statement_timeout=5000 -c lock_timeout=3000 -c idle_in_transaction_session_timeout=7000)
 port=$(docker port "$id" 5432/tcp | cut -d: -f2)
@@ -77,7 +80,7 @@ for rt in node bun workerd; do
   if [[ "$rt" == workerd ]]; then
     timeout 90 node Workerd.mjs || status=1
   else
-    timeout 90 "$rt" --input-type=module -e 'import {qualify, drain} from "./Transaction.mjs"; import {qualifyRollback} from "./Rollback.mjs"; import {DrizzlePostgresClient as Pg} from "drizzle-orm/postgres/effect"; await qualify(process.env.PROBE_URL); await drain(process.env.PROBE_URL); await qualifyRollback(process.env.PROBE_URL, Pg, Pg.DrizzlePostgresClient)' || status=1
+    timeout 90 "$rt" --input-type=module -e 'import {qualify, drain} from "./Transaction.mjs"; import {qualifyRollback} from "./Rollback.mjs"; import {DrizzlePostgresClient as Pg} from "drizzle-orm/postgres/effect"; await qualify(process.env.PROBE_URL); await drain(process.env.PROBE_URL); await qualifyRollback(process.env.PROBE_URL, Pg, Pg.DrizzlePostgresClient, process.env.DRIVER_VERSION)' || status=1
   fi
   sessions=$(docker exec "$id" psql -XAt -U postgres -d postgres -c "select count(*) from pg_stat_activity where datname='$rt'")
   if [[ "$sessions" != 0 ]]; then echo "$rt: $sessions database sessions left open" >&2; status=1; fi

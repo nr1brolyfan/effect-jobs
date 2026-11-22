@@ -1,9 +1,17 @@
 import { DurableObject } from "cloudflare:workers"
 import { qualify, drain } from "./Transaction.mjs"
+import { qualifyRollback } from "./Rollback.mjs"
+import { DrizzlePostgresClient as Pg } from "drizzle-orm/postgres/effect"
 
 export class Probe extends DurableObject {
   async produce() {
     await qualify(this.env.DB.connectionString)
+    await qualifyRollback(
+      this.env.DB.connectionString,
+      Pg,
+      Pg.DrizzlePostgresClient,
+      this.env.DRIVER_VERSION
+    )
     await this.ctx.storage.setAlarm(Date.now())
   }
   async alarm() {
