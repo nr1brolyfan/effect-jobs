@@ -5,7 +5,7 @@
 Package metadata targets `0.1.0-alpha.3`. Published alpha.2 uses Effect/sql-pg
 `4.0.5` and two hash-suffixed Drizzle snapshots; it is not this candidate.
 The candidate includes the contract-first redesign and selects exact Effect/sql-pg
-`4.1.0`, Drizzle `1.0.0-rc.5`, and Alchemy/Cloudflare `2.0.0-beta.85`.
+`4.1.3`, Drizzle `1.0.0-rc.6`, and Alchemy/Cloudflare `2.0.0-beta.85`.
 Node `24.15.0`, Bun `1.4.2` and TypeScript `7.0.2` remain pinned. The standalone
 Alchemy example retains its bounded TypeScript 6 graph. Completed retention
 remains 90 days.

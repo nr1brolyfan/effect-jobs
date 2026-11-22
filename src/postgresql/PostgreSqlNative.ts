@@ -1,5 +1,5 @@
 /** Effect SQL native PostgreSQL integration. No pool or migration ownership. */
-// The native SQL contract is intentionally pinned to Effect 4.1.0.
+// The native SQL contract is pinned to Effect 4.1.3.
 // @effect-diagnostics unstableApiUsage:off
 import { Cause, Effect, Exit, Layer, Option, Schema, Tracer, type Duration } from "effect"
 import type { SqlClient } from "effect/sql/SqlClient"
@@ -18,8 +18,9 @@ import type {
   TransactionQuery
 } from "./PostgreSqlTransaction.js"
 
-/** Only native PgClient@4.1.0 is qualified. Pass the exact application-owned client
- * used by Effect-native Drizzle@1.0.0-rc.5. Other SQL drivers/clients require
+/** Pass the same application-owned client to Drizzle and jobs: the bundled
+ * DrizzlePostgresClient on rc.6 or the qualified PgClient from @effect/sql-pg 4.1.3.
+ * Other SQL drivers/clients require
  * separate qualification; structural type compatibility is not a driver guarantee.
  * @category models
  */

@@ -14,7 +14,7 @@ import {
   reportRequests,
   reportRequestReceipts
 } from "../../examples/docs/DrizzleReportRequest.js"
-// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this qualification.
+// Native SQL APIs are intentionally pinned to Effect 4.1.3 by this qualification.
 // @effect-diagnostics unstableApiUsage:off
 // Only the exact disposable container/port owned by Qualify.mjs is used.
 

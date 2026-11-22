@@ -631,11 +631,11 @@ the portable library's dependency graph.
 ## Alpha boundaries
 
 PostgreSQL only. Application-owned adapters, pools, migrations and cleanup. No recurring scheduler or admin API. Every TypeScript fence is extracted and declaration-checked against source and
-the current locally packed artifact. The Effect 4.1.0 candidate
+the current locally packed artifact. The Effect 4.1.3 candidate
 requires exact-byte receipts; see `specs/release-qualification.md`. Node/Bun composition, handler, codec and encryption
 checks use explicit application fixtures. Real native PostgreSQL transaction
-gates are separate. Cloudflare external PostgreSQL, deployment, server crashes
-and arbitrary network faults are NotTested; upstream full strict Drizzle
+gates are separate. Local Worker tests alone do not establish managed Hyperdrive
+settings, production deployment, server crashes or arbitrary network faults; upstream full strict Drizzle
 declaration failure remains a separately recorded limitation.
 
 [Transaction integration](specs/drizzle-compatibility.md) · [Lifecycle and protection](specs/architecture-decisions.md) · [Release qualification](specs/release-qualification.md) · [MIT](LICENSE)

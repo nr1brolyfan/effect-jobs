@@ -1,4 +1,4 @@
-// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this checked example.
+// Native SQL APIs are intentionally pinned to Effect 4.1.3 by this checked example.
 // @effect-diagnostics unstableApiUsage:off
 // Checked examples: run against an empty qualification database, outside a worker.
 // #region imports

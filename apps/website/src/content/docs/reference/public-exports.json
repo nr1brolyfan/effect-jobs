@@ -1359,7 +1359,7 @@
   {
     "subpath": "effect-jobs/PostgreSqlNative",
     "filename": "src/postgresql/PostgreSqlNative.ts",
-    "sha256": "f026e2b2879a544c475f0c9c4b55d3b7b217c12865ccf354a5589f187ebd3f90",
+    "sha256": "46dedce128751b45eadf0a9a5f19beb321dcd7ed306234e2d77f453700f50745",
     "symbols": [
       {
         "name": "layer",
@@ -1377,7 +1377,7 @@
         "name": "Options",
         "kind": "type",
         "category": "models",
-        "description": "Only native PgClient@4.1.0 is qualified. Pass the exact application-owned client\nused by Effect-native Drizzle@1.0.0-rc.5. Other SQL drivers/clients require\nseparate qualification; structural type compatibility is not a driver guarantee."
+        "description": "Pass the same application-owned client to Drizzle and jobs: the bundled\nDrizzlePostgresClient on rc.6 or the qualified PgClient from"
       }
     ]
   },
@@ -1451,7 +1451,7 @@
   {
     "subpath": "effect-jobs/PostgreSqlDrizzleSchema",
     "filename": "src/postgresql/PostgreSqlDrizzleSchema.ts",
-    "sha256": "de1568f733803a4b1cd6c595e93bc89999ace8c79154353a01ead214df34b671",
+    "sha256": "0f83fe97436441c48c48fe0b76e8d404c1ab49372af544c07fd1e56613986ad9",
     "symbols": [
       {
         "name": "JobsIndexColumns",
@@ -1463,7 +1463,7 @@
         "name": "makeJobTables",
         "kind": "value",
         "category": "constructors",
-        "description": "Creates fixed-column Drizzle declarations for the configured namespace/table names.\nRequires optional drizzle-orm@1.0.0-rc.5. Applications generate/run migrations;\nthese declarations neither open a connection nor qualify a transaction adapter.\nDependency qualification scope is documented in specs/drizzle-compatibility.md."
+        "description": "Creates fixed-column Drizzle declarations for the configured namespace/table names.\nRequires optional drizzle-orm@1.0.0-rc.6. Applications generate/run migrations;\nthese declarations neither open a connection nor qualify a transaction adapter.\nDependency qualification scope is documented in specs/drizzle-compatibility.md."
       },
       {
         "name": "Options",

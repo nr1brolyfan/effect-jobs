@@ -13,7 +13,7 @@ import {
   readReceipt
 } from "../../examples/docs/DrizzleReportRequest.js"
 import { ReportDefinitionsLayer } from "../../examples/docs/ReportWorkflow.js"
-// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this qualification.
+// Native SQL APIs are intentionally pinned to Effect 4.1.3 by this qualification.
 // @effect-diagnostics unstableApiUsage:off
 // Real Drizzle builders and canonical Effects with a recording SQL boundary.
 // This exercises query generation, parameters, order and error propagation, NOT PG atomicity.

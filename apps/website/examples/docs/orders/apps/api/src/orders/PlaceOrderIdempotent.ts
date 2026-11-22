@@ -1,4 +1,4 @@
-// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this checked example.
+// Native SQL APIs are intentionally pinned to Effect 4.1.3 by this checked example.
 // @effect-diagnostics unstableApiUsage:off
 // Advanced application replay: validate retained business fields and keep a receipt.
 // #region imports
