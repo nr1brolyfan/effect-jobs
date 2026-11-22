@@ -1,4 +1,4 @@
-// Platform and native SQL APIs are intentionally pinned to Effect 4.1.0 here.
+// Platform and native SQL APIs are intentionally pinned to Effect 4.1.3 here.
 // @effect-diagnostics unstableApiUsage:off
 import { pathToFileURL } from "node:url"
 import { Duration, Config, Effect, Layer, Match } from "effect"

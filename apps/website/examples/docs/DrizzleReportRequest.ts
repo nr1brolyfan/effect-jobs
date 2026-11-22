@@ -1,4 +1,4 @@
-// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this checked example.
+// Native SQL APIs are intentionally pinned to Effect 4.1.3 by this checked example.
 // @effect-diagnostics unstableApiUsage:off
 import { Duration, Context, Effect, Layer, Schema } from "effect"
 import * as PgClient from "@effect/sql-pg/PgClient"

@@ -22,7 +22,7 @@ import {
   checkReportsStorage,
   requestReport
 } from "../../examples/docs/DrizzleReportRequest.js"
-// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this qualification.
+// Native SQL APIs are intentionally pinned to Effect 4.1.3 by this qualification.
 // @effect-diagnostics unstableApiUsage:off
 
 // Only the disposable loopback container created by Qualify.mjs is connected here.

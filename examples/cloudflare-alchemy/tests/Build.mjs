@@ -19,7 +19,7 @@ const runtimeOptions = {
   platform: "node",
   format: "esm",
   target: "es2022",
-  conditions: ["worker"],
+  conditions: ["workerd", "worker"],
   mainFields: ["module", "main"],
   external: ["cloudflare:*", "node:*", "react-devtools-core"],
   define: { "globalThis.__ALCHEMY_RUNTIME__": "true" },

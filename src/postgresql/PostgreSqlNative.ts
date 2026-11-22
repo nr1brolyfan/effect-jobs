@@ -1,5 +1,5 @@
 /** Effect SQL native PostgreSQL integration. No pool or migration ownership. */
-// The native SQL contract is intentionally pinned to Effect 4.1.0.
+// The native SQL contract is pinned to Effect 4.1.3.
 // @effect-diagnostics unstableApiUsage:off
 import { Cause, Effect, Exit, Layer, Option, Schema, Tracer, type Duration } from "effect"
 import type { SqlClient } from "effect/sql/SqlClient"
@@ -18,8 +18,9 @@ import type {
   TransactionQuery
 } from "./PostgreSqlTransaction.js"
 
-/** Only native PgClient@4.1.0 is qualified. Pass the exact application-owned client
- * used by Effect-native Drizzle@1.0.0-rc.5. Other SQL drivers/clients require
+/** Pass the same application-owned client to Drizzle and jobs: the bundled
+ * DrizzlePostgresClient on rc.6 or the qualified PgClient from `@effect/sql-pg@4.1.3`.
+ * Other SQL drivers/clients require
  * separate qualification; structural type compatibility is not a driver guarantee.
  * @category models
  */
@@ -66,22 +67,31 @@ export const make = (options: Options): ApplicationAdapter => {
     throw new PostgreSqlConfigurationError({ field: "operationTimeout" })
   }
   const { client } = options
-  // Protect only the native transaction span we create. Restore the host tracer
+  // Protect the native transaction and its direct transaction-control spans. Restore the host tracer
   // inside the callback: application spans retain their own failure semantics.
   // Controls still see the original Exit, including rollback/release failures.
   const ownedNative = <A, E, R>(body: Effect.Effect<A, E, R>) =>
     Effect.gen(function* () {
       const host = yield* Tracer.Tracer
-      let selected = false
+      let transactionSpan: Tracer.Span | undefined
       const tracer = Tracer.make({
         context: host.context,
         span(options) {
           const span = host.span(options)
-          if (selected || options.name !== "sql.transaction") {
+          const isTransaction =
+            transactionSpan === undefined && options.name === "sql.transaction"
+          if (
+            !isTransaction &&
+            !(
+              transactionSpan !== undefined &&
+              Option.isSome(options.parent) &&
+              options.parent.value === transactionSpan &&
+              options.kind === "client"
+            )
+          ) {
             return span
           }
-          selected = true
-          return {
+          const protectedSpan: Tracer.Span = {
             _tag: span._tag,
             name: span.name,
             get spanId() {
@@ -114,6 +124,10 @@ export const make = (options: Options): ApplicationAdapter => {
             event: (name, time, attributes) => span.event(name, time, attributes),
             addLinks: (links) => span.addLinks(links)
           }
+          if (isTransaction) {
+            transactionSpan = protectedSpan
+          }
+          return protectedSpan
         }
       })
       // Effect 4.1 promotes body Fail reasons to Die if a native finalizer fails.

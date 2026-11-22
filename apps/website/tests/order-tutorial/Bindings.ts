@@ -18,7 +18,7 @@ import {
   customerCopy,
   accountantCopy
 } from "../../examples/docs/orders/apps/api/src/orders/InvoiceDelivery.js"
-// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this qualification.
+// Native SQL APIs are intentionally pinned to Effect 4.1.3 by this qualification.
 // @effect-diagnostics unstableApiUsage:off
 // Current packed API and physical V1 rows against the owned order fixture.
 

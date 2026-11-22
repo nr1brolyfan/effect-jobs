@@ -71,7 +71,7 @@ const view = Effect.fnUntraced(function* (row: Record<string, unknown>, local = 
 export const make = (schema: string, client: Pg.PgClient) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient
-    if (client !== sql) {
+    if (!Object.is(client, sql)) {
       return yield* new CommandTransactionFailure({ commitKnowledge: "NotCommitted" })
     }
     const db = yield* Drizzle.makeWithDefaults().pipe(

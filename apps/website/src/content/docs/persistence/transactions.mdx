@@ -170,8 +170,8 @@ migration tool before application startup. Migration DDL is separate from Drizzl
 application queries; imports and readiness checks never migrate storage. Keep
 receipt-to-job references protected by your application cleanup policy.
 
-This path is scoped to the local candidate with Effect 4.1.0, `@effect/sql-pg` 4.1.0 and
-[qualified Drizzle 1.0.0-rc.5](/docs/persistence/drizzle). `db.transaction` is excluded
+This path is scoped to the local candidate with Effect 4.1.3, `@effect/sql-pg` 4.1.3 and
+[qualified Drizzle 1.0.0-rc.6](/docs/persistence/drizzle). `db.transaction` is excluded
 from this supported route. No per-request pool or jobs construction is needed.
 
 </details>

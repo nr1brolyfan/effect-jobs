@@ -159,6 +159,7 @@
     "test:postgresql:bun": "PG_EXPECT_RUNTIME=bun bun --bun node_modules/vitest/vitest.mjs run --config tests/postgresql/vitest.config.ts",
     "qualify:postgresql:installed": "node scripts/qualify-postgresql.mjs",
     "qualify:drizzle:native": "node tests/qualification/drizzle-native/Run.mjs",
+    "qualify:drizzle:rc6": "bash tests/qualification/drizzle-rc6/Run.sh",
     "qualify:docs:readme": "node tests/docs/readme/Run.mjs",
     "check:docs:api": "node tests/docs/api/Qualify.mjs",
     "test:release-imports": "node --test tests/qualification/ReleaseImports.mjs",
@@ -199,8 +200,8 @@
     "qualify:cloudflare:alchemy": "bun run --cwd examples/cloudflare-alchemy qualify"
   },
   "peerDependencies": {
-    "drizzle-orm": "1.0.0-rc.5",
-    "effect": "4.1.0"
+    "drizzle-orm": "1.0.0-rc.6",
+    "effect": "4.1.3"
   },
   "peerDependenciesMeta": {
     "drizzle-orm": {
@@ -208,16 +209,16 @@
     }
   },
   "devDependencies": {
-    "@effect/ai-openrouter": "4.1.0",
-    "@effect/platform-node": "4.1.0",
-    "@effect/platform-node-shared": "4.1.0",
-    "@effect/sql-pg": "4.1.0",
+    "@effect/ai-openrouter": "4.1.3",
+    "@effect/platform-node": "4.1.3",
+    "@effect/platform-node-shared": "4.1.3",
+    "@effect/sql-pg": "4.1.3",
     "@effect/tsgo": "0.48.0",
     "@types/node": "26.4.1",
     "@types/pg": "8.20.0",
     "axe-core": "4.11.0",
-    "drizzle-orm": "1.0.0-rc.5",
-    "effect": "4.1.0",
+    "drizzle-orm": "1.0.0-rc.6",
+    "effect": "4.1.3",
     "oxfmt": "0.71.0",
     "oxlint": "1.86.0",
     "oxlint-tsgolint": "7.0.2003",
@@ -259,10 +260,10 @@
     "@alchemy.run/domain": "2.0.0-beta.85",
     "@alchemy.run/frontend-frameworks": "2.0.0-beta.85",
     "@alchemy.run/sql": "2.0.0-beta.85",
-    "@effect/platform-bun": "4.1.0",
-    "@effect/platform-node": "4.1.0",
-    "@effect/platform-node-shared": "4.1.0",
-    "@effect/sql-d1": "4.1.0",
-    "@effect/sql-pg": "4.1.0"
+    "@effect/platform-bun": "4.1.3",
+    "@effect/platform-node": "4.1.3",
+    "@effect/platform-node-shared": "4.1.3",
+    "@effect/sql-d1": "4.1.3",
+    "@effect/sql-pg": "4.1.3"
   }
 }

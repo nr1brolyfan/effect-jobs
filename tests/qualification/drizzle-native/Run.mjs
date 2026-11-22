@@ -1,4 +1,8 @@
-import { selectSnapshot, checkInstalledGraph } from "../DrizzleSnapshot.mjs"
+import {
+  selectSnapshot,
+  checkInstalledGraph,
+  effectVersion
+} from "../DrizzleSnapshot.mjs"
 import { tmpdir } from "node:os"
 // Finite packed-consumer gate. Owns only ignored scratch files, never root pins.
 import assert from "node:assert/strict"
@@ -72,9 +76,9 @@ writeFileSync(
       type: "module",
       dependencies: {
         "effect-jobs": `file:${archive}`,
-        effect: "4.1.0",
+        effect: effectVersion,
         "drizzle-orm": drizzleVersion,
-        "@effect/sql-pg": "4.1.0",
+        "@effect/sql-pg": effectVersion,
         pg: "8.23.0",
         "@types/pg": "8.20.0",
         "@types/node": "26.4.1",
@@ -89,7 +93,7 @@ writeFileSync(
 run("npm-install", "npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"])
 run("npm-tree", "npm", ["ls", "--all"])
 const resolvedGraph = checkInstalledGraph(consumer, drizzleVersion, {
-  "@effect/sql-pg": "4.1.0",
+  "@effect/sql-pg": effectVersion,
   pg: "8.23.0",
   typescript: "7.0.2",
   "@types/node": "26.4.1",
@@ -191,34 +195,12 @@ const upstreamExit = run(
   true
 )
 assert.notEqual(upstreamExit, null, "Foreign declaration audit must execute")
-const auditLog = readFileSync(join(consumer, "foreign-declarations-current.log"), "utf8")
-const auditDiagnostics = auditLog
-  .split("\n")
-  .filter((line) => /: error TS\d+:/.test(line))
-const knownForeignOnly =
-  auditDiagnostics.length === 7 &&
-  auditDiagnostics.every(
-    (line) =>
-      /^node_modules\/drizzle-orm\/(?:cockroach-core|pg-core)\/(?:policies|roles)\.d\.ts\(\d+,\d+\): error TS2420:/.test(
-        line
-      ) ||
-      /^node_modules\/drizzle-orm\/singlestore\/(?:driver|session)\.d\.ts\(\d+,\d+\): error TS2307: Cannot find module 'mysql2(?:\/promise)?'/.test(
-        line
-      )
-  )
-
 const upstreamAudit = {
-  status:
-    upstreamExit === 0
-      ? "PASS"
-      : knownForeignOnly
-        ? "FAIL (diagnostic)"
-        : "FAIL (unexpected diagnostics)",
+  status: upstreamExit === 0 ? "PASS" : "FAIL",
   exitCode: upstreamExit,
-  blocking: upstreamExit !== 0 && !knownForeignOnly,
-  knownForeignOnly,
+  blocking: upstreamExit !== 0,
   policy:
-    "Normal source/consumer checks use skipLibCheck:true; this full foreign-declaration audit is diagnostic per owner contract.",
+    "A nonzero full declaration audit blocks release independently of runtime checks.",
   scope: "Current packed native consumer with skipLibCheck:false",
   drizzle: drizzleVersion,
   logSha256: sha256(join(consumer, "foreign-declarations-current.log"))
@@ -288,6 +270,8 @@ for (const runtime of ["node", "bun"]) {
   })
   const receipt = JSON.parse(readFileSync(evidence, "utf8"))
   assert.equal(receipt.drizzle, drizzleVersion)
+  assert.equal(receipt.effect, effectVersion)
+  assert.equal(receipt.nativeDriver, `@effect/sql-pg@${effectVersion}`)
   assert.equal(receipt.runtime, runtime)
   assert.equal(receipt.runtimeVersion, runtime === "node" ? "v24.15.0" : "1.4.2")
   assert.equal(receipt.success, true)
@@ -320,8 +304,7 @@ const receipt = {
 writeFileSync(join(consumer, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n")
 console.log(`Packed native A+B/runtime PASS; artifact sha256=${receipt.archiveSha256}`)
 console.log(`Current foreign declarations: ${upstreamAudit.status}; consumer=${consumer}`)
-// Normal checks above assert their exits. Only the exact known foreign diagnostic
-// set is nonblocking; unexpected/own-declaration failures are never covered.
+// Report the independent runtime receipts before propagating the full audit failure.
 if (upstreamAudit.blocking) {
   process.exitCode = 1
 }

@@ -1,4 +1,8 @@
-import { selectSnapshot, checkInstalledGraph } from "../DrizzleSnapshot.mjs"
+import {
+  selectSnapshot,
+  checkInstalledGraph,
+  effectVersion
+} from "../DrizzleSnapshot.mjs"
 /** Finite app-owned migration generation proof against the immutable artifact. */
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
@@ -11,6 +15,7 @@ const drizzleVersion = selectSnapshot(
   JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
 )
 const archive = resolve(process.env.EFFECT_JOBS_ARCHIVE)
+const kitVersion = "1.0.0-rc.6"
 const directory = join(root, ".toolchain/drizzle-indexes")
 mkdirSync(directory, { recursive: true })
 const work = mkdtempSync(join(directory, "qualified-"))
@@ -33,9 +38,9 @@ writeFileSync(
       type: "module",
       dependencies: {
         "effect-jobs": `file:${archive}`,
-        effect: "4.1.0",
+        effect: effectVersion,
         "drizzle-orm": drizzleVersion,
-        "drizzle-kit": "1.0.0-rc.5-5935859"
+        "drizzle-kit": kitVersion
       }
     },
     null,
@@ -49,7 +54,9 @@ writeFileSync(
   }) + "\n"
 )
 run("install", "npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"])
-const resolvedGraph = checkInstalledGraph(work, drizzleVersion)
+const resolvedGraph = checkInstalledGraph(work, drizzleVersion, {
+  "drizzle-kit": kitVersion
+})
 writeFileSync(
   join(work, "schema.ts"),
   `
@@ -68,7 +75,8 @@ writeFileSync(
   join(work, "drizzle.config.ts"),
   `export default { dialect: "postgresql", schema: "./schema.ts", out: "./migrations" }\n`
 )
-run("generate-first", "node", ["node_modules/drizzle-kit/bin.cjs", "generate"])
+const kit = join(work, "node_modules/.bin/drizzle-kit")
+run("generate-first", kit, ["generate"])
 const files = (directory) =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) =>
     entry.isDirectory()
@@ -106,10 +114,7 @@ for (const name of [
 const hashes = Object.fromEntries(
   before.map((p) => [p, createHash("sha256").update(readFileSync(p)).digest("hex")])
 )
-const second = run("generate-second", "node", [
-  "node_modules/drizzle-kit/bin.cjs",
-  "generate"
-])
+const second = run("generate-second", kit, ["generate"])
 assert(
   /no (schema )?changes/i.test(second),
   "unchanged generation must report no changes"
@@ -125,7 +130,7 @@ writeFileSync(
       archiveSha256: createHash("sha256").update(readFileSync(archive)).digest("hex"),
       orm: drizzleVersion,
       resolvedGraph,
-      kit: "1.0.0-rc.5-5935859",
+      kit: kitVersion,
       customAndMandatoryDDL: true,
       snapshotRetainsCustom: true,
       repeatedGenerationNoDrop: true,

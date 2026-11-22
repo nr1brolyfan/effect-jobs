@@ -1,0 +1,91 @@
+import assert from "node:assert/strict"
+import { Cause, Duration, Effect, Exit, Redacted } from "effect"
+import * as Native from "effect-jobs/PostgreSqlNative"
+import { PostgreSqlFailure } from "effect-jobs/PostgreSqlTransaction"
+
+// The disposable server closes an idle transaction before its body returns a
+// typed failure. Compare with the acknowledged-rollback control on a live PID.
+// Unlike a mocked SqlClient, this exercises the driver's actual rollback path.
+/** @param {string} url
+ * @param {typeof import('drizzle-orm/postgres/effect').DrizzlePostgresClient} Pg
+ * @param {typeof import('drizzle-orm/postgres/effect').DrizzlePostgresClient.DrizzlePostgresClient} tag
+ * @param {string} installedVersion
+ */
+export const qualifyRollback = (url, Pg, tag, installedVersion) => {
+  const options = { url: Redacted.make(url), maxConnections: 1 }
+  return Effect.runPromise(
+    Effect.gen(function* () {
+      const observer = yield* tag
+      yield* observer.unsafe("CREATE TABLE rollback_marker (marker int primary key)")
+      yield* Effect.gen(function* () {
+        const writer = yield* tag
+        assert.notEqual(observer, writer)
+        const adapter = Native.make({
+          client: writer,
+          operationTimeout: Duration.seconds(10)
+        })
+        const domainError = new Error("typed application failure")
+        for (const expire of [false, true]) {
+          let calls = 0
+          const exit = yield* Effect.exit(
+            adapter.ownedTransaction((query) =>
+              Effect.gen(function* () {
+                calls++
+                const [{ pid }] = yield* query.query("select pg_backend_pid() as pid")
+                yield* query.query("INSERT INTO rollback_marker VALUES (1)")
+                const count = observer.unsafe(
+                  "select count(*)::int as n from pg_stat_activity where pid=$1",
+                  [pid]
+                )
+                assert.equal((yield* count)[0].n, 1)
+                if (expire) {
+                  yield* query.query(
+                    "set local idle_in_transaction_session_timeout='150ms'"
+                  )
+                  // An independent session must actually observe disconnection before
+                  // releasing the body. A fixed delay alone is not this oracle.
+                  const deadline = performance.now() + 5000
+                  while ((yield* count)[0].n !== 0) {
+                    assert(performance.now() < deadline, "idle session did not close")
+                    yield* Effect.sleep("25 millis")
+                  }
+                }
+                return yield* Effect.fail(domainError)
+              })
+            )
+          )
+          assert.equal(calls, 1)
+          assert.equal(
+            (yield* observer.unsafe("SELECT count(*)::int AS n FROM rollback_marker"))[0]
+              .n,
+            0
+          )
+          assert(Exit.isFailure(exit))
+          const reasons = exit.cause.reasons
+          assert(Cause.isFailReason(reasons[0]) && reasons[0].error === domainError)
+          if (!expire) {
+            assert.equal(reasons.length, 1, "acknowledged rollback adds no uncertainty")
+          } else if (
+            reasons.length === 1 &&
+            writer.driver === "drizzle-postgres" &&
+            installedVersion === "1.0.0-rc.6"
+          ) {
+            console.warn(
+              "KNOWN LIMITATION (drizzle-orm#6709): rc.6 discarded the rollback failure after observed session expiry"
+            )
+          } else {
+            assert(
+              reasons.some(
+                (r) =>
+                  Cause.isFailReason(r) &&
+                  r.error instanceof PostgreSqlFailure &&
+                  r.error.commitKnowledge === "Unknown"
+              ),
+              "failed ROLLBACK missing from Cause after observed session expiry"
+            )
+          }
+        }
+      }).pipe(Effect.provide(Pg.layer(options)))
+    }).pipe(Effect.provide(Pg.layer(options)))
+  )
+}

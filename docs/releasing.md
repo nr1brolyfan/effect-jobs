@@ -39,7 +39,7 @@ Consume that same archive with `qualify:docs:readme`, `qualify:release`,
 `qualify:drizzle:native` and `qualify:drizzle:indexes`. Real-PG gates require
 `D6_RESOURCE_DIRECTORY` describing an explicitly owned disposable database;
 missing resources and skipped suites are not a passing qualification. Serialize
-database fixtures. The only current supported Drizzle pin is `1.0.0-rc.5`;
+database fixtures. The only current supported Drizzle pin is `1.0.0-rc.6`;
 leave `DRIZZLE_ORM_VERSION` unset or set it to that exact version. The old
 hash-suffixed snapshot commands and declaration exceptions are historical only.
 
@@ -85,7 +85,7 @@ have reviewed every NotTested/FAIL item in the handoff.
 
    ```sh
    npm init -y
-   npm install --ignore-scripts --save-exact effect-jobs@0.1.0-alpha.3 effect@4.1.0 --registry=https://registry.npmjs.org
+   npm install --ignore-scripts --save-exact effect-jobs@0.1.0-alpha.3 effect@4.1.3 --registry=https://registry.npmjs.org
    npm ls effect-jobs effect
    node --input-type=module -e 'await import("effect-jobs/Job"); console.log("registry import PASS")'
    ```

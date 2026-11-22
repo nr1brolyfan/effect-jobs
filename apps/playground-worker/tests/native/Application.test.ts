@@ -448,12 +448,38 @@ api.test(
         base.replace("localhost", "127.0.0.1") + path
       ).pipe(Effect.flatMap((response) => response.text))
       expect(result).toBe(path === "/success" ? "closed-success" : "closed-failure")
+      const ended = performance.now()
       const remaining = yield* Effect.promise(() =>
-        pool.query(
-          "SELECT count(*)::int AS n FROM pg_stat_activity WHERE application_name='native-lifecycle-probe'"
+        pool.query<{ pid: number; active_sleep: boolean }>(
+          `SELECT pid, state = 'active' AND wait_event = 'PgSleep' AS active_sleep
+           FROM pg_stat_activity WHERE application_name='native-lifecycle-probe'`
         )
       )
-      expect(remaining.rows[0].n).toBe(0)
+      if (remaining.rows.length > 0) {
+        // Failure diagnostics only: keep the first observation as the assertion.
+        const pids = remaining.rows.map((row) => row.pid)
+        const endedWithinBudget = yield* Effect.promise(async () => {
+          while (performance.now() - ended < 3000) {
+            await Bun.sleep(50)
+            const alive = await pool.query(
+              "SELECT 1 FROM pg_stat_activity WHERE pid = ANY($1::int[]) AND application_name='native-lifecycle-probe'",
+              [pids]
+            )
+            if (alive.rows.length === 0) {
+              return true
+            }
+          }
+          return false
+        })
+        console.error("PG scope close diagnostic", {
+          path,
+          sessions: pids.length,
+          activeSleep: remaining.rows.some((row) => row.active_sleep),
+          endedWithinBudget,
+          observedMillis: Math.round(performance.now() - ended)
+        })
+      }
+      expect(remaining.rows.length, `PG sessions still present after ${path}`).toBe(0)
     }
   }),
   { timeout: 15000 }

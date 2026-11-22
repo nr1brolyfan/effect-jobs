@@ -62,7 +62,7 @@ writeFileSync(
   JSON.stringify({
     private: true,
     type: "module",
-    dependencies: { "effect-jobs": `file:${archive}`, effect: "4.1.0" }
+    dependencies: { "effect-jobs": `file:${archive}`, effect: "4.1.3" }
   })
 )
 run("bun", ["install", "--ignore-scripts"])

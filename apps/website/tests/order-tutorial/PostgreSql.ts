@@ -44,7 +44,7 @@ import {
 import * as Scenarios from "../../examples/docs/orders/apps/api/src/orders/SubmissionScenarios.js"
 import { matchesSubmission } from "../../examples/docs/orders/apps/api/src/orders/OrderSubmission.js"
 import { ApiDefinitions } from "../../examples/docs/orders/apps/api/src/orders/Definitions.js"
-// Native SQL APIs are intentionally pinned to Effect 4.1.0 by this qualification.
+// Native SQL APIs are intentionally pinned to Effect 4.1.3 by this qualification.
 // @effect-diagnostics unstableApiUsage:off
 // Disposable owned PG only. Executes the exact compiled canonical application.
 

@@ -2,12 +2,16 @@
 
 ## Current local dependency target
 
-The current Effect 4.1 local candidate targets exact `drizzle-orm@1.0.0-rc.5`,
-`effect@4.1.0` and native companion `@effect/sql-pg@4.1.0`. The application-owned same-client
-`PgClient.withTransaction` contract is unchanged. Current source, packed consumer
-and runtime checks are recorded against the Effect 4.1 archive, not borrowed from
-the snapshot results below. The native runner performs a new full foreign
-declaration audit; previous snapshot-specific exceptions are not inherited.
+Select one PostgreSQL client before the transaction: the bundled driver in
+`drizzle-orm/postgres/effect` at `1.0.0-rc.6` with Effect `4.1.3`, or a qualified
+`@effect/sql-pg@4.1.3` client with `drizzle-orm/effect-postgres`. The application
+and jobs use the same client and transaction. Never replay on the other driver.
+The playground requires interrupted SQL to stop when the invocation ends and
+its WebSocket Durable Object to hibernate with attachments intact. Until both
+checks pass on the bundled driver it uses `@effect/sql-pg`. On rc.6 a failed
+ROLLBACK can lose its own error; a lone application failure is not evidence of
+an acknowledged rollback. The current full foreign declaration audit reports
+three missing Drizzle builder names. No previous exception covers these errors.
 
 ## Historical two-snapshot qualification
 

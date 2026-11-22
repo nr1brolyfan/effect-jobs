@@ -5,7 +5,7 @@
 Package metadata targets `0.1.0-alpha.3`. Published alpha.2 uses Effect/sql-pg
 `4.0.5` and two hash-suffixed Drizzle snapshots; it is not this candidate.
 The candidate includes the contract-first redesign and selects exact Effect/sql-pg
-`4.1.0`, Drizzle `1.0.0-rc.5`, and Alchemy/Cloudflare `2.0.0-beta.85`.
+`4.1.3`, Drizzle `1.0.0-rc.6`, and Alchemy/Cloudflare `2.0.0-beta.85`.
 Node `24.15.0`, Bun `1.4.2` and TypeScript `7.0.2` remain pinned. The standalone
 Alchemy example retains its bounded TypeScript 6 graph. Completed retention
 remains 90 days.
@@ -120,7 +120,7 @@ Additional release gates include `check:docs:reference`, `qualify:docs:orders`,
 `node tests/qualification/creation-time/Installed.mjs`, `qualify:observability`
 and the frozen standalone Alchemy example qualification. Packed UI honors the
 same `EFFECT_JOBS_ARCHIVE`; do not let a consumer silently pack another candidate.
-The selected Drizzle pin is only `1.0.0-rc.5`, not the historical snapshots.
+The selected Drizzle pin is only `1.0.0-rc.6`, not the historical snapshots.
 
 The full handoff also records compiled browser/UI, public docs/islands, native
 private/public/observation/concurrency, provider cleanup, bounded export and

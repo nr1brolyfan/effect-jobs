@@ -20,7 +20,7 @@ assert.equal(fences.filter((m) => m[1] === "sh").length, 1)
 assert.equal(fences.filter((m) => m[1] === "text").length, 0)
 assert.equal(
   fences.find((m) => m[1] === "sh")[2].trim(),
-  `npm install ./effect-jobs-${manifest.version}.tgz effect@4.1.0`
+  `npm install ./effect-jobs-${manifest.version}.tgz effect@${manifest.peerDependencies.effect}`
 )
 const hash = (value) => createHash("sha256").update(value).digest("hex")
 mkdirSync(join(root, ".toolchain/readme"), { recursive: true })
@@ -61,11 +61,13 @@ try {
       type: "module",
       dependencies: {
         "effect-jobs": `file:${archive}`,
-        effect: "4.1.0",
-        "drizzle-orm": process.env.DRIZZLE_ORM_VERSION ?? "1.0.0-rc.5",
-        "@effect/sql-pg": "4.1.0",
-        "@effect/platform-node": "4.1.0",
-        "@effect/platform-node-shared": "4.1.0",
+        effect: manifest.peerDependencies.effect,
+        "drizzle-orm":
+          process.env.DRIZZLE_ORM_VERSION ?? manifest.devDependencies["drizzle-orm"],
+        "@effect/sql-pg": manifest.devDependencies["@effect/sql-pg"],
+        "@effect/platform-node": manifest.devDependencies["@effect/platform-node"],
+        "@effect/platform-node-shared":
+          manifest.devDependencies["@effect/platform-node-shared"],
         typescript: "7.0.2",
         "@types/node": "26.4.1"
       }

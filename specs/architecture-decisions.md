@@ -640,8 +640,9 @@ connection/xid, concurrent isolation/deduplication, caller interruption, wrong s
 standalone failure/active rejection and synthetic response loss after durable COMMIT.
 This is not a network/server-crash guarantee.
 
-The current local Effect 4.1 dependency target is `PgClient@4.1.0` with native Drizzle
-`1.0.0-rc.5`; its exact source/packed qualification is recorded in
+The current local target is Effect `4.1.3` and Drizzle `1.0.0-rc.6`. Select one bundled
+DrizzlePostgresClient or the qualified `@effect/sql-pg@4.1.3` client before opening the transaction;
+see [driver selection](drizzle-compatibility.md). Release qualification is recorded in
 [release qualification](release-qualification.md). The earlier hash-suffixed
 snapshot evidence remains historical and does not qualify this release by itself.
 A+B strict/exactOptional source contracts remain required with approved dependency
@@ -692,7 +693,7 @@ arbitrary per-column remapping is not required. Core does not depend on Drizzle.
 Persistence and migration configuration must agree on the same storage mapping.
 
 Owner decision (2026-10-05): the optional Drizzle integration uses the same
-Effect-native `drizzle-orm` version as effect-auth, now selected as
+Effect-native `drizzle-orm` version as effect-auth, originally selected as
 `1.0.0-rc.5`, rather than `0.45.1`. Qualify the actual schema/driver APIs,
 transaction boundary, and installed consumer with that exact version; do not
 merely widen peer metadata, force installation, or downgrade the auth consumer.

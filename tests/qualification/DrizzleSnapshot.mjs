@@ -2,8 +2,10 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
-export const snapshots = ["1.0.0-rc.5"]
+export const effectVersion = "4.1.3"
+export const snapshots = ["1.0.0-rc.6"]
 export const selectSnapshot = (manifest) => {
+  assert.equal(manifest.peerDependencies.effect, effectVersion)
   assert.equal(manifest.peerDependencies["drizzle-orm"], snapshots.join(" || "))
   assert.equal(manifest.devDependencies["drizzle-orm"], snapshots[0])
   const version = process.env.DRIZZLE_ORM_VERSION ?? snapshots[0]
@@ -16,7 +18,7 @@ export const selectSnapshot = (manifest) => {
 
 export const checkInstalledGraph = (directory, version, peers = {}) => {
   const lock = JSON.parse(readFileSync(join(directory, "package-lock.json"), "utf8"))
-  const expected = { effect: "4.1.0", "drizzle-orm": version, ...peers }
+  const expected = { effect: effectVersion, "drizzle-orm": version, ...peers }
   const resolved = {}
   for (const [name, pin] of Object.entries(expected)) {
     const paths = Object.keys(lock.packages).filter((p) =>

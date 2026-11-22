@@ -1,17 +1,20 @@
 // Requires the surrounding qualification runner's one disposable, owned database.
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
-import { Client } from "pg"
+import { createPool } from "drizzle-orm/postgres/client"
 import { migration } from "./Migrate.mjs"
 assert(process.env.EXAMPLE_TEST_DATABASE_URL)
-const admin = new Client({
-  connectionString: process.env.EXAMPLE_TEST_DATABASE_URL,
-  connectionTimeoutMillis: 2000
+const admin = createPool({
+  url: process.env.EXAMPLE_TEST_DATABASE_URL,
+  connectTimeout: 2000,
+  max: 1,
+  reconnect: false
 })
-await admin.connect()
 try {
   await admin.query("CREATE SCHEMA alchemy_example")
-  await admin.query(migration)
+  for (const statement of migration.split(";").filter((sql) => sql.trim())) {
+    await admin.query(statement)
+  }
   for (const script of [".toolchain/Cleanup.mjs", "tests/Run.mjs", "tests/FullApp.mjs"]) {
     const result = spawnSync("node", [script], {
       timeout: 120000,
@@ -28,7 +31,9 @@ try {
   assert.equal(
     (
       await admin.query(
-        "SELECT issued FROM alchemy_example.invoices WHERE invoice_id='invoice-reject'"
+        "SELECT issued FROM alchemy_example.invoices WHERE invoice_id='invoice-reject'",
+        [],
+        { mode: "object" }
       )
     ).rows[0].issued,
     false
@@ -36,14 +41,18 @@ try {
   assert.equal(
     (
       await admin.query(
-        "SELECT count(*)::int AS n FROM alchemy_example.receipts WHERE operation_id='tenant-a/rollback-request'"
+        "SELECT count(*)::int AS n FROM alchemy_example.receipts WHERE operation_id='tenant-a/rollback-request'",
+        [],
+        { mode: "object" }
       )
     ).rows[0].n,
     0
   )
   const rows = (
     await admin.query(
-      "SELECT i.issued, r.job_id, j.state FROM alchemy_example.invoices i JOIN alchemy_example.receipts r USING(tenant_id,invoice_id) JOIN alchemy_example.jobs j ON j.id=r.job_id"
+      "SELECT i.issued, r.job_id, j.state FROM alchemy_example.invoices i JOIN alchemy_example.receipts r USING(tenant_id,invoice_id) JOIN alchemy_example.jobs j ON j.id=r.job_id",
+      [],
+      { mode: "object" }
     )
   ).rows
   assert.equal(rows.length, 2)
@@ -52,7 +61,9 @@ try {
   assert.equal(
     (
       await admin.query(
-        "SELECT count(*)::int AS n FROM pg_stat_activity WHERE application_name='effect-jobs-alchemy-example'"
+        "SELECT count(*)::int AS n FROM pg_stat_activity WHERE application_name='effect-jobs-alchemy-example'",
+        [],
+        { mode: "object" }
       )
     ).rows[0].n,
     0

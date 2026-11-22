@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
 import { Miniflare, convertV4MiniflareOptions } from "miniflare"
-import { Client } from "pg"
+import { createPool } from "drizzle-orm/postgres/client"
 import { makeDevelopmentProvider } from "./DevelopmentProvider.mjs"
 const provider = makeDevelopmentProvider()
 const deliveries = provider.effects
@@ -204,11 +204,12 @@ try {
     assert.equal(first.response.status, 200, JSON.stringify(first.body))
     const duplicate = await issue("invoice-a", "request-a")
     assert.deepEqual(duplicate.body, first.body)
-    const client = new Client({
-      connectionString: database,
-      connectionTimeoutMillis: 2000
+    const client = createPool({
+      url: database,
+      connectTimeout: 2000,
+      max: 1,
+      reconnect: false
     })
-    await client.connect()
     try {
       // The supported job sorts after twenty older, unsupported jobs on the same queue.
       const {
@@ -217,7 +218,8 @@ try {
         `UPDATE alchemy_example.jobs
          SET available_at = floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint + 10000
          WHERE id = $1 RETURNING available_at`,
-        [first.body.jobId]
+        [first.body.jobId],
+        { mode: "object" }
       )
       await client.query(
         `INSERT INTO alchemy_example.jobs
@@ -251,7 +253,8 @@ try {
       assert.equal(deliveries.size, 1)
       const { rows } = await client.query(
         "SELECT state FROM alchemy_example.jobs WHERE id = $1",
-        [first.body.jobId]
+        [first.body.jobId],
+        { mode: "object" }
       )
       assert.equal(rows[0].state, "Completed")
       receipts.push(
