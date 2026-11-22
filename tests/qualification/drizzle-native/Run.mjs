@@ -1,4 +1,8 @@
-import { selectSnapshot, checkInstalledGraph } from "../DrizzleSnapshot.mjs"
+import {
+  selectSnapshot,
+  checkInstalledGraph,
+  effectVersion
+} from "../DrizzleSnapshot.mjs"
 import { tmpdir } from "node:os"
 // Finite packed-consumer gate. Owns only ignored scratch files, never root pins.
 import assert from "node:assert/strict"
@@ -72,9 +76,9 @@ writeFileSync(
       type: "module",
       dependencies: {
         "effect-jobs": `file:${archive}`,
-        effect: "4.1.0",
+        effect: effectVersion,
         "drizzle-orm": drizzleVersion,
-        "@effect/sql-pg": "4.1.0",
+        "@effect/sql-pg": effectVersion,
         pg: "8.23.0",
         "@types/pg": "8.20.0",
         "@types/node": "26.4.1",
@@ -89,7 +93,7 @@ writeFileSync(
 run("npm-install", "npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"])
 run("npm-tree", "npm", ["ls", "--all"])
 const resolvedGraph = checkInstalledGraph(consumer, drizzleVersion, {
-  "@effect/sql-pg": "4.1.0",
+  "@effect/sql-pg": effectVersion,
   pg: "8.23.0",
   typescript: "7.0.2",
   "@types/node": "26.4.1",
@@ -288,6 +292,8 @@ for (const runtime of ["node", "bun"]) {
   })
   const receipt = JSON.parse(readFileSync(evidence, "utf8"))
   assert.equal(receipt.drizzle, drizzleVersion)
+  assert.equal(receipt.effect, effectVersion)
+  assert.equal(receipt.nativeDriver, `@effect/sql-pg@${effectVersion}`)
   assert.equal(receipt.runtime, runtime)
   assert.equal(receipt.runtimeVersion, runtime === "node" ? "v24.15.0" : "1.4.2")
   assert.equal(receipt.success, true)

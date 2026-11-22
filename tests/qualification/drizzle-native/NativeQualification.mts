@@ -1,5 +1,5 @@
 import { readQualificationResource } from "../Resource.mjs"
-// Native low-level SQL APIs are intentionally pinned to 4.1.0 by the consumer runner.
+// Native low-level SQL APIs are pinned by the installed consumer runner.
 // @effect-diagnostics unstableApiUsage:off
 import assert from "node:assert/strict"
 import { readFileSync, writeFileSync } from "node:fs"
@@ -523,8 +523,10 @@ try {
     drizzle: JSON.parse(
       readFileSync(new URL("./package.json", import.meta.resolve("drizzle-orm")), "utf8")
     ).version,
-    nativeDriver: "@effect/sql-pg@4.1.0",
-    effect: "4.1.0",
+    nativeDriver: `@effect/sql-pg@${JSON.parse(readFileSync(new URL(import.meta.resolve("@effect/sql-pg/package.json")), "utf8")).version}`,
+    effect: JSON.parse(
+      readFileSync(new URL(import.meta.resolve("effect/package.json")), "utf8")
+    ).version,
     passed,
     stage,
     cleanup,
