@@ -1,9 +1,8 @@
 // @effect-diagnostics unstableApiUsage:off
-// The native HTTP/SQL APIs are intentionally pinned to Effect 4.1.0.
-import * as Pg from "@effect/sql-pg/PgClient"
+// The native SQL APIs are intentionally pinned to Effect 4.1.3.
+import * as PostgresClient from "./PostgresClient.js"
 import * as Reactivity from "effect/reactivity/Reactivity"
-import { Duration, Effect, Layer } from "effect"
-import type { Redacted } from "effect"
+import { Duration, Effect, Layer, type Redacted } from "effect"
 import * as Jobs from "effect-jobs/PostgreSqlJobs"
 import * as Native from "effect-jobs/PostgreSqlNative"
 import { PostgreSqlApplication } from "effect-jobs/PostgreSqlTransaction"
@@ -33,23 +32,10 @@ export interface Settings<R = never> {
 export const openInvocation = <R = never>(settings: Settings<R>) =>
   Effect.gen(function* () {
     const declarations = yield* Definitions
-    const client = yield* Pg.make({
-      applicationName: "effect-jobs-alchemy-example",
-      url: Effect.isEffect(settings.databaseUrl)
-        ? yield* settings.databaseUrl
-        : settings.databaseUrl,
-      minConnections: 0,
-      maxConnections: 2,
-      prepare: false,
-      connectTimeout: "2 seconds",
-      acquireTimeout: "2 seconds",
-      idleTimeout: "1 second",
-      startupParameters: {
-        statement_timeout: "2000",
-        lock_timeout: "1000",
-        idle_in_transaction_session_timeout: "5000"
-      }
-    })
+    const url = Effect.isEffect(settings.databaseUrl)
+      ? yield* settings.databaseUrl
+      : settings.databaseUrl
+    const client = yield* PostgresClient.make(url)
     const jobs = yield* Jobs.make({
       schema: "alchemy_example",
       operationResponseBudget: Duration.millis(500)

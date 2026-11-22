@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { Effect, Exit, Cause } from "effect"
-import type { PgClient } from "@effect/sql-pg/PgClient"
+import type { SqlClient } from "effect/sql/SqlClient"
 import { test } from "vitest"
 import * as Registry from "../../src/persistence/MigrationRegistry.js"
 import { migrationCommand, qualify } from "./PostgreSqlQualification.js"
@@ -58,7 +58,7 @@ for (const failure of ["none", "backfill", "migration"]) {
               inTransaction = false
             })
         ).pipe(Effect.flatMap(() => Effect.die(stop)))
-    } as unknown as PgClient
+    } as unknown as SqlClient
     const exit = await Effect.runPromise(Effect.exit(qualify(client, schema)))
     assert.ok(Exit.isFailure(exit))
     assert.equal(Cause.squash(exit.cause), stop)

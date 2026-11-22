@@ -60,11 +60,11 @@ const ReceiptHandler = JobGroup.handlers(BillingJobs, (handlers) =>
 
 ## Install
 
-Examples target the unpublished `0.1.0-alpha.3` release candidate, not the published alpha.2 package. Its exact peers are Effect `4.1.0` and optional Drizzle `1.0.0-rc.5`. This prerelease changes the alpha.0 enqueue,
+Examples target the unpublished `0.1.0-alpha.3` release candidate, not the published alpha.2 package. Its exact peers are Effect `4.1.3` and optional Drizzle `1.0.0-rc.6`. This prerelease changes the alpha.0 enqueue,
 policy, failure-code and encrypted-payload APIs; update callers before upgrading.
 
 ```sh
-npm install ./effect-jobs-0.1.0-alpha.3.tgz effect@4.1.0
+npm install ./effect-jobs-0.1.0-alpha.3.tgz effect@4.1.3
 ```
 
 Imports are omitted below. Use package subpaths (`effect-jobs/Job`, `effect-jobs/JobGroup`, `effect-jobs/JobApi`, `effect-jobs/JobPolicy`, …); the root export is empty. `Codec`, `Worker` and `Polling` refer to `JobPayloadCodec`, `JobWorker` and `JobPolling` respectively.
@@ -83,6 +83,13 @@ job identity. Duplicate group names and duplicate name/version pairs are rejecte
 `PgClient` is `@effect/sql-pg/PgClient`; `PostgreSqlNative` is the library module
 of the same name. The application provides its scoped `PgClient` Layer, with
 finite connection, statement and idle transaction timeouts.
+
+For the bundled PostgreSQL driver, use `DrizzlePostgresClient` from
+`drizzle-orm/postgres/effect` and pass the same application-owned client to
+`PostgreSqlNative`. See the [Alchemy example](examples/cloudflare-alchemy/README.md)
+for scoped setup and managed Hyperdrive timeouts. The playground retains
+`@effect/sql-pg` for its interrupted-query shutdown and DO hibernation requirements.
+Choose the client before opening the transaction; never retry on a different driver.
 
 `FailureCode` is the `effect-jobs/FailureCode` module; `JobEnqueue` is the service
 exported by `effect-jobs/JobEnqueue`. Job version defaults to `1`. Slot-bound

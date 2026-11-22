@@ -93,6 +93,8 @@ const keys = (config: Config) =>
     return { encryption, fingerprint, cursor }
   })
 
+// UPVE-2838: use the PgClient transport for the playground's interrupted SQL
+// and WebSocket hibernation contract. Select once, before any transaction.
 // One native client/jobs per serialized event. Scope closes before return.
 export const run = <A, E>(
   config: Config,

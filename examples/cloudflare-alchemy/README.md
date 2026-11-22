@@ -1,7 +1,7 @@
 # Tenant billing with native Alchemy callbacks
 
 This standalone application uses Alchemy and `@alchemy.run/cloudflare`
-**2.0.0-beta.85**, Effect and platform peers **4.1.0**, TypeScript **6.0.3**,
+**2.0.0-beta.85**, Effect and platform peers **4.1.3**, Drizzle **1.0.0-rc.6**, TypeScript **6.0.3**,
 npm **11.12.1**, Node **24.15.0**, and local Miniflare/workerd pinned by `package-lock.json`.
 The example uses TypeScript 6 to satisfy Alchemy’s `capnp-es` compiler peer range;
 the root library retains its TypeScript 7 baseline. A frozen `npm ci` and
@@ -30,13 +30,22 @@ Domain starts no setup or work; Job contracts contain no routing or policy.
 `openInvocation` acquires one definitions Layer and shares the exact resolved graph
 with production, handlers, worker and schedule throughout that invocation.
 
-`src/Invocation.ts` explicitly creates the invocation's PgClient, native
+`src/Invocation.ts` explicitly creates the invocation's DrizzlePostgresClient, native
 transaction adapter, `jobs`, configured producer, storage, handlers and worker.
 The caller closes its Scope before returning; no SQL client, transaction Context
-or pool survives into another RPC, alarm or hibernation. This uses native
-`PgClient.make`, rather than retaining a lazy SQL proxy whose transaction identity
-could be misunderstood. The pinned Alchemy SQL implementation also memoizes
-pools by the current execution Scope, not by isolate Layer lifetime.
+or pool survives into another RPC, alarm or hibernation. `createPool` sets finite
+connection, acquisition, lock, statement and idle-transaction timeouts;
+`DrizzlePostgresClient.fromPool` borrows that pool in the invocation's Scope.
+
+**Managed Hyperdrive deployment:** configure the database-side limits on the
+dedicated origin role for this database. Hyperdrive can use the origin session's
+defaults instead of forwarding the Worker's startup settings. For this example
+set `statement_timeout` to `2s`, `lock_timeout` to `1s` and
+`idle_in_transaction_session_timeout` to `5s` (for example with `ALTER ROLE …
+IN DATABASE … SET …` in host-managed provisioning). Verify all three with
+`current_setting(...)` **from the Worker via its binding** on fresh connections
+before serving traffic. A successful direct connection or local Miniflare test
+does not verify the managed origin settings. No runtime role changes are needed.
 
 ## Check declared routes before rollout
 
@@ -81,7 +90,7 @@ both tenants; neither is a mandatory library topology.
 
 An application transaction locks/creates its receipt, validates replay content,
 updates the invoice and enqueues the job inside one `client.withTransaction`.
-The native jobs adapter captures that exact invocation-owned `PgClient`. The
+The native jobs adapter captures that exact invocation-owned client. The
 enqueue result is provisional until the outer transaction commits. The stable
 operation ID includes the admitted tenant and caller's bounded request ID.
 The acknowledged receipt response can be read again after response loss. A new
@@ -199,8 +208,9 @@ From the repository root, build the library, then install this standalone packag
 with `npm ci --prefix examples/cloudflare-alchemy --ignore-scripts`. The local
 file dependency is packed by npm (`.npmrc` sets `install-links=true`), keeping
 the root development tree outside this standalone graph. Refresh it after changing
-the library build. SQL D1 is constrained to 4.1.0 within its declared ^4.1.0 range;
-newer 4.1.2 requires a newer Effect peer. Esbuild 0.28.2 satisfies Vite 8.1.0's peer. Use Node
+the library build. The SQL overrides keep Alchemy's optional peer resolution on
+Effect 4.1.3; the PostgreSQL runtime installs neither `pg` nor `@effect/sql-pg`.
+Esbuild 0.28.2 satisfies Vite 8.1.0's peer. Use Node
 24.15.0 for the complete local gates.
 
 Run `bun run qualify:cloudflare:alchemy`. This checks the actual installed Alchemy

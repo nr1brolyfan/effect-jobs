@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Isolated source compatibility probe; no published peer ranges are overridden.
+# Installed-archive qualification. Both consumers use exactly the same tarball.
 # Each runtime gets an empty database on one fresh loopback-only container.
 set -eu -o pipefail
 here=$(cd "$(dirname "$0")" && pwd)
@@ -11,34 +11,27 @@ cleanup() {
   rm -rf "$scratch"
 }
 trap cleanup EXIT
-mkdir "$scratch/consumer" "$scratch/core" "$scratch/candidate"
+if [[ -n "${EFFECT_JOBS_ARCHIVE:-}" ]]; then
+  archive=$(realpath "$EFFECT_JOBS_ARCHIVE")
+else
+  (cd "$root" && bun run build)
+  archive=$(EFFECT_JOBS_ARTIFACT_DIRECTORY="$scratch/artifact" node "$root/scripts/pack-release.mjs")
+fi
+EFFECT_JOBS_ARCHIVE="$archive" node "$root/scripts/check-release.mjs" --metadata-only
+mkdir "$scratch/consumer" "$scratch/core"
 cd "$scratch/consumer"
 cp "$here"/*.mjs "$here"/package*.json .
 npm ci --no-audit --no-fund
 npm ls --all >/dev/null
-# Build a candidate archive from current source with the proposed peer pins.
-cp -R "$root/src" .
-cp "$root/tsconfig"{,.build}.json .
-./node_modules/.bin/tsc -p tsconfig.build.json --outDir "$scratch/candidate/dist"
+cp "$root/tsconfig.json" .
 node --input-type=module - "$root" <<'JS'
-import { cpSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { build } from 'esbuild'
 const root = process.argv[2]
-const manifest = JSON.parse(readFileSync(`${root}/package.json`))
 const { dependencies } = JSON.parse(readFileSync('package.json'))
-manifest.version += '-rc6-probe'
-manifest.peerDependencies.effect = dependencies.effect
-manifest.peerDependencies['drizzle-orm'] = dependencies['drizzle-orm']
-for (const path of manifest.files) {
-  if (path !== 'dist') cpSync(join(root, path), join('../candidate', path), { recursive: true })
-}
-writeFileSync('../candidate/package.json', JSON.stringify(manifest))
 writeFileSync('../core/package.json', JSON.stringify({ private: true, type: 'module', dependencies: { effect: dependencies.effect } }))
 await build({entryPoints:['Migrations','ReportWorkflow'].map(p=>`${root}/apps/website/examples/docs/${p}.ts`),tsconfigRaw:{},outdir:'.',format:'esm',target:'es2022'})
 JS
-archive=$(cd "$scratch/candidate" && npm pack --silent --ignore-scripts --pack-destination "$scratch")
-archive="$scratch/$archive"
 sha256sum "$archive"
 for consumer in "$scratch/core" "$scratch/consumer"; do
   (cd "$consumer" && npm install --strict-peer-deps --ignore-scripts --no-audit --no-fund "$archive" && npm ls --all >/dev/null)

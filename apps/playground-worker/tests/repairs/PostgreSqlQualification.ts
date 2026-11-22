@@ -4,7 +4,6 @@
 // @effect-diagnostics unstableApiUsage:off
 import assert from "node:assert/strict"
 import { Duration, Effect, Exit, Schema } from "effect"
-import type { PgClient } from "@effect/sql-pg/PgClient"
 import { SqlClient } from "effect/sql/SqlClient"
 import { JobEnqueue } from "effect-jobs/JobEnqueue"
 import { JobFinalization } from "effect-jobs/JobLifecycle"
@@ -43,7 +42,7 @@ export const migrationCommand = (sql: string): string => {
   return `DO ${body} BEGIN EXECUTE ${command}${sql}${command}; END ${body} LANGUAGE plpgsql;`
 }
 
-export const qualify = (client: PgClient, schema: string) =>
+export const qualify = (client: SqlClient, schema: string) =>
   Effect.scoped(
     Effect.gen(function* () {
       const definitions = yield* Definitions.Definitions

@@ -28,7 +28,7 @@ writeFileSync(
     type: "module",
     dependencies: {
       "effect-jobs": `file:${archive}`,
-      effect: "4.1.0",
+      effect: "4.1.3",
       typescript: "7.0.2",
       "@types/node": "26.4.1"
     }
@@ -39,7 +39,7 @@ run("tree", "npm", ["ls", "--all"])
 const manifest = JSON.parse(
   readFileSync(join(consumer, "node_modules/effect-jobs/package.json"), "utf8")
 )
-assert.equal(manifest.version, manifest.version)
+assert.deepEqual(manifest, JSON.parse(readFileSync(join(root, "package.json"), "utf8")))
 const imports = Object.keys(manifest.exports)
   .filter((key) => key !== "./PostgreSqlDrizzleSchema")
   .map((key) => (key === "." ? "effect-jobs" : `effect-jobs/${key.slice(2)}`))
