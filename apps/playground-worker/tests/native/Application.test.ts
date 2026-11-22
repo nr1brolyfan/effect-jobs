@@ -465,7 +465,9 @@ api.test(
               "SELECT 1 FROM pg_stat_activity WHERE pid = ANY($1::int[]) AND application_name='native-lifecycle-probe'",
               [pids]
             )
-            if (alive.rows.length === 0) return true
+            if (alive.rows.length === 0) {
+              return true
+            }
           }
           return false
         })
