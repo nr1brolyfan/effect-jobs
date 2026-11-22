@@ -33,7 +33,7 @@ test("fresh packed Bun graph preserves exact-six foreign strict FAIL and indepen
     }
     assert.equal(receipt.result, "FAIL")
     assert.equal(receipt.acceptedForeignDiagnosticContract, "exact-six FAIL")
-    assert.equal(receipt.tools.effect, "4.1.0")
+    assert.equal(receipt.tools.effect, "4.1.3")
     assert.equal(receipt.tools.atomReact, "4.1.0")
     assert.equal(
       receipt.resolution.contractsJobsManifest,

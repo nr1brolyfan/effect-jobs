@@ -66,22 +66,31 @@ export const make = (options: Options): ApplicationAdapter => {
     throw new PostgreSqlConfigurationError({ field: "operationTimeout" })
   }
   const { client } = options
-  // Protect only the native transaction span we create. Restore the host tracer
+  // Protect the native transaction and its direct transaction-control spans. Restore the host tracer
   // inside the callback: application spans retain their own failure semantics.
   // Controls still see the original Exit, including rollback/release failures.
   const ownedNative = <A, E, R>(body: Effect.Effect<A, E, R>) =>
     Effect.gen(function* () {
       const host = yield* Tracer.Tracer
-      let selected = false
+      let transactionSpan: Tracer.Span | undefined
       const tracer = Tracer.make({
         context: host.context,
         span(options) {
           const span = host.span(options)
-          if (selected || options.name !== "sql.transaction") {
+          const isTransaction =
+            transactionSpan === undefined && options.name === "sql.transaction"
+          if (
+            !isTransaction &&
+            !(
+              transactionSpan !== undefined &&
+              Option.isSome(options.parent) &&
+              options.parent.value === transactionSpan &&
+              options.kind === "client"
+            )
+          ) {
             return span
           }
-          selected = true
-          return {
+          const protectedSpan: Tracer.Span = {
             _tag: span._tag,
             name: span.name,
             get spanId() {
@@ -114,6 +123,10 @@ export const make = (options: Options): ApplicationAdapter => {
             event: (name, time, attributes) => span.event(name, time, attributes),
             addLinks: (links) => span.addLinks(links)
           }
+          if (isTransaction) {
+            transactionSpan = protectedSpan
+          }
+          return protectedSpan
         }
       })
       // Effect 4.1 promotes body Fail reasons to Die if a native finalizer fails.

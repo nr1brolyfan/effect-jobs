@@ -9,7 +9,7 @@
     "@effect/atom-react": "4.1.0",
     "@stylexjs/stylex": "0.19.1",
     "@tanstack/react-table": "8.21.3",
-    "effect": "4.1.0",
+    "effect": "4.1.3",
     "effect-jobs": "file:./effect-jobs.tgz",
     "lucide-react": "1.71.0",
     "react": "19.3.0",

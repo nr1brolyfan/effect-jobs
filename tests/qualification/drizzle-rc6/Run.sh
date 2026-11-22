@@ -30,7 +30,8 @@ import { build } from 'esbuild'
 const root = process.argv[2]
 const { dependencies } = JSON.parse(readFileSync('package.json'))
 writeFileSync('../core/package.json', JSON.stringify({ private: true, type: 'module', dependencies: { effect: dependencies.effect } }))
-await build({entryPoints:['Migrations','ReportWorkflow'].map(p=>`${root}/apps/website/examples/docs/${p}.ts`),tsconfigRaw:{},outdir:'.',format:'esm',target:'es2022'})
+// Bundle only authored fixtures; all package imports resolve in this consumer.
+await build({entryPoints:[`${root}/tests/qualification/drizzle-rc6/Transaction.mjs`],bundle:true,packages:'external',platform:'neutral',tsconfigRaw:{},outfile:'Transaction.mjs',format:'esm',target:'es2022'})
 JS
 sha256sum "$archive"
 for consumer in "$scratch/core" "$scratch/consumer"; do

@@ -184,7 +184,7 @@ const effectManifest = JSON.parse(
 const atomReactManifest = JSON.parse(
   readFileSync(join(consumer, "node_modules/@effect/atom-react/package.json"), "utf8")
 )
-assert.equal(effectManifest.version, "4.1.0")
+assert.equal(effectManifest.version, manifest.peerDependencies.effect)
 assert.equal(atomReactManifest.version, "4.1.0")
 // The same alpha version may already exist in the registry with older contracts.
 // The consumer's ordinary dependency override binds every internal dependency

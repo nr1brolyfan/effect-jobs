@@ -7,6 +7,10 @@ import { PostgreSqlFailure } from "effect-jobs/PostgreSqlTransaction"
 // The disposable server closes an idle transaction before its body returns a
 // typed failure. Compare with the acknowledged-rollback control on a live PID.
 // Unlike a mocked SqlClient, this exercises the driver's actual rollback path.
+/** @param {string} url
+ * @param {typeof import('drizzle-orm/postgres/effect').DrizzlePostgresClient} Pg
+ * @param {typeof import('drizzle-orm/postgres/effect').DrizzlePostgresClient.DrizzlePostgresClient} tag
+ */
 export const qualifyRollback = (url, Pg, tag) => {
   const options = { url: Redacted.make(url), maxConnections: 1 }
   return Effect.runPromise(

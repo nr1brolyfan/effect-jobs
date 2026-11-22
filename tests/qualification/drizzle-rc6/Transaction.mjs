@@ -1,3 +1,5 @@
+// The native SQL API is pinned and qualified by this fixture.
+// @effect-diagnostics unstableApiUsage:off
 import assert from "node:assert/strict"
 import { Cause, Duration, Effect, Exit, Layer, Redacted } from "effect"
 import { ConnectionError, SqlError } from "effect/sql/SqlError"
@@ -12,8 +14,11 @@ import { JobStorage } from "effect-jobs/JobStorage"
 import { JobOwnershipLost } from "effect-jobs/JobStore"
 import { JobFinalizations } from "effect-jobs/JobLifecycle"
 import * as Worker from "effect-jobs/JobWorker"
-import { migrationSql } from "./Migrations.js"
-import { ReportsQueue, reportDefinitions } from "./ReportWorkflow.js"
+import { migrationSql } from "../../../apps/website/examples/docs/Migrations.js"
+import {
+  ReportsQueue,
+  reportDefinitions
+} from "../../../apps/website/examples/docs/ReportWorkflow.js"
 
 const requests = pgTable("report_requests", {
   operationId: text("operation_id").primaryKey(),
@@ -25,6 +30,7 @@ const receipts = pgTable("report_request_receipts", {
 })
 
 // Run only against the fresh database allocated by Run.sh for this runtime.
+/** @param {Native.Options['client']} client */
 const openJobs = (client) =>
   Jobs.make({ operationResponseBudget: Duration.millis(500) }).pipe(
     Effect.provideService(
@@ -33,6 +39,7 @@ const openJobs = (client) =>
     )
   )
 
+/** @param {string} url */
 export const qualify = (url) => {
   const options = {
     url: Redacted.make(url),
@@ -44,8 +51,9 @@ export const qualify = (url) => {
       const client = yield* DrizzlePostgresClient.DrizzlePostgresClient
       const db = yield* makeWithDefaults()
       const jobs = yield* openJobs(client)
-      for (const sql of migrationSql.split(";").filter((s) => s.trim()))
+      for (const sql of migrationSql.split(";").filter((s) => s.trim())) {
         yield* client.unsafe(sql)
+      }
       yield* jobs.ready
       yield* client.unsafe(
         "create table write_audit (rel text not null, pid int not null, xid text not null)"
@@ -98,7 +106,10 @@ export const qualify = (url) => {
       const results = yield* Effect.all([request("same"), request("same")], {
         concurrency: 2
       })
-      assert.deepEqual(results.map((r) => r._tag).sort(), ["AlreadyPresent", "Inserted"])
+      assert.deepEqual(
+        new Set(results.map((r) => r._tag)),
+        new Set(["AlreadyPresent", "Inserted"])
+      )
       assert.equal(results[0].jobId, results[1].jobId)
       const audit = yield* client.unsafe("select * from write_audit order by rel")
       assert.deepEqual(
@@ -194,12 +205,14 @@ export const qualify = (url) => {
 }
 
 // Invoked in a fresh scope in all runtimes, and from a real DO alarm in workerd.
+/** @param {string} url */
 export const drain = (url) =>
   Effect.runPromise(
     Effect.gen(function* () {
       const client = yield* DrizzlePostgresClient.DrizzlePostgresClient
       const jobs = yield* openJobs(client)
       const defs = yield* reportDefinitions
+      /** @type {string[]} */
       const seen = []
       const layer = Worker.layer(defs.ApplicationJobs, {
         queues: [{ queue: ReportsQueue, concurrency: 1 }]
@@ -226,7 +239,10 @@ export const drain = (url) =>
       }).pipe(Effect.provide(layer))
       assert.equal(result._tag, "Idle")
       assert.equal(result.claimed, 2)
-      assert.deepEqual(seen.sort(), ["lost", "same"])
+      assert.deepEqual(
+        seen.sort((a, b) => a.localeCompare(b)),
+        ["lost", "same"]
+      )
       assert.deepEqual(
         yield* client.unsafe("select state, count(*)::int as n from jobs group by state"),
         [{ state: "Completed", n: 2 }]

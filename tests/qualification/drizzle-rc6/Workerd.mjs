@@ -39,7 +39,9 @@ try {
     const response = await mf.dispatchFetch("https://probe.invalid/status")
     assert.equal(response.status, 200)
     status = await response.text()
-    if (status === "drained") break
+    if (status === "drained") {
+      break
+    }
     await setTimeout(100)
   }
   assert.equal(
