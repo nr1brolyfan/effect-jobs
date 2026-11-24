@@ -10,12 +10,13 @@ The fixture type checks and tests run with a fresh home and an explicit
 environment. The native Miniflare test and the Alchemy fixture's npm test
 run their workloads in loopback-only network namespaces. The Alchemy npm
 script calls its existing `Run.sh`.
-Each runtime has a 60-second deadline with a five-second kill grace. On exit
-the runner removes its owned temporary home and native scratch. The Alchemy
-fixture destroys its local stack, checks that the HTTP listener closed and
-removes its own scratch. The PID namespaces bound the lifetime of runtime
-descendants when a deadline expires. An uncatchable kill of a cleanup shell
-can leave its temporary directory behind.
+Each runtime has a 60-second deadline with a five-second kill grace. On exit,
+the runner removes its temporary home and scratch, including any remaining
+Alchemy scratch from the invocation. The Alchemy fixture destroys its local
+stack, checks that the HTTP listener closed and removes its own scratch.
+The PID namespaces bound the lifetime of runtime descendants when a deadline
+expires. An uncatchable kill of the outer cleanup shell can leave the top-level
+temporary directory behind.
 
 ## Reproduce against alpha.4
 
@@ -49,12 +50,24 @@ Node 24.15.0, npm 11.12.1, Bun 1.4.2, util-linux 2.39.3, GNU coreutils 9.4 and
 iproute2 6.1.0. The locks pin native workerd 1.20261006.1 via Miniflare
 5.20261006.1-alpha, and workerd 1.20261026.1 via Alchemy 2.0.0-beta.85.
 
-Hosted runner compatibility is unverified. A hosted runner needs the pinned
-toolchain and a run user allowed to create user, PID and network namespaces
-with `unshare -Urnp --fork --kill-child` and enable loopback with
-`ip link set lo up`. The launcher checks that operation before installing
-anything. It also needs writable checkout and temporary directories, and
-access to locked artifacts on a cold cache. The recipe leaves host policy
-unchanged. The local run passed both fixture type checks, 9 native workerd cases and
-1 Alchemy Test.make case on the frozen fixture source and alpha.4.
-The extracted adapter and its integrated qualification have their own snapshot.
+The `DO SQLite qualification` job runs on every pull request and manual CI
+dispatch on a [GitHub-hosted Ubuntu 24.04 x64 VM](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+It verifies that the launcher rejects an unset `ALCHEMY_TEST_DEV`, then runs
+the same launcher with pinned tools, a writable checkout and temporary
+directories, and access to locked artifacts for installation. The runtime
+step is bounded by seven minutes and the job by ten. Namespace, guard and
+runtime logs are retained as an artifact.
+
+The job probes `unshare -Urnp --fork --kill-child` and brings up loopback
+before checkout. [Ubuntu 24.04 can restrict unprivileged user namespaces](https://documentation.ubuntu.com/release-notes/24.04/#security-improvements).
+If the probe fails with that restriction enabled, the job loads an AppArmor
+profile granting `userns` to the system `/usr/bin/unshare` executable and
+repeats the probe. The workflow removes the profile during teardown. The
+sysctl stays at its original value, and checkout, installs and both workloads
+run as the runner user. The launcher itself repeats the probe before
+installing anything and fails if it cannot use the namespace.
+
+Local WSL2 qualification uses the existing unprivileged namespace path.
+The GitHub-hosted probe and the conditional AppArmor path require confirmation
+from the integrated workflow's hosted run. The historical alpha.4 recipe passed
+both fixture type checks, 9 native workerd cases and 1 Alchemy Test.make case.
