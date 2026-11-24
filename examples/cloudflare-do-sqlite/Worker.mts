@@ -22,7 +22,7 @@ const decodeCommand = Schema.decodeUnknownEffect(
   Schema.Struct({
     operationId: Schema.String,
     payload: Invoice,
-    failAfterWrites: Schema.optional(Schema.Boolean)
+    failAfterWrites: Schema.Boolean.pipe(Schema.optional)
   }),
   { onExcessProperty: "error" }
 )
@@ -97,9 +97,10 @@ export class InvoiceJobs extends DurableObject<Bindings> {
       yield* Effect.tryPromise(() => storage.sync())
       return Response.json(result)
     }).pipe(
-      Effect.catchTag("InjectedRollback", () =>
-        Effect.succeed(Response.json({ _tag: "InjectedRollback" }, { status: 409 }))
-      )
+      Effect.catchTags({
+        InjectedRollback: () =>
+          Effect.succeed(Response.json({ _tag: "InjectedRollback" }, { status: 409 }))
+      })
     )
   }
 
@@ -107,13 +108,13 @@ export class InvoiceJobs extends DurableObject<Bindings> {
     const storage = this.ctx.storage
     const handlers = JobGroup.handlers(group, (builder) =>
       Effect.succeed(
-        builder.handle("record", ({ context, payload }) =>
+        builder.handle("record", (input) =>
           Effect.sync(() => {
             storage.sql.exec(
               "INSERT INTO recorded_invoices VALUES (?, ?, ?) ON CONFLICT(jobId) DO NOTHING",
-              context.jobId,
-              payload.invoiceId,
-              payload.amountCents
+              input.context.jobId,
+              input.payload.invoiceId,
+              input.payload.amountCents
             )
           })
         )
