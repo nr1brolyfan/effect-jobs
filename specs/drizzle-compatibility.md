@@ -3,15 +3,24 @@
 ## Current local dependency target
 
 Select one PostgreSQL client before the transaction: the bundled driver in
-`drizzle-orm/postgres/effect` at `1.0.0-rc.6` with Effect `4.1.3`, or a qualified
+`drizzle-orm/postgres/effect` at `1.0.0-rc.6-effect-jobs.1` with Effect `4.1.3`, or a qualified
 `@effect/sql-pg@4.1.3` client with `drizzle-orm/effect-postgres`. The application
 and jobs use the same client and transaction. Never replay on the other driver.
 The playground requires interrupted SQL to stop when the invocation ends and
 its WebSocket Durable Object to hibernate with attachments intact. Until both
 checks pass on the bundled driver it uses `@effect/sql-pg`. On rc.6 a failed
 ROLLBACK can lose its own error; a lone application failure is not evidence of
-an acknowledged rollback. The current full foreign declaration audit reports
-three missing Drizzle builder names. No previous exception covers these errors.
+an acknowledged rollback. The registry rc.6 declarations have three missing Drizzle builder names
+([#6728](https://github.com/drizzle-team/drizzle-orm/issues/6728)). Alpha.4 uses the
+[commit-pinned repair tarball](../README.md#install). The exact optional peer
+matches the tarball's package version. Its full installed declaration audit is
+a release gate with TypeScript 7.0.2 and `skipLibCheck:false`.
+
+Remove the temporary pin after independently qualifying a published upstream
+version. Repeat frozen resolution, the no-Drizzle and single-Drizzle consumer
+checks, the strict declaration audit, and the real PostgreSQL/runtime gates on
+the replacement bytes. Revisit each rollback, interruption and hibernation
+exception against its own runtime oracle.
 
 ## Historical two-snapshot qualification
 
@@ -149,8 +158,8 @@ six deliberate negative directives and requires actual input/output/query error,
 transaction error, join error and Caller requirement diagnostics. An any/error-type
 leak is not success.
 
-C, the full foreign d.ts audit with `skipLibCheck:false`, remains **known upstream
-FAIL**, separately reported and nonblocking. `UpstreamAudit.json` binds original
+For the historical rc.5 snapshots, C (the full foreign d.ts audit with
+`skipLibCheck:false`) failed and was separately reported. `UpstreamAudit.json` binds original
 command/config/log hashes and exact dependency pins. The runner checks those and
 reuses the unchanged foreign audit, without calling it C PASS. Drizzle still
 imports removed `effect/unstable/sql/SqlError`; policy/role declarations fail exact

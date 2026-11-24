@@ -65,13 +65,14 @@ export const qualifyRollback = (url, Pg, tag, installedVersion) => {
           assert(Cause.isFailReason(reasons[0]) && reasons[0].error === domainError)
           if (!expire) {
             assert.equal(reasons.length, 1, "acknowledged rollback adds no uncertainty")
+            console.log("Acknowledged ROLLBACK control PASS")
           } else if (
             reasons.length === 1 &&
             writer.driver === "drizzle-postgres" &&
-            installedVersion === "1.0.0-rc.6"
+            installedVersion === "1.0.0-rc.6-effect-jobs.1"
           ) {
             console.warn(
-              "KNOWN LIMITATION (drizzle-orm#6709): rc.6 discarded the rollback failure after observed session expiry"
+              "KNOWN LIMITATION (drizzle-orm#6709): qualified rc.6 fork discarded the rollback failure after observed session expiry"
             )
           } else {
             assert(

@@ -640,13 +640,13 @@ connection/xid, concurrent isolation/deduplication, caller interruption, wrong s
 standalone failure/active rejection and synthetic response loss after durable COMMIT.
 This is not a network/server-crash guarantee.
 
-The current local target is Effect `4.1.3` and Drizzle `1.0.0-rc.6`. Select one bundled
+The current local target is Effect `4.1.3` and Drizzle `1.0.0-rc.6-effect-jobs.1`. Select one bundled
 DrizzlePostgresClient or the qualified `@effect/sql-pg@4.1.3` client before opening the transaction;
 see [driver selection](drizzle-compatibility.md). Release qualification is recorded in
 [release qualification](release-qualification.md). The earlier hash-suffixed
 snapshot evidence remains historical and does not qualify this release by itself.
 A+B strict/exactOptional source contracts remain required with approved dependency
-`skipLibCheck:true`. Full foreign declaration audits are reported separately for
+`skipLibCheck:true`. Full foreign declaration audits are required separately for
 the actual dependency graph; old snapshot exceptions do not automatically apply.
 Nested transactions/options/isolation are not
 automatically Drizzle-equivalent; no new savepoint/manager API is introduced.

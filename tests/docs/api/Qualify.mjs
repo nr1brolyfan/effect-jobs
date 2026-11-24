@@ -8,6 +8,7 @@
  * qualification needs no historical Git objects; an explicitly requested base
  * must exist and have identical non-comment source tokens.
  */
+import { checkPeer } from "../../qualification/DrizzleSnapshot.mjs"
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
@@ -270,7 +271,7 @@ const packedManifest = JSON.parse(
 )
 assert.equal(packedManifest.version, manifest.version)
 assert.equal(packedManifest.peerDependencies.effect, "4.1.3")
-assert.equal(packedManifest.peerDependencies["drizzle-orm"], "1.0.0-rc.6")
+checkPeer(packedManifest)
 assert(
   !readdirSync(join(installed, "node_modules")).includes("drizzle-orm"),
   "Core examples must retain absent optional peer"

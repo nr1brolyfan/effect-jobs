@@ -1,5 +1,7 @@
 import {
-  selectSnapshot,
+  checkDevelopmentPin,
+  drizzleSource,
+  drizzleVersion,
   checkInstalledGraph,
   effectVersion
 } from "../DrizzleSnapshot.mjs"
@@ -11,9 +13,7 @@ import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from
 import { join, resolve } from "node:path"
 
 const root = resolve(import.meta.dirname, "../../..")
-const drizzleVersion = selectSnapshot(
-  JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
-)
+checkDevelopmentPin(JSON.parse(readFileSync(join(root, "package.json"), "utf8")))
 const archive = resolve(process.env.EFFECT_JOBS_ARCHIVE)
 const kitVersion = "1.0.0-rc.6"
 const directory = join(root, ".toolchain/drizzle-indexes")
@@ -39,7 +39,7 @@ writeFileSync(
       dependencies: {
         "effect-jobs": `file:${archive}`,
         effect: effectVersion,
-        "drizzle-orm": drizzleVersion,
+        "drizzle-orm": drizzleSource,
         "drizzle-kit": kitVersion
       }
     },
@@ -54,7 +54,7 @@ writeFileSync(
   }) + "\n"
 )
 run("install", "npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"])
-const resolvedGraph = checkInstalledGraph(work, drizzleVersion, {
+const resolvedGraph = checkInstalledGraph(work, {
   "drizzle-kit": kitVersion
 })
 writeFileSync(

@@ -137,13 +137,13 @@ paths, including `package.json` and `tsconfig.json`. Pack the
 from the copied example root:
 
 ```sh
-npm install --save-exact /path/to/effect-jobs-0.1.0-alpha.3.tgz
+npm install --save-exact /path/to/effect-jobs-0.1.0-alpha.4.tgz
 npm run build
 ```
 
 The Orders manifest pins Effect, `@effect/sql-pg`, `@effect/platform-node` and
 its shared runtime `@effect/platform-node-shared` to `4.1.3`. It pins `pg` to
-`8.23.0` and Drizzle to `1.0.0-rc.6`.
+`8.23.0` and Drizzle to the [commit-pinned `1.0.0-rc.6-effect-jobs.1` tarball](/docs/start/installation/).
 
 <CodeExample sourcePath="orders/packages/database/src/Database.ts" role="Composition" />
 
@@ -204,7 +204,7 @@ completion and synthetic post-COMMIT acknowledgement loss with read-only receipt
 reconciliation. It removes only its own container and retains source hashes and
 logs under ignored `.toolchain/order-tutorial`.
 
-Compilation uses `skipLibCheck:true` because upstream declaration issues are
+The examples compile with `skipLibCheck:true`. Dependency declarations are
 tracked separately. This qualification covers local PostgreSQL and synthetic
 mail delivery. Server or network crashes and external email delivery require
 separate qualification.

@@ -1,3 +1,7 @@
+import {
+  checkInstalledGraph,
+  drizzleSource
+} from "../tests/qualification/DrizzleSnapshot.mjs"
 import { tmpdir } from "node:os"
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
@@ -65,7 +69,13 @@ writeFileSync(
     dependencies: { "effect-jobs": `file:${archive}`, effect: "4.1.3" }
   })
 )
-run("bun", ["install", "--ignore-scripts"])
+const installOptions = [
+  "--strict-peer-deps",
+  "--ignore-scripts",
+  "--no-audit",
+  "--no-fund"
+]
+run("npm", ["install", ...installOptions])
 // No optional peers installed: core and non-Drizzle jobs imports must stay inert.
 writeFileSync(
   join(directory, "imports.mjs"),
@@ -82,16 +92,20 @@ console.log("all core/non-Drizzle public imports PASS without SQL peers")
 )
 run("node", ["imports.mjs"])
 run("bun", ["imports.mjs"])
-run("bun", [
-  "add",
-  "--ignore-scripts",
+run("npm", [
+  "install",
+  ...installOptions,
+  "--save-exact",
   "pg@8.23.0",
-  `drizzle-orm@${process.env.DRIZZLE_ORM_VERSION ?? manifest.devDependencies["drizzle-orm"]}`,
+  drizzleSource,
   "vitest@4.1.11",
   "typescript@7.0.2",
   "@types/node@26.4.1",
   "@types/pg@8.20.0"
 ])
+
+run("npm", ["ci", ...installOptions])
+checkInstalledGraph(directory)
 
 // Reuse the author's unchanged real-PG oracle against packed production bytes.
 // Only production imports change; runtime tests use public package exports.
@@ -164,9 +178,6 @@ writeFileSync(
   })
 )
 run("node", ["node_modules/typescript/bin/tsc", "-p", "tsconfig.json"])
-// Match the repository's Drizzle consumer setting. This does not qualify
-// upstream Drizzle declarations with skipLibCheck:false. Keep strict full
-// declaration checking above for the non-Drizzle PostgreSQL entrypoints.
 writeFileSync(
   join(directory, "drizzle-types.ts"),
   `
@@ -180,7 +191,6 @@ writeFileSync(
   join(directory, "tsconfig.drizzle.json"),
   JSON.stringify({
     extends: "./tsconfig.json",
-    compilerOptions: { skipLibCheck: true },
     include: ["drizzle-types.ts"]
   })
 )

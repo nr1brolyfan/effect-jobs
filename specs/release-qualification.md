@@ -1,11 +1,11 @@
 # Release qualification
 
-## Alpha.3 candidate (unpublished)
+## Alpha.4 candidate (unpublished)
 
-Package metadata targets `0.1.0-alpha.3`. Published alpha.2 uses Effect/sql-pg
+Package metadata targets `0.1.0-alpha.4`. Published alpha.2 uses Effect/sql-pg
 `4.0.5` and two hash-suffixed Drizzle snapshots; it is not this candidate.
 The candidate includes the contract-first redesign and selects exact Effect/sql-pg
-`4.1.3`, Drizzle `1.0.0-rc.6`, and Alchemy/Cloudflare `2.0.0-beta.85`.
+`4.1.3`, Drizzle `1.0.0-rc.6-effect-jobs.1`, and Alchemy/Cloudflare `2.0.0-beta.85`.
 Node `24.15.0`, Bun `1.4.2` and TypeScript `7.0.2` remain pinned. The standalone
 Alchemy example retains its bounded TypeScript 6 graph. Completed retention
 remains 90 days.
@@ -120,7 +120,10 @@ Additional release gates include `check:docs:reference`, `qualify:docs:orders`,
 `node tests/qualification/creation-time/Installed.mjs`, `qualify:observability`
 and the frozen standalone Alchemy example qualification. Packed UI honors the
 same `EFFECT_JOBS_ARCHIVE`; do not let a consumer silently pack another candidate.
-The selected Drizzle pin is only `1.0.0-rc.6`, not the historical snapshots.
+Resolve the optional Drizzle peer from the immutable URL in the README. Verify
+one installed copy and the locked URL and integrity. The separate native
+foreign-declaration audit requires TypeScript 7.0.2, `skipLibCheck:false` and a
+zero exit code without a diagnostic allowlist.
 
 The full handoff also records compiled browser/UI, public docs/islands, native
 private/public/observation/concurrency, provider cleanup, bounded export and

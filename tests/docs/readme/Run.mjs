@@ -1,9 +1,21 @@
 // Extract every visible fence; exact bytes are never silently skipped.
+import {
+  checkInstalledGraph,
+  drizzleSource
+} from "../../qualification/DrizzleSnapshot.mjs"
 import { names, wrap } from "./Prelude.mjs"
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync
+} from "node:fs"
 import { join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { publicModules } from "../../../scripts/SourceExports.mjs"
@@ -16,12 +28,16 @@ const fences = [...readme.matchAll(/```(\w+)\n([\s\S]*?)```/g)]
 assert(fences.every((m) => ["ts", "sh", "text"].includes(m[1])))
 const snippets = fences.filter((m) => m[1] === "ts").map((m) => m[2])
 assert.equal(snippets.length, names.length, "Update the complete fence inventory")
-assert.equal(fences.filter((m) => m[1] === "sh").length, 1)
 assert.equal(fences.filter((m) => m[1] === "text").length, 0)
-assert.equal(
-  fences.find((m) => m[1] === "sh")[2].trim(),
-  `npm install ./effect-jobs-${manifest.version}.tgz effect@${manifest.peerDependencies.effect}`
-)
+const installCommands = fences
+  .filter((fence) => fence[1] === "sh")
+  .map((fence) => fence[2].trim())
+const localTarball = `./effect-jobs-${manifest.version}.tgz`
+const effectPin = manifest.peerDependencies.effect
+assert.deepEqual(installCommands, [
+  `npm install --save-exact ${localTarball} effect@${effectPin}`,
+  `npm install --save-exact '${drizzleSource}'`
+])
 const hash = (value) => createHash("sha256").update(value).digest("hex")
 mkdirSync(join(root, ".toolchain/readme"), { recursive: true })
 const evidence = mkdtempSync(join(root, ".toolchain/readme/run-"))
@@ -54,29 +70,56 @@ try {
   archive = resolve(archive)
   const consumer = join(evidence, "packed")
   mkdirSync(consumer)
-  writeFileSync(
-    join(consumer, "package.json"),
-    JSON.stringify({
-      private: true,
-      type: "module",
-      dependencies: {
-        "effect-jobs": `file:${archive}`,
-        effect: manifest.peerDependencies.effect,
-        "drizzle-orm":
-          process.env.DRIZZLE_ORM_VERSION ?? manifest.devDependencies["drizzle-orm"],
-        "@effect/sql-pg": manifest.devDependencies["@effect/sql-pg"],
-        "@effect/platform-node": manifest.devDependencies["@effect/platform-node"],
-        "@effect/platform-node-shared":
-          manifest.devDependencies["@effect/platform-node-shared"],
-        typescript: "7.0.2",
-        "@types/node": "26.4.1"
-      }
-    }) + "\n"
-  )
+  const consumerManifest = join(consumer, "package.json")
+  const consumerLock = join(consumer, "package-lock.json")
+  writeFileSync(consumerManifest, '{"private":true,"type":"module"}\n')
+  const npmFlags = ["--ignore-scripts", "--no-audit", "--no-fund"]
+  for (const [index, stage] of ["core", "drizzle"].entries()) {
+    // The exact command forms above permit simple tokenization without a shell.
+    const [cmd, action, ...args] = installCommands[index].split(" ")
+    const inputs = args.map((arg) =>
+      arg === localTarball ? archive : arg.replace(/^'|'$/g, "")
+    )
+    run(`readme-${stage}-install`, cmd, [action, ...inputs, ...npmFlags], consumer)
+    const dependencies = JSON.parse(readFileSync(consumerManifest, "utf8")).dependencies
+    const { packages } = JSON.parse(readFileSync(consumerLock, "utf8"))
+    assert.equal(dependencies.effect, effectPin)
+    assert.deepEqual(packages[""].dependencies, dependencies)
+    assert.equal(packages["node_modules/effect"].version, effectPin)
+    if (stage === "core") {
+      assert.equal(dependencies["drizzle-orm"], undefined)
+      assert(
+        !Object.keys(packages).some((path) => path.endsWith("node_modules/drizzle-orm"))
+      )
+      assert(!existsSync(join(consumer, "node_modules/drizzle-orm")))
+    } else {
+      assert.equal(dependencies["drizzle-orm"], drizzleSource)
+      run(
+        "readme-drizzle-frozen-install",
+        "npm",
+        ["ci", "--strict-peer-deps", ...npmFlags],
+        consumer
+      )
+      checkInstalledGraph(consumer)
+    }
+    copyFileSync(consumerManifest, join(evidence, `${stage}-package.json`))
+    copyFileSync(consumerLock, join(evidence, `${stage}-package-lock.json`))
+  }
+
+  // Add snippet tooling after the documented installation has been qualified.
   run(
-    "packed-install",
+    "snippet-dependencies",
     "npm",
-    ["install", "--ignore-scripts", "--no-audit", "--no-fund"],
+    [
+      "install",
+      "--save-exact",
+      ...npmFlags,
+      `@effect/sql-pg@${manifest.devDependencies["@effect/sql-pg"]}`,
+      `@effect/platform-node@${manifest.devDependencies["@effect/platform-node"]}`,
+      `@effect/platform-node-shared@${manifest.devDependencies["@effect/platform-node-shared"]}`,
+      "typescript@7.0.2",
+      "@types/node@26.4.1"
+    ],
     consumer
   )
   run("packed-peers", "npm", ["ls", "--all"], consumer)
@@ -214,7 +257,7 @@ try {
             m[1] === "ts"
               ? "source/packed declarations; see explicit runtime scopes"
               : m[1] === "sh"
-                ? "candidate version/command assertion; registry installation deferred until publication"
+                ? "sequential npm installs and frozen optional-peer graph"
                 : "conceptual topology, no executable claim"
         })),
         snippets: names,

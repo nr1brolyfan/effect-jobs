@@ -1,3 +1,4 @@
+import { drizzleSource } from "../../../../tests/qualification/DrizzleSnapshot.mjs"
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
@@ -65,7 +66,7 @@ try {
       dependencies: {
         "effect-jobs": `file:${archive}`,
         effect: "4.1.3",
-        "drizzle-orm": "1.0.0-rc.6",
+        "drizzle-orm": drizzleSource,
         "@effect/sql-pg": "4.1.3",
         "@effect/platform-node": "4.1.3",
         "@effect/platform-node-shared": "4.1.3",

@@ -1,4 +1,5 @@
 /** Current packed public types plus real local encrypted-service runtime. */
+import { drizzleSource } from "../DrizzleSnapshot.mjs"
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
@@ -28,7 +29,7 @@ writeFileSync(
       dependencies: {
         "effect-jobs": `file:${archive}`,
         effect: "4.1.3",
-        "drizzle-orm": process.env.DRIZZLE_ORM_VERSION ?? "1.0.0-rc.6",
+        "drizzle-orm": drizzleSource,
         typescript: "7.0.2",
         "@types/node": "26.4.1"
       }
@@ -402,7 +403,7 @@ writeFileSync(
         "PASS seven stripped selection/installation rejections; literal composition preserves missing services",
       strictCoreDeclarations: "PASS skipLibCheck:false",
       drizzleDeclarations:
-        "skipLibCheck:true; upstream limitation separately recorded by native runner",
+        "skipLibCheck:true; full declarations audited separately by the native runner",
       runtimes: ["node", "bun"]
     },
     null,

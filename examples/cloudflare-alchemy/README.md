@@ -1,7 +1,7 @@
 # Tenant billing with native Alchemy callbacks
 
 This standalone application uses Alchemy and `@alchemy.run/cloudflare`
-**2.0.0-beta.85**, Effect and platform peers **4.1.3**, Drizzle **1.0.0-rc.6**, TypeScript **6.0.3**,
+**2.0.0-beta.85**, Effect and platform peers **4.1.3**, Drizzle **1.0.0-rc.6-effect-jobs.1**, TypeScript **6.0.3**,
 npm **11.12.1**, Node **24.15.0**, and local Miniflare/workerd pinned by `package-lock.json`.
 The example uses TypeScript 6 to satisfy Alchemy’s `capnp-es` compiler peer range;
 the root library retains its TypeScript 7 baseline. A frozen `npm ci` and
