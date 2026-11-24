@@ -6,6 +6,7 @@ import { JobStoreProtocolError } from "../../JobStore.js"
 type SqlValue = ArrayBuffer | string | number | null
 export type JobRow = Record<string, SqlValue>
 
+/** Synchronous SQL cursor operations on the current object. */
 export interface SqlStorage {
   exec<Row extends JobRow>(
     query: string,
@@ -13,18 +14,20 @@ export interface SqlStorage {
   ): { toArray(): Row[]; one(): Row }
 }
 
+/** Native SQLite DO storage capabilities required by the worker store. */
 export interface Storage {
   readonly sql: SqlStorage
   transactionSync<A>(body: () => A): A
   sync(): Promise<void>
 }
 
+/** Native SQLite DO storage capabilities required by the producer boundary. */
 export interface TransactionStorage {
   readonly sql: SqlStorage
   transaction<A>(body: () => Promise<A>): Promise<A>
 }
 
-// SQL for application-owned migrations. Importing or constructing the adapter runs no DDL.
+/** SQLite DDL for application-owned migrations. Importing the module runs no SQL. */
 export const ddl = `
   CREATE TABLE IF NOT EXISTS jobs (
     jobId TEXT PRIMARY KEY NOT NULL,

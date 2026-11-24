@@ -66,6 +66,12 @@ const groups = {
       "PostgreSqlSchema",
       "PostgreSqlDrizzleSchema"
     ]
+  },
+  "durable-object-sqlite": {
+    title: "Durable Object SQLite integration",
+    intro:
+      "Use a single SQLite-backed Durable Object for domain writes and enqueue. The application owns object routing, migrations, commit acknowledgement and bounded drain scheduling.",
+    modules: ["DurableObjectSqlite"]
   }
 }
 const modules = publicModules(manifest)

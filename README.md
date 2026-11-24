@@ -107,6 +107,9 @@ for scoped setup and managed Hyperdrive timeouts. The playground retains
 `@effect/sql-pg` for its interrupted-query shutdown and DO hibernation requirements.
 Choose the client before opening the transaction; never retry on a different driver.
 
+For jobs stored alongside domain data in a single SQLite-backed Durable Object,
+see the [packed Cloudflare DO SQLite example](examples/cloudflare-do-sqlite/README.md).
+
 `FailureCode` is the `effect-jobs/FailureCode` module; `JobEnqueue` is the service
 exported by `effect-jobs/JobEnqueue`. Job version defaults to `1`. Slot-bound
 producers use the standard artifact codec; domain transformations and encryption

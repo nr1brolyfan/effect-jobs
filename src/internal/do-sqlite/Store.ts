@@ -36,7 +36,8 @@ const FinalizationReceipt = Schema.fromJsonString(FinalizationRequest)
 const encodeFinalizationReceipt = Schema.encodeResult(FinalizationReceipt)
 const decodeFinalizationReceipt = Schema.decodeUnknownResult(FinalizationReceipt, strict)
 
-class SqliteStoreUnavailable extends Data.TaggedError("SqliteStoreUnavailable")<{
+/** SQLite storage could not acknowledge the operation. Its commit status is unknown. */
+export class SqliteStoreUnavailable extends Data.TaggedError("SqliteStoreUnavailable")<{
   readonly commitKnowledge: "Unknown"
 }> {}
 
@@ -167,7 +168,10 @@ const commandError = (error: Lifecycle.JobLifecycleError) =>
 const ownedCommandError = (error: Lifecycle.JobLifecycleError) =>
   error.reason === "ownership-lost" ? ownershipLost() : commandError(error)
 
-// The application owns the object, migration and operation response budget.
+/**
+ * Adapt one object's storage for JobStorage. Use the same positive operation
+ * response budget (milliseconds) for enqueue and execution. Construction runs no SQL.
+ */
 export const makeStore = (native: Storage, responseBudgetMillis: number) => {
   const sql = native.sql
   const transact = <
