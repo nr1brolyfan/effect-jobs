@@ -47,34 +47,14 @@ with equal options does not establish transaction identity. Joining jobs adds
 no BEGIN, savepoint, independent COMMIT or replay. The application retains pool,
 migration, timeout and outer error/reconciliation ownership.
 
-For the bundled rc.6 driver, application code using Drizzle queries can also
-open an ordinary transaction through the ORM. Given the same scoped client for
-`db` and `JobEnqueue`, use the callback's `tx` for both domain queries:
-
-```ts
-yield *
-  db.transaction((tx) =>
-    Effect.gen(function* () {
-      yield* tx.insert(reportRequests).values({ operationId, reportId })
-      const result = yield* requestReportProducer.enqueue({
-        operationId,
-        slot: "generate",
-        payload: { reportId, rows: [] }
-      })
-      yield* tx.insert(reportRequestReceipts).values({ operationId, jobId: result.jobId })
-      return result
-    })
-  )
-```
-
-Here `requestReportProducer` is the application's configured producer. It joins
-the active transaction through `JobEnqueue`; the callback does not pass `tx` to
-the producer. The returned job ID is provisional until the outer Effect succeeds.
-Code using only the SQL client can use `client.withTransaction` directly.
-The Orders tutorial above uses the separate `@effect/sql-pg` driver. Nested
-transactions, isolation options and disconnected control operations must be
-evaluated for the particular driver; the ordinary callback is not a guarantee
-of equivalent behavior for those cases.
+The supported transaction owner is `client.withTransaction` with Drizzle queries
+in the same Effect context. Separately, the bundled `drizzle-orm/postgres/effect`
+driver at Drizzle `1.0.0-rc.6` and Effect `4.1.3` passed a local qualification
+of the ordinary `db.transaction` callback on Node, Bun and workerd: with one
+scoped client, the domain row, job, payload and receipt shared a PostgreSQL
+connection and transaction. The type probes check the inferred error and service
+channels. This evidence does not extend to nesting, isolation options or other
+drivers. See the disconnected rollback limitation below.
 
 ## Optional declarations for migrations
 

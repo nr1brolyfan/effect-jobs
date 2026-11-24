@@ -126,9 +126,21 @@ export const qualify = (url) => {
       )
       assert(Exit.isFailure(interrupted) && Cause.hasInterrupts(interrupted.cause))
       yield* client.unsafe(
-        "alter table report_request_receipts add check (operation_id <> 'rollback')"
+        "alter table report_request_receipts add constraint receipt_rollback_check check (operation_id <> 'rollback')"
       )
-      assert(Exit.isFailure(yield* Effect.exit(request("rollback"))))
+      const rollback = yield* Effect.exit(request("rollback"))
+      assert(Exit.isFailure(rollback))
+      let violation = Cause.squash(rollback.cause)
+      while (violation && violation.code !== "23514") {
+        violation = Cause.isCause(violation)
+          ? Cause.squash(violation)
+          : (violation.cause ?? violation.reason)
+      }
+      assert.equal(violation?.code, "23514", "receipt insert must fail its CHECK")
+      assert.equal(
+        violation.constraint ?? violation.constraint_name,
+        "receipt_rollback_check"
+      )
       assert.deepEqual(
         yield* client.unsafe("select * from write_audit order by rel"),
         audit
