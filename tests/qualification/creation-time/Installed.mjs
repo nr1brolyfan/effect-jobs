@@ -1,4 +1,5 @@
 // Normal npm-installed artifact consumer; strict checking stays enabled.
+import { drizzleSource } from "../DrizzleSnapshot.mjs"
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
@@ -31,7 +32,7 @@ writeFileSync(
       dependencies: {
         "effect-jobs": `file:${archive}`,
         effect: "4.1.3",
-        "drizzle-orm": "1.0.0-rc.6",
+        "drizzle-orm": drizzleSource,
         typescript: "7.0.2",
         "@types/node": "26.4.1"
       }

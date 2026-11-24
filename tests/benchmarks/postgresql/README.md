@@ -29,7 +29,7 @@ bun run soak:postgresql --run --duration 3600 --rate 100 --history 100000
 
 Other options: `--workers` (1–8), `--image` (explicit official version). Unrecognized
 options, nonfinite durations and estimated runs exceeding one million jobs are
-rejected. The isolated driver fixture follows the selected Effect/sql-pg 4.1.0
+rejected. The isolated driver fixture follows the selected Effect/sql-pg 4.1.3
 graph and has its own pinned lockfile/native client. No database tuning or
 production defaults are changed by the harness.
 

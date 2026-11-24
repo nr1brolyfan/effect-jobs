@@ -1,3 +1,4 @@
+import { checkDevelopmentPin } from "../tests/qualification/DrizzleSnapshot.mjs"
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { execFileSync } from "node:child_process"
@@ -23,6 +24,7 @@ assert.deepEqual(
   JSON.parse(readFileSync(resolve(import.meta.dirname, "../package.json"), "utf8")),
   "Archive manifest must match final repository metadata"
 )
+checkDevelopmentPin(manifest)
 assert.equal(manifest.name, "effect-jobs")
 assert.equal(manifest.private, false)
 assert.match(

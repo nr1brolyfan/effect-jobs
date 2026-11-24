@@ -35,6 +35,13 @@ writeFileSync(
   })
 )
 run("install", "npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"])
+run("frozen-install", "npm", [
+  "ci",
+  "--strict-peer-deps",
+  "--ignore-scripts",
+  "--no-audit",
+  "--no-fund"
+])
 run("tree", "npm", ["ls", "--all"])
 const manifest = JSON.parse(
   readFileSync(join(consumer, "node_modules/effect-jobs/package.json"), "utf8")
@@ -85,6 +92,10 @@ const readme = readFileSync(join(root, "README.md"), "utf8")
 const snippets = [...readme.matchAll(/```ts\n([\s\S]*?)```/g)].map((match) => match[1])
 // Supply the same explicit application imports/setup as the all-fence README gate.
 writeFileSync(join(consumer, "definition.mts"), wrap("contracts", snippets[1]))
+writeFileSync(
+  join(consumer, "core-exports.mts"),
+  imports.map((specifier) => `import ${JSON.stringify(specifier)}`).join("\n") + "\n"
+)
 // The complete migration/setup fence is checked by qualify:docs:readme.
 writeFileSync(
   join(consumer, "tsconfig.json"),

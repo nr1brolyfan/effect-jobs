@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.1.0-alpha.3 (unpublished candidate)
+## 0.1.0-alpha.4 (unpublished candidate)
+
+- Require Effect `4.1.3`. Use the exact optional Drizzle peer
+  `1.0.0-rc.6-effect-jobs.1` for integrations that use Drizzle. Install it from
+  the immutable tarball in the [README](./README.md#install) while
+  [Drizzle #6728](https://github.com/drizzle-team/drizzle-orm/issues/6728) is open.
+- Qualify optional-peer isolation and the installed Drizzle graph independently,
+  with a blocking full declaration audit on TypeScript `7.0.2`.
+- Retain the playground's `@effect/sql-pg@4.1.3` driver.
+
+## 0.1.0-alpha.3 (previous local candidate)
 
 Breaking prerelease changes since the published alpha.2 package:
 

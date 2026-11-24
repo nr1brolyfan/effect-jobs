@@ -12,7 +12,7 @@
     "@alchemy.run/cloudflare": "2.0.0-beta.85",
     "@alchemy.run/cloudflare-runtime": "2.0.0-beta.85",
     "@alchemy.run/domain": "2.0.0-beta.85",
-    "drizzle-orm": "1.0.0-rc.6"
+    "drizzle-orm": "https://raw.githubusercontent.com/nr1brolyfan/drizzle-orm/3f651f2bce7edf64f1217a1cfb6ed3d2e6e9c54b/fork-artifacts/drizzle-orm-1.0.0-rc.6-effect-jobs.1.tgz"
   },
   "scripts": {
     "check": "tsc -p tsconfig.json",

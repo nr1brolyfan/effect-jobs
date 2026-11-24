@@ -49,10 +49,9 @@ migration, timeout and outer error/reconciliation ownership.
 
 The supported transaction owner is `client.withTransaction` with Drizzle queries
 in the same Effect context. Separately, the bundled `drizzle-orm/postgres/effect`
-driver at Drizzle `1.0.0-rc.6` and Effect `4.1.3` passed a local qualification
-of the ordinary `db.transaction` callback on Node, Bun and workerd: with one
-scoped client, the domain row, job, payload and receipt shared a PostgreSQL
-connection and transaction. The type probes check the inferred error and service
+driver qualification exercises the ordinary `db.transaction` callback on Node,
+Bun and workerd. With one scoped client, it checks that the domain row, job,
+payload and receipt share a PostgreSQL connection and transaction. The type probes check the inferred error and service
 channels. This evidence does not extend to nesting, isolation options or other
 drivers. See the disconnected rollback limitation below.
 
@@ -80,7 +79,7 @@ subpaths rather than internal modules.
 ## Exact supported graph and limits
 
 The current local candidate targets Effect **4.1.3**, optional native
-**`@effect/sql-pg@4.1.3`**, and exactly Drizzle **`1.0.0-rc.6`**. The PgClient
+**`@effect/sql-pg@4.1.3`**, and exactly Drizzle **`1.0.0-rc.6-effect-jobs.1`**. The PgClient
 native matrix uses Node **24.15.0**, Bun **1.4.2**, PostgreSQL **16.15** and pg
 **8.23.0**. Use ordinary peer resolution, one physical Effect instance and the
 intended native peers, without force installs or dependency overrides. This
@@ -88,14 +87,15 @@ qualification uses the exact local candidate tarball, not the registry release.
 
 Own-source strict/exact-optional contracts (A+B) use the accepted dependency
 `skipLibCheck: true` setting, with actual negative compiler checks. Full foreign
-declaration checking (C, `skipLibCheck: false`) remains **known upstream FAIL**:
-the native consumer reports three missing builder names in Drizzle's PostgreSQL,
-MySQL and SQLite declarations. The UI consumer's Redux diagnostics are separate.
+declaration checking (C, `skipLibCheck: false`) is a separate release gate.
+The [commit-pinned tarball](/docs/start/installation/) repairs the three missing
+builder declarations from the registry rc.6 package. The UI consumer's Redux
+diagnostics are separate.
 
 Real PostgreSQL qualification covers same-connection atomic writes, rollback,
 concurrent duplicates/conflicts, interruption and synthetic lost response after
 durable COMMIT. It does not qualify arbitrary drivers or versions, nested/options
-semantics, real network/server crashes or production use. On rc.6 the bundled
+semantics, real network/server crashes or production use. On the qualified rc.6 fork the bundled
 driver can also return only the application error when a disconnected session's
 `ROLLBACK` fails. That error is not an acknowledgement of rollback.
 

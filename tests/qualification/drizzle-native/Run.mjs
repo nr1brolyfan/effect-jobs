@@ -1,5 +1,7 @@
 import {
-  selectSnapshot,
+  checkDevelopmentPin,
+  drizzleSource,
+  drizzleVersion,
   checkInstalledGraph,
   effectVersion
 } from "../DrizzleSnapshot.mjs"
@@ -67,7 +69,7 @@ copyFileSync(
   join(consumer, "Resource.d.mts")
 )
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
-const drizzleVersion = selectSnapshot(manifest)
+checkDevelopmentPin(manifest)
 writeFileSync(
   join(consumer, "package.json"),
   JSON.stringify(
@@ -77,7 +79,7 @@ writeFileSync(
       dependencies: {
         "effect-jobs": `file:${archive}`,
         effect: effectVersion,
-        "drizzle-orm": drizzleVersion,
+        "drizzle-orm": drizzleSource,
         "@effect/sql-pg": effectVersion,
         pg: "8.23.0",
         "@types/pg": "8.20.0",
@@ -90,9 +92,22 @@ writeFileSync(
   ) + "\n"
 )
 // npm uses its normal strict peer resolver. No force or legacy-peer-deps.
-run("npm-install", "npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"])
+run("npm-install", "npm", [
+  "install",
+  "--strict-peer-deps",
+  "--ignore-scripts",
+  "--no-audit",
+  "--no-fund"
+])
+run("npm-ci", "npm", [
+  "ci",
+  "--strict-peer-deps",
+  "--ignore-scripts",
+  "--no-audit",
+  "--no-fund"
+])
 run("npm-tree", "npm", ["ls", "--all"])
-const resolvedGraph = checkInstalledGraph(consumer, drizzleVersion, {
+const resolvedGraph = checkInstalledGraph(consumer, {
   "@effect/sql-pg": effectVersion,
   pg: "8.23.0",
   typescript: "7.0.2",
@@ -101,7 +116,7 @@ const resolvedGraph = checkInstalledGraph(consumer, drizzleVersion, {
 })
 // Resolve optional native fixture types for repository lint after a fresh
 // checkout, without installing into or editing the root package.
-if (drizzleVersion === manifest.devDependencies["drizzle-orm"]) {
+{
   const fixtureModules = fileURLToPath(new URL("node_modules", import.meta.url))
   mkdirSync(fixtureModules, { recursive: true })
   for (const entry of readdirSync(join(consumer, "node_modules"))) {
@@ -177,6 +192,10 @@ writeFileSync(
 )
 run("consumer-types", "node", ["node_modules/typescript/bin/tsc", "-p", "tsconfig.json"])
 copyFileSync(join(consumer, "Resource.mjs"), join(consumer, "compiled/Resource.mjs"))
+writeFileSync(
+  join(consumer, "BundledDriverDeclarations.mts"),
+  'import "drizzle-orm/postgres/effect"\n'
+)
 // Audit the actual current declarations. Historical snapshot exceptions do not
 // transfer to a different release; retain A+B/runtime results independently.
 const upstreamExit = run(

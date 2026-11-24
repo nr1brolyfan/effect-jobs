@@ -21,7 +21,7 @@ EFFECT_JOBS_ARCHIVE="$archive" node "$root/scripts/check-release.mjs" --metadata
 mkdir "$scratch/consumer" "$scratch/core"
 cd "$scratch/consumer"
 cp "$here"/*.mjs "$here"/package*.json .
-npm ci --no-audit --no-fund
+npm ci --strict-peer-deps --ignore-scripts --no-audit --no-fund
 npm ls --all >/dev/null
 cp "$root/tsconfig.json" .
 node --input-type=module - "$root" <<'JS'
@@ -37,9 +37,13 @@ sha256sum "$archive"
 for consumer in "$scratch/core" "$scratch/consumer"; do
   (cd "$consumer" && npm install --strict-peer-deps --ignore-scripts --no-audit --no-fund "$archive" && npm ls --all >/dev/null)
 done
-node --input-type=module <<'JS'
+(cd "$scratch/consumer" && npm ci --strict-peer-deps --ignore-scripts --no-audit --no-fund)
+node --input-type=module - "$root" <<'JS'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
+const { checkInstalledGraph } = await import(pathToFileURL(process.argv[2] + '/tests/qualification/DrizzleSnapshot.mjs'))
+console.log(JSON.stringify(checkInstalledGraph(process.cwd())))
 for (const [dir, hasDriver] of [['../core', false], ['.', true]]) {
   const installed = Object.keys(JSON.parse(readFileSync(`${dir}/package-lock.json`)).packages)
   assert(!installed.some(p => /node_modules\/(?:pg|@types\/pg|@effect\/sql-pg)$/.test(p)))

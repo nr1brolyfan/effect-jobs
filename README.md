@@ -60,12 +60,28 @@ const ReceiptHandler = JobGroup.handlers(BillingJobs, (handlers) =>
 
 ## Install
 
-Examples target the unpublished `0.1.0-alpha.3` release candidate, not the published alpha.2 package. Its exact peers are Effect `4.1.3` and optional Drizzle `1.0.0-rc.6`. This prerelease changes the alpha.0 enqueue,
+Examples target the unpublished `0.1.0-alpha.4` release candidate with Effect
+`4.1.3`. This prerelease changes the alpha.0 enqueue,
 policy, failure-code and encrypted-payload APIs; update callers before upgrading.
 
 ```sh
-npm install ./effect-jobs-0.1.0-alpha.3.tgz effect@4.1.3
+npm install ./effect-jobs-0.1.0-alpha.4.tgz effect@4.1.3
 ```
+
+For Drizzle schema helpers or either Drizzle driver, explicitly install the
+optional peer `drizzle-orm@1.0.0-rc.6-effect-jobs.1` from the pinned tarball:
+
+```sh
+npm install --save-exact 'https://raw.githubusercontent.com/nr1brolyfan/drizzle-orm/3f651f2bce7edf64f1217a1cfb6ed3d2e6e9c54b/fork-artifacts/drizzle-orm-1.0.0-rc.6-effect-jobs.1.tgz'
+```
+
+Commit the generated lockfile and use frozen installs. The tarball SHA-256 is
+`a3a5d2a504e61aa947760e0f716090c4037fbee8f6af2ddac209debc80ea25dc`.
+Core and non-Drizzle PostgreSQL entry points work with Effect alone.
+The temporary tarball repairs declarations for
+[Drizzle #6728](https://github.com/drizzle-team/drizzle-orm/issues/6728).
+See [Drizzle compatibility](specs/drizzle-compatibility.md) for the upstream
+replacement criteria.
 
 Imports are omitted below. Use package subpaths (`effect-jobs/Job`, `effect-jobs/JobGroup`, `effect-jobs/JobApi`, `effect-jobs/JobPolicy`, …); the root export is empty. `Codec`, `Worker` and `Polling` refer to `JobPayloadCodec`, `JobWorker` and `JobPolling` respectively.
 
@@ -356,11 +372,11 @@ Keep business, receipt and enqueue writes in one Effect/Context; do not run an
 independent `runPromise` inside the transaction. The qualified route supports
 ordinary outer transactions and jobs joining them without a savepoint. Nested
 transactions, Drizzle transaction options and isolation settings are not qualified
-as equivalent. `db.transaction` retains an upstream error-type limitation and is
-excluded from this route; no local type correction is used. Strict/exactOptional
+as equivalent. Use the documented client transaction owner for this route.
+Strict/exactOptional
 checks of our sources (A+B) remain required with dependency `skipLibCheck:true`.
-The full foreign declaration audit (C) must be reported for the exact final pins, separately
-reported and nonblocking. Outer provider errors can also occur as defects: the
+The independent full foreign declaration audit (C) must pass on the exact
+installed pins with TypeScript 7.0.2 and `skipLibCheck:false`. Outer provider errors can also occur as defects: the
 application must sanitize them without losing caller errors/interruption, preserve
 Unknown COMMIT knowledge and reconcile its exact receipt read-only. Missing
 receipts or lost responses never authorize automatic replay or prove NotCommitted.

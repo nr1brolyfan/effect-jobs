@@ -1,4 +1,5 @@
 // Extract every visible fence; exact bytes are never silently skipped.
+import { drizzleSource } from "../../qualification/DrizzleSnapshot.mjs"
 import { names, wrap } from "./Prelude.mjs"
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
@@ -16,11 +17,13 @@ const fences = [...readme.matchAll(/```(\w+)\n([\s\S]*?)```/g)]
 assert(fences.every((m) => ["ts", "sh", "text"].includes(m[1])))
 const snippets = fences.filter((m) => m[1] === "ts").map((m) => m[2])
 assert.equal(snippets.length, names.length, "Update the complete fence inventory")
-assert.equal(fences.filter((m) => m[1] === "sh").length, 1)
 assert.equal(fences.filter((m) => m[1] === "text").length, 0)
-assert.equal(
-  fences.find((m) => m[1] === "sh")[2].trim(),
-  `npm install ./effect-jobs-${manifest.version}.tgz effect@${manifest.peerDependencies.effect}`
+assert.deepEqual(
+  fences.filter((fence) => fence[1] === "sh").map((fence) => fence[2].trim()),
+  [
+    `npm install ./effect-jobs-${manifest.version}.tgz effect@${manifest.peerDependencies.effect}`,
+    `npm install --save-exact '${drizzleSource}'`
+  ]
 )
 const hash = (value) => createHash("sha256").update(value).digest("hex")
 mkdirSync(join(root, ".toolchain/readme"), { recursive: true })
@@ -62,8 +65,7 @@ try {
       dependencies: {
         "effect-jobs": `file:${archive}`,
         effect: manifest.peerDependencies.effect,
-        "drizzle-orm":
-          process.env.DRIZZLE_ORM_VERSION ?? manifest.devDependencies["drizzle-orm"],
+        "drizzle-orm": drizzleSource,
         "@effect/sql-pg": manifest.devDependencies["@effect/sql-pg"],
         "@effect/platform-node": manifest.devDependencies["@effect/platform-node"],
         "@effect/platform-node-shared":
@@ -214,7 +216,7 @@ try {
             m[1] === "ts"
               ? "source/packed declarations; see explicit runtime scopes"
               : m[1] === "sh"
-                ? "candidate version/command assertion; registry installation deferred until publication"
+                ? "candidate/core and immutable optional-peer install command assertions"
                 : "conceptual topology, no executable claim"
         })),
         snippets: names,

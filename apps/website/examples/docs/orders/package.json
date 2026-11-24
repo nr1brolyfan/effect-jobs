@@ -31,7 +31,7 @@
     "effect": "4.1.3",
     "@effect/sql-pg": "4.1.3",
     "pg": "8.23.0",
-    "drizzle-orm": "1.0.0-rc.6",
+    "drizzle-orm": "https://raw.githubusercontent.com/nr1brolyfan/drizzle-orm/3f651f2bce7edf64f1217a1cfb6ed3d2e6e9c54b/fork-artifacts/drizzle-orm-1.0.0-rc.6-effect-jobs.1.tgz",
     "@effect/platform-node": "4.1.3",
     "@effect/platform-node-shared": "4.1.3"
   },
