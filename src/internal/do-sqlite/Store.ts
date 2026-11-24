@@ -1,14 +1,15 @@
-import { Data, Effect, Match, Result, Schema } from "effect"
-import { JobPolicyIncompatible, type EncodedJobPayload } from "../../JobContract.js"
+import { Data, Effect, Result, Schema } from "effect"
+import type { EncodedJobPayload, JobPolicyIncompatible } from "../../JobContract.js"
 import { QueueName } from "../../JobIdentity.js"
 import * as Lifecycle from "../../JobLifecycle.js"
 import { PersistedJobPolicy } from "../../JobPolicy.js"
 import * as Store from "../../JobStore.js"
 import { validateClaimArtifact } from "../lifecycle/Artifacts.js"
 import * as Reconciliation from "../lifecycle/Reconciliation.js"
-
 import {
+  attemptSql,
   incompatiblePolicy,
+  SqliteSqlFault,
   storageTime,
   type JobRow,
   type SqlStorage,
@@ -32,7 +33,7 @@ const decodeStoredPolicy = Schema.decodeUnknownResult(
   strict
 )
 const FinalizationReceipt = Schema.fromJsonString(FinalizationRequest)
-const encodeFinalizationReceipt = Schema.encodeSync(FinalizationReceipt)
+const encodeFinalizationReceipt = Schema.encodeResult(FinalizationReceipt)
 const decodeFinalizationReceipt = Schema.decodeUnknownResult(FinalizationReceipt, strict)
 
 class SqliteStoreUnavailable extends Data.TaggedError("SqliteStoreUnavailable")<{
@@ -43,24 +44,13 @@ const invalidInput = () => new Store.JobStoreProtocolError({ reason: "invalid-in
 const invalidArtifact = () =>
   new Store.JobStoreProtocolError({ reason: "invalid-artifact" })
 
-const requireSuccess = <A, E>(result: Result.Result<A, E>): A => {
-  if (Result.isFailure(result)) {
-    throw result.failure
-  }
-  return result.success
-}
-
 const decode = <S extends Schema.Decoder<unknown>>(schema: S, input: unknown) =>
-  requireSuccess(
-    Result.mapError(Schema.decodeUnknownResult(schema, strict)(input), invalidInput)
-  )
+  Result.mapError(Schema.decodeUnknownResult(schema, strict)(input), invalidInput)
 
-const snapshot = (row: JobRow): Lifecycle.JobSnapshot => {
-  const policy = requireSuccess(
-    Result.mapError(decodeStoredPolicy(row.policy), invalidArtifact)
-  )
-  return requireSuccess(
-    Result.mapError(
+const snapshot = (row: JobRow) =>
+  Result.gen(function* () {
+    const policy = yield* Result.mapError(decodeStoredPolicy(row.policy), invalidArtifact)
+    return yield* Result.mapError(
       Lifecycle.validateSnapshot({
         jobId: row.jobId,
         state: row.state,
@@ -78,116 +68,137 @@ const snapshot = (row: JobRow): Lifecycle.JobSnapshot => {
       }),
       invalidArtifact
     )
-  )
-}
+  })
 
-const claimedJob = (row: JobRow, stored: Lifecycle.JobSnapshot): Store.ClaimedJob => {
-  if (
-    row.formatVersion !== 1 ||
-    !(row.payload instanceof ArrayBuffer) ||
-    !(row.projection instanceof ArrayBuffer)
-  ) {
-    throw invalidArtifact()
-  }
-  const encoded: EncodedJobPayload = {
-    formatVersion: row.formatVersion,
-    payloadBytes: new Uint8Array(row.payload),
-    semanticProjectionBytes: new Uint8Array(row.projection)
-  }
-  const claim: Store.ClaimedJob = {
-    ownership: requireSuccess(Lifecycle.ownershipOf(stored)),
-    snapshot: stored,
-    prepared: {
-      catalog: { queue: row.queue, name: row.name, version: row.version },
-      producer: {
-        operation: row.operation,
-        operationId: row.operationId,
-        slot: row.slot
-      },
-      policy: stored.policy,
-      ...(row.initialAvailableAt === null ? {} : { availableAt: row.initialAvailableAt }),
-      encoded
+const claimedJob = (row: JobRow, stored: Lifecycle.JobSnapshot) =>
+  Result.gen(function* () {
+    if (
+      row.formatVersion !== 1 ||
+      !(row.payload instanceof ArrayBuffer) ||
+      !(row.projection instanceof ArrayBuffer)
+    ) {
+      return yield* Result.fail(invalidArtifact())
     }
-  }
-  return { ...claim, prepared: requireSuccess(validateClaimArtifact(claim)) }
-}
+    const encoded: EncodedJobPayload = {
+      formatVersion: row.formatVersion,
+      payloadBytes: new Uint8Array(row.payload),
+      semanticProjectionBytes: new Uint8Array(row.projection)
+    }
+    const claim: Store.ClaimedJob = {
+      ownership: yield* Result.mapError(Lifecycle.ownershipOf(stored), invalidArtifact),
+      snapshot: stored,
+      prepared: {
+        catalog: { queue: row.queue, name: row.name, version: row.version },
+        producer: {
+          operation: row.operation,
+          operationId: row.operationId,
+          slot: row.slot
+        },
+        policy: stored.policy,
+        ...(row.initialAvailableAt === null
+          ? {}
+          : { availableAt: row.initialAvailableAt }),
+        encoded
+      }
+    }
+    const prepared = yield* validateClaimArtifact(claim)
+    return { ...claim, prepared }
+  })
 
-const write = (
+const write = <E>(
   sql: SqlStorage,
   before: Lifecycle.JobSnapshot,
   after: Lifecycle.JobSnapshot,
-  receipt: string | null
-) => {
-  const update = sql.exec(
-    `UPDATE jobs SET state = ?, availableAt = ?, updatedAt = ?, finalizedAttempts = ?,
-      stalledCount = ?, lifecycleVersion = ?, leaseToken = ?, leaseExpiresAt = ?,
-      completedAt = ?, lastFailureCode = ?, finalizationReceipt = ?
-    WHERE jobId = ? AND state = ? AND lifecycleVersion = ?
-      AND leaseToken IS ? AND leaseExpiresAt IS ? RETURNING jobId`,
-    after.state,
-    after.availableAt,
-    after.updatedAt,
-    after.finalizedAttempts,
-    after.stalledCount,
-    after.lifecycleVersion,
-    after.leaseToken,
-    after.leaseExpiresAt,
-    after.completedAt,
-    after.lastFailureCode,
-    receipt,
-    before.jobId,
-    before.state,
-    before.lifecycleVersion,
-    before.leaseToken,
-    before.leaseExpiresAt
-  )
-  if (update.toArray().length !== 1) {
-    throw new Store.JobOwnershipLost()
-  }
-}
-
-const asProtocolError = (error: unknown) => {
-  if (
-    error instanceof Store.JobStoreProtocolError ||
-    error instanceof Store.JobOwnershipLost ||
-    error instanceof JobPolicyIncompatible
-  ) {
-    return error
-  }
-  if (error instanceof Lifecycle.JobLifecycleError) {
-    return Match.value(error.reason).pipe(
-      Match.when("ownership-lost", () => new Store.JobOwnershipLost()),
-      Match.when("invalid-command", invalidInput),
-      Match.orElse(invalidArtifact)
+  receipt: string | null,
+  onFenceMiss: () => E
+) =>
+  Result.gen(function* () {
+    const rows = yield* attemptSql(() =>
+      sql
+        .exec(
+          `UPDATE jobs SET state = ?, availableAt = ?, updatedAt = ?, finalizedAttempts = ?,
+          stalledCount = ?, lifecycleVersion = ?, leaseToken = ?, leaseExpiresAt = ?,
+          completedAt = ?, lastFailureCode = ?, finalizationReceipt = ?
+        WHERE jobId = ? AND state = ? AND lifecycleVersion = ?
+          AND leaseToken IS ? AND leaseExpiresAt IS ? RETURNING jobId`,
+          after.state,
+          after.availableAt,
+          after.updatedAt,
+          after.finalizedAttempts,
+          after.stalledCount,
+          after.lifecycleVersion,
+          after.leaseToken,
+          after.leaseExpiresAt,
+          after.completedAt,
+          after.lastFailureCode,
+          receipt,
+          before.jobId,
+          before.state,
+          before.lifecycleVersion,
+          before.leaseToken,
+          before.leaseExpiresAt
+        )
+        .toArray()
     )
-  }
-  return new SqliteStoreUnavailable({ commitKnowledge: "Unknown" })
-}
+    if (rows.length === 0) {
+      return yield* Result.fail(onFenceMiss())
+    }
+    if (rows.length !== 1) {
+      return yield* Result.fail(invalidArtifact())
+    }
+  })
+
+const ownershipLost = () => new Store.JobOwnershipLost()
+const commandError = (error: Lifecycle.JobLifecycleError) =>
+  error.reason === "invalid-command" ? invalidInput() : invalidArtifact()
+const ownedCommandError = (error: Lifecycle.JobLifecycleError) =>
+  error.reason === "ownership-lost" ? ownershipLost() : commandError(error)
 
 // The application owns the object, migration and operation response budget.
 export const makeStore = (native: Storage, responseBudgetMillis: number) => {
   const sql = native.sql
-  const transact = <A, E>(body: () => A, onError: (error: unknown) => E) =>
-    Effect.try({
-      try: () => native.transactionSync(body),
-      catch: onError
+  const transact = <
+    A,
+    E extends Store.JobStoreProtocolError | Store.JobOwnershipLost | JobPolicyIncompatible
+  >(
+    body: () => Result.Result<A, E | SqliteSqlFault>
+  ) =>
+    Effect.suspend((): Effect.Effect<A, E | SqliteStoreUnavailable> => {
+      const abort = {}
+      let failure: Result.Failure<A, E | SqliteSqlFault> | undefined
+      let defect: { readonly value: unknown } | undefined
+      try {
+        return Effect.succeed(
+          native.transactionSync(() => {
+            try {
+              const result = body()
+              if (Result.isSuccess(result)) {
+                return result.success
+              }
+              failure = result
+            } catch (value) {
+              defect = { value }
+            }
+            // Returning a failed Result normally commits earlier writes. Only
+            // this invocation's sentinel confirms the native callback unwound.
+            throw abort
+          })
+        )
+      } catch (error) {
+        if (defect !== undefined) {
+          return Effect.die(defect.value)
+        }
+        if (error === abort && failure !== undefined) {
+          const cause = failure.failure
+          if (!(cause instanceof SqliteSqlFault)) {
+            return Effect.fail(cause)
+          }
+        }
+        // A native SQL or transaction-control failure leaves the port without
+        // a storage acknowledgment. The sync barrier handles post-commit loss.
+        return Effect.fail(new SqliteStoreUnavailable({ commitKnowledge: "Unknown" }))
+      }
     })
-
-  const readError = (error: unknown) => {
-    const failure = asProtocolError(error)
-    return failure instanceof Store.JobStoreProtocolError ||
-      failure instanceof SqliteStoreUnavailable
-      ? failure
-      : invalidArtifact()
-  }
-  const ownershipError = (error: unknown) => {
-    const failure = asProtocolError(error)
-    return failure instanceof JobPolicyIncompatible ? invalidArtifact() : failure
-  }
-  const claimError = (error: unknown) => {
-    const failure = asProtocolError(error)
-    return failure instanceof Store.JobOwnershipLost ? invalidArtifact() : failure
-  }
 
   const sync = Effect.tryPromise({
     try: () => native.sync(),
@@ -197,37 +208,47 @@ export const makeStore = (native: Storage, responseBudgetMillis: number) => {
   const claim = (input: unknown) =>
     Effect.suspend(() => {
       const startedAt = performance.now()
-      return transact(() => {
-        const request = requireSuccess(Store.validateClaimRequest(input))
-        const now = storageTime(sql)
-        const row = sql
-          .exec<JobRow>(
-            `${selectClaim} WHERE j.queue = ? AND j.availableAt <= ?
+      return transact(() =>
+        Result.gen(function* () {
+          const request = yield* Store.validateClaimRequest(input)
+          const now = yield* storageTime(sql)
+          const catalog = JSON.stringify(request.supportedCatalog)
+          const [row] = yield* attemptSql(() =>
+            sql
+              .exec<JobRow>(
+                `${selectClaim} WHERE j.queue = ? AND j.availableAt <= ?
           AND j.state IN ('Pending','RetryScheduled')
           AND EXISTS (SELECT 1 FROM json_each(?) catalog
             WHERE json_extract(catalog.value, '$.name') = j.name
               AND json_extract(catalog.value, '$.version') = j.version)
         ORDER BY j.availableAt, j.jobId LIMIT 1`,
-            request.queue,
-            now,
-            JSON.stringify(request.supportedCatalog)
+                request.queue,
+                now,
+                catalog
+              )
+              .toArray()
           )
-          .toArray()[0]
-        if (row === undefined) {
-          return Store.ClaimResult.Empty()
-        }
-        const before = snapshot(row)
-        const incompatible = incompatiblePolicy(before.policy, now, responseBudgetMillis)
-        if (incompatible !== undefined) {
-          throw incompatible
-        }
-        const after = requireSuccess(
-          Lifecycle.claim(before, request.leaseToken, now, responseBudgetMillis)
-        )
-        const claim = claimedJob(row, after)
-        write(sql, before, after, null)
-        return Store.ClaimResult.Claimed({ claim })
-      }, claimError).pipe(
+          if (row === undefined) {
+            return Store.ClaimResult.Empty()
+          }
+          const before = yield* snapshot(row)
+          const incompatible = incompatiblePolicy(
+            before.policy,
+            now,
+            responseBudgetMillis
+          )
+          if (incompatible !== undefined) {
+            return yield* Result.fail(incompatible)
+          }
+          const after = yield* Result.mapError(
+            Lifecycle.claim(before, request.leaseToken, now, responseBudgetMillis),
+            commandError
+          )
+          const claim = yield* claimedJob(row, after)
+          yield* write(sql, before, after, null, invalidArtifact)
+          return Store.ClaimResult.Claimed({ claim })
+        })
+      ).pipe(
         Effect.flatMap(
           (result): Effect.Effect<Store.ClaimResult, SqliteStoreUnavailable> =>
             result._tag === "Empty"
@@ -255,52 +276,61 @@ export const makeStore = (native: Storage, responseBudgetMillis: number) => {
     })
 
   const reconcileClaim = (input: unknown) =>
-    transact(() => {
-      const token = decode(Lifecycle.LeaseToken, input)
-      const now = storageTime(sql)
-      const row = sql
-        .exec<JobRow>(`${selectClaim} WHERE j.leaseToken = ?`, token)
-        .toArray()[0]
-      return requireSuccess(
-        Reconciliation.inspectClaim(
-          token,
-          row === undefined ? null : claimedJob(row, snapshot(row)),
-          now,
-          responseBudgetMillis
+    transact(() =>
+      Result.gen(function* () {
+        const token = yield* decode(Lifecycle.LeaseToken, input)
+        const now = yield* storageTime(sql)
+        const [row] = yield* attemptSql(() =>
+          sql.exec<JobRow>(`${selectClaim} WHERE j.leaseToken = ?`, token).toArray()
         )
-      )
-    }, readError).pipe(
+        const claim =
+          row === undefined
+            ? null
+            : yield* Result.flatMap(snapshot(row), (stored) => claimedJob(row, stored))
+        return yield* Result.mapError(
+          Reconciliation.inspectClaim(token, claim, now, responseBudgetMillis),
+          commandError
+        )
+      })
+    ).pipe(
       Effect.catchTags({
         SqliteStoreUnavailable: () => Effect.succeed(Store.ClaimReconciliation.Unknown())
       })
     )
 
-  const readOwned = (ownership: Lifecycle.JobOwnership, now: number) => {
-    const row = sql
-      .exec<JobRow>("SELECT * FROM jobs WHERE jobId = ?", ownership.jobId)
-      .toArray()[0]
-    if (row === undefined) {
-      throw new Store.JobOwnershipLost()
-    }
-    const before = snapshot(row)
-    if (!Lifecycle.isOwned(before, ownership, now)) {
-      throw new Store.JobOwnershipLost()
-    }
-    return before
-  }
+  const readJob = (jobId: Lifecycle.JobOwnership["jobId"]) =>
+    Result.map(
+      attemptSql(() =>
+        sql.exec<JobRow>("SELECT * FROM jobs WHERE jobId = ?", jobId).toArray()
+      ),
+      ([row]) => row
+    )
+
+  const readOwned = (ownership: Lifecycle.JobOwnership, now: number) =>
+    Result.gen(function* () {
+      const row = yield* readJob(ownership.jobId)
+      if (row === undefined) {
+        return yield* Result.fail(ownershipLost())
+      }
+      const before = yield* snapshot(row)
+      return Lifecycle.isOwned(before, ownership, now)
+        ? before
+        : yield* Result.fail(ownershipLost())
+    })
 
   const release = (input: unknown, phase: "BeforeExecution") =>
-    transact(() => {
-      const ownership = decode(Lifecycle.JobOwnership, input)
-      const now = storageTime(sql)
-      const before = readOwned(ownership, now)
-      write(
-        sql,
-        before,
-        requireSuccess(Lifecycle.release(before, ownership, now, phase)),
-        null
-      )
-    }, ownershipError).pipe(
+    transact(() =>
+      Result.gen(function* () {
+        const ownership = yield* decode(Lifecycle.JobOwnership, input)
+        const now = yield* storageTime(sql)
+        const before = yield* readOwned(ownership, now)
+        const after = yield* Result.mapError(
+          Lifecycle.release(before, ownership, now, phase),
+          ownedCommandError
+        )
+        return yield* write(sql, before, after, null, ownershipLost)
+      })
+    ).pipe(
       Effect.andThen(sync),
       Effect.as(Store.FinalizationResult.Applied()),
       Effect.catchTags({
@@ -309,27 +339,34 @@ export const makeStore = (native: Storage, responseBudgetMillis: number) => {
     )
 
   const finalize = (input: unknown) =>
-    transact(() => {
-      const request = decode(FinalizationRequest, input)
-      const claimed = Lifecycle.ownershipOf(request.before)
-      if (
-        Result.isFailure(claimed) ||
-        !sameOwnership(claimed.success, request.ownership)
-      ) {
-        throw invalidInput()
-      }
-      const now = storageTime(sql)
-      const before = readOwned(request.ownership, now)
-      if (!sameSnapshot(before, request.before)) {
-        throw new Store.JobOwnershipLost()
-      }
-      const after = requireSuccess(
-        Lifecycle.finalize(before, request.ownership, request.finalization, now)
-      )
-      // Keep the latest exact evidence of the request, including commands that
-      // produce an identical terminal row. Clear it on other lifecycle writes.
-      write(sql, before, after, encodeFinalizationReceipt(request))
-    }, ownershipError).pipe(
+    transact(() =>
+      Result.gen(function* () {
+        const request = yield* decode(FinalizationRequest, input)
+        const claimed = yield* Result.mapError(
+          Lifecycle.ownershipOf(request.before),
+          invalidInput
+        )
+        if (!sameOwnership(claimed, request.ownership)) {
+          return yield* Result.fail(invalidInput())
+        }
+        const now = yield* storageTime(sql)
+        const before = yield* readOwned(request.ownership, now)
+        if (!sameSnapshot(before, request.before)) {
+          return yield* Result.fail(ownershipLost())
+        }
+        const after = yield* Result.mapError(
+          Lifecycle.finalize(before, request.ownership, request.finalization, now),
+          ownedCommandError
+        )
+        // Keep the latest exact evidence of the request, including commands that
+        // produce an identical terminal row. Clear it on other lifecycle writes.
+        const receipt = yield* Result.mapError(
+          encodeFinalizationReceipt(request),
+          invalidInput
+        )
+        return yield* write(sql, before, after, receipt, ownershipLost)
+      })
+    ).pipe(
       Effect.andThen(sync),
       Effect.as(Store.FinalizationResult.Applied()),
       Effect.catchTags({
@@ -338,33 +375,32 @@ export const makeStore = (native: Storage, responseBudgetMillis: number) => {
     )
 
   const reconcileFinalization = (input: unknown) =>
-    transact(() => {
-      const request = decode(FinalizationRequest, input)
-      const now = storageTime(sql)
-      const row = sql
-        .exec<JobRow>("SELECT * FROM jobs WHERE jobId = ?", request.ownership.jobId)
-        .toArray()[0]
-      const result = requireSuccess(
-        Reconciliation.inspectFinalization(
-          request,
-          row === undefined ? null : snapshot(row),
-          now
+    transact(() =>
+      Result.gen(function* () {
+        const request = yield* decode(FinalizationRequest, input)
+        const now = yield* storageTime(sql)
+        const row = yield* readJob(request.ownership.jobId)
+        const before = row === undefined ? null : yield* snapshot(row)
+        const result = yield* Result.mapError(
+          Reconciliation.inspectFinalization(request, before, now),
+          commandError
         )
-      )
-      if (result._tag !== "Applied") {
-        return result
-      }
-      const receipt = row?.finalizationReceipt
-      if (receipt === null || receipt === undefined) {
-        return Store.FinalizationReconciliation.OwnershipLost()
-      }
-      const original = requireSuccess(
-        Result.mapError(decodeFinalizationReceipt(receipt), invalidArtifact)
-      )
-      return sameFinalizationRequest(original, request)
-        ? result
-        : Store.FinalizationReconciliation.OwnershipLost()
-    }, readError).pipe(
+        if (result._tag !== "Applied") {
+          return result
+        }
+        const receipt = row?.finalizationReceipt
+        if (receipt === null || receipt === undefined) {
+          return Store.FinalizationReconciliation.OwnershipLost()
+        }
+        const original = yield* Result.mapError(
+          decodeFinalizationReceipt(receipt),
+          invalidArtifact
+        )
+        return sameFinalizationRequest(original, request)
+          ? result
+          : Store.FinalizationReconciliation.OwnershipLost()
+      })
+    ).pipe(
       Effect.catchTags({
         SqliteStoreUnavailable: () =>
           Effect.succeed(Store.FinalizationReconciliation.Unknown())
@@ -372,25 +408,33 @@ export const makeStore = (native: Storage, responseBudgetMillis: number) => {
     )
 
   const recoverExpired = (queueInput: unknown, limitInput: unknown) =>
-    transact(() => {
-      const queue = decode(QueueName, queueInput)
-      const limit = decode(Lifecycle.BatchLimit, limitInput)
-      const now = storageTime(sql)
-      const rows = sql
-        .exec<JobRow>(
-          `SELECT * FROM jobs WHERE queue = ? AND state = 'Active' AND leaseExpiresAt <= ?
+    transact(() =>
+      Result.gen(function* () {
+        const queue = yield* decode(QueueName, queueInput)
+        const limit = yield* decode(Lifecycle.BatchLimit, limitInput)
+        const now = yield* storageTime(sql)
+        const rows = yield* attemptSql(() =>
+          sql
+            .exec<JobRow>(
+              `SELECT * FROM jobs WHERE queue = ? AND state = 'Active' AND leaseExpiresAt <= ?
         ORDER BY leaseExpiresAt, jobId LIMIT ?`,
-          queue,
-          now,
-          limit
+              queue,
+              now,
+              limit
+            )
+            .toArray()
         )
-        .toArray()
-      for (const row of rows) {
-        const before = snapshot(row)
-        write(sql, before, requireSuccess(Lifecycle.recoverExpired(before, now)), null)
-      }
-      return rows.length
-    }, readError).pipe(Effect.tap(() => sync))
+        for (const row of rows) {
+          const before = yield* snapshot(row)
+          const after = yield* Result.mapError(
+            Lifecycle.recoverExpired(before, now),
+            invalidArtifact
+          )
+          yield* write(sql, before, after, null, invalidArtifact)
+        }
+        return rows.length
+      })
+    ).pipe(Effect.tap(() => sync))
 
   return {
     claim,

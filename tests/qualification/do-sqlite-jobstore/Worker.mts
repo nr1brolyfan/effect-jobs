@@ -40,7 +40,12 @@ const decodeSeed = Schema.decodeUnknownSync(Seed, { onExcessProperty: "error" })
 const jobId = Schema.decodeUnknownSync(JobId)
 const decodeBoundaryIds = Schema.decodeUnknownSync(Schema.Tuple([JobId, JobId, JobId]))
 
-const recoveryFault = `
+const RecoveryFault = Schema.Literals(["sql", "fence"])
+const decodeRecoveryFault = Schema.decodeUnknownResult(RecoveryFault)
+const recoveryFault = (fault: typeof RecoveryFault.Type) => {
+  const action =
+    fault === "sql" ? "ABORT, 'fixture second recovery update failed'" : "IGNORE"
+  return `
   CREATE TRIGGER fixture_fail_second_recovery BEFORE UPDATE ON jobs
   WHEN OLD.state = 'Active' AND NEW.state = 'Pending' AND OLD.queue = 'invoices'
     AND OLD.operationId IN ('rollback-a', 'rollback-b')
@@ -49,8 +54,9 @@ const recoveryFault = `
         AND peer.operationId IN ('rollback-a', 'rollback-b') AND peer.state = 'Pending'
         AND peer.lifecycleVersion = OLD.lifecycleVersion + 1
     )
-  BEGIN SELECT RAISE(ABORT, 'fixture second recovery update failed'); END;
+  BEGIN SELECT RAISE(${action}); END;
 `
+}
 
 const observe = async (binding: Fetcher, phase: string, evidence: object) => {
   const response = await binding.fetch("http://observer.local/" + phase, {
@@ -184,7 +190,7 @@ export class Store extends DurableObject<Bindings> {
     return native.transactionSync(() => ({
       epoch: this.epoch,
       objectId: this.ctx.id.toString(),
-      now: storageTime(sql),
+      now: Result.getOrThrowWith(storageTime(sql), (failure) => failure),
       calls: this.calls,
       acknowledgments: this.acknowledgments,
       dropped: this.dropped,
@@ -223,7 +229,11 @@ export class Store extends DurableObject<Bindings> {
       return json(await this.seed(body, legacyResponseBudgetMillis))
     }
     if (url.pathname === "/fixture-fail-second-recovery") {
-      this.ctx.storage.sql.exec(recoveryFault)
+      const fault = decodeRecoveryFault(body)
+      if (Result.isFailure(fault)) {
+        return new Response(null, { status: 400 })
+      }
+      this.ctx.storage.sql.exec(recoveryFault(fault.success))
       return json("installed")
     }
 

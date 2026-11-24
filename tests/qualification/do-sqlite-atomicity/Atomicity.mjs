@@ -369,6 +369,16 @@ const rollbackCases = [
   ["typed", failure("Fail", { tag: "FixtureRejected" }), [...bodyWritten, ...closed]],
   ["defect", failure("Die", { expected: true }), [...bodyWritten, ...closed]],
   [
+    "domain-write-defect",
+    failure("Die", { expected: true }),
+    [...bodyWritten, "domain-write-defect-caught", ...closed]
+  ],
+  [
+    "invalid-clock",
+    failure("Fail", { tag: "JobStoreProtocolError", reason: "invalid-artifact" }),
+    [...bodyWritten, "codec-entered", ...codec, "invalid-clock-caught", ...closed]
+  ],
+  [
     "conflict",
     failure("Fail", { tag: "JobIntegrityConflict" }),
     [

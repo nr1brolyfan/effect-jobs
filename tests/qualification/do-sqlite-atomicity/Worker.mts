@@ -36,6 +36,8 @@ const Mutation = Schema.Literals([
   "commit",
   "duplicate",
   "payload-write-failure",
+  "invalid-clock",
+  "domain-write-defect",
   "incompatible",
   "incompatible-caught",
   "typed",
@@ -90,7 +92,16 @@ const describeExit = <A, E extends { readonly _tag: string }>(exit: Exit.Exit<A,
     reasons: exit.cause.reasons.map((reason) =>
       Match.value(reason).pipe(
         Match.tagsExhaustive({
-          Fail: (failure) => ({ channel: "Fail", tag: failure.error._tag }),
+          Fail: (failure) => {
+            const error = failure.error
+            return {
+              channel: "Fail",
+              tag: error._tag,
+              ...(error._tag === "JobStoreProtocolError" && "reason" in error
+                ? { reason: error.reason }
+                : {})
+            }
+          },
           Die: (failure) => ({
             channel: "Die",
             expected: failure.defect === injectedDefect
@@ -179,6 +190,7 @@ export class Store extends DurableObject<Bindings> {
     const storage = {
       transaction,
       sql: {
+        corruptClock: false,
         exec<Row extends Record<string, SqlStorageValue>>(
           query: string,
           ...bindings: unknown[]
@@ -189,6 +201,13 @@ export class Store extends DurableObject<Bindings> {
           ) {
             // Fail after the library has written the job, through native SQLite.
             return sql.exec<Row>("INSERT INTO payloads (jobId) VALUES (?)", bindings[0])
+          }
+          if (
+            mode === "invalid-clock" &&
+            this.corruptClock &&
+            query.includes("unixepoch('subsec')")
+          ) {
+            return sql.exec<Row>("SELECT NULL AS now")
           }
           const cursor = sql.exec<Row>(query, ...bindings)
           if (query.startsWith("INSERT INTO jobs")) {
@@ -303,6 +322,29 @@ export class Store extends DurableObject<Bindings> {
           }
         }
 
+        if (mode === "invalid-clock") {
+          storage.sql.corruptClock = true
+          yield* producer
+            .enqueueInTransaction(tx, {
+              ...input,
+              operationId: operationId + "-bad-clock"
+            })
+            .pipe(
+              Effect.catchTags({
+                JobStoreProtocolError: () =>
+                  Effect.sync(() => record("invalid-clock-caught"))
+              })
+            )
+        }
+        if (mode === "domain-write-defect") {
+          yield* write(() => {
+            throw injectedDefect
+          }).pipe(
+            Effect.catchCause(() =>
+              Effect.sync(() => record("domain-write-defect-caught"))
+            )
+          )
+        }
         if (mode === "interrupt-after-writes") {
           Deferred.doneUnsafe(codecEntered, Effect.void)
           return yield* Effect.never

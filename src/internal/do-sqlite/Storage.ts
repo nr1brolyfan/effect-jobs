@@ -1,4 +1,4 @@
-import { Schema } from "effect"
+import { Data, Result, Schema } from "effect"
 import { JobPolicyIncompatible } from "../../JobContract.js"
 import { EpochMillis, maximumMillis, type JobPolicy } from "../../JobPolicy.js"
 import { JobStoreProtocolError } from "../../JobStore.js"
@@ -48,17 +48,30 @@ export const ddl = `
     WHERE state = 'Active';
 `
 
-export const storageTime = (sql: SqlStorage) => {
-  const { now } = sql
-    .exec<{ now: number }>(
-      "SELECT CAST(round(unixepoch('subsec') * 1000) AS INTEGER) AS now"
-    )
-    .one()
-  if (!Schema.is(EpochMillis)(now)) {
-    throw new JobStoreProtocolError({ reason: "invalid-artifact" })
+export class SqliteSqlFault extends Data.TaggedError("SqliteSqlFault")<{}> {}
+
+// Include cursor consumption in this FFI boundary: workerd may step SQL there.
+export const attemptSql = <A>(run: () => A): Result.Result<A, SqliteSqlFault> => {
+  try {
+    return Result.succeed(run())
+  } catch {
+    return Result.fail(new SqliteSqlFault())
   }
-  return now
 }
+
+export const storageTime = (sql: SqlStorage) =>
+  Result.gen(function* () {
+    const { now } = yield* attemptSql(() =>
+      sql
+        .exec<{ now: SqlValue }>(
+          "SELECT CAST(round(unixepoch('subsec') * 1000) AS INTEGER) AS now"
+        )
+        .one()
+    )
+    return Schema.is(EpochMillis)(now)
+      ? now
+      : yield* Result.fail(new JobStoreProtocolError({ reason: "invalid-artifact" }))
+  })
 
 // Admission and claim share the same lease constraints. Claim rechecks them
 // against its own SQLite time and the worker's current response budget.

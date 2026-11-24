@@ -684,48 +684,54 @@ for (const operation of ["claim", "finalize"]) {
   })
 }
 
-test("recovery rolls back its first update when the second fails", () =>
-  withStore(async (host) => {
-    const ids = [
-      await seed(host, "rollback-a", { lease: "short" }),
-      await seed(host, "rollback-b", { lease: "short" })
-    ]
-    const claims = [await claim(host, requestFor()), await claim(host, requestFor())]
-    assert.deepEqual(new Set(claims.map((value) => value.ownership.jobId)), new Set(ids))
-    const [first, second] = claims
-      .map((value) => value.ownership)
-      .sort(
-        (a, b) => a.leaseExpiresAt - b.leaseExpiresAt || compareAscii(a.jobId, b.jobId)
+const recoveryFailures = /** @type {const} */ ([
+  ["sql", { _tag: "SqliteStoreUnavailable", commitKnowledge: "Unknown" }],
+  ["fence", { _tag: "JobStoreProtocolError", reason: "invalid-artifact" }]
+])
+for (const [fault, expected] of recoveryFailures) {
+  test(`recovery rolls back its first update after a second-row ${fault} failure`, () =>
+    withStore(async (host) => {
+      const ids = [
+        await seed(host, "rollback-a", { lease: "short" }),
+        await seed(host, "rollback-b", { lease: "short" })
+      ]
+      const claims = [await claim(host, requestFor()), await claim(host, requestFor())]
+      assert.deepEqual(
+        new Set(claims.map((value) => value.ownership.jobId)),
+        new Set(ids)
       )
-    assert.equal(await host.call("/fixture-fail-second-recovery", {}), "installed")
-    const before = await waitForExpiry(host, second.leaseExpiresAt)
-    assert.deepEqual(
-      before.rows
-        .filter(
-          (row) =>
-            row.queue === "invoices" &&
-            row.state === "Active" &&
-            row.leaseExpiresAt <= before.now
+      const [first, second] = claims
+        .map((value) => value.ownership)
+        .sort(
+          (a, b) => a.leaseExpiresAt - b.leaseExpiresAt || compareAscii(a.jobId, b.jobId)
         )
-        .map((row) => row.jobId)
-        .sort(compareAscii),
-      ids.sort(compareAscii)
-    )
-    assert.deepEqual(await recover(host, "invoices", 2), {
-      _tag: "SqliteStoreUnavailable",
-      commitKnowledge: "Unknown"
-    })
-    const after = await host.state()
-    assert.equal(after.objectId, before.objectId)
-    assert.equal(after.epoch, before.epoch)
-    assert.equal(job(after, second.jobId).state, "Active")
-    assert.equal(
-      job(after, first.jobId).state,
-      "Active",
-      "first update leaked from failed batch"
-    )
-    assert.deepEqual(persisted(after), persisted(before))
-  }))
+      assert.equal(await host.call("/fixture-fail-second-recovery", fault), "installed")
+      const before = await waitForExpiry(host, second.leaseExpiresAt)
+      assert.deepEqual(
+        before.rows
+          .filter(
+            (row) =>
+              row.queue === "invoices" &&
+              row.state === "Active" &&
+              row.leaseExpiresAt <= before.now
+          )
+          .map((row) => row.jobId)
+          .sort(compareAscii),
+        ids.sort(compareAscii)
+      )
+      assert.deepEqual(await recover(host, "invoices", 2), expected)
+      const after = await host.state()
+      assert.equal(after.objectId, before.objectId)
+      assert.equal(after.epoch, before.epoch)
+      assert.equal(job(after, second.jobId).state, "Active")
+      assert.equal(
+        job(after, first.jobId).state,
+        "Active",
+        "first update leaked from failed batch"
+      )
+      assert.deepEqual(persisted(after), persisted(before))
+    }))
+}
 
 test("recovery includes expiry equal to the same SQLite sample", () =>
   withStore(async (host) => {
