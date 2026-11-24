@@ -214,6 +214,11 @@ export const JobDetail = Schema.Struct({
   relations: ApplicationRelations,
   observation: Observation.pipe(Schema.optional),
   createdAt: EpochMillis.pipe(Schema.NullOr),
+  // Read-time classification only. An absent observation is not a liveness signal.
+  leaseObservation: Schema.Struct({
+    status: Schema.Literals(["Held", "Expired"]),
+    observedAt: EpochMillis
+  }).pipe(Schema.NullOr, Schema.optionalKey),
   payload: JobPayloadView,
   result: Schema.TaggedStruct("Unavailable", { reason: Schema.Literal("not-stored") }),
   history: JobHistory,

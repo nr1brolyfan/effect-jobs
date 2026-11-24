@@ -152,6 +152,32 @@ try {
   report.checks.push(
     "populated pre-v7 legacy row: null, accessible unknown dash and no invented time"
   )
+  // The legacy fixture has no consumer. Observe both sides of lease expiry
+  // without a racing handler or a browser-clock countdown.
+  assert.equal(legacyDetail.leaseObservation, null)
+  for (const [deadline, expected, label] of [
+    [253402300799999, "Held", "Valid lease — handler progress unknown"],
+    [1, "Expired", "Expired — awaiting recovery"]
+  ]) {
+    await pool.query(
+      `UPDATE ${table("jobs")} SET state='Active',lease_token='private-lease-test-token',lease_expires_at=$1 WHERE id='legacy-created-unknown'`,
+      [deadline]
+    )
+    const observed = await context.request.get(legacyDetailUrl.href)
+    assert.equal(observed.status(), 200)
+    const detail = await observed.json()
+    assert.equal(detail.job.state, "Active")
+    assert.equal(detail.leaseObservation.status, expected)
+    assert.equal(detail.leaseObservation.observedAt < deadline, expected === "Held")
+    assert.equal(detail.eligibility.redrive.enabled, false)
+    assert.equal(detail.eligibility.correctedRedrive.enabled, false)
+    assert(!JSON.stringify(detail).includes("private-lease-test-token"))
+    await page.reload()
+    await expect(full.getByText(label, { exact: false })).toBeVisible()
+  }
+  report.checks.push(
+    "Active lease classified at DB observation time; no token or redrive capability exposed"
+  )
   await inspect("/demo")
   const demo = await (await context.request.get(local.origin + "/api/demo")).json()
   assert.equal(demo.capabilities.runScenario, false)

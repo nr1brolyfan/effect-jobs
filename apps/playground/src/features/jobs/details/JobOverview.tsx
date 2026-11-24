@@ -1,7 +1,7 @@
 import type { JobDetail } from "@effect-jobs/playground-contracts/Jobs"
 import * as stylex from "@stylexjs/stylex"
 import { Badge, Panel } from "../../../ui/Primitives.js"
-import { PropertyGrid, Absent } from "./PropertyGrid.js"
+import { DetailTime, PropertyGrid, Absent } from "./PropertyGrid.js"
 import { styles as propertyStyles } from "./PropertyGrid.stylex.js"
 import { styles } from "./JobOverview.stylex.js"
 
@@ -31,6 +31,27 @@ export function JobOverview(props: { readonly detail: JobDetail }) {
       </div>
       <PropertyGrid
         items={[
+          ...(props.detail.job.state === "Active"
+            ? [
+                {
+                  label: "Lease at last read",
+                  value: props.detail.leaseObservation ? (
+                    <>
+                      {props.detail.leaseObservation.status === "Expired"
+                        ? "Expired — awaiting recovery"
+                        : "Valid lease — handler progress unknown"}
+                      {" · "}
+                      <DetailTime
+                        value={props.detail.leaseObservation.observedAt}
+                        label="Lease observed"
+                      />
+                    </>
+                  ) : (
+                    <Absent reason="Lease not observed" />
+                  )
+                }
+              ]
+            : []),
           ...(props.detail.problem
             ? [
                 {
