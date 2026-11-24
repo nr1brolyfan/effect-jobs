@@ -85,6 +85,35 @@ submitting matching duplicates does not rewrite a retained job's first policy.
 
 ## Monitoring and alerts
 
+### Choose a wake strategy
+
+- **Node/Bun service:** supervise one long-lived worker process with a scoped
+  `JobPolling.layer`. It polls even when the API sends no signal. In the built
+  Orders tutorial, run `WORKER_MODE=poll node dist/apps/worker/src/main.js`
+  with its configured database. Use `WORKER_MODE=drain` for one bounded pass;
+  a scheduler must invoke it again if that is your only consumer.
+- **Durable Object:** in the Alchemy billing example the producer awaits
+  `prearm()` before accepting work. After PostgreSQL acknowledges commit it
+  sends a best-effort `wake()` to the named object. If this nudge is lost,
+  the earlier durable wake still exists. Each callback schedules a replacement
+  before opening PostgreSQL, drains a bounded batch, then observes the same
+  queue and worker catalog to choose the next delay. The coordinator owns
+  scheduling; an individual handler need not launch the next worker.
+- **Recovery without new traffic:** prearm covers this producer path, not
+  previously stored jobs in a fresh namespace or an administratively deleted
+  alarm. Bootstrap active routes on deployment. Where unattended recovery is
+  required, have an independent scheduled task check authorized active routes
+  and nudge their coordinators; keep one owner of the native alarm. A saturated
+  observation with no next timestamp is inconclusive. Retain a finite recheck
+  rather than treating it as proof that the queue will stay empty.
+
+The billing example uses a 60-second repair wake; its Alchemy policy can park
+retries for an hour. Neither is a processing deadline. The playground has a
+different contract: repair wakes stop when its sandbox activation expires.
+See [Cloudflare alarm delivery and retry limits](https://developers.cloudflare.com/durable-objects/api/alarms/).
+
+### What to monitor
+
 - [ ] Export the existing [operation metrics](/docs/operations/telemetry). Watch
       claim/finalization tail latency, Unknown outcomes and timeouts, not only
       handler success.
