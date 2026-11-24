@@ -78,14 +78,14 @@ export const qualify = (url) => {
           payload: { reportId: id, rows: [] }
         }).pipe(Effect.provideService(JobEnqueue, jobs.producer))
       const request = (id) =>
-        client.withTransaction(
+        db.transaction((tx) =>
           Effect.gen(function* () {
-            yield* db
+            yield* tx
               .insert(requests)
               .values({ operationId: id, reportId: id })
               .onConflictDoNothing()
             const result = yield* enqueue(id)
-            yield* db
+            yield* tx
               .insert(receipts)
               .values({ operationId: id, jobId: result.jobId })
               .onConflictDoNothing()
@@ -100,7 +100,8 @@ export const qualify = (url) => {
       const foreign = yield* Effect.gen(function* () {
         const other = yield* DrizzlePostgresClient.DrizzlePostgresClient
         assert.notEqual(other, client)
-        return yield* Effect.exit(other.withTransaction(enqueue("foreign")))
+        const otherDb = yield* makeWithDefaults()
+        return yield* Effect.exit(otherDb.transaction(() => enqueue("foreign")))
       }).pipe(Effect.provide(DrizzlePostgresClient.layer(options)))
       rejected(foreign, "transaction-required")
       const results = yield* Effect.all([request("same"), request("same")], {
@@ -119,15 +120,27 @@ export const qualify = (url) => {
       assert.equal(new Set(audit.map((r) => r.pid)).size, 1)
       assert.equal(new Set(audit.map((r) => r.xid)).size, 1)
       const interrupted = yield* Effect.exit(
-        client.withTransaction(
+        db.transaction(() =>
           enqueue("interrupted").pipe(Effect.andThen(Effect.interrupt))
         )
       )
       assert(Exit.isFailure(interrupted) && Cause.hasInterrupts(interrupted.cause))
       yield* client.unsafe(
-        "alter table report_request_receipts add check (operation_id <> 'rollback')"
+        "alter table report_request_receipts add constraint receipt_rollback_check check (operation_id <> 'rollback')"
       )
-      assert(Exit.isFailure(yield* Effect.exit(request("rollback"))))
+      const rollback = yield* Effect.exit(request("rollback"))
+      assert(Exit.isFailure(rollback))
+      let violation = Cause.squash(rollback.cause)
+      while (violation && violation.code !== "23514") {
+        violation = Cause.isCause(violation)
+          ? Cause.squash(violation)
+          : (violation.cause ?? violation.reason)
+      }
+      assert.equal(violation?.code, "23514", "receipt insert must fail its CHECK")
+      assert.equal(
+        violation.constraint ?? violation.constraint_name,
+        "receipt_rollback_check"
+      )
       assert.deepEqual(
         yield* client.unsafe("select * from write_audit order by rel"),
         audit

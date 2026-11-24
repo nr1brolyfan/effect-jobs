@@ -152,6 +152,62 @@ try {
   report.checks.push(
     "populated pre-v7 legacy row: null, accessible unknown dash and no invented time"
   )
+  // The legacy fixture has no consumer. Observe both sides of lease expiry
+  // without a racing handler or a browser-clock countdown.
+  assert.equal(legacyDetail.leaseObservation, null)
+  const dbMillis = async () =>
+    Number(
+      (await pool.query("SELECT floor(extract(epoch FROM clock_timestamp())*1000) AS ms"))
+        .rows[0].ms
+    )
+  const checkTime = async (timestamp, before) => {
+    const after = await dbMillis()
+    assert.ok(
+      timestamp >= before && timestamp <= after,
+      "lease observation outside database clock bounds"
+    )
+  }
+  for (const [deadline, expected, label] of [
+    [253402300799999, "Held", "Valid lease — handler progress unknown"],
+    [1, "Expired", "Expired — awaiting recovery"]
+  ]) {
+    await pool.query(
+      `UPDATE ${table("jobs")} SET state='Active',lease_token='private-lease-test-token',lease_expires_at=$1 WHERE id='legacy-created-unknown'`,
+      [deadline]
+    )
+    const before = await dbMillis()
+    const observed = await context.request.get(legacyDetailUrl.href)
+    assert.equal(observed.status(), 200)
+    const detail = await observed.json()
+    assert.equal(detail.job.state, "Active")
+    assert.equal(detail.leaseObservation.status, expected)
+    await checkTime(detail.leaseObservation.observedAt, before)
+    assert.equal(detail.leaseObservation.observedAt < deadline, expected === "Held")
+    assert.equal(detail.eligibility.redrive.enabled, false)
+    assert.equal(detail.eligibility.correctedRedrive.enabled, false)
+    assert(!JSON.stringify(detail).includes("private-lease-test-token"))
+    const beforeReload = await dbMillis()
+    const [pageDetail] = await Promise.all([
+      page.waitForResponse((response) => {
+        const url = new URL(response.url())
+        return (
+          url.pathname === legacyDetailUrl.pathname &&
+          url.searchParams.get("jobId") === "legacy-created-unknown" &&
+          response.ok()
+        )
+      }),
+      page.reload()
+    ])
+    const { leaseObservation } = await pageDetail.json()
+    await checkTime(leaseObservation.observedAt, beforeReload)
+    await expect(full.getByText(label, { exact: false })).toBeVisible()
+    await expect(
+      full.getByRole("button", { name: /^Lease observed:/ }).locator("time")
+    ).toHaveAttribute("datetime", new Date(leaseObservation.observedAt).toISOString())
+  }
+  report.checks.push(
+    "Active lease classified at DB observation time; no token or redrive capability exposed"
+  )
   await inspect("/demo")
   const demo = await (await context.request.get(local.origin + "/api/demo")).json()
   assert.equal(demo.capabilities.runScenario, false)

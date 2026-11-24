@@ -47,10 +47,14 @@ with equal options does not establish transaction identity. Joining jobs adds
 no BEGIN, savepoint, independent COMMIT or replay. The application retains pool,
 migration, timeout and outer error/reconciliation ownership.
 
-`db.transaction` has an upstream error-type limitation and is excluded from the
-qualified positive route. Do not cast its errors away or use it as the documented
-owner. Nested transactions, transaction options and isolation are not promised
-to behave identically between Drizzle and the native client.
+The supported transaction owner is `client.withTransaction` with Drizzle queries
+in the same Effect context. Separately, the bundled `drizzle-orm/postgres/effect`
+driver at Drizzle `1.0.0-rc.6` and Effect `4.1.3` passed a local qualification
+of the ordinary `db.transaction` callback on Node, Bun and workerd: with one
+scoped client, the domain row, job, payload and receipt shared a PostgreSQL
+connection and transaction. The type probes check the inferred error and service
+channels. This evidence does not extend to nesting, isolation options or other
+drivers. See the disconnected rollback limitation below.
 
 ## Optional declarations for migrations
 

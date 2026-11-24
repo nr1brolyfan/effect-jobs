@@ -32,6 +32,14 @@ available actions. Missing observations mean unknown. A configured lease duratio
 does not prove current ownership. Synthetic entity links explain the example;
 they are not links to real customer records.
 
+`Active` means a claim was recorded and has not been finalized. The holder might
+be working, have lost contact, or have stopped. At the database observation
+time, a lease with `expiresAt > dbNow` is still valid; `expiresAt <= dbNow`
+means the row is awaiting recovery. Both rows remain `Active`. In the job overview,
+**Lease at last read** shows that distinction and the database observation time.
+If no observation is available, refresh rather than guessing. The configured
+lease duration in the detail view is policy, not the expiry of this claim.
+
 ## Commands and receipts
 
 The local launcher creates bounded scenarios. The server independently checks
@@ -46,6 +54,30 @@ identity and blocks conflicting commands while checking its receipt. Receipt
 lookup is a read: absence of a receipt never grants permission to replay the
 command. Reloading loses mount-local uncertain request state; it does not undo
 an operation or prove rollback.
+
+### Walk through a repair
+
+1. In private `/jobs`, open a `Dead` or `Isolated` row. Inspect the failure,
+   related jobs and any provider evidence. A terminal state does not prove that
+   a mail or payment was never sent. If the provider confirms it was applied,
+   use **Reconcile applied effect** when available.
+2. If the original input is valid and the provider or handler has been fixed,
+   choose **Redrive as new job**. If the input was wrong, choose **Correct and
+   redrive** where enabled. Review the replacement, record the investigation
+   and reason, and confirm the risk of repeating an external effect. The
+   replacement must satisfy the same job definition and version.
+3. After acknowledgement, inspect the linked successor. It has its own ID and
+   attempt budget; the source row still describes the original failure. If the
+   response is lost, use **Check repair receipt** for that request instead of
+   submitting a second repair. The read-only `/demo` lets you inspect the
+   example outcome; mutation commands belong to the private route.
+
+In your own dashboard, offer fields specific to the business operation. For
+example, correcting report rows need not grant permission to edit the tenant,
+destination or queue. Construct the entire replacement on the server from
+authorized input, validate it, and commit the successor, receipt and audit
+record together. A new job ID by itself does not deduplicate an external effect
+across the two jobs.
 
 Reset advances the sandbox generation and hides its old observations. It does
 not cancel running jobs or rewrite the library lifecycle. Old-generation results

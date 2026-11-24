@@ -64,6 +64,21 @@ even when the worker listens only on the email queue.
 
 ## Run different catalogs on different queues
 
+Choose the **group** by which handlers belong together, and the **queue** by
+which jobs should compete for the same capacity. Application size is a useful
+starting point; observed wait times and deployment boundaries decide when to split.
+
+| Application               | Example                                                                                                                                                                      | Why this boundary?                                                                                                                                                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Small service             | `billing` and `notifications` groups, one `default` queue and one polling worker.                                                                                            | A single deployment and similar latency needs. Split when long jobs start delaying short ones.                                                                                                                            |
+| Growing SaaS              | Transactional mail on `mail.transactional`; report generation on `reports.standard` and `reports.express`.                                                                   | Mail must not wait behind rendering. A report producer with a selectable slot chooses a lane from the customer's entitlement on the server. Reserve capacity for each lane, including standard.                           |
+| Multiple bounded contexts | Billing owns invoice contracts; Identity owns sign-in mail. They can share a delivery queue. Give bulk billing exports a separately deployed worker with its own CPU budget. | DDD determines who owns the contract. Latency, required services, failure isolation and independent rollout determine which jobs share workers. A queue name alone does not isolate tenants or reserve provider capacity. |
+
+Measure due-to-start latency per lane and the oldest waiting standard job. An
+express lane can shorten waiting time; it cannot interrupt a running report or
+speed up a saturated provider. Matching re-enqueue after a subscription upgrade
+keeps the first queue. A queue per paying customer is rarely a useful default.
+
 A worker supports every group in its catalog on every configured queue. For
 queue-specific coverage, create separate worker instances in the same
 application. This Effect uses the configured `JobStorage`. Each handler Layer

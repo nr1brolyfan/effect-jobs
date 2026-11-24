@@ -47,6 +47,7 @@ const BaseDetail = Schema.Struct({
   sandbox: JobDetail.fields.sandbox,
   job: JobDetail.fields.job,
   createdAt: JobDetail.fields.createdAt,
+  leaseObservation: JobDetail.fields.leaseObservation,
   producer: JobDetail.fields.producer,
   policy: PersistedJobPolicy,
   relations: JobDetail.fields.relations

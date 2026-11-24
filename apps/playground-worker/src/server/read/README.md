@@ -54,8 +54,9 @@ ledger/observations require their separate app-owned adapter and explicit source
 Creation time comes from durable `created_at` in epoch milliseconds; legacy rows remain null. Historical attempt history and progress are unavailable.
 `available_at <= dbNow` denotes due Pending/RetryScheduled rows, not guaranteed
 execution; `lease_expires_at <= dbNow` identifies expiry candidates for Active,
-not permission to recover/write. Neither lease values nor extra views are in
-the frozen DTO. Likewise counters have no frozen public schema/port.
+not permission to recover/write. For an Active detail, `leaseObservation` classifies
+the lease at the PostgreSQL statement time (`Held` or `Expired`). It is not a
+heartbeat or an operator capability. Tokens and expiry values are not exposed.
 
 ## Serial registrar proposals
 

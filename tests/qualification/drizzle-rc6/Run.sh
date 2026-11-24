@@ -51,7 +51,8 @@ for rt in node bun; do
   (cd "$scratch/core" && "$rt" --input-type=module -e 'import "effect-jobs"; import "effect-jobs/JobProducer"; import "effect-jobs/JobWorker"')
 done
 cat > Integration.mts <<'TS'
-import { Duration, Effect } from "effect"
+import { Context, Duration, Effect } from "effect"
+import type { SqlError } from "effect/sql/SqlError"
 import { DrizzlePostgresClient, makeWithDefaults } from "drizzle-orm/postgres/effect"
 import * as Native from "effect-jobs/PostgreSqlNative"
 export const compose = Effect.gen(function* () {
@@ -59,6 +60,20 @@ export const compose = Effect.gen(function* () {
   const db = yield* makeWithDefaults()
   return { db, adapter: Native.make({ client, operationTimeout: Duration.seconds(3) }) }
 })
+class Caller extends Context.Service<Caller, string>()("probe/Caller") {}
+const ormTransaction = Effect.gen(function* () {
+  const db = yield* makeWithDefaults()
+  return yield* db.transaction(() => Effect.gen(function* () {
+    const name = yield* Caller
+    if (!name) return yield* Effect.fail("missing" as const)
+    return name
+  }))
+})
+type Equal<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
+export const typedError: Equal<Effect.Error<typeof ormTransaction>, "missing" | SqlError> = true
+export const typedServices: Equal<Effect.Services<typeof ormTransaction>, Caller | DrizzlePostgresClient.DrizzlePostgresClient> = true
+// @ts-expect-error -- the ORM boundary must not silently widen its error channel to any/unknown.
+export const unrelatedError: Effect.Error<typeof ormTransaction> = 0
 TS
 node -e 'require("node:fs").writeFileSync("tsconfig.consumer.json", JSON.stringify({extends:"./tsconfig.json",include:["Integration.mts"]}))'
 ./node_modules/.bin/tsc -p tsconfig.consumer.json

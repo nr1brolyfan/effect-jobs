@@ -258,6 +258,13 @@ const RepairForm = (props: Props) => {
       aria-label="Repair and resolution"
     >
       <h3 {...stylex.props(styles.heading)}>Repair and resolution</h3>
+      {(redrive || correct) && (
+        <p {...stylex.props(styles.explanation)}>
+          Check provider evidence before repeating work. Redrive uses the original
+          payload; correction submits a full replacement. Both create a linked job and
+          leave this one unchanged. If the effect already happened, reconcile it instead.
+        </p>
+      )}
       {pending && (
         <div role="status">
           <p>
