@@ -1,3 +1,4 @@
+import type { SqlStorage } from "../../../src/internal/do-sqlite/Storage.js"
 import { Jobs } from "../do-sqlite-drain/Worker.mjs"
 
 export class InvoiceJobs extends Jobs {
@@ -13,10 +14,11 @@ export class InvoiceJobs extends Jobs {
   }
 
   protected override writeDomain(
+    sql: SqlStorage,
     operationId: string,
     payload: { readonly invoiceId: string; readonly amountCents: number }
   ) {
-    this.ctx.storage.sql.exec(
+    sql.exec(
       "INSERT INTO invoices VALUES (?, ?, ?)",
       operationId,
       payload.invoiceId,

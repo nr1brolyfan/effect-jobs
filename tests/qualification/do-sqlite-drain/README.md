@@ -52,7 +52,7 @@ appearance of a successful drain so the independent evidence must reject them.
 | File | Replace | With | Required failure |
 | --- | --- | --- | --- |
 | `src/internal/worker/Execution.ts` | `Effect.suspend(() => handler.execute(copied, context)).pipe(` | `Effect.void.pipe(` | Handler entry check fails, durable finalization check passes |
-| `src/internal/do-sqlite/Store.ts` | `write(sql, before, after, encodeFinalizationReceipt(request))` | `void after` | Durable finalization check fails, handler and delivery check passes |
+| `src/internal/do-sqlite/Store.ts` | `return yield* write(sql, before, after, receipt, ownershipLost)` in `finalize` | `return` | Handler entry and delivery checks pass, then `expected persisted Completed state` fails |
 
 A successful application write is separate from finalization. The qualified
 path shows one observed invocation and local persistence across a graceful

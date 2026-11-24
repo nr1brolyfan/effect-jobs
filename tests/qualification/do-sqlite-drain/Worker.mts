@@ -9,7 +9,7 @@ import * as JobQueue from "../../../src/JobQueue.js"
 import * as JobStorage from "../../../src/JobStorage.js"
 import * as JobWorker from "../../../src/JobWorker.js"
 import { withTransaction } from "../../../src/internal/do-sqlite/Transaction.js"
-import { ddl } from "../../../src/internal/do-sqlite/Storage.js"
+import { ddl, type SqlStorage } from "../../../src/internal/do-sqlite/Storage.js"
 import { makeStore } from "../../../src/internal/do-sqlite/Store.js"
 
 const responseBudgetMillis = 250
@@ -94,27 +94,34 @@ export class Jobs extends DurableObject<Bindings> {
   }
 
   // A derived fixture can join the application write to this native transaction.
-  protected writeDomain?(operationId: string, payload: typeof Payload.Type): void
+  protected writeDomain?(
+    sql: SqlStorage,
+    operationId: string,
+    payload: typeof Payload.Type
+  ): void
 
-  private async enqueue(request: Request) {
-    const command = await Effect.runPromise(decodeEnqueue(await request.json()))
+  protected enqueue(request: Request) {
     const native = this.ctx.storage
-    const result = await Effect.runPromise(
-      withTransaction(native, responseBudgetMillis, (tx, write) =>
+    return Effect.gen({ self: this }, function* () {
+      const input: unknown = yield* Effect.promise(() => request.json())
+      const command = yield* decodeEnqueue(input)
+      const result = yield* withTransaction(native, responseBudgetMillis, (tx, write) =>
         Effect.gen({ self: this }, function* () {
           const result = yield* producer.enqueueInTransaction(tx, {
             slot: "deliver",
             ...command
           })
           if (result._tag === "Inserted") {
-            yield* write(() => this.writeDomain?.(command.operationId, command.payload))
+            yield* write((sql) =>
+              this.writeDomain?.(sql, command.operationId, command.payload)
+            )
           }
           return result
         })
       )
-    )
-    await native.sync()
-    return result
+      yield* Effect.promise(() => native.sync())
+      return result
+    })
   }
 
   private state() {
@@ -142,7 +149,9 @@ export class Jobs extends DurableObject<Bindings> {
       return new Response(null, { status: 404 })
     }
     return Match.value(path).pipe(
-      Match.when("/enqueue", async () => Response.json(await this.enqueue(request))),
+      Match.when("/enqueue", async () =>
+        Response.json(await Effect.runPromise(this.enqueue(request)))
+      ),
       Match.when("/assemble", async () => {
         const worker = JobWorker.JobWorker.pipe(
           Effect.as("assembled"),

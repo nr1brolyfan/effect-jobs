@@ -47,6 +47,19 @@ const invalidArtifact = () =>
 const decode = <S extends Schema.Decoder<unknown>>(schema: S, input: unknown) =>
   Result.mapError(Schema.decodeUnknownResult(schema, strict)(input), invalidInput)
 
+const decodeFinalizationRequest = (input: unknown) =>
+  Result.gen(function* () {
+    const request = yield* decode(FinalizationRequest, input)
+    const claimed = yield* Result.mapError(
+      Lifecycle.ownershipOf(request.before),
+      invalidInput
+    )
+    if (!sameOwnership(claimed, request.ownership)) {
+      return yield* Result.fail(invalidInput())
+    }
+    return request
+  })
+
 const snapshot = (row: JobRow) =>
   Result.gen(function* () {
     const policy = yield* Result.mapError(decodeStoredPolicy(row.policy), invalidArtifact)
@@ -341,14 +354,7 @@ export const makeStore = (native: Storage, responseBudgetMillis: number) => {
   const finalize = (input: unknown) =>
     transact(() =>
       Result.gen(function* () {
-        const request = yield* decode(FinalizationRequest, input)
-        const claimed = yield* Result.mapError(
-          Lifecycle.ownershipOf(request.before),
-          invalidInput
-        )
-        if (!sameOwnership(claimed, request.ownership)) {
-          return yield* Result.fail(invalidInput())
-        }
+        const request = yield* decodeFinalizationRequest(input)
         const now = yield* storageTime(sql)
         const before = yield* readOwned(request.ownership, now)
         if (!sameSnapshot(before, request.before)) {
@@ -377,7 +383,7 @@ export const makeStore = (native: Storage, responseBudgetMillis: number) => {
   const reconcileFinalization = (input: unknown) =>
     transact(() =>
       Result.gen(function* () {
-        const request = yield* decode(FinalizationRequest, input)
+        const request = yield* decodeFinalizationRequest(input)
         const now = yield* storageTime(sql)
         const row = yield* readJob(request.ownership.jobId)
         const before = row === undefined ? null : yield* snapshot(row)

@@ -493,6 +493,56 @@ test("finalization limit counts attempts while stall limit and OutcomeUnknown do
     assert.deepEqual(persisted(await host.state()), persisted(after))
   }))
 
+test("finalize and reconcile reject invalid request ownership before reading SQLite", () =>
+  withStore(async (host) => {
+    const target = await seed(host, "validate-finalization")
+    const active = await claim(host, requestFor())
+    const exact = finalization(active)
+    const pending = {
+      ...exact,
+      before: {
+        ...exact.before,
+        state: "Pending",
+        leaseToken: null,
+        leaseExpiresAt: null
+      }
+    }
+    const inconsistent = {
+      ...exact,
+      ownership: { ...exact.ownership, leaseToken: randomUUID() }
+    }
+    const owned = await host.state()
+    for (const path of ["/finalize", "/reconcile-finalization"]) {
+      for (const input of [pending, inconsistent]) {
+        assert.deepEqual(await host.call(path + "?clock=unavailable", input), {
+          _tag: "JobStoreProtocolError",
+          reason: "invalid-input"
+        })
+      }
+    }
+    assert.deepEqual(persisted(await host.state()), persisted(owned))
+    assert.deepEqual(
+      await host.call("/reconcile-finalization?clock=unavailable", exact),
+      {
+        _tag: "Unknown"
+      }
+    )
+    assert.deepEqual(await host.call("/reconcile-finalization", exact), {
+      _tag: "StillOwned"
+    })
+    assert.deepEqual(persisted(await host.state()), persisted(owned))
+
+    assert.equal(await host.call("/fixture-corrupt-policy", target), target)
+    const corrupted = await host.state()
+    for (const path of ["/finalize", "/reconcile-finalization"]) {
+      assert.deepEqual(await host.call(path, exact), {
+        _tag: "JobStoreProtocolError",
+        reason: "invalid-artifact"
+      })
+    }
+    assert.deepEqual(persisted(await host.state()), persisted(corrupted))
+  }))
+
 test("lost claim and finalization reconcile exactly before and after workerd restart", () =>
   withStore(async (host) => {
     const target = await seed(host, "lost-responses", { maxFinalizedAttempts: 1 })

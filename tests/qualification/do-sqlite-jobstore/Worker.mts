@@ -222,6 +222,16 @@ export class Store extends DurableObject<Bindings> {
         .one()
       return json(updated.jobId)
     }
+    if (url.pathname === "/fixture-corrupt-policy") {
+      const updated = this.ctx.storage.sql
+        .exec<{ jobId: string }>(
+          "UPDATE jobs SET policy = ? WHERE jobId = ? RETURNING jobId",
+          "null",
+          jobId(body)
+        )
+        .one()
+      return json(updated.jobId)
+    }
     if (url.pathname === "/seed") {
       return json(await this.seed(body, responseBudgetMillis))
     }
@@ -239,6 +249,7 @@ export class Store extends DurableObject<Bindings> {
 
     const native = this.ctx.storage
     const drop = url.searchParams.get("ack") === "drop"
+    const failClock = url.searchParams.get("clock") === "unavailable"
     const heldOperation = url.searchParams.has("hold-sync")
       ? Match.value(url.pathname).pipe(
           Match.when("/claim", () => "claim" as const),
@@ -287,6 +298,9 @@ export class Store extends DurableObject<Bindings> {
             query: string,
             ...bindings: unknown[]
           ) {
+            if (failClock && query.includes("unixepoch('subsec')")) {
+              return native.sql.exec<Row>("SELECT * FROM fixture_missing_clock")
+            }
             const cursor = native.sql.exec<Row>(query, ...bindings)
             if (boundaryIds === undefined || !query.includes("unixepoch('subsec')")) {
               return cursor

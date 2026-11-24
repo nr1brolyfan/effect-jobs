@@ -76,7 +76,7 @@ independent. Restore the source between substitutions.
 | --- | --- |
 | Replace the `sync` Effect with `Effect.void` | Both held-sync cases return before the observer can release sync |
 | Start `native.sync()` without waiting for its promise | Both held-sync cases construct an acknowledgment before release |
-| Replace `try: () => native.transactionSync(body)` with `try: body` | The port returns the same Unknown error, but its first UPDATE leaks |
+| In `transact`, replace `native.transactionSync(() => { … })` with `(() => { … })()`, keeping the identical callback, sentinel, and error mapping | Both recovery cases (SQL ABORT and zero-row UPDATE) preserve the expected port result and fail on `first update leaked from failed batch` |
 | Replace `leaseExpiresAt <= ?` with `leaseExpiresAt < ?` | The −1 ms row recovers and the exact-equality row fails its recovery assertion |
 | Populate `payloadBytes` from `row.projection` | The concurrent-claim artifact differs from the seeded payload |
 | Remove `leaseExpiresAt <= ?` from recovery eligibility (use `? > 0` to retain the binding) | Recovery while a lease is still valid fails the expected zero |
