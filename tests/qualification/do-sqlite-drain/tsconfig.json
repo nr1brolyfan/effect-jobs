@@ -1,0 +1,4 @@
+{
+  "extends": "../do-sqlite-jobstore/tsconfig.json",
+  "include": ["*.mts"]
+}
