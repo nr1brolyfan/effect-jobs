@@ -47,10 +47,34 @@ with equal options does not establish transaction identity. Joining jobs adds
 no BEGIN, savepoint, independent COMMIT or replay. The application retains pool,
 migration, timeout and outer error/reconciliation ownership.
 
-`db.transaction` has an upstream error-type limitation and is excluded from the
-qualified positive route. Do not cast its errors away or use it as the documented
-owner. Nested transactions, transaction options and isolation are not promised
-to behave identically between Drizzle and the native client.
+For the bundled rc.6 driver, application code using Drizzle queries can also
+open an ordinary transaction through the ORM. Given the same scoped client for
+`db` and `JobEnqueue`, use the callback's `tx` for both domain queries:
+
+```ts
+yield *
+  db.transaction((tx) =>
+    Effect.gen(function* () {
+      yield* tx.insert(reportRequests).values({ operationId, reportId })
+      const result = yield* requestReportProducer.enqueue({
+        operationId,
+        slot: "generate",
+        payload: { reportId, rows: [] }
+      })
+      yield* tx.insert(reportRequestReceipts).values({ operationId, jobId: result.jobId })
+      return result
+    })
+  )
+```
+
+Here `requestReportProducer` is the application's configured producer. It joins
+the active transaction through `JobEnqueue`; the callback does not pass `tx` to
+the producer. The returned job ID is provisional until the outer Effect succeeds.
+Code using only the SQL client can use `client.withTransaction` directly.
+The Orders tutorial above uses the separate `@effect/sql-pg` driver. Nested
+transactions, isolation options and disconnected control operations must be
+evaluated for the particular driver; the ordinary callback is not a guarantee
+of equivalent behavior for those cases.
 
 ## Optional declarations for migrations
 
