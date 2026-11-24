@@ -65,7 +65,7 @@ Examples target the unpublished `0.1.0-alpha.4` release candidate with Effect
 policy, failure-code and encrypted-payload APIs; update callers before upgrading.
 
 ```sh
-npm install ./effect-jobs-0.1.0-alpha.4.tgz effect@4.1.3
+npm install --save-exact ./effect-jobs-0.1.0-alpha.4.tgz effect@4.1.3
 ```
 
 For Drizzle schema helpers or either Drizzle driver, explicitly install the
