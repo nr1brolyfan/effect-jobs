@@ -39,6 +39,10 @@ jobs:
         run: mkdir -p "$CI_EVIDENCE"
       - name: Install locked dependencies
         run: bun install --frozen-lockfile --ignore-scripts 2>&1 | tee "$CI_EVIDENCE/install.log"
+      - name: Install locked SQLite qualification fixture dependencies
+        run: |
+          npm ci --prefix tests/qualification/do-sqlite-atomicity --ignore-scripts --no-audit --no-fund 2>&1 | tee "$CI_EVIDENCE/sqlite-atomicity-install.log"
+          npm ci --prefix tests/qualification/do-sqlite-alchemy --ignore-scripts --no-audit --no-fund 2>&1 | tee "$CI_EVIDENCE/sqlite-alchemy-install.log"
       - name: Install the pinned browser for workspace tests
         run: bun run test:browser:install 2>&1 | tee "$CI_EVIDENCE/browser-install.log"
       - name: Build applications and verify library and workspace tests

@@ -1,0 +1,14 @@
+{
+  "extends": "../do-sqlite-drain/tsconfig.json",
+  "compilerOptions": {
+    "typeRoots": ["./node_modules/@types", "./node_modules/@cloudflare"],
+    "types": ["node", "workers-types"],
+    "paths": {
+      "alchemy/RuntimeContext": ["./node_modules/alchemy/lib/RuntimeContext.d.ts"],
+      "@alchemy.run/cloudflare/Workers": [
+        "./node_modules/@alchemy.run/cloudflare/lib/Workers/index.d.ts"
+      ]
+    }
+  },
+  "include": ["*.mts"]
+}

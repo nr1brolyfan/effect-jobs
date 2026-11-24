@@ -1,0 +1,16 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "typeRoots": ["../do-sqlite-atomicity/node_modules/@cloudflare"],
+    "types": ["workers-types"],
+    "paths": {
+      "alchemy/RuntimeContext": [
+        "../do-sqlite-atomicity/node_modules/alchemy/lib/RuntimeContext.d.ts"
+      ],
+      "@alchemy.run/cloudflare/Workers": [
+        "../do-sqlite-atomicity/node_modules/@alchemy.run/cloudflare/lib/Workers/index.d.ts"
+      ]
+    }
+  },
+  "include": ["*.mts"]
+}
