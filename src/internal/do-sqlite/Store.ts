@@ -2,12 +2,18 @@ import { Data, Effect, Match, Result, Schema } from "effect"
 import { JobPolicyIncompatible, type EncodedJobPayload } from "../../JobContract.js"
 import { QueueName } from "../../JobIdentity.js"
 import * as Lifecycle from "../../JobLifecycle.js"
-import { maximumMillis, PersistedJobPolicy } from "../../JobPolicy.js"
+import { PersistedJobPolicy } from "../../JobPolicy.js"
 import * as Store from "../../JobStore.js"
 import { validateClaimArtifact } from "../lifecycle/Artifacts.js"
 import * as Reconciliation from "../lifecycle/Reconciliation.js"
 
-import { storageTime, type JobRow, type SqlStorage, type Storage } from "./Storage.js"
+import {
+  incompatiblePolicy,
+  storageTime,
+  type JobRow,
+  type SqlStorage,
+  type Storage
+} from "./Storage.js"
 
 const selectClaim = `SELECT j.*, p.formatVersion, p.payload, p.projection
   FROM jobs j LEFT JOIN payloads p ON p.jobId = j.jobId`
@@ -211,16 +217,9 @@ export const makeStore = (native: Storage, responseBudgetMillis: number) => {
           return Store.ClaimResult.Empty()
         }
         const before = snapshot(row)
-        const { leaseDurationMillis, attemptTimeoutMillis } = before.policy
-        const reserveMillis = leaseDurationMillis - attemptTimeoutMillis
-        if (reserveMillis < responseBudgetMillis) {
-          throw new JobPolicyIncompatible({
-            reserveMillis,
-            requiredMillis: responseBudgetMillis
-          })
-        }
-        if (leaseDurationMillis > maximumMillis - now) {
-          throw new JobPolicyIncompatible()
+        const incompatible = incompatiblePolicy(before.policy, now, responseBudgetMillis)
+        if (incompatible !== undefined) {
+          throw incompatible
         }
         const after = requireSuccess(
           Lifecycle.claim(before, request.leaseToken, now, responseBudgetMillis)

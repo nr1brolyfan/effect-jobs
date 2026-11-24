@@ -1,14 +1,20 @@
-import { Data, Effect, Exit, Fiber, Scheduler, Schema } from "effect"
+import { Data, Effect, Exit, Fiber, Result, Scheduler, Schema } from "effect"
 import {
   EnqueueResult,
   JobIntegrityConflict,
+  type JobPolicyIncompatible,
   type PreparedJob
 } from "../../JobContract.js"
 import { JobId } from "../../JobId.js"
 import { PersistedJobPolicy } from "../../JobPolicy.js"
 import type { JobsTransaction } from "../../JobTransaction.js"
 import { withJoinedTransaction } from "../JobTransaction.js"
-import { storageTime, type SqlStorage, type TransactionStorage } from "./Storage.js"
+import {
+  incompatiblePolicy,
+  storageTime,
+  type SqlStorage,
+  type TransactionStorage
+} from "./Storage.js"
 
 export class SqliteTransactionClosed extends Data.TaggedError(
   "SqliteTransactionClosed"
@@ -23,7 +29,11 @@ export class SqliteWriteFailed extends Data.TaggedError("SqliteWriteFailed")<{}>
 const decodeJobId = Schema.decodeUnknownSync(JobId)
 const encodePolicy = Schema.encodeSync(Schema.fromJsonString(PersistedJobPolicy))
 
-const insertOrCompare = (sql: SqlStorage, prepared: PreparedJob) => {
+const insertOrCompare = (
+  sql: SqlStorage,
+  prepared: PreparedJob,
+  operationResponseBudgetMillis: number
+): Result.Result<EnqueueResult, JobPolicyIncompatible> => {
   const { producer, catalog, encoded } = prepared
   const existing = sql
     .exec<{
@@ -52,10 +62,20 @@ const insertOrCompare = (sql: SqlStorage, prepared: PreparedJob) => {
     ) {
       throw new JobIntegrityConflict()
     }
-    return EnqueueResult.AlreadyPresent({ jobId: decodeJobId(existing.jobId) })
+    return Result.succeed(
+      EnqueueResult.AlreadyPresent({ jobId: decodeJobId(existing.jobId) })
+    )
+  }
+  const now = storageTime(sql)
+  const incompatible = incompatiblePolicy(
+    prepared.policy,
+    now,
+    operationResponseBudgetMillis
+  )
+  if (incompatible !== undefined) {
+    return Result.fail(incompatible)
   }
   const jobId = decodeJobId(crypto.randomUUID())
-  const now = storageTime(sql)
   sql.exec(
     `INSERT INTO jobs (jobId, queue, name, version, operation, operationId, slot,
         policy, initialAvailableAt, state, availableAt, createdAt, updatedAt,
@@ -81,7 +101,7 @@ const insertOrCompare = (sql: SqlStorage, prepared: PreparedJob) => {
     encoded.payloadBytes,
     encoded.semanticProjectionBytes
   )
-  return EnqueueResult.Inserted({ jobId })
+  return Result.succeed(EnqueueResult.Inserted({ jobId }))
 }
 
 type WriteFailure = SqliteTransactionClosed | JobIntegrityConflict | SqliteWriteFailed
@@ -89,6 +109,7 @@ type Write = <A>(action: (sql: SqlStorage) => A) => Effect.Effect<A, WriteFailur
 
 const joined = <A, E, R>(
   sql: SqlStorage,
+  operationResponseBudgetMillis: number,
   body: (
     transaction: JobsTransaction<WriteFailure>,
     write: Write
@@ -116,7 +137,12 @@ const joined = <A, E, R>(
       })
 
     return withJoinedTransaction(
-      (prepared) => write((sql) => insertOrCompare(sql, prepared)),
+      // Policy rejection is an admission result before either insert. A caught
+      // rejection leaves the transaction usable, unlike a conflict or SQL error.
+      (prepared) =>
+        write((sql) =>
+          insertOrCompare(sql, prepared, operationResponseBudgetMillis)
+        ).pipe(Effect.flatMap(Effect.fromResult)),
       (transaction) => body(transaction, write)
     ).pipe(
       Effect.flatMap((value) =>
@@ -137,6 +163,7 @@ const joined = <A, E, R>(
 // owns application receipts, the sync acknowledgment barrier and reconciliation.
 export const withTransaction = <A, E, R>(
   native: TransactionStorage,
+  operationResponseBudgetMillis: number,
   body: (
     transaction: JobsTransaction<WriteFailure>,
     write: Write
@@ -194,7 +221,7 @@ export const withTransaction = <A, E, R>(
               const fiber = Effect.runForkWith(context)(
                 Effect.withFiber((fiber) => {
                   owner = fiber
-                  return joined(native.sql, body)
+                  return joined(native.sql, operationResponseBudgetMillis, body)
                 }),
                 { scheduler }
               )

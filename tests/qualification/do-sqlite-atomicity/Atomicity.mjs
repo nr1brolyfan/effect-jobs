@@ -318,6 +318,42 @@ test("an equal enqueue compares the stored bytes and preserves all four rows", (
     assertCommitted(await state(), result.receipt)
   }))
 
+test("propagated admission failure rolls back preceding domain, job, payload and receipt", () =>
+  withStore(async ({ mutate, state, receipt, restart }) => {
+    assert.deepEqual(await mutate("incompatible"), {
+      ...failure("Fail", { tag: "JobPolicyIncompatible" }),
+      escaped
+    })
+    const rolledBack = await state()
+    assert.deepEqual(rolledBack.events, [
+      ...bodyWritten,
+      "codec-entered",
+      ...codec,
+      ...closed
+    ])
+    assertEmpty(rolledBack)
+    await restart()
+    assertEmpty(await state())
+    assert.equal(await receipt("operation=issue-42", 404), "")
+  }))
+
+test("a caught admission failure allows a subsequent domain write and commit", () =>
+  withStore(async ({ mutate, state, receipt }) => {
+    const result = await mutate("incompatible-caught")
+    assert.deepEqual(result, { outcome: "Success", escaped, receipt: result.receipt })
+    const rows = await state()
+    assert.deepEqual(rows.events, [
+      ...bodyWritten,
+      "codec-entered",
+      ...codec,
+      "incompatible-caught",
+      "domain-write-after-rejection",
+      ...committed
+    ])
+    assertCommitted(rows, result.receipt)
+    assert.equal(await receipt("operation=issue-42"), JSON.stringify(result.receipt))
+  }))
+
 /** @type {Array<[string, ReturnType<typeof failure>, string[]]>} */
 const rollbackCases = [
   [

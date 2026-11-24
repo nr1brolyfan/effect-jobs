@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers"
-import { Duration, Effect, Match, Result, Schema } from "effect"
+import { DateTime, Duration, Effect, Match, Result, Schema } from "effect"
 import * as Job from "../../../src/Job.js"
 import { JobPolicyIncompatible } from "../../../src/JobContract.js"
 import { JobId } from "../../../src/JobId.js"
@@ -16,11 +16,23 @@ interface Bindings {
   readonly OBSERVE: Fetcher
 }
 
+const responseBudgetMillis = 250
+const legacyResponseBudgetMillis = 100
+
 const Seed = Schema.Struct({
   operationId: Schema.String,
   queue: QueueName,
   artifact: Schema.Literals(["current", "unsupported"]),
-  lease: Schema.Literals(["short", "default", "incompatible"]),
+  lease: Schema.Literals([
+    "short",
+    "default",
+    "incompatible",
+    "reserve-249",
+    "reserve-250",
+    "reserve-251",
+    "overflow"
+  ]),
+  availableAt: JobPolicy.EpochMillis.pipe(Schema.optional),
   maxStalledCount: Schema.Int,
   maxFinalizedAttempts: Schema.Int
 })
@@ -77,7 +89,20 @@ const seedPolicies = {
   incompatible: {
     leaseDuration: Duration.millis(200),
     attemptTimeout: Duration.millis(100)
-  }
+  },
+  "reserve-249": {
+    leaseDuration: Duration.millis(349),
+    attemptTimeout: Duration.millis(100)
+  },
+  "reserve-250": {
+    leaseDuration: Duration.millis(350),
+    attemptTimeout: Duration.millis(100)
+  },
+  "reserve-251": {
+    leaseDuration: Duration.millis(351),
+    attemptTimeout: Duration.millis(100)
+  },
+  overflow: { leaseDuration: Duration.millis(JobPolicy.maximumMillis) }
 } as const
 
 const json = (body: unknown) =>
@@ -99,35 +124,58 @@ export class Store extends DurableObject<Bindings> {
     ctx.storage.sql.exec(ddl)
   }
 
-  async seed(input: unknown) {
-    const { operationId, queue, artifact, lease, maxStalledCount, maxFinalizedAttempts } =
-      decodeSeed(input)
+  async seed(input: unknown, budget: number) {
+    const {
+      operationId,
+      queue,
+      artifact,
+      lease,
+      availableAt,
+      maxStalledCount,
+      maxFinalizedAttempts
+    } = decodeSeed(input)
     if (queue !== "invoices" && queue !== "other") {
       throw new Error("unsupported fixture queue")
     }
     const native = this.ctx.storage
     const result = await Effect.runPromise(
-      withTransaction(native, (tx) =>
-        Effect.gen(function* () {
-          const policy = yield* JobPolicy.make({
-            ...seedPolicies[lease],
-            maxStalledCount,
-            retry: JobRetryPolicy.fixed(Duration.millis(500)).pipe(
-              JobRetryPolicy.maxFinalizedAttempts(maxFinalizedAttempts)
-            )
+      Effect.result(
+        withTransaction(native, budget, (tx) =>
+          Effect.gen(function* () {
+            const policy = yield* JobPolicy.make({
+              ...seedPolicies[lease],
+              maxStalledCount,
+              retry: JobRetryPolicy.fixed(Duration.millis(500)).pipe(
+                JobRetryPolicy.maxFinalizedAttempts(maxFinalizedAttempts)
+              )
+            })
+            return yield* producer.enqueueInTransaction(tx, {
+              queue,
+              slot: artifact,
+              operationId,
+              payload: "invoice:" + operationId,
+              ...(availableAt === undefined
+                ? {}
+                : { availableAt: DateTime.makeUnsafe(availableAt) }),
+              policy
+            })
           })
-          return yield* producer.enqueueInTransaction(tx, {
-            queue,
-            slot: artifact,
-            operationId,
-            payload: "invoice:" + operationId,
-            policy
-          })
-        })
+        )
       )
     )
+    if (Result.isFailure(result)) {
+      const error = result.failure
+      if (error instanceof JobPolicyIncompatible) {
+        return {
+          _tag: error._tag,
+          reserveMillis: error.reserveMillis,
+          requiredMillis: error.requiredMillis
+        }
+      }
+      throw error
+    }
     await native.sync()
-    return result
+    return result.success
   }
 
   state() {
@@ -169,7 +217,10 @@ export class Store extends DurableObject<Bindings> {
       return json(updated.jobId)
     }
     if (url.pathname === "/seed") {
-      return json(await this.seed(body))
+      return json(await this.seed(body, responseBudgetMillis))
+    }
+    if (url.pathname === "/fixture-seed-legacy") {
+      return json(await this.seed(body, legacyResponseBudgetMillis))
     }
     if (url.pathname === "/fixture-fail-second-recovery") {
       this.ctx.storage.sql.exec(recoveryFault)
@@ -255,7 +306,7 @@ export class Store extends DurableObject<Bindings> {
           }
         }
       },
-      250
+      responseBudgetMillis
     )
     const operation: Response | Effect.Effect<unknown, { readonly _tag: string }> =
       Match.value(url.pathname).pipe(

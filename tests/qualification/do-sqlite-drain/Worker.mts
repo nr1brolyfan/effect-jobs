@@ -100,7 +100,7 @@ export class Jobs extends DurableObject<Bindings> {
     const command = await Effect.runPromise(decodeEnqueue(await request.json()))
     const native = this.ctx.storage
     const result = await Effect.runPromise(
-      withTransaction(native, (tx, write) =>
+      withTransaction(native, responseBudgetMillis, (tx, write) =>
         Effect.gen({ self: this }, function* () {
           const result = yield* producer.enqueueInTransaction(tx, {
             slot: "deliver",

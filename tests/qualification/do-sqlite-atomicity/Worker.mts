@@ -4,6 +4,7 @@ import {
   Context,
   Data,
   Deferred,
+  Duration,
   Effect,
   Exit,
   Fiber,
@@ -12,6 +13,7 @@ import {
 } from "effect"
 import * as Job from "../../../src/Job.js"
 import type { EnqueueResult } from "../../../src/JobContract.js"
+import * as JobPolicy from "../../../src/JobPolicy.js"
 import * as JobProducer from "../../../src/JobProducer.js"
 import * as JobQueue from "../../../src/JobQueue.js"
 import { ddl as jobsDdl } from "../../../src/internal/do-sqlite/Storage.js"
@@ -27,12 +29,15 @@ class Encoding extends Context.Service<
 
 class FixtureRejected extends Data.TaggedError("FixtureRejected")<{}> {}
 
+const responseBudgetMillis = 250
 const forcedAbortReason = "qualification-forced-abort"
 const injectedDefect = new Error("qualification-defect")
 const Mutation = Schema.Literals([
   "commit",
   "duplicate",
   "payload-write-failure",
+  "incompatible",
+  "incompatible-caught",
   "typed",
   "defect",
   "conflict",
@@ -222,7 +227,7 @@ export class Store extends DurableObject<Bindings> {
       | Effect.Effect<EnqueueResult, { readonly _tag: string }>
       | undefined
 
-    const operation = withTransaction(storage, (tx, write) =>
+    const operation = withTransaction(storage, responseBudgetMillis, (tx, write) =>
       Effect.gen({ self: this }, function* () {
         record("effect-callback")
         const enqueue = producer.enqueueInTransaction(tx, input)
@@ -267,6 +272,36 @@ export class Store extends DurableObject<Bindings> {
           )
         )
         record("receipt-written")
+
+        if (mode === "incompatible" || mode === "incompatible-caught") {
+          const policy = yield* JobPolicy.make({
+            leaseDuration: Duration.millis(200),
+            attemptTimeout: Duration.millis(100)
+          })
+          const incompatible = producer.enqueueInTransaction(tx, {
+            ...input,
+            operationId: operationId + "-incompatible",
+            policy
+          })
+          if (mode === "incompatible") {
+            yield* incompatible
+          } else {
+            yield* incompatible.pipe(
+              Effect.catchTags({
+                JobPolicyIncompatible: () =>
+                  Effect.sync(() => record("incompatible-caught"))
+              })
+            )
+            yield* write((sql) =>
+              sql.exec(
+                "UPDATE domain SET value = ? WHERE operation_id = ?",
+                "issued",
+                operationId
+              )
+            )
+            record("domain-write-after-rejection")
+          }
+        }
 
         if (mode === "interrupt-after-writes") {
           Deferred.doneUnsafe(codecEntered, Effect.void)

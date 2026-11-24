@@ -1,5 +1,6 @@
 import { Schema } from "effect"
-import { EpochMillis } from "../../JobPolicy.js"
+import { JobPolicyIncompatible } from "../../JobContract.js"
+import { EpochMillis, maximumMillis, type JobPolicy } from "../../JobPolicy.js"
 import { JobStoreProtocolError } from "../../JobStore.js"
 
 type SqlValue = ArrayBuffer | string | number | null
@@ -57,4 +58,24 @@ export const storageTime = (sql: SqlStorage) => {
     throw new JobStoreProtocolError({ reason: "invalid-artifact" })
   }
   return now
+}
+
+// Admission and claim share the same lease constraints. Claim rechecks them
+// against its own SQLite time and the worker's current response budget.
+export const incompatiblePolicy = (
+  policy: JobPolicy,
+  now: number,
+  operationResponseBudgetMillis: number
+) => {
+  const reserveMillis = policy.leaseDurationMillis - policy.attemptTimeoutMillis
+  if (reserveMillis < operationResponseBudgetMillis) {
+    return new JobPolicyIncompatible({
+      reserveMillis,
+      requiredMillis: operationResponseBudgetMillis
+    })
+  }
+  if (policy.leaseDurationMillis > maximumMillis - now) {
+    return new JobPolicyIncompatible()
+  }
+  return undefined
 }

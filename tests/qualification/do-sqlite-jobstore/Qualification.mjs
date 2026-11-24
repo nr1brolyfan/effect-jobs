@@ -159,16 +159,17 @@ const withStore = async (run, observer = () => new Response(null, { status: 404 
   }
 }
 
-const seed = async (host, operationId, options = {}) => {
-  const value = await host.call("/seed", {
-    operationId,
-    queue: "invoices",
-    artifact: "current",
-    lease: "default",
-    maxStalledCount: 1,
-    maxFinalizedAttempts: 3,
-    ...options
-  })
+const seedInput = (operationId, options = {}) => ({
+  operationId,
+  queue: "invoices",
+  artifact: "current",
+  lease: "default",
+  maxStalledCount: 1,
+  maxFinalizedAttempts: 3,
+  ...options
+})
+const seed = async (host, operationId, options = {}, path = "/seed") => {
+  const value = await host.call(path, seedInput(operationId, options))
   assert.equal(value._tag, "Inserted")
   return value.jobId
 }
@@ -596,7 +597,7 @@ test("lost claim and finalization reconcile exactly before and after workerd res
 
 test("incompatible policies and invalid catalog selection do not write", () =>
   withStore(async (host) => {
-    await seed(host, "incompatible", { lease: "incompatible" })
+    await seed(host, "incompatible", { lease: "incompatible" }, "/fixture-seed-legacy")
     const before = await host.state()
     const request = requestFor()
     assert.deepEqual(
@@ -606,6 +607,7 @@ test("incompatible policies and invalid catalog selection do not write", () =>
       }),
       { _tag: "JobStoreProtocolError", reason: "invalid-input" }
     )
+    assert.deepEqual(persisted(await host.state()), persisted(before))
     assert.deepEqual(await host.call("/claim", request), {
       _tag: "JobPolicyIncompatible",
       reserveMillis: 100,
@@ -772,4 +774,107 @@ test("recovery includes expiry equal to the same SQLite sample", () =>
       "expiry equal to the SQLite sample must recover"
     )
     assert.equal(count, 2)
+  }))
+
+test("new incompatible job leaves no queue head or payload, including after restart", () =>
+  withStore(async (host) => {
+    const before = await host.state()
+    assert.deepEqual(persisted(before), { rows: [], artifacts: [] })
+    assert.deepEqual(
+      await host.call(
+        "/seed",
+        seedInput("review-incompatible", { lease: "incompatible" })
+      ),
+      { _tag: "JobPolicyIncompatible", reserveMillis: 100, requiredMillis: 250 }
+    )
+    assert.deepEqual(persisted(await host.state()), persisted(before))
+    await host.restart()
+    const after = await host.state()
+    assert.notEqual(after.epoch, before.epoch)
+    assert.equal(after.objectId, before.objectId)
+    assert.deepEqual(persisted(after), persisted(before))
+
+    const compatible = await seed(host, "review-compatible")
+    const inserted = await host.state()
+    assert.deepEqual(
+      inserted.rows.map((row) => row.jobId),
+      [compatible]
+    )
+    assert.deepEqual(
+      inserted.artifacts.map((row) => row.jobId),
+      [compatible]
+    )
+    const request = requestFor()
+    expectClaim(
+      await claim(host, request),
+      request,
+      inserted,
+      await host.state(),
+      compatible
+    )
+  }))
+
+test("incompatible replay retains the first route, policy, availability and artifact", () =>
+  withStore(async (host) => {
+    for (const [operationId, first, replay] of [
+      ["triage-retained", {}, {}],
+      ["triage-retained-available", { availableAt: 123 }, { availableAt: 456 }]
+    ]) {
+      const id = await seed(host, operationId, first)
+      const before = await host.state()
+      if (first.availableAt !== undefined) {
+        assert.equal(job(before, id).availableAt, first.availableAt)
+        assert.equal(job(before, id).initialAvailableAt, first.availableAt)
+      }
+      assert.deepEqual(
+        await host.call(
+          "/seed",
+          seedInput(operationId, {
+            queue: "other",
+            lease: "incompatible",
+            maxStalledCount: 2,
+            maxFinalizedAttempts: 5,
+            ...replay
+          })
+        ),
+        { _tag: "AlreadyPresent", jobId: id }
+      )
+      assert.deepEqual(persisted(await host.state()), persisted(before))
+      await host.restart()
+      assert.deepEqual(persisted(await host.state()), persisted(before))
+    }
+  }))
+
+test("new admission requires an inclusive response reserve and representable SQLite lease expiry", () =>
+  withStore(async (host) => {
+    const before = await host.state()
+    assert.ok(before.now > 0, "SQLite time must make a maximumMillis lease overflow")
+    assert.deepEqual(
+      await host.call("/seed", seedInput("reserve-249", { lease: "reserve-249" })),
+      { _tag: "JobPolicyIncompatible", reserveMillis: 249, requiredMillis: 250 }
+    )
+    assert.deepEqual(
+      await host.call("/seed", seedInput("overflow", { lease: "overflow" })),
+      { _tag: "JobPolicyIncompatible" }
+    )
+    assert.deepEqual(persisted(await host.state()), persisted(before))
+    const ids = []
+    for (const reserve of [250, 251]) {
+      const lease = "reserve-" + reserve
+      const id = await seed(host, lease, { lease })
+      ids.push(id)
+      const state = await host.state()
+      const policy = JSON.parse(job(state, id).policy)
+      assert.equal(policy.leaseDurationMillis - policy.attemptTimeoutMillis, reserve)
+      assert.ok(artifact(state, id).payload.length > 0)
+    }
+    const state = await host.state()
+    assert.deepEqual(
+      state.rows.map((row) => row.jobId).sort(compareAscii),
+      ids.toSorted(compareAscii)
+    )
+    assert.deepEqual(
+      state.artifacts.map((row) => row.jobId).sort(compareAscii),
+      ids.toSorted(compareAscii)
+    )
   }))
