@@ -11,9 +11,16 @@ A separate request runs a bounded `JobWorker.drain` with one claim and one
 recovery slot. The handler writes a local recording keyed by job ID. This
 example has no external delivery. External handlers need their own
 idempotency strategy. The application owns scheduling and reconciliation when
-the commit outcome is unknown. The example's SQL inspection endpoint is a
-test oracle for current rows. Application code should not depend on the jobs
-tables as a history interface.
+the commit outcome is unknown. An application that needs reconciliation
+should write its own receipt using the same transaction and stable operation
+ID, then look up that receipt on a separate read when settlement is unconfirmed.
+An absent receipt alone does not authorize replay.
+
+The jobs store keeps evidence of the most recent exact worker finalization
+until the next state change or deletion. There is no separate receipt TTL.
+A missing finalization receipt does not authorize rerunning a handler.
+UPVE-2881 tracks a possible future attempt history. The example's SQL
+inspection endpoint checks current rows for the smoke test.
 
 ## Run locally against the release candidate
 
@@ -25,14 +32,14 @@ bun install --frozen-lockfile --ignore-scripts
 bun run build
 bun run release:pack
 ALCHEMY_TEST_DEV=true sh examples/cloudflare-do-sqlite/Run.sh \
-  .toolchain/release/artifact/effect-jobs-0.1.0-alpha.4.tgz
+  .toolchain/release/artifact/effect-jobs-0.1.0-alpha.5.tgz
 ```
 
 The packer prints the versioned archive path and refuses to replace an existing
 archive. Pass an already-built candidate directly, or set a new
 `EFFECT_JOBS_ARTIFACT_DIRECTORY` when rebuilding. The launcher copies the
-archive to a disposable consumer, prints its SHA-256 and uses npm to install
-it with the locked fixture toolchain. It verifies that adding the archive
+archive to a disposable consumer, prints its SHA-256 and installs it with
+strict npm peer resolution and the locked fixture toolchain. It verifies that adding the archive
 leaves the toolchain lock intact. Registry access is only needed for the
 install phase. Worker and Alchemy code use strict TypeScript, including
 exact optional properties and unchecked indexed access. The combined project
@@ -49,13 +56,20 @@ launcher removes the disposable install and local storage on exit.
 
 ## Hosted smoke before publication
 
+The [owner release procedure](../../docs/releasing.md#commands-reserved-for-the-owner)
+requires a hosted PASS for the exact candidate before publication, along with
+the remaining gates and the owner's decision. The local handoff may record
+matching historical evidence and remain complete with hosted status **NOT RUN**.
+Using that evidence as equivalent for publication requires a separate,
+explicit owner decision.
+
 1. **Agree the Cloudflare account and stage with the owner before provisioning.**
    Record the disposable account or approved sandbox, a unique stage and
    Worker name, its private test route, who can access it, the operator and the
    cleanup deadline. Use synthetic data only. Smoke endpoints expose test
    state and deliberately fail a command, so require authenticated access
    before issuing requests. Disable public `workers.dev` and preview routes.
-2. In a fresh consumer, install the same verified candidate and use
+2. In a fresh consumer, install the exact candidate archive and use
    `Worker.mts` as the entrypoint. Configure the `INVOICES` binding for
    `InvoiceJobs` in the same Worker, with the example's compatibility date
    and a Wrangler class export with `type: "durable-object"` and

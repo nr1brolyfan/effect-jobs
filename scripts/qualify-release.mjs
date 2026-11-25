@@ -34,7 +34,13 @@ writeFileSync(
     }
   })
 )
-run("install", "npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"])
+run("install", "npm", [
+  "install",
+  "--strict-peer-deps",
+  "--ignore-scripts",
+  "--no-audit",
+  "--no-fund"
+])
 run("frozen-install", "npm", [
   "ci",
   "--strict-peer-deps",

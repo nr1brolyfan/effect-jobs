@@ -92,6 +92,13 @@ try {
         !Object.keys(packages).some((path) => path.endsWith("node_modules/drizzle-orm"))
       )
       assert(!existsSync(join(consumer, "node_modules/drizzle-orm")))
+      run(
+        "readme-core-frozen-install",
+        "npm",
+        ["ci", "--strict-peer-deps", ...npmFlags],
+        consumer
+      )
+      assert(!existsSync(join(consumer, "node_modules/drizzle-orm")))
     } else {
       assert.equal(dependencies["drizzle-orm"], drizzleSource)
       run(

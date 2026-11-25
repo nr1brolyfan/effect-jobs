@@ -49,7 +49,7 @@ clean() {
 # before installation and use npm ci to check the archive's recorded integrity.
 cp package-lock.json toolchain-lock.json
 clean timeout --kill-after=5s 120s "$npm" install --package-lock-only --save-exact \
-  --ignore-scripts --no-audit --no-fund ./candidate.tgz
+  --strict-peer-deps --ignore-scripts --no-audit --no-fund ./candidate.tgz
 clean "$node" --input-type=module <<'JS'
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
@@ -66,7 +66,7 @@ delete lock.packages["node_modules/effect-jobs"]
 delete lock.packages[""].dependencies["effect-jobs"]
 assert(isDeepStrictEqual(lock, original), "candidate changed the pinned toolchain")
 JS
-clean timeout --kill-after=5s 120s "$npm" ci --ignore-scripts --no-audit --no-fund
+clean timeout --kill-after=5s 120s "$npm" ci --strict-peer-deps --ignore-scripts --no-audit --no-fund
 clean "$npm" ls --depth=0
 clean timeout --kill-after=5s 60s "$node" node_modules/typescript/bin/tsc -p tsconfig.json
 clean timeout --kill-after=5s 60s "$node" node_modules/typescript/bin/tsc --ignoreConfig \

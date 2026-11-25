@@ -1,10 +1,9 @@
 # Release qualification
 
-## Alpha.4 candidate (unpublished)
+## Alpha.5 candidate (unpublished)
 
-Package metadata targets `0.1.0-alpha.4`. Published alpha.2 uses Effect/sql-pg
-`4.0.5` and two hash-suffixed Drizzle snapshots; it is not this candidate.
-The candidate includes the contract-first redesign and selects exact Effect/sql-pg
+Package metadata targets `0.1.0-alpha.5` and exposes `./DurableObjectSqlite`
+for same-object domain writes and enqueue. The candidate selects exact Effect/sql-pg
 `4.1.3`, Drizzle `1.0.0-rc.6-effect-jobs.1`, and Alchemy/Cloudflare `2.0.0-beta.85`.
 Node `24.15.0`, Bun `1.4.2` and TypeScript `7.0.2` remain pinned. The standalone
 Alchemy example retains its bounded TypeScript 6 graph. Completed retention
@@ -84,7 +83,8 @@ so no gate reads partially rewritten assets.
 
 Build and pack one immutable candidate. Supply the same `EFFECT_JOBS_ARCHIVE` to
 the README, JSDoc, public release, API, PostgreSQL installed, native Drizzle,
-Drizzle-index and creation-metadata gates. `release:pack` refuses to overwrite
+Drizzle-index and creation-metadata gates. Also use it for the strict public DO
+consumer and its packed Alchemy Worker. `release:pack` refuses to overwrite
 existing bytes and records SHA256, SHA512, integrity and inventory. Source/packed
 byte guards and actual caller resolution are required; registry bytes with the
 same version are not substitutes.
@@ -109,6 +109,7 @@ bun run qualify:api:installed
 bun run qualify:postgresql:installed
 bun run qualify:drizzle:native
 bun run qualify:drizzle:indexes
+ALCHEMY_TEST_DEV=true sh examples/cloudflare-do-sqlite/Run.sh "$EFFECT_JOBS_ARCHIVE"
 node scripts/check-release.mjs --metadata-only
 ```
 
@@ -124,6 +125,17 @@ Resolve the optional Drizzle peer from the immutable URL in the README. Verify
 one installed copy and the locked URL and integrity. The separate native
 foreign-declaration audit requires TypeScript 7.0.2, `skipLibCheck:false` and a
 zero exit code without a diagnostic allowlist.
+
+For DO SQLite, reproduce the CI namespace preflight, local-mode guard and source
+runtime fixtures. The separate packed example checks the public export under
+strict declarations, commit and injected rollback via independent HTTP reads,
+and one explicit bounded drain followed by Idle. Record listener and scratch
+cleanup. The sample proves current row state and local handler recording.
+The smoke does not qualify application receipt reconciliation or simulate a
+lost worker finalization response. The adapter retains evidence of the latest
+exact finalization until the next state change or job deletion. A separate
+receipt TTL and attempt history are outside this release (UPVE-2881). Handler
+side effects still need idempotency.
 
 The full handoff also records compiled browser/UI, public docs/islands, native
 private/public/observation/concurrency, provider cleanup, bounded export and

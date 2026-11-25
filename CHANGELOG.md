@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.1.0-alpha.4 (unpublished candidate)
+## 0.1.0-alpha.5 (unpublished candidate)
+
+- Expose `effect-jobs/DurableObjectSqlite` for atomic domain writes and enqueue
+  inside one SQLite-backed Cloudflare Durable Object.
+- Add a packed Worker example that checks commit, rollback and an explicit
+  bounded drain. Applications own scheduling and reconciliation receipts.
+- Retain Effect `4.1.3` and the exact optional Drizzle peer
+  `1.0.0-rc.6-effect-jobs.1`.
+
+## 0.1.0-alpha.4
 
 - Require Effect `4.1.3`. Use the exact optional Drizzle peer
   `1.0.0-rc.6-effect-jobs.1` for integrations that use Drizzle. Install it from
