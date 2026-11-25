@@ -81,7 +81,7 @@
 
     "@dual-bundle/import-meta-resolve": ["@dual-bundle/import-meta-resolve@4.2.1", "", {}, "sha512-id+7YRUgoUX6CgV0DtuhirQWodeeA7Lf4i2x71JS/vtA5pRb/hIGWlw+G6MeXvsM+MXrz0VAydTGElX1rAfgPg=="],
 
-    "@effect-jobs/playground-contracts": ["@effect-jobs/playground-contracts@./contracts.tgz", { "dependencies": { "effect": "4.1.3", "effect-jobs": "0.1.0-alpha.4" } }, "sha512-4Qshz7PdipRhqDPZgOHPNQPOoboOslY5nAvbCHyLSbVZqBoBxMsnAdZ8HeeVecJPAodrCl94rIKAmbTsy0QGPQ=="],
+    "@effect-jobs/playground-contracts": ["@effect-jobs/playground-contracts@./contracts.tgz", { "dependencies": { "effect": "4.1.3", "effect-jobs": "0.1.0-alpha.5" } }, "sha512-4Qshz7PdipRhqDPZgOHPNQPOoboOslY5nAvbCHyLSbVZqBoBxMsnAdZ8HeeVecJPAodrCl94rIKAmbTsy0QGPQ=="],
 
     "@effect/atom-react": ["@effect/atom-react@4.1.0", "", { "peerDependencies": { "effect": "^4.1.0", "react": ">=19.0.0 <20.0.0", "scheduler": ">=0.25.0 <0.29.0" } }, "sha512-PeaBDmwqG9BPQfaPHeWCB2NF4NQaFlI6poKxjlBHMrMjKqV+LVBdryhpDNqSZOhqGgT+qnh9gV+19MYjNOQ+bg=="],
 

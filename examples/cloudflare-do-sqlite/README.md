@@ -11,9 +11,16 @@ A separate request runs a bounded `JobWorker.drain` with one claim and one
 recovery slot. The handler writes a local recording keyed by job ID. This
 example has no external delivery. External handlers need their own
 idempotency strategy. The application owns scheduling and reconciliation when
-the commit outcome is unknown. The example's SQL inspection endpoint is a
-test oracle for current rows. Application code should not depend on the jobs
-tables as a history interface.
+the commit outcome is unknown. An application that needs reconciliation
+should write its own receipt using the same transaction and stable operation
+ID, then look up that receipt on a separate read when settlement is unconfirmed.
+An absent receipt alone does not authorize replay.
+
+The jobs store keeps evidence of the most recent exact worker finalization
+until the next state change or deletion. There is no separate receipt TTL.
+A missing finalization receipt does not authorize rerunning a handler.
+UPVE-2881 tracks a possible future attempt history. The example's SQL
+inspection endpoint checks current rows for the smoke test.
 
 ## Run locally against the release candidate
 
@@ -25,14 +32,14 @@ bun install --frozen-lockfile --ignore-scripts
 bun run build
 bun run release:pack
 ALCHEMY_TEST_DEV=true sh examples/cloudflare-do-sqlite/Run.sh \
-  .toolchain/release/artifact/effect-jobs-0.1.0-alpha.4.tgz
+  .toolchain/release/artifact/effect-jobs-0.1.0-alpha.5.tgz
 ```
 
 The packer prints the versioned archive path and refuses to replace an existing
 archive. Pass an already-built candidate directly, or set a new
 `EFFECT_JOBS_ARTIFACT_DIRECTORY` when rebuilding. The launcher copies the
-archive to a disposable consumer, prints its SHA-256 and uses npm to install
-it with the locked fixture toolchain. It verifies that adding the archive
+archive to a disposable consumer, prints its SHA-256 and installs it with
+strict npm peer resolution and the locked fixture toolchain. It verifies that adding the archive
 leaves the toolchain lock intact. Registry access is only needed for the
 install phase. Worker and Alchemy code use strict TypeScript, including
 exact optional properties and unchecked indexed access. The combined project

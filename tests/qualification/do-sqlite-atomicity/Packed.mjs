@@ -46,7 +46,7 @@ try {
   )
   const pkg = join(consumer, "node_modules/effect-jobs")
   const manifest = JSON.parse(await readFile(join(pkg, "package.json"), "utf8"))
-  assert.equal(manifest.version, "0.1.0-alpha.4")
+  assert.equal(manifest.version, "0.1.0-alpha.5")
   execFileSync(
     process.execPath,
     [

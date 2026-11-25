@@ -2,12 +2,12 @@
 
 ## Prepared candidate
 
-The current metadata targets **`effect-jobs@0.1.0-alpha.4`**. Treat alpha.4 as
+The current metadata targets **`effect-jobs@0.1.0-alpha.5`**. Treat alpha.5 as
 unpublished until the owner completes registry publication and verification.
-Alpha.2 is already published with Effect/sql-pg `4.0.5` and the two hash-suffixed
-Drizzle snapshots; it is not the current source or a qualification substitute.
-The prepared source must be reviewed and integrated before release; this page
-does not authorize publishing, Git tags, a GitHub release or deployment.
+The candidate adds the public `effect-jobs/DurableObjectSqlite` entry point on
+the existing Effect `4.1.3` and optional Drizzle pins. Review and integrate the
+qualified source before release. Publication, tagging and deployment require
+separate authorization.
 
 The release handoff supplies the exact source commit/tree, tarball path, SHA256,
 SHA512/integrity, gate results and known limits. Do not publish a different
@@ -28,20 +28,35 @@ bun run build
 # Set EFFECT_JOBS_ARTIFACT_DIRECTORY to a new stable candidate directory.
 bun run release:pack
 # Point to the resulting immutable archive; never overwrite it.
-export EFFECT_JOBS_ARCHIVE=/absolute/path/to/effect-jobs-0.1.0-alpha.4.tgz
+export EFFECT_JOBS_ARCHIVE=/absolute/path/to/effect-jobs-0.1.0-alpha.5.tgz
 bun run verify
 bun run check:postgresql
 node scripts/check-release.mjs --metadata-only
 ```
 
-Consume that same archive with `qualify:docs:readme`, `qualify:release`,
-`check:docs:api`, `qualify:api:installed`, `qualify:postgresql:installed`,
-`qualify:drizzle:native` and `qualify:drizzle:indexes`. Real-PG gates require
-`D6_RESOURCE_DIRECTORY` describing an explicitly owned disposable database;
-missing resources and skipped suites are not a passing qualification. Serialize
-database fixtures. The optional Drizzle peer is exactly `1.0.0-rc.6-effect-jobs.1`. Controlled
-consumer installs use the commit-pinned tarball documented in the README. The old
-hash-suffixed snapshot commands and declaration exceptions are historical only.
+Run the [full release qualification](../specs/release-qualification.md).
+Use the same archive for all installed checks, including the documented npm
+install, strict core declarations, native Drizzle, and the strict public
+DO SQLite import and packed Alchemy Worker:
+
+```sh
+bun run qualify:docs:readme
+bun run qualify:release
+ALCHEMY_TEST_DEV=true sh examples/cloudflare-do-sqlite/Run.sh "$EFFECT_JOBS_ARCHIVE"
+```
+
+The [Worker example](../examples/cloudflare-do-sqlite/README.md) verifies
+same-object commit, rollback with zero partial writes and an explicit drain
+that reaches Completed and then Idle. Record strict core, Drizzle same-client
+runtime and Drizzle full-declaration results separately. Use only owned,
+disposable local PG resources for database qualification.
+
+For hosted evidence, compare the actual shipped JS and declarations, package
+runtime metadata, hosted Worker and pinned runtime graph with the archive used
+for the previous smoke. Record the original archive digest and the scope of
+any evidence that carries over. Material runtime differences require a new
+[hosted smoke](../examples/cloudflare-do-sqlite/README.md#hosted-smoke-before-publication)
+under separate authorization.
 
 No publication command, even `npm publish --dry-run`, is part of the delegated
 preparation. Local `npm pack`, installation and dependency-tree checks are used
@@ -63,18 +78,18 @@ have reviewed every NotTested/FAIL item in the handoff.
    ```
 
 3. If authentication is needed, run `npm login` yourself. Do not share tokens or
-   OTPs in logs/issues. Stop if `0.1.0-alpha.4` already exists; do not overwrite it
+   OTPs in logs/issues. Stop if `0.1.0-alpha.5` already exists; do not overwrite it
    or silently bump a qualified archive's version.
 4. Publish the exact archive, explicitly selecting the prerelease tag:
 
    ```sh
-   npm publish /absolute/path/to/effect-jobs-0.1.0-alpha.4.tgz --ignore-scripts --tag alpha --access public --registry=https://registry.npmjs.org
+   npm publish /absolute/path/to/effect-jobs-0.1.0-alpha.5.tgz --ignore-scripts --tag alpha --access public --registry=https://registry.npmjs.org
    ```
 
 5. Verify registry metadata and compare `dist.integrity` to the handoff:
 
    ```sh
-   npm view effect-jobs@0.1.0-alpha.4 version dist.integrity dist.tarball --json --registry=https://registry.npmjs.org
+   npm view effect-jobs@0.1.0-alpha.5 version dist.integrity dist.tarball --json --registry=https://registry.npmjs.org
    npm dist-tag ls effect-jobs --registry=https://registry.npmjs.org
    ```
 
@@ -85,7 +100,7 @@ have reviewed every NotTested/FAIL item in the handoff.
 
    ```sh
    npm init -y
-   npm install --ignore-scripts --save-exact effect-jobs@0.1.0-alpha.4 effect@4.1.3 --registry=https://registry.npmjs.org
+   npm install --ignore-scripts --save-exact effect-jobs@0.1.0-alpha.5 effect@4.1.3 --registry=https://registry.npmjs.org
    npm ls effect-jobs effect
    node --input-type=module -e 'await import("effect-jobs/Job"); console.log("registry import PASS")'
    ```

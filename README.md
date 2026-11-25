@@ -3,7 +3,7 @@
 Background jobs for Effect, stored in your own database. Add a job in the same
 transaction as your application data, so both are saved together or neither is.
 
-PostgreSQL for now, with more databases planned.
+Use PostgreSQL or SQLite inside a Cloudflare Durable Object.
 
 For example, save an invoice and enqueue its receipt email in the same transaction,
 then handle delivery in a separate worker.
@@ -56,16 +56,16 @@ const ReceiptHandler = JobGroup.handlers(BillingJobs, (handlers) =>
 )
 ```
 
-**Initial alpha · Effect · PostgreSQL · transaction-bound enqueue**
+**Effect · PostgreSQL · Durable Object SQLite · transaction-bound enqueue**
 
 ## Install
 
-Examples target the unpublished `0.1.0-alpha.4` release candidate with Effect
+Examples target the unpublished `0.1.0-alpha.5` release candidate with Effect
 `4.1.3`. This prerelease changes the alpha.0 enqueue,
 policy, failure-code and encrypted-payload APIs; update callers before upgrading.
 
 ```sh
-npm install --save-exact ./effect-jobs-0.1.0-alpha.4.tgz effect@4.1.3
+npm install --save-exact ./effect-jobs-0.1.0-alpha.5.tgz effect@4.1.3
 ```
 
 For Drizzle schema helpers or either Drizzle driver, explicitly install the
@@ -107,8 +107,12 @@ for scoped setup and managed Hyperdrive timeouts. The playground retains
 `@effect/sql-pg` for its interrupted-query shutdown and DO hibernation requirements.
 Choose the client before opening the transaction; never retry on a different driver.
 
-For jobs stored alongside domain data in a single SQLite-backed Durable Object,
-see the [packed Cloudflare DO SQLite example](examples/cloudflare-do-sqlite/README.md).
+For SQLite, import `effect-jobs/DurableObjectSqlite`. The
+[Cloudflare example](examples/cloudflare-do-sqlite/README.md) inserts the
+invoice, job and payload in one transaction on the same Durable Object. A
+separate request calls `JobWorker.drain` with explicit claim and recovery limits.
+The application owns migrations, scheduling and receipts for reconciling
+unconfirmed commits.
 
 `FailureCode` is the `effect-jobs/FailureCode` module; `JobEnqueue` is the service
 exported by `effect-jobs/JobEnqueue`. Job version defaults to `1`. Slot-bound
@@ -649,7 +653,7 @@ the portable library's dependency graph.
 
 ## Alpha boundaries
 
-PostgreSQL only. Application-owned adapters, pools, migrations and cleanup. No recurring scheduler or admin API. Every TypeScript fence is extracted and declaration-checked against source and
+PostgreSQL and SQLite within one Cloudflare Durable Object. Applications own adapters, pools where applicable, migrations and cleanup. No recurring scheduler or admin API. Every TypeScript fence is extracted and declaration-checked against source and
 the current locally packed artifact. The Effect 4.1.3 candidate
 requires exact-byte receipts; see `specs/release-qualification.md`. Node/Bun composition, handler, codec and encryption
 checks use explicit application fixtures. Real native PostgreSQL transaction
