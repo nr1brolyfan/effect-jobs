@@ -56,13 +56,20 @@ launcher removes the disposable install and local storage on exit.
 
 ## Hosted smoke before publication
 
+The [owner release procedure](../../docs/releasing.md#commands-reserved-for-the-owner)
+requires a hosted PASS for the exact candidate before publication, along with
+the remaining gates and the owner's decision. The local handoff may record
+matching historical evidence and remain complete with hosted status **NOT RUN**.
+Using that evidence as equivalent for publication requires a separate,
+explicit owner decision.
+
 1. **Agree the Cloudflare account and stage with the owner before provisioning.**
    Record the disposable account or approved sandbox, a unique stage and
    Worker name, its private test route, who can access it, the operator and the
    cleanup deadline. Use synthetic data only. Smoke endpoints expose test
    state and deliberately fail a command, so require authenticated access
    before issuing requests. Disable public `workers.dev` and preview routes.
-2. In a fresh consumer, install the same verified candidate and use
+2. In a fresh consumer, install the exact candidate archive and use
    `Worker.mts` as the entrypoint. Configure the `INVOICES` binding for
    `InvoiceJobs` in the same Worker, with the example's compatibility date
    and a Wrangler class export with `type: "durable-object"` and

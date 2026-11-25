@@ -51,10 +51,13 @@ that reaches Completed and then Idle. Record strict core, Drizzle same-client
 runtime and Drizzle full-declaration results separately. Use only owned,
 disposable local PG resources for database qualification.
 
-For hosted evidence, compare the actual shipped JS and declarations, package
-runtime metadata, hosted Worker and pinned runtime graph with the archive used
-for the previous smoke. Record the original archive digest and the scope of
-any evidence that carries over. Material runtime differences require a new
+For the local handoff, compare the shipped JS and declarations, package runtime
+metadata, hosted Worker and pinned fixture graph with the inputs of the previous
+smoke. If they match, record the original archive digest and the scope of its
+historical evidence. Record the actual hosted result for the exact candidate.
+A local handoff can be complete with hosted status **NOT RUN**, which is the
+current status for alpha.5. If the comparison finds a material runtime difference,
+record the need for a new
 [hosted smoke](../examples/cloudflare-do-sqlite/README.md#hosted-smoke-before-publication)
 under separate authorization.
 
@@ -64,9 +67,11 @@ only by the existing qualification fixtures; they do not publish to the registry
 
 ## Commands reserved for the owner
 
-These are instructions, not commands already executed by the preparation agent.
-Only continue after the exact candidate's gates and hosted checks pass and you
-have reviewed every NotTested/FAIL item in the handoff.
+The owner decides whether to publish after the exact candidate has a hosted
+PASS, the remaining required gates are satisfied, and every NotTested/FAIL item
+in the handoff has been reviewed. Accepting historical hosted evidence as
+equivalent for publication requires a separate, explicit owner decision to
+change the exact-candidate hosted PASS requirement.
 
 1. Download/copy the qualified archive and verify its handoff SHA256 locally.
 2. Check your npm identity, ownership and whether the version is still free:
