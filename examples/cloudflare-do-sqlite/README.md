@@ -32,7 +32,7 @@ bun install --frozen-lockfile --ignore-scripts
 bun run build
 bun run release:pack
 ALCHEMY_TEST_DEV=true sh examples/cloudflare-do-sqlite/Run.sh \
-  .toolchain/release/artifact/effect-jobs-0.1.0-alpha.5.tgz
+  .toolchain/release/artifact/effect-jobs-0.1.0-alpha.6.tgz
 ```
 
 The packer prints the versioned archive path and refuses to replace an existing

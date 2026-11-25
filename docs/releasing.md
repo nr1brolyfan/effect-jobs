@@ -2,12 +2,11 @@
 
 ## Prepared candidate
 
-The current metadata targets **`effect-jobs@0.1.0-alpha.5`**. Treat alpha.5 as
+The current metadata targets **`effect-jobs@0.1.0-alpha.6`**. Treat alpha.6 as
 unpublished until the owner completes registry publication and verification.
-The candidate adds the public `effect-jobs/DurableObjectSqlite` entry point on
-the existing Effect `4.1.3` and optional Drizzle pins. Review and integrate the
-qualified source before release. Publication, tagging and deployment require
-separate authorization.
+The candidate refreshes the npm README and retains the public runtime and peer
+pins from alpha.5. Review and integrate the qualified source before release.
+Publication, tagging and deployment require separate authorization.
 
 The release handoff supplies the exact source commit/tree, tarball path, SHA256,
 SHA512/integrity, gate results and known limits. Do not publish a different
@@ -28,16 +27,16 @@ bun run build
 # Set EFFECT_JOBS_ARTIFACT_DIRECTORY to a new stable candidate directory.
 bun run release:pack
 # Point to the resulting immutable archive; never overwrite it.
-export EFFECT_JOBS_ARCHIVE=/absolute/path/to/effect-jobs-0.1.0-alpha.5.tgz
+export EFFECT_JOBS_ARCHIVE=/absolute/path/to/effect-jobs-0.1.0-alpha.6.tgz
 bun run verify
 bun run check:postgresql
 node scripts/check-release.mjs --metadata-only
 ```
 
 Run the [full release qualification](../specs/release-qualification.md).
-Use the same archive for all installed checks, including the documented npm
-install, strict core declarations, native Drizzle, and the strict public
-DO SQLite import and packed Alchemy Worker:
+Use the same archive for all installed checks, including the documented Bun
+install, separate npm core and strict declarations, native Drizzle, and the
+strict public DO SQLite import and packed Alchemy Worker:
 
 ```sh
 bun run qualify:docs:readme
@@ -56,10 +55,10 @@ metadata, hosted Worker and pinned fixture graph with the inputs of the previous
 smoke. If they match, record the original archive digest and the scope of its
 historical evidence. Record the actual hosted result for the exact candidate.
 A local handoff can be complete with hosted status **NOT RUN**, which is the
-current status for alpha.5. If the comparison finds a material runtime difference,
-record the need for a new
+current status for alpha.6. UPVE-2890 records the exact alpha.5 hosted PASS.
+Alpha.6 requires its own
 [hosted smoke](../examples/cloudflare-do-sqlite/README.md#hosted-smoke-before-publication)
-under separate authorization.
+under separate authorization, unless the owner explicitly accepts an exception.
 
 No publication command, even `npm publish --dry-run`, is part of the delegated
 preparation. Local `npm pack`, installation and dependency-tree checks are used
@@ -83,29 +82,29 @@ change the exact-candidate hosted PASS requirement.
    ```
 
 3. If authentication is needed, run `npm login` yourself. Do not share tokens or
-   OTPs in logs/issues. Stop if `0.1.0-alpha.5` already exists; do not overwrite it
+   OTPs in logs/issues. Stop if `0.1.0-alpha.6` already exists; do not overwrite it
    or silently bump a qualified archive's version.
 4. Publish the exact archive, explicitly selecting the prerelease tag:
 
    ```sh
-   npm publish /absolute/path/to/effect-jobs-0.1.0-alpha.5.tgz --ignore-scripts --tag alpha --access public --registry=https://registry.npmjs.org
+   npm publish /absolute/path/to/effect-jobs-0.1.0-alpha.6.tgz --ignore-scripts --tag alpha --access public --registry=https://registry.npmjs.org
    ```
 
 5. Verify registry metadata and compare `dist.integrity` to the handoff:
 
    ```sh
-   npm view effect-jobs@0.1.0-alpha.5 version dist.integrity dist.tarball --json --registry=https://registry.npmjs.org
+   npm view effect-jobs@0.1.0-alpha.6 version dist.integrity dist.tarball --json --registry=https://registry.npmjs.org
    npm dist-tag ls effect-jobs --registry=https://registry.npmjs.org
    ```
 
-   Confirm `alpha` points to the candidate and `latest` has not changed. A fresh
+   Confirm `alpha` points to the candidate and `latest` still points to alpha.3. A fresh
    normal registry installation is a post-publication gate; a local tarball
    installation does not establish it. In a fresh empty directory, install the
    exact published version normally and import the portable public entrypoint:
 
    ```sh
    npm init -y
-   npm install --ignore-scripts --save-exact effect-jobs@0.1.0-alpha.5 effect@4.1.3 --registry=https://registry.npmjs.org
+   npm install --ignore-scripts --save-exact effect-jobs@0.1.0-alpha.6 effect@4.1.3 --registry=https://registry.npmjs.org
    npm ls effect-jobs effect
    node --input-type=module -e 'await import("effect-jobs/Job"); console.log("registry import PASS")'
    ```

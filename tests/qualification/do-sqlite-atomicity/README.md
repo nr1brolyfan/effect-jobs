@@ -96,7 +96,7 @@ consumer with only the archive and its pinned Effect peer installed.
 ```sh
 bun run build
 bun run release:pack
-node tests/qualification/do-sqlite-atomicity/Packed.mjs .toolchain/release/artifact/effect-jobs-0.1.0-alpha.5.tgz
+node tests/qualification/do-sqlite-atomicity/Packed.mjs .toolchain/release/artifact/effect-jobs-0.1.0-alpha.6.tgz
 ```
 
 The harness checks that package specifier imports of the internal modules fail

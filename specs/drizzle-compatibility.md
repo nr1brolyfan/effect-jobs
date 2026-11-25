@@ -11,10 +11,18 @@ its WebSocket Durable Object to hibernate with attachments intact. Until both
 checks pass on the bundled driver it uses `@effect/sql-pg`. On rc.6 a failed
 ROLLBACK can lose its own error; a lone application failure is not evidence of
 an acknowledged rollback. The registry rc.6 declarations have three missing Drizzle builder names
-([#6728](https://github.com/drizzle-team/drizzle-orm/issues/6728)). Alpha.4 uses the
-[commit-pinned repair tarball](../README.md#install). The exact optional peer
-matches the tarball's package version. Its full installed declaration audit is
-a release gate with TypeScript 7.0.2 and `skipLibCheck:false`.
+([#6728](https://github.com/drizzle-team/drizzle-orm/issues/6728)). The exact optional peer uses a
+[commit-pinned repair tarball](https://raw.githubusercontent.com/nr1brolyfan/drizzle-orm/3f651f2bce7edf64f1217a1cfb6ed3d2e6e9c54b/fork-artifacts/drizzle-orm-1.0.0-rc.6-effect-jobs.1.tgz).
+Install it only in applications that use Drizzle:
+
+```sh
+npm install --save-exact 'https://raw.githubusercontent.com/nr1brolyfan/drizzle-orm/3f651f2bce7edf64f1217a1cfb6ed3d2e6e9c54b/fork-artifacts/drizzle-orm-1.0.0-rc.6-effect-jobs.1.tgz'
+```
+
+The lock integrity is
+`sha512-rP3Z9XbX0I3d7AuiIUQXcseQSOIanjCWHrRfh54AE3Ltyw9TUdPcuHosK2pT1vt+pAoHawFiBbOhz71yYza8og==`.
+Its full installed declaration audit is a release gate with TypeScript `7.0.2`
+and `skipLibCheck:false`.
 
 Remove the temporary pin after independently qualifying a published upstream
 version. Repeat frozen resolution, the no-Drizzle and single-Drizzle consumer

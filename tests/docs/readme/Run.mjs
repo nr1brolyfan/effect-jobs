@@ -3,7 +3,8 @@ import {
   checkInstalledGraph,
   drizzleSource
 } from "../../qualification/DrizzleSnapshot.mjs"
-import { names, wrap } from "./Prelude.mjs"
+import { names as regressionNames, wrap } from "./Prelude.mjs"
+import { fences, modules as visibleModules, names as visibleNames } from "./Visible.mjs"
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
@@ -14,9 +15,11 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  rmSync,
   writeFileSync
 } from "node:fs"
 import { join, relative, resolve } from "node:path"
+import { tmpdir } from "node:os"
 import { fileURLToPath } from "node:url"
 import { publicModules } from "../../../scripts/SourceExports.mjs"
 const root = fileURLToPath(new URL("../../../", import.meta.url))
@@ -24,20 +27,21 @@ assert.equal(process.version, "v24.15.0")
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
 const modules = new Map(publicModules(manifest).map((module) => [module.name, module]))
 const readme = readFileSync(join(root, "README.md"), "utf8")
-const fences = [...readme.matchAll(/```(\w+)\n([\s\S]*?)```/g)]
-assert(fences.every((m) => ["ts", "sh", "text"].includes(m[1])))
-const snippets = fences.filter((m) => m[1] === "ts").map((m) => m[2])
-assert.equal(snippets.length, names.length, "Update the complete fence inventory")
-assert.equal(fences.filter((m) => m[1] === "text").length, 0)
-const installCommands = fences
-  .filter((fence) => fence[1] === "sh")
-  .map((fence) => fence[2].trim())
-const localTarball = `./effect-jobs-${manifest.version}.tgz`
+const blocks = fences(readme)
+const visible = visibleModules(blocks.filter((m) => m[1] === "ts").map((m) => m[2]))
+const regression = fences(
+  readFileSync(join(import.meta.dirname, "Regression.md"), "utf8")
+)
+assert(regression.every((m) => m[1] === "ts"))
+assert.equal(
+  regression.length,
+  regressionNames.length,
+  "Update the regression fence inventory"
+)
 const effectPin = manifest.peerDependencies.effect
-assert.deepEqual(installCommands, [
-  `npm install --save-exact ${localTarball} effect@${effectPin}`,
-  `npm install --save-exact '${drizzleSource}'`
-])
+const [bunCommand] = blocks.filter((m) => m[1] === "sh").map((m) => m[2].trim())
+assert.equal(blocks.filter((m) => m[1] === "sh").length, 1)
+assert.equal(bunCommand, `bun add --exact effect-jobs@alpha effect@${effectPin}`)
 const hash = (value) => createHash("sha256").update(value).digest("hex")
 mkdirSync(join(root, ".toolchain/readme"), { recursive: true })
 const evidence = mkdtempSync(join(root, ".toolchain/readme/run-"))
@@ -53,9 +57,7 @@ const run = (name, cmd, args, cwd) => {
   results.push({ name, cmd, args, status: r.status })
   assert.equal(r.status, 0, `${name} failed: ${join(evidence, `${name}.log`)}`)
 }
-// Alchemy's complete maintained source and real callback runtime have a separate
-// pinned gate; obsolete partial Cloudflare fences are no longer README fixtures.
-assert(readme.includes("examples/cloudflare-alchemy/README.md"))
+let bunConsumer
 try {
   let archive = process.argv[2] ?? process.env.EFFECT_JOBS_ARCHIVE
   if (!archive) {
@@ -68,19 +70,88 @@ try {
     archive = join(evidence, `${manifest.name}-${manifest.version}.tgz`)
   }
   archive = resolve(archive)
+  bunConsumer = mkdtempSync(join(tmpdir(), "effect-jobs-readme-bun-"))
+  writeFileSync(join(bunConsumer, "package.json"), '{"private":true,"type":"module"}\n')
+  const [, ...bunArgs] = bunCommand.split(" ")
+  run(
+    "bun-add",
+    "bun",
+    bunArgs.map((arg) => (arg === "effect-jobs@alpha" ? archive : arg)),
+    bunConsumer
+  )
+  const bunLock = join(bunConsumer, "bun.lock")
+  const initialLock = readFileSync(bunLock)
+  rmSync(join(bunConsumer, "node_modules"), { recursive: true })
+  run("bun-frozen", "bun", ["install", "--frozen-lockfile"], bunConsumer)
+  assert.deepEqual(readFileSync(bunLock), initialLock)
+  run("bun-tree", "bun", ["pm", "ls", "--all"], bunConsumer)
+  run(
+    "bun-resolution",
+    "bun",
+    [
+      "-e",
+      `
+import assert from "node:assert/strict"
+import { realpathSync, readFileSync } from "node:fs"
+import { createHash } from "node:crypto"
+import { dirname } from "node:path"
+import { fileURLToPath } from "node:url"
+const json = (path) => JSON.parse(readFileSync(path, "utf8"))
+const dependencies = json("package.json").dependencies
+const lock = Bun.JSONC.parse(readFileSync("bun.lock", "utf8"))
+assert.deepEqual(Object.keys(dependencies).sort(), ["effect", "effect-jobs"])
+assert.equal(dependencies["effect-jobs"], ${JSON.stringify(archive)})
+assert.equal(dependencies.effect, ${JSON.stringify(effectPin)})
+assert.deepEqual(lock.workspaces[""].dependencies, dependencies)
+assert.equal(lock.packages.effect[0], ${JSON.stringify(`effect@${effectPin}`)})
+assert(!Object.entries(lock.packages).some(([name, [locator]]) =>
+  name.split("/").includes("drizzle-orm") || locator.startsWith("drizzle-orm@")
+))
+const archiveIntegrity = "sha512-" + createHash("sha512").update(readFileSync(dependencies["effect-jobs"])).digest("base64")
+assert.equal(lock.packages["effect-jobs"].at(-1), archiveIntegrity)
+const jobsPath = fileURLToPath(import.meta.resolve("effect-jobs/Job"))
+const effectPath = fileURLToPath(import.meta.resolve("effect"))
+assert.equal(realpathSync(Bun.resolveSync("effect", dirname(jobsPath))), realpathSync(effectPath))
+assert.throws(() => import.meta.resolve("drizzle-orm"))
+assert.throws(() => Bun.resolveSync("drizzle-orm", dirname(jobsPath)))
+for (const [name, entry, version] of ${JSON.stringify([
+        ["effect-jobs", "effect-jobs/Job", manifest.version],
+        ["effect", "effect", effectPin]
+      ])}) {
+  const packagePath = realpathSync("node_modules/" + name)
+  const resolved = import.meta.resolve(entry)
+  assert(realpathSync(new URL(resolved)).startsWith(packagePath + "/"))
+  assert.equal(json(packagePath + "/package.json").version, version)
+  await import(entry)
+  console.log(JSON.stringify({ name, resolved, version }))
+}
+assert.equal(Bun.version, "1.4.2")
+`
+    ],
+    bunConsumer
+  )
+  assert(!existsSync(join(bunConsumer, "node_modules/drizzle-orm")))
+  assert.equal(
+    readFileSync(join(bunConsumer, "node_modules/effect-jobs/README.md"), "utf8"),
+    readme
+  )
+
   const consumer = join(evidence, "packed")
   mkdirSync(consumer)
   const consumerManifest = join(consumer, "package.json")
   const consumerLock = join(consumer, "package-lock.json")
   writeFileSync(consumerManifest, '{"private":true,"type":"module"}\n')
   const npmFlags = ["--ignore-scripts", "--no-audit", "--no-fund"]
-  for (const [index, stage] of ["core", "drizzle"].entries()) {
-    // The exact command forms above permit simple tokenization without a shell.
-    const [cmd, action, ...args] = installCommands[index].split(" ")
-    const inputs = args.map((arg) =>
-      arg === localTarball ? archive : arg.replace(/^'|'$/g, "")
+  for (const [stage, inputs] of [
+    ["core", [archive, `effect@${effectPin}`]],
+    ["drizzle", [drizzleSource]]
+  ]) {
+    run(
+      `npm-${stage}-install`,
+      "npm",
+      ["install", "--save-exact", ...inputs, ...npmFlags],
+      consumer
     )
-    run(`readme-${stage}-install`, cmd, [action, ...inputs, ...npmFlags], consumer)
     const dependencies = JSON.parse(readFileSync(consumerManifest, "utf8")).dependencies
     const { packages } = JSON.parse(readFileSync(consumerLock, "utf8"))
     assert.equal(dependencies.effect, effectPin)
@@ -93,7 +164,7 @@ try {
       )
       assert(!existsSync(join(consumer, "node_modules/drizzle-orm")))
       run(
-        "readme-core-frozen-install",
+        "npm-core-frozen-install",
         "npm",
         ["ci", "--strict-peer-deps", ...npmFlags],
         consumer
@@ -102,7 +173,7 @@ try {
     } else {
       assert.equal(dependencies["drizzle-orm"], drizzleSource)
       run(
-        "readme-drizzle-frozen-install",
+        "npm-drizzle-frozen-install",
         "npm",
         ["ci", "--strict-peer-deps", ...npmFlags],
         consumer
@@ -113,7 +184,7 @@ try {
     copyFileSync(consumerLock, join(evidence, `${stage}-package-lock.json`))
   }
 
-  // Add snippet tooling after the documented installation has been qualified.
+  // Add snippet tooling after the consumer installs have been qualified.
   run(
     "snippet-dependencies",
     "npm",
@@ -139,6 +210,13 @@ try {
     readme,
     "Packed README must equal qualified source"
   )
+  // The binding uses the workspace's frozen Alchemy graph. Keep it out of the
+  // independent npm core and Drizzle consumers.
+  const cloudflarePath = join(root, "node_modules/@alchemy.run/cloudflare")
+  const cloudflare = JSON.parse(
+    readFileSync(join(cloudflarePath, "package.json"), "utf8")
+  )
+  assert.equal(cloudflare.version, manifest.overrides["@alchemy.run/cloudflare"])
   const options = {
     target: "ES2022",
     module: "NodeNext",
@@ -149,7 +227,9 @@ try {
     verbatimModuleSyntax: true,
     skipLibCheck: true,
     types: ["node"],
-    paths: {}
+    paths: {
+      "@alchemy.run/cloudflare": [join(cloudflarePath, cloudflare.exports["."].types)]
+    }
   }
   const source = join(consumer, "source")
   mkdirSync(source)
@@ -167,8 +247,11 @@ try {
             )
           })
         : code
-    for (const [i, name] of names.entries()) {
-      writeFileSync(join(directory, `${name}.ts`), replace(wrap(name, snippets[i])))
+    for (const [i, name] of regressionNames.entries()) {
+      writeFileSync(join(directory, `${name}.ts`), replace(wrap(name, regression[i][2])))
+    }
+    for (const [name, code] of Object.entries(visible)) {
+      writeFileSync(join(directory, `${name}.ts`), replace(code))
     }
     for (const file of ["Fixture", "Smoke"]) {
       writeFileSync(
@@ -201,7 +284,15 @@ try {
         {
           extends: "./tsconfig.json",
           compilerOptions: { skipLibCheck: false, noEmit: true },
-          exclude: ["drizzle.ts", "indexes.ts", "node-worker.ts", "native.ts", "Smoke.ts"]
+          exclude: [
+            "drizzle.ts",
+            "indexes.ts",
+            "node-worker.ts",
+            "native.ts",
+            "Smoke.ts",
+            "VisiblePostgres.ts",
+            "VisibleSqliteBinding.ts"
+          ]
         },
         null,
         2
@@ -231,6 +322,7 @@ try {
     join(evidence, "artifact-input.json"),
     JSON.stringify(
       {
+        bunLockSha256: hash(initialLock),
         archiveSha256: hash(readFileSync(archive)),
         version: installed.version,
         packedLockSha256: hash(readFileSync(join(consumer, "package-lock.json")))
@@ -240,6 +332,13 @@ try {
     )
   )
 } finally {
+  if (bunConsumer) {
+    for (const file of ["package.json", "bun.lock"]) {
+      const input = join(bunConsumer, file)
+      if (existsSync(input)) copyFileSync(input, join(evidence, `bun-${file}`))
+    }
+    rmSync(bunConsumer, { recursive: true })
+  }
   const inputs = (dir) =>
     readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
       e.isDirectory()
@@ -257,19 +356,18 @@ try {
       {
         node: process.version,
         readmeSha256: hash(readme),
-        fences: fences.map((m) => ({
+        fences: blocks.map((m) => ({
           language: m[1],
           sha256: hash(m[2]),
           scope:
             m[1] === "ts"
-              ? "source/packed declarations; see explicit runtime scopes"
-              : m[1] === "sh"
-                ? "sequential npm installs and frozen optional-peer graph"
-                : "conceptual topology, no executable claim"
+              ? "source/packed type checking against the enclosing contexts"
+              : "fresh Bun add, frozen lock and installed resolution"
         })),
-        snippets: names,
+        snippets: visibleNames,
+        regressionSnippets: regressionNames,
         runtimeScopes: {
-          "Node+Bun fixture execution": names.filter(
+          "Node+Bun regression fixture execution": regressionNames.filter(
             (name) =>
               ![
                 "node-worker",
