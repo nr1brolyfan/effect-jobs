@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
-import { wrap } from "../tests/docs/readme/Prelude.mjs"
+import { fences, jobDefinition } from "../tests/docs/readme/Visible.mjs"
 
 const root = resolve(import.meta.dirname, "..")
 assert(process.env.EFFECT_JOBS_ARCHIVE, "immutable archive required")
@@ -95,14 +95,13 @@ writeFileSync(
   readFileSync(join(root, "tests/qualification/release/Worker.mjs"))
 )
 const readme = readFileSync(join(root, "README.md"), "utf8")
-const snippets = [...readme.matchAll(/```ts\n([\s\S]*?)```/g)].map((match) => match[1])
-// Supply the same explicit application imports/setup as the all-fence README gate.
-writeFileSync(join(consumer, "definition.mts"), wrap("contracts", snippets[1]))
+const definition = fences(readme).find(([, language]) => language === "ts")
+assert(definition, "README job definition required")
+writeFileSync(join(consumer, "definition.mts"), jobDefinition(definition[2]))
 writeFileSync(
   join(consumer, "core-exports.mts"),
   imports.map((specifier) => `import ${JSON.stringify(specifier)}`).join("\n") + "\n"
 )
-// The complete migration/setup fence is checked by qualify:docs:readme.
 writeFileSync(
   join(consumer, "tsconfig.json"),
   JSON.stringify({

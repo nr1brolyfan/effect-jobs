@@ -1,10 +1,10 @@
 # Release qualification
 
-## Alpha.5 candidate (unpublished)
+## Alpha.6 candidate (unpublished)
 
-Package metadata targets `0.1.0-alpha.5` and exposes `./DurableObjectSqlite`
-for same-object domain writes and enqueue. The candidate selects exact Effect/sql-pg
-`4.1.3`, Drizzle `1.0.0-rc.6-effect-jobs.1`, and Alchemy/Cloudflare `2.0.0-beta.85`.
+Package metadata targets `0.1.0-alpha.6`. This documentation release retains
+the alpha.5 runtime and API, including `./DurableObjectSqlite`. The candidate
+selects exact Effect/sql-pg `4.1.3`, Drizzle `1.0.0-rc.6-effect-jobs.1`, and Alchemy/Cloudflare `2.0.0-beta.85`.
 Node `24.15.0`, Bun `1.4.2` and TypeScript `7.0.2` remain pinned. The standalone
 Alchemy example retains its bounded TypeScript 6 graph. Completed retention
 remains 90 days.
@@ -121,7 +121,10 @@ Additional release gates include `check:docs:reference`, `qualify:docs:orders`,
 `node tests/qualification/creation-time/Installed.mjs`, `qualify:observability`
 and the frozen standalone Alchemy example qualification. Packed UI honors the
 same `EFFECT_JOBS_ARCHIVE`; do not let a consumer silently pack another candidate.
-Resolve the optional Drizzle peer from the immutable URL in the README. Verify
+Run the README Bun command in a fresh consumer, replacing only the release tag
+with the immutable archive before publication. Keep separate npm core and registry
+compatibility checks. Resolve the optional Drizzle peer from the immutable URL in
+the [Drizzle compatibility guide](./drizzle-compatibility.md). Verify
 one installed copy and the locked URL and integrity. The separate native
 foreign-declaration audit requires TypeScript 7.0.2, `skipLibCheck:false` and a
 zero exit code without a diagnostic allowlist.

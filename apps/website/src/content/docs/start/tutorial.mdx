@@ -97,7 +97,8 @@ imports `JobProducer` and the shared contract, without importing a worker or pro
 We call this business action `order.place`. Its `operation` stays stable;
 `operationId` identifies one submission, and must stay the same when that
 submission is retried. It is not automatically the order ID. `slot` names this
-operation's consequence: `send-confirmation`. Declaring a slot does not enqueue it.
+operation's consequence: `send-confirmation`. Use `JobProducer` even for an
+operation with one slot. Declaring a slot does not enqueue it.
 
 <CodeExample
   sourcePath="orders/apps/api/src/orders/PlaceOrder.ts"

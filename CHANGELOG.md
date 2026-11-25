@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.1.0-alpha.5 (unpublished candidate)
+## 0.1.0-alpha.6 (unpublished candidate)
+
+- Refresh the npm README with a Bun quick start, typed order jobs, and links to
+  the PostgreSQL and Durable Object examples.
+- Clarify that an operation with one slot still uses `JobProducer`.
+
+## 0.1.0-alpha.5
 
 - Expose `effect-jobs/DurableObjectSqlite` for atomic domain writes and enqueue
   inside one SQLite-backed Cloudflare Durable Object.
@@ -13,7 +19,7 @@
 
 - Require Effect `4.1.3`. Use the exact optional Drizzle peer
   `1.0.0-rc.6-effect-jobs.1` for integrations that use Drizzle. Install it from
-  the immutable tarball in the [README](./README.md#install) while
+  the immutable tarball in the [Drizzle compatibility guide](./specs/drizzle-compatibility.md) while
   [Drizzle #6728](https://github.com/drizzle-team/drizzle-orm/issues/6728) is open.
 - Qualify optional-peer isolation and the installed Drizzle graph independently,
   with a blocking full declaration audit on TypeScript `7.0.2`.
