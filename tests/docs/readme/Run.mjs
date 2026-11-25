@@ -142,10 +142,11 @@ assert.equal(Bun.version, "1.4.2")
   const consumerLock = join(consumer, "package-lock.json")
   writeFileSync(consumerManifest, '{"private":true,"type":"module"}\n')
   const npmFlags = ["--ignore-scripts", "--no-audit", "--no-fund"]
-  for (const [stage, inputs] of [
-    ["core", [archive, `effect@${effectPin}`]],
-    ["drizzle", [drizzleSource]]
-  ]) {
+  const npmStages = [
+    { stage: "core", inputs: [archive, `effect@${effectPin}`] },
+    { stage: "drizzle", inputs: [drizzleSource] }
+  ]
+  for (const { stage, inputs } of npmStages) {
     run(
       `npm-${stage}-install`,
       "npm",
@@ -335,7 +336,9 @@ assert.equal(Bun.version, "1.4.2")
   if (bunConsumer) {
     for (const file of ["package.json", "bun.lock"]) {
       const input = join(bunConsumer, file)
-      if (existsSync(input)) copyFileSync(input, join(evidence, `bun-${file}`))
+      if (existsSync(input)) {
+        copyFileSync(input, join(evidence, `bun-${file}`))
+      }
     }
     rmSync(bunConsumer, { recursive: true })
   }
