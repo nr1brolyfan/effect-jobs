@@ -8,10 +8,12 @@ fi
 
 fixture=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 bun=$(command -v bun)
-sandbox=$(mktemp -d /tmp/effect-jobs-alchemy.XXXXXXXX)
+sandbox=$(mktemp -d "${TMPDIR:-/tmp}/effect-jobs-alchemy.XXXXXXXX")
 cleanup() {
-  rm -rf -- "$sandbox"
-  test ! -e "$sandbox"
+  if ! rm -rf -- "$sandbox" || test -e "$sandbox"; then
+    printf 'Failed to remove Alchemy scratch directory: %s\n' "$sandbox" >&2
+    exit 1
+  fi
   echo 'Removed isolated Alchemy state and workerd storage'
 }
 trap cleanup EXIT
@@ -26,7 +28,7 @@ status=0
 env -i PATH="$(dirname -- "$bun"):/usr/bin:/bin:/usr/sbin:/sbin" HOME="$sandbox/home" TMPDIR="$sandbox/tmp" \
   CI=true ALCHEMY_TEST_DEV=true ALCHEMY_TELEMETRY_DISABLED=1 \
   JOBS_QUALIFICATION_ROOT="$sandbox" JOBS_QUALIFICATION_FAIL="${JOBS_QUALIFICATION_FAIL:-}" \
-  timeout --kill-after=5s 60s unshare -Urnp --fork --kill-child sh -ec 'ip link set lo up; exec "$@"' sh \
+  timeout --verbose --kill-after=5s 60s unshare -Urnp --fork --kill-child sh -ec 'ip link set lo up; exec "$@"' sh \
   "$bun" --no-env-file "$fixture/node_modules/@alchemy.run/test/bin/alchemy-test.ts" \
   --concurrency 1 --retry 0 "$fixture/Qualification.mts" || status=$?
 

@@ -20,14 +20,17 @@ import {
   type TransactionStorage
 } from "./Storage.js"
 
+/** The transaction callback has closed and its write capability can no longer be used. */
 export class SqliteTransactionClosed extends Data.TaggedError(
   "SqliteTransactionClosed"
 )<{}> {}
+/** Native transaction settlement failed without a confirmed commit or rollback. */
 export class SqliteTransactionUnavailable extends Data.TaggedError(
   "SqliteTransactionUnavailable"
 )<{
   readonly commitKnowledge: "Unknown"
 }> {}
+/** A SQLite statement failed inside the transaction, requiring rollback. */
 export class SqliteWriteFailed extends Data.TaggedError("SqliteWriteFailed")<{}> {}
 
 const decodeJobId = Schema.decodeUnknownResult(JobId)
@@ -229,9 +232,13 @@ const joined = <A, E, R>(
 
 // The owner awaits native settlement. Interruption first stops the scoped callback,
 // causing native rollback, then waits for that rollback to settle.
-// The application supplies one SQLite DO storage, opens this boundary once per
-// operation, and keeps domain writes synchronous through write. The caller
-// owns application receipts, the sync acknowledgment barrier and reconciliation.
+/**
+ * Run domain SQL and enqueue within one native SQLite Durable Object transaction.
+ * Open once per operation and keep domain writes synchronous through the callback's
+ * write capability. Keep other I/O outside the native transaction. Await the
+ * returned Effect and the storage sync barrier before acknowledging success.
+ * The application owns receipts and reconciliation.
+ */
 export const withTransaction = <A, E, R>(
   native: TransactionStorage,
   operationResponseBudgetMillis: number,

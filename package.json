@@ -36,6 +36,10 @@
       "types": "./dist/postgresql/PostgreSqlDrizzleSchema.d.ts",
       "import": "./dist/postgresql/PostgreSqlDrizzleSchema.js"
     },
+    "./DurableObjectSqlite": {
+      "types": "./dist/cloudflare/DurableObjectSqlite.d.ts",
+      "import": "./dist/cloudflare/DurableObjectSqlite.js"
+    },
     "./JobWorker": {
       "types": "./dist/JobWorker.d.ts",
       "import": "./dist/JobWorker.js"

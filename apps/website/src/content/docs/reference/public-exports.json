@@ -1472,5 +1472,72 @@
         "description": "Drizzle-only additive jobs indexes. The application owns unique schema-wide\nnames and migration generation. Runtime readiness and baseline SQL are unchanged."
       }
     ]
+  },
+  {
+    "subpath": "effect-jobs/DurableObjectSqlite",
+    "filename": "src/cloudflare/DurableObjectSqlite.ts",
+    "sha256": "f109d0aae84713b76f4ec5ead666c9bd1d9868e580235d9ed0dd3133390c700f",
+    "symbols": [
+      {
+        "name": "ddl",
+        "kind": "value",
+        "category": "contract",
+        "description": "SQLite DDL for application-owned migrations. Importing the module runs no SQL."
+      },
+      {
+        "name": "makeStore",
+        "kind": "value",
+        "category": "contract",
+        "description": "Adapt one object's storage for JobStorage. Use the same positive operation\nresponse budget (milliseconds) for enqueue and execution. Construction runs no SQL."
+      },
+      {
+        "name": "SqliteStoreUnavailable",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "SQLite storage could not acknowledge the operation. Its commit status is unknown."
+      },
+      {
+        "name": "SqliteTransactionClosed",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "The transaction callback has closed and its write capability can no longer be used."
+      },
+      {
+        "name": "SqliteTransactionUnavailable",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "Native transaction settlement failed without a confirmed commit or rollback."
+      },
+      {
+        "name": "SqliteWriteFailed",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "A SQLite statement failed inside the transaction, requiring rollback."
+      },
+      {
+        "name": "SqlStorage",
+        "kind": "type",
+        "category": "contract",
+        "description": "Synchronous SQL cursor operations on the current object."
+      },
+      {
+        "name": "Storage",
+        "kind": "type",
+        "category": "contract",
+        "description": "Native SQLite DO storage capabilities required by the worker store."
+      },
+      {
+        "name": "TransactionStorage",
+        "kind": "type",
+        "category": "contract",
+        "description": "Native SQLite DO storage capabilities required by the producer boundary."
+      },
+      {
+        "name": "withTransaction",
+        "kind": "value",
+        "category": "contract",
+        "description": "Run domain SQL and enqueue within one native SQLite Durable Object transaction.\nOpen once per operation and keep domain writes synchronous through the callback's\nwrite capability. Keep other I/O outside the native transaction. Await the\nreturned Effect and the storage sync barrier before acknowledging success.\nThe application owns receipts and reconciliation."
+      }
+    ]
   }
 ]

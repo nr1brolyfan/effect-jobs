@@ -84,6 +84,89 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  do-sqlite:
+    name: DO SQLite qualification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Prepare loopback-only namespace support
+        id: namespaces
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$CI_EVIDENCE"
+          {
+            printf 'Runner image: %s (%s)\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}"
+            uname -srmo
+            /usr/bin/unshare --version
+            ip -V
+            restriction=$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || printf unavailable)
+            printf 'AppArmor unprivileged user namespace restriction: %s\n' "$restriction"
+
+            probe() {
+              PATH=/usr/bin:/bin:/usr/sbin:/sbin timeout --kill-after=5s 5s \
+                /usr/bin/unshare -Urnp --fork --kill-child sh -ec 'ip link set lo up; ip -brief link show'
+            }
+
+            if ! probe; then
+              if [[ $restriction != 1 ]]; then
+                echo 'Namespace preflight failed without the Ubuntu AppArmor user namespace restriction enabled.'
+                exit 1
+              fi
+              # Load a temporary profile for the system unshare executable on this job VM.
+              sudo -n /usr/sbin/apparmor_parser --add --skip-cache <<'PROFILE'
+          abi <abi/4.0>,
+          profile effect-jobs-ci-unshare /usr/bin/unshare flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+              echo 'profile_loaded=true' >> "$GITHUB_OUTPUT"
+              echo 'Loaded the job-local AppArmor profile for /usr/bin/unshare. Retesting.'
+              probe
+            fi
+          } 2>&1 | tee "$CI_EVIDENCE/do-sqlite-namespaces.log"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.15.0
+          package-manager-cache: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+      - name: Verify the local-mode guard
+        timeout-minutes: 1
+        run: |
+          status=0
+          env -u ALCHEMY_TEST_DEV bash scripts/qualify-do-sqlite-local.sh \
+            > "$CI_EVIDENCE/do-sqlite-guard.log" 2>&1 || status=$?
+          cat "$CI_EVIDENCE/do-sqlite-guard.log"
+          test "$status" -eq 2
+          grep -Fxq 'Qualification requires ALCHEMY_TEST_DEV=true' "$CI_EVIDENCE/do-sqlite-guard.log"
+      - name: Run native workerd and local Alchemy qualification
+        timeout-minutes: 7
+        env:
+          ALCHEMY_TEST_DEV: "true"
+        run: bash scripts/qualify-do-sqlite-local.sh 2>&1 | tee "$CI_EVIDENCE/do-sqlite-runtime.log"
+      - name: Remove the temporary AppArmor profile
+        if: always() && steps.namespaces.outputs.profile_loaded == 'true'
+        timeout-minutes: 1
+        run: |
+          sudo -n /usr/sbin/apparmor_parser --remove --skip-cache <<'PROFILE'
+          abi <abi/4.0>,
+          profile effect-jobs-ci-unshare /usr/bin/unshare flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+      - name: Upload DO SQLite qualification logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: do-sqlite-qualification-${{ github.run_attempt }}
+          path: /tmp/opencode/ci-evidence/do-sqlite-*.log
+          if-no-files-found: warn
+          retention-days: 7
+
   postgresql:
     name: PostgreSQL (${{ matrix.runtime }})
     runs-on: ubuntu-24.04
