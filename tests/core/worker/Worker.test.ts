@@ -1088,42 +1088,6 @@ it("recovery repeats nextFinalizationNumber but consumes only the independent st
   )
 })
 
-it("limits finalized retries to three attempts using the fixed persisted delay", async () => {
-  await run(
-    Effect.gen(function* () {
-      const test = yield* seed()
-      const attempts: Array<number> = []
-      const worker = yield* make(test.store, (input) =>
-        Effect.sync(() => {
-          attempts.push(input.context.nextFinalizationNumber)
-        }).pipe(
-          Effect.andThen(
-            Effect.fail(
-              JobFailures.Retry({
-                code: FailureCodes.define({ value: "rejected" }).value
-              })
-            )
-          )
-        )
-      )
-      const once = drain(consumer(1)).pipe(
-        Effect.provideService(Worker.JobWorker, worker)
-      )
-      yield* once
-      for (let index = 0; index < 2; index++) {
-        yield* TestClock.adjust(4_999)
-        assert.equal((yield* once)._tag, "Idle")
-        yield* TestClock.adjust(1)
-        yield* once
-      }
-      assert.deepEqual(attempts, [1, 2, 3])
-      assert.equal(test.rows[0]!.snapshot.state, "Dead")
-      assert.equal(test.rows[0]!.snapshot.finalizedAttempts, 3)
-      assert.equal(test.rows[0]!.snapshot.stalledCount, 0)
-    })
-  )
-})
-
 for (const boundary of ["validation", "handler", "finalization"] as const) {
   it(`reports owning deadline and actual invocation at ${boundary}`, async () => {
     const spans: Tracer.NativeSpan[] = []

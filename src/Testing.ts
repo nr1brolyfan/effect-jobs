@@ -1,4 +1,4 @@
-/** Producer assertions without a database, worker or test runner. */
+/** Runner-neutral helpers for producer and worker tests. */
 import { Context, Effect, Layer, Schema } from "effect"
 import { EnqueueResult } from "./JobContract.js"
 import type {
@@ -11,6 +11,7 @@ import { JobId } from "./JobId.js"
 import { JobPolicy } from "./JobPolicy.js"
 import type { JobDefinition } from "./Job.js"
 import { decodeJobPayload } from "./JobPayloadCodec.js"
+import * as Memory from "./internal/testing/Memory.js"
 
 /** Prepared request metadata. The synthetic job ID is local to this recorder. */
 export interface RecordedEnqueue extends Omit<PreparedJob, "encoded"> {
@@ -142,3 +143,9 @@ export const enqueued = EnqueueRecorder.use((recorder) => recorder.enqueued)
  */
 export const enqueuedOf = <S extends Schema.Top>(job: JobDefinition<S>) =>
   EnqueueRecorder.use((recorder) => recorder.enqueuedOf(job))
+
+/** Non-durable test storage for standalone enqueue and bounded worker drain.
+ * Provide one Layer build to both paths. Samples Effect Clock and reserves
+ * 100 ms for storage responses. Supports no joined transaction or cleanup.
+ */
+export const memoryLayer = Memory.layer

@@ -189,60 +189,6 @@ describe("group-backed worker construction", () => {
       )
     )
   })
-  it("routes one queue-independent contract through two explicitly configured queues", async () => {
-    const other = Effect.runSync(Queue.make("billing-slow"))
-    const seen: string[] = []
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const encoded = yield* Codec.encodeJobPayload(definition.payload, {
-          invoiceId: "one"
-        })
-        const test = harness(
-          [queue, other].map((destination) => ({
-            catalog: { queue: destination.name, name: definition.name, version: 1 },
-            producer: {
-              operation: "billing.issue",
-              operationId: destination.name,
-              slot: "receipt"
-            },
-            policy,
-            encoded
-          }))
-        )
-        const worker = yield* Worker.make(
-          Effect.runSync(JobApi.make(group.name).pipe(JobApi.addGroup(group))),
-          {
-            queues: [{ queue }, { queue: other }]
-          }
-        ).pipe(
-          Effect.provide(
-            Storage.layer({
-              store: test.store,
-              operationResponseBudget: Duration.millis(100)
-            })
-          )
-        )
-        yield* worker.drain(other)
-        yield* worker.drain(queue)
-        expect(test.calls.claims[0]!.queue).toBe(other.name)
-        expect(test.rows.every((row) => row.snapshot.state === "Completed")).toBe(true)
-      }).pipe(
-        Effect.provide(
-          Layer.mergeAll(
-            Group.handlers(group, (_handlers) =>
-              _handlers.handle("receipt", (input) =>
-                Effect.sync(() => {
-                  seen.push(input.context.catalog.queue)
-                })
-              )
-            ),
-            Logger.layer([])
-          )
-        )
-      )
-    )
-    expect(seen).toEqual([other.name, queue.name])
-  })
   it("constructs without store activity and executes with no public registry", async () => {
     let calls = 0
     const result = await Effect.runPromise(

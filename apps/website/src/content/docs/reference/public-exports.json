@@ -522,7 +522,7 @@
   {
     "subpath": "effect-jobs/testing",
     "filename": "src/Testing.ts",
-    "sha256": "b47f1ff80ce5813ae3951c870e23f1975f868340c27ba18bb199c8cb2885fcfc",
+    "sha256": "793e3b13b60d0732d840db2f084f892234aaada74cbda409794a9073adda9efc",
     "symbols": [
       {
         "name": "DecodedEnqueue",
@@ -553,6 +553,12 @@
         "kind": "value",
         "category": "contract",
         "description": "Fresh recorder per Layer build. Runs normal producer preparation, but never\npersists, deduplicates, runs a handler or models commit/rollback. Only\n`JobEnqueue` paths are captured, not explicit `JobsTransaction` calls."
+      },
+      {
+        "name": "memoryLayer",
+        "kind": "value",
+        "category": "contract",
+        "description": "Non-durable test storage for standalone enqueue and bounded worker drain.\nProvide one Layer build to both paths. Samples Effect Clock and reserves\n100 ms for storage responses. Supports no joined transaction or cleanup."
       },
       {
         "name": "RecordedEnqueue",
