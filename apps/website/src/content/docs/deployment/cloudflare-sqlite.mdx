@@ -1,0 +1,55 @@
+---
+title: Cloudflare + Alchemy + Durable Object SQLite
+description: Store domain data and jobs in the same SQLite-backed object.
+---
+
+Choose this path when the same object already owns both the domain data and the jobs. Each object has its own SQLite database. A PostgreSQL write or a write in another object cannot share this transaction.
+
+## Bind the object and prepare storage
+
+Alchemy binds the Worker to a SQLite-backed `InvoiceJobs` class. The application applies its invoice schema alongside `DurableObjectSqlite.ddl`. Importing the adapter does not run migrations or start a drain.
+
+```ts
+// Inside the Alchemy Worker configuration
+env: {
+  INVOICES: Cloudflare.DurableObject<InvoiceJobs>("InvoiceJobs", {
+    storage: "sqlite"
+  })
+}
+```
+
+## Commit, then run a bounded drain
+
+Inside the object, `DurableObjectSqlite.withTransaction` gives the invoice write and enqueue one transaction. The invoice example awaits `storage.sync()` before acknowledging success. A separate request explicitly runs the worker:
+
+```ts
+// Worker.mts — the sample checks one invoice at a time
+return JobWorker.drain(queue, {
+  maxJobs: 1,
+  recoveryLimit: 1
+}).pipe(Effect.provide(worker))
+```
+
+The example uses an explicit request for clarity. Your app owns scheduling, the invocation deadline and reconciliation after a lost response. Read [worker limits](/docs/deep-dives/worker-limits) before raising the batch size.
+
+## Verify in the local example
+
+Copy the [Alchemy invoice example](https://github.com/nr1brolyfan/effect-jobs/tree/main/examples/cloudflare-do-sqlite) to a fresh directory without a `.env` or existing Alchemy state. From the copied directory, run the local smoke scenario against the installed package:
+
+```sh
+bun add --exact effect-jobs
+mkdir -p home
+HOME="$PWD/home" ALCHEMY_TEST_DEV=true ALCHEMY_TELEMETRY_DISABLED=1 \
+  bun --no-env-file node_modules/@alchemy.run/test/bin/alchemy-test.ts \
+  --concurrency 1 --retry 0 ./Qualification.mts
+```
+
+The scenario starts a local Worker and exercises these requests, then shuts it down. Keep the example’s inspection and drain endpoints private.
+
+1. `POST /issue` with `{ "operationId": "commit", "payload": { "invoiceId": "sample-invoice", "amountCents": 4200 } }`. An independent `GET /inspect?operationId=commit` shows the invoice and its `Pending` job.
+2. `POST /drain`. A separate inspection shows `Completed` and one local delivery recording. The next drain returns `Idle`.
+3. Repeat `/issue` with a different operation ID and `failAfterWrites: true`. Inspection confirms neither the invoice nor its job was written. The prior operation stays intact.
+
+On a hosted stack, keep the SQLite class export and binding on the intended Worker and verify the same behavior with an isolated object. Use an application-owned operation receipt if an invoice response can be lost. It is separate from the worker store's last exact finalization evidence; that evidence isn't a retry history and has no separate TTL.
+
+[Look up the adapter API](/docs/reference/durable-object-sqlite).

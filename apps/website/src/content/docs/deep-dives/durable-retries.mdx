@@ -1,0 +1,24 @@
+---
+title: Durable retries, step by step
+description: Follow the stored job row through a claim, a retry, a restart and a successful finalization.
+---
+
+import DeepDiveTrace from "../../../components/docs/DeepDiveTrace.astro"
+
+A retry is **a database update, not a timer in the worker**. When the worker confirms a safe `Retry`, storage records a new eligibility time. Step through the simulation, then restart the worker while the job is waiting.
+
+<DeepDiveTrace name="retry" />
+
+## What to watch
+
+1. **Claim:** `Pending` becomes `Active`. The lease is written; `finalizedAttempts` stays at zero.
+2. **Confirmed retry:** the attempt count increases once and the row becomes `RetryScheduled`. Here, database time **2 s** plus the stored fixed backoff **5 s** gives `availableAt = 7 s`.
+3. **Next claim:** a different worker can claim the same job when `availableAt <= dbNow`, under a new lease. No previous process needs to be alive.
+
+The host still needs a poller or a wake strategy. A persisted due time doesn't schedule a process on its own. An expired lease is also different from a confirmed retry: recovery uses the stalled budget, not the finalized-attempt counter. See [retry policies and failure outcomes](/docs/execution/retries).
+
+## Tune for the failure you expect
+
+A fixed delay is useful when the service usually recovers within a known interval. For longer outages, capped exponential backoff with jitter spreads retry load when many jobs fail together. Changing a definition changes policy for new jobs; the old row keeps the policy written at enqueue.
+
+If the provider response was lost, don't turn it into `Retry` just to start this clock. First decide whether repeating the effect is safe. Use a stable key such as `J07` with providers that support idempotency, and keep it across retries and worker replacements.

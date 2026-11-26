@@ -1,0 +1,169 @@
+.dt.wd {
+  --dt-edge: 55px;
+}
+.dt .dt-modes {
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--wd-line);
+}
+.dt .dt-modes button {
+  border-color: transparent;
+  color: var(--wd-muted);
+}
+.dt .dt-modes button[aria-pressed="true"] {
+  border-color: #675a74;
+  color: #f0e9fa;
+  background: #332c3d;
+}
+.dt.wd .dt-stage {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr) var(--dt-edge)) minmax(0, 1fr);
+  align-items: center;
+  row-gap: 12px;
+  margin: 14px 0 17px;
+}
+.dt.wd .dt-cell {
+  display: contents;
+}
+.dt .dt-node {
+  align-self: stretch;
+}
+.dt .dt-node header {
+  gap: 7px;
+}
+.dt .dt-node dl {
+  padding: 8px 12px;
+}
+.dt .dt-node dl > div {
+  display: grid;
+  gap: 2px;
+}
+.dt .dt-node dt {
+  font-size: 11px;
+}
+.dt .dt-node dd {
+  overflow-wrap: anywhere;
+}
+.dt .dt-node[data-highlight="violet"] {
+  border-color: #786890;
+}
+.dt .dt-node[data-highlight="amber"] {
+  border-color: #89704b;
+}
+.dt .dt-node[data-highlight="green"] {
+  border-color: #517e70;
+}
+.dt .dt-edge {
+  position: relative;
+  height: 1px;
+}
+.dt .dt-wire {
+  border-top: 1px solid var(--wd-wire);
+}
+.dt .dt-packet {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: max-content;
+  max-width: 110px;
+  padding: 2px 5px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: #19181e;
+  font: 10px/15px var(--wd-mono);
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.dt .dt-packet svg {
+  width: 11px;
+  height: 11px;
+  flex: none;
+}
+.dt .dt-packet[data-direction="out"] {
+  animation: dt-out 600ms ease-out both;
+}
+.dt .dt-packet[data-direction="back"] {
+  animation: dt-back 600ms ease-out both;
+}
+.dt .dt-packet[data-direction="back"] svg {
+  rotate: 180deg;
+}
+@keyframes dt-out {
+  from {
+    left: -22%;
+    opacity: 0.28;
+  }
+}
+@keyframes dt-back {
+  from {
+    left: 122%;
+    opacity: 0.28;
+  }
+}
+.dt .dt-reading {
+  flex: 1 1 270px;
+  min-height: 49px;
+}
+.dt .dt-counter {
+  color: var(--wd-muted);
+  padding-right: 6px;
+}
+.dt .dt-reading .wd-plan {
+  margin-top: 4px;
+}
+@container (max-width: 530px) {
+  .dt.wd .dt-stage {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0;
+  }
+  .dt .dt-node dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 10px;
+  }
+  .dt .dt-edge {
+    height: 30px;
+  }
+  .dt .dt-wire {
+    position: absolute;
+    height: 100%;
+    left: 50%;
+    border-top: 0;
+    border-left: 1px solid var(--wd-wire);
+  }
+  .dt .dt-packet {
+    top: 50%;
+  }
+  .dt .dt-packet[data-direction="out"] {
+    animation-name: dt-down;
+  }
+  .dt .dt-packet[data-direction="back"] {
+    animation-name: dt-up;
+  }
+  .dt .dt-packet[data-direction="out"] svg {
+    rotate: 90deg;
+  }
+  .dt .dt-packet[data-direction="back"] svg {
+    rotate: -90deg;
+  }
+}
+@keyframes dt-down {
+  from {
+    top: 0;
+    opacity: 0.28;
+  }
+}
+@keyframes dt-up {
+  from {
+    top: 100%;
+    opacity: 0.28;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dt .dt-packet[data-direction] {
+    animation: none;
+  }
+}

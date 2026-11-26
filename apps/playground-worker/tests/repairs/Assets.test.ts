@@ -11,7 +11,7 @@ import { compactHeaderPolicies, stage } from "../../build/Assets.js"
 const policy = (route: string, value = "one") =>
   `${route}\n  ! content-security-policy\n  ! content-type\n  content-security-policy: script-src '${value}'\n  content-type: text/html\n`
 
-test("compact only equivalent index alias headers, never root, prefix collisions or overrides", () => {
+test("compact equivalent HTML headers without losing prefix overrides", () => {
   const same = new Set([policy("/docs/a*"), policy("/docs/a/index.html")])
   assert.deepEqual(compactHeaderPolicies(same), [policy("/docs/a*")])
   for (const rules of [
@@ -27,9 +27,17 @@ test("compact only equivalent index alias headers, never root, prefix collisions
     compactHeaderPolicies(new Set([policy("/docs*", "parent"), ...same])),
     [policy("/docs*", "parent"), policy("/docs/a*")]
   )
+  const nested = [policy("/docs*"), policy("/docs/a*"), policy("/docs/a/index.html")]
+  assert.deepEqual(compactHeaderPolicies(new Set(nested)), [nested[0]])
+  const conflict = [
+    policy("/docs*"),
+    policy("/docs/a*", "different"),
+    policy("/docs/a/b*")
+  ]
+  assert.deepEqual(compactHeaderPolicies(new Set(conflict)), conflict)
 })
 
-const fixture = async (directory: string, pages: number) => {
+const fixture = async (directory: string, pages: number, scriptCount = pages) => {
   const files: Record<string, string> = {
     "apps/playground-worker/tests/integration/Local.ts": `const page = '<!doctype html><script>dashboard()</script>'\nconst assets: unknown = {}`,
     "apps/playground/dist/Client.js": "// dashboard client",
@@ -38,8 +46,9 @@ const fixture = async (directory: string, pages: number) => {
     "apps/website/dist/site/404.html": "<!doctype html><script>missing()</script>"
   }
   for (let index = 0; index < pages; index++) {
+    const external = '<script src="/client.js"></script>'
     files[`apps/website/dist/site/docs/page-${index}/index.html`] =
-      `<!doctype html><script>page${index}()</script>`
+      `<!doctype html>${external.repeat(1 + (index % 3))}<script>page${index % scriptCount}()</script><p>page ${index}</p>`
   }
   for (const [path, value] of Object.entries(files)) {
     const target = resolve(directory, path)
@@ -48,7 +57,7 @@ const fixture = async (directory: string, pages: number) => {
   }
 }
 
-test("genuinely nonredundant rules still fail the native100 bound", async () => {
+test("genuinely nonredundant rules still fail the native 100-rule bound", async () => {
   const directory = await mkdtemp(resolve(tmpdir(), "asset-bound-"))
   try {
     await fixture(directory, 50)
@@ -124,6 +133,41 @@ const nativeAssets = (directory: string) =>
     ]
   })
 
+test("distinct HTML pages can share a target header rule without merging different CSPs", async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), "asset-header-buckets-"))
+  let native: Miniflare | undefined
+  try {
+    await fixture(directory, 50, 2)
+    const assets = resolve(directory, "staged")
+    const manifest = await stage(directory, assets)
+    const pages = manifest.filter((entry) => /^\/docs\/page-\d+$/.test(entry.path))
+    const bucket = (file: string) => file.split("/")[1]
+    assert.equal(pages.length, 50)
+    assert.equal(new Set(pages.map((entry) => entry.file)).size, 50)
+    assert.equal(new Set(pages.map((entry) => bucket(entry.file))).size, 2)
+
+    native = nativeAssets(assets)
+    const origin = String(await native.ready).replace(/\/$/, "")
+    for (const entry of pages) {
+      const index = Number(entry.path.split("-").at(-1))
+      const hash = createHash("sha256")
+        .update(`page${index % 2}()`)
+        .digest("base64")
+      for (const path of [entry.path, `/${entry.file.slice(0, -5)}`]) {
+        const response = await native.dispatchFetch(origin + path)
+        assert.equal(response.status, 200, path)
+        assert.ok((await response.text()).includes(`<p>page ${index}</p>`), path)
+        const csp = response.headers.get("content-security-policy")
+        assert.equal(csp, entry.headers["content-security-policy"], path)
+        assert.ok(csp?.includes(`'sha256-${hash}'`), path)
+      }
+    }
+  } finally {
+    await native?.dispose()
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
 test("native matching keeps identical alias headers and conflicting prefix overrides equivalent", async () => {
   const directory = await mkdtemp(resolve(tmpdir(), "asset-equivalence-"))
   try {
@@ -186,7 +230,7 @@ test("real staged public/canonical/alias/internal/dashboard bytes and full owned
       redirects
         .trim()
         .split("\n")
-        .every((line) => /^\S+ \/_pages\/[a-f0-9]{64} 200$/.test(line))
+        .every((line) => /^\S+ \/_pages\/[a-f0-9]{64}\/[a-f0-9]{64} 200$/.test(line))
     )
     assert(
       !headers.includes("\n/*s\n"),

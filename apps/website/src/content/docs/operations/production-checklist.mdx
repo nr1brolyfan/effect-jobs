@@ -3,10 +3,7 @@ title: Production checklist
 description: Check transaction budgets, retries, retention and PostgreSQL health before deploying workers.
 ---
 
-Use this checklist before deployment and when reviewing an existing installation.
-effect-jobs is an alpha: these checks are not production certification, a capacity
-guarantee or a promise of exactly-once external effects. The application owns
-database configuration, migrations, connection pools, worker lifetime and monitoring.
+Before routing production traffic, verify one successful job, one rolled-back write, and one interrupted worker on your chosen deployment. The application owns database configuration, migrations, connection pools, worker lifetime and monitoring. These checks don't guarantee capacity or exactly-once external effects.
 
 ## Transactions and timeouts
 

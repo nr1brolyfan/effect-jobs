@@ -1,0 +1,28 @@
+---
+title: Job APIs and handlers
+description: Share contracts across processes and install implementations only in workers.
+---
+
+import { CodeExample } from "../../../components/docs/index"
+
+`JobGroup` gives related job contracts local names. `JobApi` groups those declarations into the catalog a worker can execute. If you know Effect's `HttpApi`, the separation is familiar: compose a catalog first, then attach implementations per group.
+
+## Share the contract, not the provider
+
+The Orders API enqueues a confirmation without importing the mail service. Its worker installs this handler against the **same group declaration**:
+
+<CodeExample
+  sourcePath="orders/apps/worker/src/orders/jobs/SendConfirmation.ts"
+  region="handler"
+  role="Worker handler"
+/>
+
+## Choose what each worker can run
+
+`JobApi` is a catalog, not a runner. `JobGroup.handlers` installs implementations for one group. Build the catalog and its handler Layers from the **same group declarations**, then give the worker storage and all handlers for the selected catalog.
+
+For example, when email and PDF rendering need different provider credentials, keep their definitions in separate groups. A mail-only deployment can use `JobApi.pick` to select the mail group. It doesn't rewrite any durable job identity, and it can't claim a definition it doesn't support. A **queue** still controls where that worker looks for eligible jobs.
+
+Building the worker Layer isn't the same as starting processing: call `drain` explicitly, or keep the polling Layer built in the application's worker Scope.
+
+Continue to [Deployment](/docs/deployment) or [look up worker APIs](/docs/reference/workers).

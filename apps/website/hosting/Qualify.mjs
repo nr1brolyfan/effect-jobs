@@ -16,6 +16,21 @@ assert.equal(build.assetsOnly, true)
 assert.equal(build.directory, directory)
 const files = (await readdir(directory, { recursive: true })).sort()
 const headers = await readFile(join(directory, "_headers"), "utf8")
+const redirects = new Map([
+  ["/docs/start/tutorial", "/docs"],
+  ["/docs/start/installation", "/docs#install"],
+  ["/docs/start/first-job", "/docs"],
+  ["/docs/reference", "/docs/reference/modules"]
+])
+const redirectRules = (await readFile(join(directory, "_redirects"), "utf8"))
+  .trim()
+  .split("\n")
+  .map((line) => line.trim().split(/\s+/))
+  .sort()
+assert.deepEqual(
+  redirectRules,
+  [...redirects].map(([source, target]) => [source, target, "301"]).sort()
+)
 const manifest = []
 const htmlFiles = []
 for (const file of files) {
@@ -27,7 +42,7 @@ for (const file of files) {
   }
   assert.match(
     file,
-    /^(?:_astro\/|pagefind\/|docs\/|404\.html$|index\.html$|favicon\.(?:svg|ico)$|apple-touch-icon\.png$|robots\.txt$|sitemap(?:-\d+|-index)?\.xml$|_headers$)/
+    /^(?:_astro\/|pagefind\/|docs\/|404\.html$|index\.html$|favicon\.(?:svg|ico)$|apple-touch-icon\.png$|robots\.txt$|sitemap(?:-\d+|-index)?\.xml$|_headers$|_redirects$)/
   )
   assert.doesNotMatch(
     file,
@@ -98,6 +113,7 @@ try {
       file === "index.html"
         ? "/"
         : "/" + file.replace(/\/index\.html$/, "").replace(/\.html$/, "")
+    if (redirects.has(path)) continue
     const response = await request(path)
     assert.equal(response.status, 200, path)
     assert.equal(await response.text(), await readFile(join(directory, file), "utf8"))
@@ -127,6 +143,19 @@ try {
       headers: Object.fromEntries(response.headers)
     })
   }
+  for (const [source, target] of redirects) {
+    const response = await request(source, { redirect: "manual" })
+    assert.equal(response.status, 301, source)
+    assert.equal(
+      new URL(response.headers.get("location"), origin).href,
+      new URL(target, origin).href
+    )
+    const destination = new URL(target, origin)
+    const html = await request(destination.pathname)
+    assert.equal(html.status, 200, target)
+    if (destination.hash)
+      assert.ok((await html.text()).includes(`id="${destination.hash.slice(1)}"`), target)
+  }
   for (const path of [
     "/absent",
     "/docs/absent",
@@ -139,6 +168,7 @@ try {
     "/.env",
     "/alchemy.run.ts",
     "/_headers",
+    "/_redirects",
     "/dist/site/server/entry.mjs"
   ]) {
     const response = await request(path)

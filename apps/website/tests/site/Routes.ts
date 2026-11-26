@@ -18,7 +18,7 @@ const local = await createLocal(
 try {
   const docs = await local.mf.dispatchFetch(local.origin + "/docs")
   assert.equal(docs.status, 200)
-  assert.match(await docs.text(), /Durable jobs, explicit ownership/)
+  assert.match(await docs.text(), /Getting Started/)
   const checklist = await local.mf.dispatchFetch(
     local.origin + "/docs/operations/production-checklist"
   )

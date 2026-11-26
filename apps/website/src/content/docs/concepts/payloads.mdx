@@ -1,0 +1,18 @@
+---
+title: Payloads and versioning
+description: Keep payloads small and evolve contracts without stranding persisted jobs.
+---
+
+A job payload is durable input, not a copy of the request. Prefer a stable `orderId` to the entire order or an authorization header. The worker decodes payload bytes against the contract before invoking the handler.
+
+Use a reference when the job should see the **latest** data. Save the facts it needs when it must reproduce a decision made at enqueue time: for example, reference the order but persist the agreed price or an immutable quote ID. Don't assume that reloading a mutable row reproduces the original request.
+
+## Change the contract safely
+
+For an incompatible change, register a new job version and deploy workers that can handle both versions before newer producers start enqueueing. Remove the old handler only after you know the old version no longer needs execution or recovery. A payload version is not a database schema migration.
+
+A required new property is incompatible with old bytes if the decoder can't supply a default. Check both old and new encoded examples before changing a Schema in place. See the [rolling upgrade simulation](/docs/deep-dives/migrations) for the deployment order.
+
+## Protect content independently of metadata
+
+If a job needs sensitive data, explicitly choose [payload protection](/docs/deep-dives/encryption) and provide its codec to both roles. Keeping content out of operator views is not the same as encrypting it at rest.

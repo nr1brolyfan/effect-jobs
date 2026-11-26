@@ -31,7 +31,7 @@ safe. A defect, interruption, timeout or mixed Cause is not automatically mapped
 to `Retry`. Invalid persisted payloads fail decoding before the handler and can be
 fenced to `Isolated`.
 
-The [order tutorial](/docs/start/tutorial) supplies a stable job ID to the
+The [order tutorial](/docs#your-first-job) supplies a stable job ID to the
 application mail service. A known replay-safe rejection becomes Retry;
 uncertain acceptance becomes OutcomeUnknown. A production adapter needs an
 independent idempotency/reconciliation contract for that key and request body.
@@ -111,5 +111,5 @@ Consequently `maxFinalizedAttempts` does not bound every handler invocation.
 Enqueue deduplication compares the producer tuple and semantic payload inside
 jobs storage. It neither deduplicates an external upload nor proves that a report
 was delivered. Removing retained identity evidence also ends that deduplication
-window. The [order tutorial](/docs/start/tutorial) provides the complete example;
+window. The [order tutorial](/docs#your-first-job) provides the complete example;
 [recovery](/docs/execution/recovery) explains uncertain execution.

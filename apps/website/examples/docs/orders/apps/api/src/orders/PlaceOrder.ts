@@ -24,16 +24,18 @@ export const placeOrder = (externalInput: unknown) =>
     const input = yield* Schema.decodeUnknownEffect(OrderSubmission)(externalInput, {
       onExcessProperty: "error"
     })
+
     const { PlaceOrder } = yield* ApiDefinitions
     const db = yield* Database
     const pg = yield* PgClient.PgClient
 
+    // Drizzle and enqueue use the transaction on this same PgClient.
     return yield* pg.withTransaction(
       Effect.gen(function* () {
         // Create a new order; a duplicate operationId rejects the transaction.
         yield* db.insert(orders).values({ ...input, invoiceRequested: false })
 
-        // Commit the order and its confirmation instruction together.
+        // Enqueue is provisional until the outer transaction commits.
         return yield* PlaceOrder.enqueue({
           slot: "send-confirmation",
           operationId: input.operationId,

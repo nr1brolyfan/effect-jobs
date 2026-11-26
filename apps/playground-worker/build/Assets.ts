@@ -3,39 +3,52 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { extname, resolve } from "node:path"
 import * as StaticAssets from "../src/assets/StaticAssets.js"
 
-// An exact index alias needs no second identical header declaration when its
-// canonical wildcard already covers it. Never remove a conflicting override.
+// Drop an index alias or a nested HTML route only when an earlier equivalent
+// rule already covers it and no intervening match can change its headers.
 export const compactHeaderPolicies = (policies: ReadonlySet<string>) => {
-  const rules = [...policies].map((policy) => {
+  const rules = [...policies].sort().map((policy) => {
     const newline = policy.indexOf("\n")
     return { policy, route: policy.slice(0, newline), headers: policy.slice(newline) }
   })
-  return rules
-    .filter((rule) => {
-      if (rule.route === "/index.html" || !rule.route.endsWith("/index.html")) {
-        return true
-      }
-      const canonical = rule.route.slice(0, -11) + "*"
-      const covering = rules.find(
-        (other) => other.route === canonical && other.headers === rule.headers
+  const kept: typeof rules = []
+  for (const rule of rules) {
+    const isIndexAlias =
+      rule.route !== "/index.html" && rule.route.endsWith("/index.html")
+    const isHtmlPrefix =
+      rule.route.endsWith("*") && rule.headers.includes("\n  content-type: text/html")
+    if (isIndexAlias || isHtmlPrefix) {
+      const base = isIndexAlias ? rule.route.slice(0, -11) : rule.route.slice(0, -1)
+      const covering = kept.findLastIndex(
+        (other) =>
+          other.headers === rule.headers &&
+          other.route.endsWith("*") &&
+          (other.route === `${base}*` || base.startsWith(other.route.slice(0, -1) + "/"))
       )
-      if (!covering) {
-        return true
-      }
-      return rules.some((other) => {
-        // Output is sorted: broader rules before the canonical rule are already
-        // overridden. A later conflicting match still needs the exact alias rule.
-        if (other.headers === rule.headers || other.policy < covering.policy) {
-          return false
-        }
-        const wildcard = other.route.indexOf("*")
-        return wildcard === -1
-          ? other.route === rule.route
-          : rule.route.startsWith(other.route.slice(0, wildcard)) &&
+      if (covering !== -1) {
+        const conflict = kept.slice(covering + 1).some((other) => {
+          if (other.headers === rule.headers) return false
+          const wildcard = other.route.indexOf("*")
+          if (wildcard === -1) {
+            return isIndexAlias
+              ? other.route === rule.route
+              : other.route.startsWith(base)
+          }
+          const prefix = other.route.slice(0, wildcard)
+          if (isIndexAlias) {
+            return (
+              rule.route.startsWith(prefix) &&
               rule.route.endsWith(other.route.slice(wildcard + 1))
-      })
-    })
-    .map((rule) => rule.policy)
+            )
+          }
+          return base.startsWith(prefix) || prefix.startsWith(base)
+        })
+        if (!conflict) continue
+      }
+    }
+    kept.push(rule)
+  }
+  const retained = new Set(kept.map((rule) => rule.policy))
+  return [...policies].filter((policy) => retained.has(policy))
 }
 
 // Preserve the test-owned dashboard bytes until its owner moves the source.
@@ -88,15 +101,31 @@ export const stage = async (root: string, directory: string) => {
     const bytes = new Uint8Array(await response.arrayBuffer())
     const html = response.headers.get("content-type")!.startsWith("text/html")
     const digest = createHash("sha256").update(bytes).digest("hex")
-    const file = html ? `_pages/${digest}.html` : path.slice(1)
+    const headerBlock = [
+      "  ! content-security-policy",
+      "  ! content-type",
+      ...Array.from(response.headers)
+        .filter(
+          (entry) => entry[0] !== "cache-control" && entry[0] !== "x-content-type-options"
+        )
+        .map((entry) => `  ${entry[0]}: ${entry[1]}`),
+      ""
+    ].join("\n")
+    // Group only internal rewrite targets with identical complete header blocks.
+    // Public URLs still match their original policies, including exact overrides.
+    const bucket = html
+      ? `/_pages/${createHash("sha256").update(headerBlock).digest("hex")}`
+      : undefined
+    const rewrite = bucket && `${bucket}/${digest}`
+    const file = rewrite ? rewrite.slice(1) + ".html" : path.slice(1)
     const target = resolve(directory, file)
     await mkdir(resolve(target, ".."), { recursive: true })
     await writeFile(target, bytes)
-    const routes = html ? [path, `/_pages/${digest}*`] : [path]
-    if (html) {
-      redirects.push(`${path} /_pages/${digest} 200`)
+    const routes = bucket ? [path, `${bucket}/*`] : [path]
+    if (rewrite) {
+      redirects.push(`${path} ${rewrite} 200`)
       if (path !== "/" && !path.endsWith(".html")) {
-        redirects.push(`${path}/ /_pages/${digest} 200`)
+        redirects.push(`${path}/ ${rewrite} 200`)
         routes[0] = path + "*"
       }
     }
@@ -109,21 +138,7 @@ export const stage = async (root: string, directory: string) => {
       routes[0] = extension ? "/*" + extension : path
     }
     for (const route of routes) {
-      const policy = [
-        route,
-        "  ! content-security-policy",
-        "  ! content-type",
-        ...Array.from(response.headers)
-          .filter(
-            (entry) =>
-              entry[0] !== "cache-control" && entry[0] !== "x-content-type-options"
-          )
-          .map((entry) => `  ${entry[0]}: ${entry[1]}`),
-        ""
-      ].join("\n")
-      if (!policies.has(policy)) {
-        policies.add(policy)
-      }
+      policies.add(`${route}\n${headerBlock}`)
     }
     manifest.push({
       path,

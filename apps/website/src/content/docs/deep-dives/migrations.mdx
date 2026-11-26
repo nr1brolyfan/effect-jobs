@@ -1,0 +1,25 @@
+---
+title: Migrations and rolling upgrades
+description: Sequence database changes, worker deployments and producer changes safely.
+---
+
+import DeepDiveTrace from "../../../components/docs/DeepDiveTrace.astro"
+
+There are two migrations to plan: **database structure** and **job payload versions**. Updating one doesn't migrate the other. Importing the library, building a Layer and running readiness checks never apply DDL for you.
+
+<DeepDiveTrace name="migrations" />
+
+## Example rollout: a new invoice payload
+
+1. **Prepare storage.** Apply the database changes, if any, with your application migration runner. Keep the old deployment compatible during rollout.
+2. **Deploy workers first.** Register both versions of the handler while old `v1` jobs can still be due, scheduled for retry or recovered.
+3. **Switch producers.** New requests enqueue `v2`. The database schema change does not rewrite `v1` payload bytes or change their retry policy.
+4. **Retire the old handler deliberately.** Check outstanding `Pending`, `RetryScheduled` and `Active` rows for the old version, including retries due in the future. Decide what to do about operational replays before removing support. Zero ready jobs right now isn't enough.
+
+## Check the rollout, then the rollback
+
+Suppose v1 stores `invoiceId` and v2 adds a required `locale`. Check that an upgraded worker can claim **both** a retained v1 job and a fresh v2 job. Readiness alone checks the configured store, not whether the running fleet covers every queue and job version producers use.
+
+If the producer rolls back to v1, retain v2 consumers for any v2 rows already committed. If the DDL itself isn't compatible with old binaries, use a staged expand/contract change or a coordinated maintenance window instead of assuming a rolling deployment is safe.
+
+For PostgreSQL, use the [migration guide](/docs/persistence/postgresql) and the same mapping in migrations, producers and workers. For [DO SQLite](/docs/deployment/cloudflare-sqlite), the application applies its schema to that object's storage.

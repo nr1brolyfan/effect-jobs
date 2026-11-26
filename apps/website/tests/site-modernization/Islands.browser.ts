@@ -9,9 +9,11 @@ import { createAssets } from "../../../playground-worker/src/assets/StaticAssets
 // Expected palette is independent of renderer attributes and StyleX output.
 const palette: Record<string, Record<string, readonly [number, string]>> = {
   overview: {
-    save: [1, "rgb(100, 170, 255)"],
-    claim: [3, "rgb(231, 189, 101)"],
-    send: [4, "rgb(179, 154, 255)"]
+    request: [1, "rgb(100, 170, 255)"],
+    save: [2, "rgb(100, 170, 255)"],
+    response: [3, "rgb(105, 198, 165)"],
+    claim: [4, "rgb(231, 189, 101)"],
+    send: [5, "rgb(179, 154, 255)"]
   },
   transaction: { claim: [4, "rgb(231, 189, 101)"] },
   handoff: {
@@ -85,7 +87,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(error.message))
-  await page.goto(`${origin}/docs/start/tutorial`)
+  await page.goto(`${origin}/docs`)
   const variants = ["overview", "transaction", "handoff"]
   for (const variant of variants) {
     const visual = page.locator(`[data-job-visual="${variant}"]`)
@@ -132,7 +134,7 @@ try {
     }
     await visual.locator("[data-action=reset]").click()
     await assertColors(visual, variant, 0)
-    const maximum = variant === "transaction" ? 4 : 5
+    const maximum = variant === "overview" ? 6 : variant === "transaction" ? 4 : 5
     for (let step = 1; step <= maximum; step++) {
       await visual.locator("[data-action=step]").click()
       await expect(visual).toHaveAttribute("data-step", String(step))
@@ -153,7 +155,7 @@ try {
       .toBeGreaterThan(0.1)
     await assertColors(visual, variant, variant === "transaction" ? 3 : 0)
     await visual.screenshot({ path: resolve(evidence, `${variant}-packet.png`) })
-    // Five natural 1.3s stages finish within this bound; no animation clock repair.
+    // All natural 1.3s stages finish within this bound; no animation clock repair.
     await expect(visual).toHaveAttribute("data-step", String(maximum), {
       timeout: 10_000
     })
@@ -209,7 +211,7 @@ try {
   assert.deepEqual(errors, [])
   const noJs = await browser.newContext({ javaScriptEnabled: false })
   const staticPage = await noJs.newPage()
-  await staticPage.goto(`${origin}/docs/start/tutorial`)
+  await staticPage.goto(`${origin}/docs`)
   await expect(
     staticPage.locator('[data-job-visual="overview"] [data-label="jobState"]')
   ).toHaveText("Completed")

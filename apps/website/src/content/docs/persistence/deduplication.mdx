@@ -46,14 +46,12 @@ Deduplication applies per slot. Suppose operation ID `order-041` originally
 enqueued only the `email` slot. Replaying the same operation after adding an
 `invoice` slot can yield both results:
 
-```text
-email   → AlreadyPresent, while the original evidence is retained
-invoice → Inserted, because this slot has never been enqueued for order-041
-```
+- **`email`: `AlreadyPresent`.** The original job is returned while its evidence is retained.
+- **`invoice`: `Inserted`.** This slot has never been enqueued for `order-041`.
 
 The application decides whether a replay may add a new effect. If a replay
 must preserve the original request, consult its persisted intent before
-enqueuing a new slot. The [Orders tutorial](/docs/start/tutorial) records
+enqueuing a new slot. The [Orders tutorial](/docs#your-first-job) records
 `invoiceRequested` and checks it when validating a submission replay.
 
 ## Fan out to persisted deliveries

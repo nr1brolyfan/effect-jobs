@@ -7,12 +7,17 @@ const apiDefinitions = Effect.gen(function* () {
   const policy = yield* OrderPolicy
   const { SendOrderConfirmation, CreateOrderInvoice } = yield* OrderJobs
   const { SendInvoice } = yield* InvoiceDeliveryJobs
+
+  // #region confirmation-producer
   const PlaceOrder = yield* JobProducer.make("order.place").pipe(
     JobProducer.withSlot("send-confirmation", SendOrderConfirmation, {
       queue: OrdersQueue,
       policy
     })
   )
+  // #endregion confirmation-producer
+
+  // #region invoice-producer
   const PlaceOrderWithInvoice = yield* JobProducer.make("order.place").pipe(
     JobProducer.withSlot("send-confirmation", SendOrderConfirmation, {
       queue: OrdersQueue,
@@ -23,6 +28,8 @@ const apiDefinitions = Effect.gen(function* () {
       policy
     })
   )
+  // #endregion invoice-producer
+
   const InitialInvoiceDelivery = yield* JobProducer.make("invoice.initial-delivery").pipe(
     JobProducer.withSlot("recipient", SendInvoice, { queue: OrdersQueue, policy })
   )

@@ -364,7 +364,7 @@ function Simulation(props: Props) {
             <p {...stylex.props(styles.codePanel2)} data-explanation>
               {explanations[state]}
             </p>
-            <a {...stylex.props(styles.element5)} href="/docs/start/tutorial">
+            <a {...stylex.props(styles.element5)} href="/docs#your-first-job">
               Build the checked report workflow →
             </a>
           </div>

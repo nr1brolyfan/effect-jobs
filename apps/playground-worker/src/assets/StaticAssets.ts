@@ -35,7 +35,9 @@ const sitePolicy = (entry: Asset) => {
     : []
   return (
     "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; script-src 'self' 'wasm-unsafe-eval' " +
-    hashes.join(" ") +
+    // Repeating the same hash (for example, for external script tags with
+    // empty bodies) does not change CSP or require a distinct header rule.
+    [...new Set(hashes)].join(" ") +
     "; style-src 'self' 'unsafe-inline'"
   )
 }

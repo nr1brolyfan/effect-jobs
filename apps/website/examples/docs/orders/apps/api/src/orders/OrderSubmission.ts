@@ -1,6 +1,7 @@
 import { Schema } from "effect"
 import { OperationId } from "effect-jobs/JobIdentity"
 import { OrderId } from "#orders/contracts/jobs"
+import { shortIdentifierPattern } from "#orders/contracts/identifier-patterns"
 import type { orders } from "#database/schema"
 
 // #region submission
@@ -8,7 +9,7 @@ export type OrderSubmission = typeof OrderSubmission.Type
 export const OrderSubmission = Schema.Struct({
   operationId: OperationId,
   orderId: OrderId,
-  sku: Schema.String.pipe(Schema.check(Schema.isPattern(/^[a-z0-9-]{1,64}$/))),
+  sku: Schema.String.pipe(Schema.check(Schema.isPattern(shortIdentifierPattern))),
   quantity: Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum: 1, maximum: 100 })))
 })
 

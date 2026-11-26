@@ -6,6 +6,7 @@ import * as JobGroup from "effect-jobs/JobGroup"
 import * as JobApi from "effect-jobs/JobApi"
 import * as JobPolicy from "effect-jobs/JobPolicy"
 import * as JobRetryPolicy from "effect-jobs/JobRetryPolicy"
+import { shortIdentifierPattern } from "#orders/contracts/identifier-patterns"
 
 export const OrderPolicy = JobPolicy.make({
   retry: JobRetryPolicy.fixed(Duration.seconds(5)).pipe(
@@ -16,7 +17,7 @@ export const OrderPolicy = JobPolicy.make({
 export const OrdersQueue = Effect.runSync(JobQueue.make("orders"))
 
 export const OrderId = Schema.String.pipe(
-  Schema.check(Schema.isPattern(/^[a-z0-9-]{1,64}$/))
+  Schema.check(Schema.isPattern(shortIdentifierPattern))
 )
 
 export const SendOrderConfirmation = Job.make({

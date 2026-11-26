@@ -16,12 +16,14 @@ export const ConfirmationHandlerLayer = Layer.unwrap(
 
           yield* emails
             .send({
+              // Reuse the job ID across attempts; an attempt number is not a delivery key.
               deliveryKey: input.context.jobId,
               subject: "Order confirmation",
               body: `Order ${input.payload.orderId} received.`
             })
             .pipe(
               Effect.catchTags({
+                // Retry only when we know the provider didn't accept the message.
                 EmailBusy: () =>
                   Effect.fail(JobFailures.Retry({ code: EmailCodes.busy })),
                 EmailUncertain: () => Effect.fail(JobFailures.OutcomeUnknown())

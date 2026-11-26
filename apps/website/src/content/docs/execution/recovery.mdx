@@ -33,17 +33,10 @@ ownership and increments `stalledCount`, leaving `finalizedAttempts` unchanged. 
 returns the job to `Pending` while the stored stall budget permits; exceeding that
 budget makes it `Dead`. Recovery is not confirmation that a previous effect failed.
 
-```text
-Pending / RetryScheduled --due claim--> Active
-Active --confirmed success-----------> Completed
-Active --confirmed safe retry--------> RetryScheduled or Dead
-Active --unknown outcome-------------> remains Active
-Active --lease expires + recovery----> Pending or Dead
-```
-
-This diagram focuses on execution and recovery. Explicit known failure can also
-finalize to `Dead` or `Isolated`; see the [full lifecycle](/docs/concepts/lifecycle).
-`OutcomeUnknown` is an attempt outcome, **not** another durable state.
+If the handler reports `OutcomeUnknown`, the job can remain `Active` until its
+lease expires and recovery runs. This differs from a confirmed safe retry,
+which applies the stored retry policy. See the [full lifecycle diagram](/docs/concepts/lifecycle)
+for all state transitions.
 
 ## Reconcile the original operation
 

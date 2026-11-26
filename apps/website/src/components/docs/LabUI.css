@@ -1,0 +1,245 @@
+/* Shared docs lab surface. Individual labs own geometry, animation and state. */
+.wd.wd {
+  --wd-line: #45404f;
+  --wd-node: #27262c;
+  --wd-muted: #b7b2bf;
+  --wd-violet: #c5b0ff;
+  --wd-amber: #e7bd75;
+  --wd-green: #83cdb2;
+  --wd-wire: #6b6575;
+  --wd-mono: var(--sl-font-mono);
+  container-type: inline-size;
+  padding: 22px;
+  margin: 1.5rem 0;
+  border: 1px solid var(--wd-line);
+  border-radius: 9px;
+  background: #202023;
+  color: #edecea;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* Starlight adds prose spacing to adjacent blocks. */
+.wd.wd
+  :where(
+    div,
+    section,
+    header,
+    dl,
+    dt,
+    dd,
+    figcaption,
+    span,
+    svg,
+    button,
+    code,
+    strong,
+    b,
+    i,
+    small
+  ) {
+  margin: 0;
+}
+.wd-settings {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 24px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--wd-line);
+}
+.wd-setting-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--wd-muted);
+  font-size: 12px;
+}
+.wd-setting-title b {
+  color: #e4d8f7;
+  font: 12px var(--wd-mono);
+}
+.wd-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 24px;
+  touch-action: pan-y;
+  cursor: pointer;
+}
+.wd-track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  background: #48434f;
+  border-radius: 8px;
+}
+.wd-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #aa96c6;
+}
+.wd-thumb {
+  top: 50%;
+  height: 12px;
+  width: 12px;
+  border: 1px solid #e4d8f7;
+  border-radius: 50%;
+  background: #c6b8df;
+  box-shadow: 0 0 0 2px #202023;
+}
+.wd-thumb:focus-within {
+  outline: 2px solid var(--wd-violet);
+  outline-offset: 3px;
+}
+
+.wd-node {
+  position: relative;
+  background: var(--wd-node);
+  border: 1px solid #51485e;
+  border-radius: 9px;
+  min-width: 0;
+}
+.wd-node header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  min-height: 41px;
+  border-bottom: 1px solid var(--wd-line);
+}
+.wd-node header svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.5;
+  flex: none;
+  color: var(--wd-violet);
+}
+.wd-node[data-icon="database"] header svg {
+  color: #b0bac7;
+}
+.wd-node[data-icon="provider"] header svg {
+  color: var(--wd-green);
+}
+.wd-node header strong {
+  font-weight: 600;
+}
+.wd.wd .wd-node header :is(code, span) {
+  margin-left: auto;
+  white-space: nowrap;
+  font: 11px var(--wd-mono);
+  color: var(--wd-muted);
+  background: none;
+  padding: 0;
+}
+.wd-node dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 5px;
+  padding-block: 3px;
+  color: var(--wd-muted);
+}
+.wd-node dt {
+  font-weight: 400;
+}
+.wd-node dd {
+  font: 12px/1.5 var(--wd-mono);
+  color: #edecea;
+}
+.wd [data-tone="amber"] {
+  color: var(--wd-amber);
+}
+.wd [data-tone="violet"] {
+  color: var(--wd-violet);
+}
+.wd [data-tone="green"] {
+  color: var(--wd-green);
+}
+
+.wd.wd .wd-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 15px;
+  margin-top: 15px;
+  font-size: 11px;
+}
+.wd-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.wd-legend i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+}
+.wd.wd .wd-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 9px 12px;
+  border-top: 1px solid var(--wd-line);
+  padding-top: 12px;
+}
+.wd-status {
+  font: 12px/1.5 var(--wd-mono);
+}
+.wd-plan {
+  color: var(--wd-muted);
+  font-size: 12px;
+}
+.wd-actions {
+  display: flex;
+  gap: 6px;
+}
+.wd-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  border: 1px solid #696171;
+  background: transparent;
+  color: #edecea;
+  font: inherit;
+  cursor: pointer;
+}
+.wd-actions button:hover:not(:disabled) {
+  background: #38313e;
+}
+.wd-actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.wd-actions button:focus-visible {
+  outline: 2px solid var(--wd-violet);
+  outline-offset: 2px;
+}
+.wd-actions .wd-primary {
+  min-width: 70px;
+  border-color: #c6b8df;
+  background: #c6b8df;
+  color: #211b28;
+}
+.wd-actions .wd-primary:hover:not(:disabled) {
+  background: #e1d2f6;
+}
+.wd-actions svg {
+  width: 13px;
+  height: 13px;
+}
+
+@container (max-width: 572px) {
+  .wd-settings {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .wd.wd {
+    padding: 14px;
+  }
+}

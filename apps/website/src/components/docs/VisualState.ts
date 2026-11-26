@@ -1,6 +1,7 @@
 export type Variant = "overview" | "transaction" | "handoff"
 export type Outcome = "commit" | "rollback"
-export const maximum = (variant: Variant) => (variant === "transaction" ? 4 : 5)
+export const maximum = (variant: Variant) =>
+  variant === "overview" ? 6 : variant === "transaction" ? 4 : 5
 export const presentation = (variant: Variant, step: number, mode: Outcome) => {
   const labels: Record<string, string> = {}
   const nodes: Record<string, boolean> = {}
@@ -17,25 +18,35 @@ export const presentation = (variant: Variant, step: number, mode: Outcome) => {
   if (variant === "overview") {
     stages = [
       "Ready",
+      "Customer submits the order",
       "Order + job committed",
       "Order accepted",
       "Worker claims the job",
       "Confirmation sent",
       "Job completed"
     ]
-    text("response", s >= 2 ? "201 Created" : s === 1 ? "Saved" : "Ready")
-    text("order", s >= 1 ? "#041" : "—")
-    text("orderState", s >= 1 ? "✓" : "")
-    text("jobState", s >= 5 ? "Completed" : s >= 3 ? "Active" : s >= 1 ? "Pending" : "—")
+    text(
+      "response",
+      s >= 3 ? "201 Created" : s >= 1 ? "Waiting for API" : "Ready to order"
+    )
+    text(
+      "apiState",
+      s >= 3 ? "Responded" : s === 2 ? "Committed" : s === 1 ? "Saving order" : "Waiting"
+    )
+    text("order", s >= 2 ? "#041" : "—")
+    text("orderState", s >= 2 ? "✓" : "")
+    text("jobState", s >= 6 ? "Completed" : s >= 4 ? "Active" : s >= 2 ? "Pending" : "—")
     text(
       "workerState",
-      s >= 5 ? "Done" : s === 4 ? "Finalizing" : s === 3 ? "Sending…" : "Waiting"
+      s >= 6 ? "Done" : s === 5 ? "Finalizing" : s === 4 ? "Sending…" : "Waiting"
     )
-    text("emailState", s >= 4 ? "Sent" : "—")
+    text("emailState", s >= 5 ? "Sent" : "—")
+    active("client", s >= 1)
     active("api", s >= 1)
-    active("job", s >= 1)
-    active("worker", s >= 3)
-    active("email", s >= 4)
+    active("order", s >= 2)
+    active("job", s >= 2)
+    active("worker", s >= 4)
+    active("email", s >= 5)
   } else if (variant === "transaction") {
     const rolledBack = mode === "rollback" && s >= 3
     const committed = mode === "commit" && s >= 3
@@ -88,7 +99,7 @@ export const presentation = (variant: Variant, step: number, mode: Outcome) => {
 }
 export const descriptions = {
   overview:
-    "Illustration: the API commits an order and a confirmation job together, responds to the customer, and a worker sends the email afterward. Completed job evidence remains stored.",
+    "Illustration: the browser posts an order. The API commits the order and confirmation job together, then returns 201 Created to the browser. The worker sends email independently.",
   transaction:
     "Illustration: an order and a job are staged inside one transaction. Commit persists both; confirmed rollback persists neither. Only a committed, due job can be claimed by a worker. This does not depict an unknown commit outcome.",
   handoff:

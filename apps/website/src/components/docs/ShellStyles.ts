@@ -111,6 +111,22 @@ export const styles = stylex.create({
     borderLeftColor: "#b5a4d1",
     backgroundColor: "#2c2933"
   },
+  ejNavModuleList: {
+    margin: "0 0 6px 12px",
+    borderLeft: "1px solid #35343a",
+    paddingLeft: "5px"
+  },
+  ejNavModuleCategory: {
+    fontSize: "12px",
+    fontWeight: 600,
+    padding: "5px 8px"
+  },
+  ejNavModule: {
+    fontFamily: "var(--sl-font-mono)",
+    fontSize: "12px",
+    overflowWrap: "anywhere",
+    padding: "5px 8px"
+  },
   ejNavExamples: {
     display: "flex",
     alignItems: "center",

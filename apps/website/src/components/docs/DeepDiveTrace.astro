@@ -1,0 +1,6 @@
+---
+import DocsTrace from "./DocsTrace.tsx"
+import { traces } from "./DeepDiveTraces.js"
+interface Props { name: keyof typeof traces }
+---
+<DocsTrace trace={traces[Astro.props.name]} client:visible />

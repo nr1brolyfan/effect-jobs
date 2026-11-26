@@ -36,7 +36,7 @@ try {
         receipt.mutations.push(request.url())
       }
     })
-    await page.goto(origin + "/docs/start/tutorial/")
+    await page.goto(origin + "/docs")
     await page.evaluate(() => document.fonts.ready)
     const overview = page.locator('[data-job-visual="overview"]')
     const transaction = page.locator('[data-job-visual="transaction"]')
@@ -58,6 +58,12 @@ try {
     assert(position.after!.includes("1. Place an order without waiting for email"))
 
     await expect(label(overview, "order")).toHaveText("—")
+    await expect(label(overview, "jobState")).toHaveText("—")
+    await step(overview)
+    await expect(
+      overview.locator('[data-node="client"] [data-label="response"]')
+    ).toHaveText("Waiting for API")
+    await expect(label(overview, "apiState")).toHaveText("Saving order")
     await expect(label(overview, "jobState")).toHaveText("—")
     // Both durable records appear at one commit, before the response or external call.
     await step(overview)
@@ -166,7 +172,7 @@ try {
       await page.waitForTimeout(200)
       assert.equal(await packet.getAttribute("transform"), frozen)
       await overview.getByRole("button", { name: "Play", exact: true }).click()
-      await expect(overview).toHaveAttribute("data-step", "5", { timeout: 12000 })
+      await expect(overview).toHaveAttribute("data-step", "6", { timeout: 12000 })
       await expect(overview).toHaveAttribute("data-playing", "false")
       await overview.getByRole("button", { name: "Replay", exact: true }).click()
       await expect(overview).toHaveAttribute("data-step", "0")
@@ -197,7 +203,7 @@ try {
     javaScriptEnabled: false,
     viewport: { width: 390, height: 1000 }
   })
-  await noJs.goto(origin + "/docs/start/tutorial/")
+  await noJs.goto(origin + "/docs")
   for (const variant of ["overview", "transaction", "handoff"]) {
     const figure = noJs.locator(`[data-job-visual="${variant}"]`)
     await expect(figure.locator(".jv-controls")).not.toBeVisible()
