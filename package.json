@@ -8,6 +8,10 @@
   "sideEffects": false,
   "packageManager": "bun@1.4.2",
   "exports": {
+    "./testing": {
+      "types": "./dist/Testing.d.ts",
+      "import": "./dist/Testing.js"
+    },
     "./JobSchedule": {
       "types": "./dist/JobSchedule.d.ts",
       "import": "./dist/JobSchedule.js"
@@ -214,7 +218,7 @@
     }
   },
   "devDependencies": {
-    "@effect/ai-openrouter": "4.1.3",
+    "@effect/ai-cloudflare": "4.1.3",
     "@effect/platform-node": "4.1.3",
     "@effect/platform-node-shared": "4.1.3",
     "@effect/sql-pg": "4.1.3",

@@ -284,3 +284,16 @@ The same catalog can serve multiple deployments: for example, use
 [Follow the Orders tutorial](https://effect-jobs.dev/docs/start/tutorial/) for
 complete setup and imports. Its local setup uses a built release tarball.
 Drizzle is optional. See [Drizzle setup](https://effect-jobs.dev/docs/persistence/drizzle/).
+
+## Test what your service enqueues
+
+`effect-jobs/testing` provides `Testing.layer`, a fresh in-memory enqueue
+recorder. Provide it around both the service call and its assertions, then
+read `Testing.enqueuedOf(job)` for typed, decoded payloads or `Testing.enqueued`
+for request metadata only. Use `Testing.withJoinedEnqueue` where the test
+replaces the application's transaction owner; standalone enqueue needs no marker.
+
+The recorder runs real producer preparation but returns synthetic job IDs. It
+does not run workers, model database transactions or check deduplication. Use
+the real adapter for commit, rollback and concurrency tests. The recorder needs
+no Vitest peer: use Vitest, `node:test`, or any other test runner.

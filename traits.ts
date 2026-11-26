@@ -1,7 +1,12 @@
-import { OpenRouterClient, OpenRouterDecisionModel } from "@effect/ai-openrouter"
-import { Config, Layer } from "effect"
+import { CloudflareClient, CloudflareDecisionModel } from "@effect/ai-cloudflare"
+import { Config, Effect, Layer, Schema } from "effect"
 import type { TraitsConfig } from "traits"
 import { layer as layerLanguageModel } from "./.opencode/traits/OpenCodeLanguageModel.ts"
+
+const decisionModel = Config.schema(
+  Schema.Literals(["clef-flash", "clef"]),
+  "TRAITS_CLEF_MODEL"
+).pipe(Config.withDefault("clef-flash"))
 
 export default {
   excludes: [
@@ -34,11 +39,16 @@ export default {
     "repositories/**",
     "vendor/**"
   ],
-  layerDecisionModel: OpenRouterDecisionModel.layer({
-    model: "~typesafe/jev-latest"
-  }).pipe(
+  layerDecisionModel: Layer.unwrap(
+    // oxlint-disable-next-line effecttsgo/unstable-api-usage -- Workers AI decision adapter is pinned to 4.1.3.
+    Effect.map(decisionModel, (model) => CloudflareDecisionModel.layer({ model }))
+  ).pipe(
     Layer.provide(
-      OpenRouterClient.layerConfig({ apiKey: Config.Redacted("OPENROUTER_API_KEY") })
+      // oxlint-disable-next-line effecttsgo/unstable-api-usage -- Workers AI client is pinned to 4.1.3.
+      CloudflareClient.layerConfig({
+        accountId: Config.String("CLOUDFLARE_ACCOUNT_ID"),
+        apiKey: Config.Redacted("CLOUDFLARE_API_TOKEN")
+      })
     )
   ),
   layerLanguageModel
