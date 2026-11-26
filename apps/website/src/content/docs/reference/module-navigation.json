@@ -42,6 +42,10 @@
       {
         "title": "JobTransaction",
         "href": "/docs/reference/modules/job-transaction"
+      },
+      {
+        "title": "testing",
+        "href": "/docs/reference/modules/testing"
       }
     ]
   },

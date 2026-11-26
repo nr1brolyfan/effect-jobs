@@ -63,7 +63,7 @@ import assert from "node:assert/strict"
 import { createRequire } from "node:module"
 import { Effect } from "effect"
 const require = createRequire(import.meta.url)
-for (const peer of ["pg", "drizzle-orm"]) assert.throws(() => require.resolve(peer))
+for (const peer of ["pg", "drizzle-orm", "vitest", "@effect/vitest"]) assert.throws(() => require.resolve(peer))
 for (const privatePath of [
   "effect-jobs/dist/internal/JobTransaction.js",
   "effect-jobs/postgresql/PostgreSqlJobs",
@@ -90,6 +90,10 @@ const smoke = readFileSync(
   "utf8"
 ).replace(/"\.\.\/\.\.\/\.\.\/dist\/([^"/]+)\.js"/g, '"effect-jobs/$1"')
 writeFileSync(join(consumer, "codec.mjs"), smoke)
+writeFileSync(
+  join(consumer, "testing.mjs"),
+  readFileSync(join(root, "tests/qualification/release/Testing.mjs"))
+)
 writeFileSync(
   join(consumer, "worker.mjs"),
   readFileSync(join(root, "tests/qualification/release/Worker.mjs"))
@@ -122,6 +126,7 @@ run("docs-types", "node", ["node_modules/typescript/bin/tsc", "-p", "tsconfig.js
 for (const runtime of ["node", "bun"]) {
   run(`${runtime}-inert`, runtime, ["inert.mjs"])
   run(`${runtime}-codec`, runtime, ["codec.mjs"])
+  run(`${runtime}-testing`, runtime, ["testing.mjs"])
   run(`${runtime}-worker`, runtime, ["worker.mjs"])
 }
 writeFileSync(
@@ -132,6 +137,7 @@ writeFileSync(
       version: manifest.version,
       absentPeerExportCount: imports.length,
       docsTypecheck: "PASS skipLibCheck:false",
+      testing: "typed producer assertions without pg, Drizzle or Vitest Node+Bun PASS",
       worker:
         "public installed execution/scoped shutdown/span and metric privacy PASS Node+Bun",
       inertness:

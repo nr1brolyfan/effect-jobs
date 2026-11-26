@@ -520,6 +520,55 @@
     ]
   },
   {
+    "subpath": "effect-jobs/testing",
+    "filename": "src/Testing.ts",
+    "sha256": "b47f1ff80ce5813ae3951c870e23f1975f868340c27ba18bb199c8cb2885fcfc",
+    "symbols": [
+      {
+        "name": "DecodedEnqueue",
+        "kind": "type",
+        "category": "contract",
+        "description": "A recorded request with its payload decoded by the supplied job definition."
+      },
+      {
+        "name": "enqueued",
+        "kind": "value",
+        "category": "contract",
+        "description": "Requests recorded after successful preparation, in recording order."
+      },
+      {
+        "name": "enqueuedOf",
+        "kind": "value",
+        "category": "contract",
+        "description": "Match a job name and version across queues. Decode with its payload Schema\nand retain the Schema's decoding service requirements."
+      },
+      {
+        "name": "EnqueueRecorder",
+        "kind": "value + type",
+        "category": "contract",
+        "description": "Test-only inspection service; install it with `layer`."
+      },
+      {
+        "name": "layer",
+        "kind": "value",
+        "category": "contract",
+        "description": "Fresh recorder per Layer build. Runs normal producer preparation, but never\npersists, deduplicates, runs a handler or models commit/rollback. Only\n`JobEnqueue` paths are captured, not explicit `JobsTransaction` calls."
+      },
+      {
+        "name": "RecordedEnqueue",
+        "kind": "type",
+        "category": "contract",
+        "description": "Prepared request metadata. The synthetic job ID is local to this recorder."
+      },
+      {
+        "name": "withJoinedEnqueue",
+        "kind": "value",
+        "category": "contract",
+        "description": "Mark this test Effect as a joined enqueue scope. Does not begin a transaction."
+      }
+    ]
+  },
+  {
     "subpath": "effect-jobs/JobPayload",
     "filename": "src/JobPayload.ts",
     "sha256": "812fd9926fb3521ab54271cdeb1570d57d98495d894c234e43ec365babf887d4",

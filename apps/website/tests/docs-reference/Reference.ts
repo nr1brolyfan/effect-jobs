@@ -33,7 +33,8 @@ const groups = {
       "JobId",
       "JobContract",
       "JobEnqueue",
-      "JobTransaction"
+      "JobTransaction",
+      "testing"
     ]
   },
   payloads: {
