@@ -10,6 +10,8 @@ The setup follows `https://github.com/crosshatch/traits/blob/main/SETUP.md`.
 
 Set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in the MCP process environment or the Git-ignored repository-root `.env`. The token needs Workers AI access on that account. Never commit it or paste it into a report. Decision requests send the selected source excerpts to Workers AI; keep the secret and generated-file exclusions. There is no fallback provider or model.
 
+The client calls Workers AI directly. It does not read `CLOUDFLARE_AI_GATEWAY_ID` or send the AI Gateway routing header.
+
 Clef is a decision model, not a text generator. The local generation adapter is unchanged: it uses OpenCode's existing authentication and supports non-streaming text and schema-requested JSON, not tools or streaming. Reverify its experimental generation endpoint after OpenCode API changes.
 
 After changing credentials or dependencies, reconnect **this project's** Traits server in OpenCode's `/mcps` interface. `opencode mcp list` reports the managed connection; a previous startup failure may remain until reconnecting. Startup and tool exposure alone do not prove provider requests or rule assessment work. Retry any failed `check_traits` call after reconnecting.

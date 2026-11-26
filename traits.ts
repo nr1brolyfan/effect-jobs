@@ -8,6 +8,15 @@ const decisionModel = Config.schema(
   "TRAITS_CLEF_MODEL"
 ).pipe(Config.withDefault("clef-flash"))
 
+const cloudflareClient = Layer.unwrap(
+  Effect.gen(function* () {
+    const accountId = yield* Config.String("CLOUDFLARE_ACCOUNT_ID")
+    const apiKey = yield* Config.Redacted("CLOUDFLARE_API_TOKEN")
+    // oxlint-disable-next-line effecttsgo/unstable-api-usage -- Workers AI client is pinned to 4.1.3.
+    return CloudflareClient.layer({ accountId, apiKey })
+  })
+)
+
 export default {
   excludes: [
     "**/*.md",
@@ -42,14 +51,6 @@ export default {
   layerDecisionModel: Layer.unwrap(
     // oxlint-disable-next-line effecttsgo/unstable-api-usage -- Workers AI decision adapter is pinned to 4.1.3.
     Effect.map(decisionModel, (model) => CloudflareDecisionModel.layer({ model }))
-  ).pipe(
-    Layer.provide(
-      // oxlint-disable-next-line effecttsgo/unstable-api-usage -- Workers AI client is pinned to 4.1.3.
-      CloudflareClient.layerConfig({
-        accountId: Config.String("CLOUDFLARE_ACCOUNT_ID"),
-        apiKey: Config.Redacted("CLOUDFLARE_API_TOKEN")
-      })
-    )
-  ),
+  ).pipe(Layer.provide(cloudflareClient)),
   layerLanguageModel
 } satisfies TraitsConfig

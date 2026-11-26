@@ -8,6 +8,7 @@ import type {
 } from "./JobContract.js"
 import { JobEnqueue, JobPersistenceError } from "./JobEnqueue.js"
 import { JobId } from "./JobId.js"
+import { JobPolicy } from "./JobPolicy.js"
 import type { JobDefinition } from "./Job.js"
 import { decodeJobPayload } from "./JobPayloadCodec.js"
 
@@ -46,6 +47,7 @@ const JoinedEnqueue = Context.Reference("effect-jobs/testing/JoinedEnqueue", {
   defaultValue: (): boolean => false
 })
 const decodeId = Schema.decodeSync(JobId)
+const decodePolicy = Schema.decodeEffect(JobPolicy, { onExcessProperty: "ignore" })
 
 /** Mark this test Effect as a joined enqueue scope. Does not begin a transaction. */
 export const withJoinedEnqueue = Effect.provideService(JoinedEnqueue, true)
@@ -68,11 +70,30 @@ export const layer = Layer.effectContext(
           commitKnowledge: "NotCommitted"
         })
       }
-      const { encoded, ...metadata } = yield* prepare
+      const { encoded, policy, ...metadata } = yield* prepare
+      const snapshot = yield* decodePolicy(policy).pipe(
+        Effect.mapError(
+          () =>
+            new JobPersistenceError({
+              reason: "storage-failure",
+              commitKnowledge: "NotCommitted"
+            })
+        )
+      )
       return yield* Effect.sync(() => {
         const jobId = decodeId(`recorded-${captures.length + 1}`)
         captures.push({
-          request: Object.freeze({ ...metadata, jobId, mode }),
+          request: Object.freeze({
+            ...metadata,
+            policy: Object.freeze({
+              ...snapshot,
+              retrySchedule: Object.freeze(snapshot.retrySchedule),
+              completedRetention: Object.freeze(snapshot.completedRetention),
+              deadRetention: Object.freeze(snapshot.deadRetention)
+            }),
+            jobId,
+            mode
+          }),
           encoded: {
             formatVersion: encoded.formatVersion,
             payloadBytes: new Uint8Array(encoded.payloadBytes),
