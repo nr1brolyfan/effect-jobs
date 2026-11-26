@@ -1,0 +1,154 @@
+[
+  {
+    "title": "Definitions and production",
+    "href": "/docs/reference/definitions",
+    "modules": [
+      {
+        "title": "Job",
+        "href": "/docs/reference/modules/job"
+      },
+      {
+        "title": "JobQueue",
+        "href": "/docs/reference/modules/job-queue"
+      },
+      {
+        "title": "JobProducer",
+        "href": "/docs/reference/modules/job-producer"
+      },
+      {
+        "title": "JobGroup",
+        "href": "/docs/reference/modules/job-group"
+      },
+      {
+        "title": "JobApi",
+        "href": "/docs/reference/modules/job-api"
+      },
+      {
+        "title": "JobIdentity",
+        "href": "/docs/reference/modules/job-identity"
+      },
+      {
+        "title": "JobId",
+        "href": "/docs/reference/modules/job-id"
+      },
+      {
+        "title": "JobContract",
+        "href": "/docs/reference/modules/job-contract"
+      },
+      {
+        "title": "JobEnqueue",
+        "href": "/docs/reference/modules/job-enqueue"
+      },
+      {
+        "title": "JobTransaction",
+        "href": "/docs/reference/modules/job-transaction"
+      }
+    ]
+  },
+  {
+    "title": "Payloads and policy",
+    "href": "/docs/reference/payloads",
+    "modules": [
+      {
+        "title": "JobPayload",
+        "href": "/docs/reference/modules/job-payload"
+      },
+      {
+        "title": "JobPayloadCodec",
+        "href": "/docs/reference/modules/job-payload-codec"
+      },
+      {
+        "title": "JobPolicy",
+        "href": "/docs/reference/modules/job-policy"
+      },
+      {
+        "title": "JobRetryPolicy",
+        "href": "/docs/reference/modules/job-retry-policy"
+      },
+      {
+        "title": "JobFailure",
+        "href": "/docs/reference/modules/job-failure"
+      },
+      {
+        "title": "FailureCode",
+        "href": "/docs/reference/modules/failure-code"
+      }
+    ]
+  },
+  {
+    "title": "Handlers and workers",
+    "href": "/docs/reference/workers",
+    "modules": [
+      {
+        "title": "JobStorage",
+        "href": "/docs/reference/modules/job-storage"
+      },
+      {
+        "title": "JobWorker",
+        "href": "/docs/reference/modules/job-worker"
+      },
+      {
+        "title": "JobPolling",
+        "href": "/docs/reference/modules/job-polling"
+      },
+      {
+        "title": "JobSchedule",
+        "href": "/docs/reference/modules/job-schedule"
+      }
+    ]
+  },
+  {
+    "title": "Lifecycle and operator ports",
+    "href": "/docs/reference/lifecycle",
+    "modules": [
+      {
+        "title": "JobLifecycle",
+        "href": "/docs/reference/modules/job-lifecycle"
+      },
+      {
+        "title": "JobStore",
+        "href": "/docs/reference/modules/job-store"
+      },
+      {
+        "title": "JobOperators",
+        "href": "/docs/reference/modules/job-operators"
+      }
+    ]
+  },
+  {
+    "title": "PostgreSQL integration",
+    "href": "/docs/reference/postgresql",
+    "modules": [
+      {
+        "title": "PostgreSqlJobs",
+        "href": "/docs/reference/modules/postgre-sql-jobs"
+      },
+      {
+        "title": "PostgreSqlTransaction",
+        "href": "/docs/reference/modules/postgre-sql-transaction"
+      },
+      {
+        "title": "PostgreSqlNative",
+        "href": "/docs/reference/modules/postgre-sql-native"
+      },
+      {
+        "title": "PostgreSqlSchema",
+        "href": "/docs/reference/modules/postgre-sql-schema"
+      },
+      {
+        "title": "PostgreSqlDrizzleSchema",
+        "href": "/docs/reference/modules/postgre-sql-drizzle-schema"
+      }
+    ]
+  },
+  {
+    "title": "Durable Object SQLite integration",
+    "href": "/docs/reference/durable-object-sqlite",
+    "modules": [
+      {
+        "title": "DurableObjectSqlite",
+        "href": "/docs/reference/modules/durable-object-sqlite"
+      }
+    ]
+  }
+]

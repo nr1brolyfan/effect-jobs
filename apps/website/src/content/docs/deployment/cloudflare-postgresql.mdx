@@ -1,0 +1,93 @@
+---
+title: Cloudflare + Alchemy + PostgreSQL
+description: Share PostgreSQL through Hyperdrive, with a Durable Object coordinating worker wakeups.
+---
+
+Keep invoices, jobs and leases in PostgreSQL. Alchemy wires the HTTP Worker, Hyperdrive connection and billing Durable Object. The latter schedules callbacks; it does not store a second copy of the queue.
+
+## Prepare and run locally
+
+Copy the [billing example](https://github.com/nr1brolyfan/effect-jobs/tree/main/examples/cloudflare-alchemy) and run from the copied directory. Set `EXAMPLE_TEST_DATABASE_URL` privately to an empty, disposable PostgreSQL database. You'll need Bun, Node.js and the `psql` client. The migration creates and seeds the sample tables once.
+
+```sh
+bun add --exact effect-jobs
+{ echo 'CREATE SCHEMA alchemy_example;';
+  bun -e 'import { migration } from "./tests/Migrate.mjs"; console.log(migration)';
+} > billing.sql
+psql "$EXAMPLE_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 --single-transaction -f billing.sql
+bun run build
+node tests/FullApp.mjs
+```
+
+The local check starts the built Worker and Durable Object in workerd with a synthetic provider. It submits an invoice, exercises rollback and receipt replay, and checks delivery. It then stops the local services. It doesn't provision hosted Hyperdrive or Cloudflare resources.
+
+## Wire the hosted application
+
+The maintained stack in `alchemy.run.ts` uses the app's declarations in `src/Application.ts`: an HTTP Worker, a Hyperdrive connection to PostgreSQL, and a named billing Durable Object. Set `EXAMPLE_DATABASE_URL` to the intended PostgreSQL origin and `EXAMPLE_PROVIDER_URL` to the delivery endpoint using private configuration. Apply storage migrations before rollout, and replace the example's admission and provider code before serving production traffic.
+
+Use a private staging route first. With your Cloudflare credentials and private configuration available to Alchemy, review the intended resources before applying the stack:
+
+```sh
+bun x alchemy deploy --stage staging --dry-run
+bun x alchemy deploy --stage staging
+```
+
+The first command is for reviewing the plan. Only apply it to an account and stage you intend to change.
+
+On a running **private development** instance using the supplied example admission, the request is:
+
+```sh
+curl --fail-with-body "$APP_URL/issue" \
+  -H 'Authorization: Bearer development-alice' \
+  -H 'Content-Type: application/json' \
+  --data '{"invoiceId":"invoice-a","requestId":"example-1"}'
+```
+
+## Request path
+
+The HTTP Worker validates the request and arms a repair wake before opening the invoice transaction. It returns after the database acknowledges the commit, not after job delivery.
+
+```ts
+// src/Application.ts — request handler, abbreviated
+const coordinator = coordinators.getByName("billing")
+yield * coordinator.prearm()
+
+const result =
+  yield *
+  Effect.scoped(
+    Effect.gen(function* () {
+      const invocation = yield* openInvocation({ databaseUrl, providerUrl })
+      return yield* invocation.issue(tenantId, input)
+    })
+  )
+
+yield * coordinator.wake().pipe(Effect.catch(() => Effect.void))
+return HttpServerResponse.jsonUnsafe(result)
+```
+
+## Wake path
+
+`src/Coordinator.ts` gives each callback a scoped invocation. It drains a finite batch and observes the database for the next due job or expired lease. If the post-commit signal is lost, the repair wake can still pick up committed work. An unconfirmed PostgreSQL commit is a separate problem: reconcile the operation receipt before attempting another write.
+
+## Keep the API Worker small
+
+Deferring a job moves execution out of the request. To also shrink the API bundle, keep the heavy handler and its dependencies in a **separately built** consumer Worker or Durable Object service. The API should import only the producer, job contracts, and storage wiring. A Durable Object class in the same deployed script still contributes to that script's bundle size.
+
+An ordinary email request mostly waits on network I/O. A PDF renderer, large buffered import, or several concurrent jobs can hit CPU or memory limits even when the code bundle is small. Cloudflare counts memory per isolate, not per request, and the consumer still has limits of its own. Check the actual bundle, profile representative jobs, and tune [worker concurrency](/docs/deep-dives/worker-limits) against the [Workers limits](https://developers.cloudflare.com/workers/platform/limits/).
+
+## Verify before rollout
+
+The request returns a `jobId`. In the sample database, check the receipt and the job together:
+
+```sql
+SELECT i.issued, j.id, j.state
+FROM alchemy_example.invoices AS i
+JOIN alchemy_example.receipts AS r USING (tenant_id, invoice_id)
+JOIN alchemy_example.jobs AS j ON j.id = r.job_id;
+```
+
+Expect `issued = true` and `Completed` for the returned job ID. Check the provider's delivery evidence for that same ID. HTTP success alone confirms only the invoice transaction.
+
+For a hosted deployment, configure database timeouts on the Hyperdrive origin role and verify the effective values **through the Worker binding**. Use a private staging route to repeat the delivery check before routing production requests.
+
+[Run the full tenant billing example](https://github.com/nr1brolyfan/effect-jobs/tree/main/examples/cloudflare-alchemy#readme) for the stack, Hyperdrive binding and callback setup.

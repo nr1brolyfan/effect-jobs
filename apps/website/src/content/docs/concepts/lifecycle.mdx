@@ -5,20 +5,41 @@ sidebar:
   order: 2
 ---
 
+import TransitionDiagram from "../../../components/docs/TransitionDiagram.astro"
+
 A worker can finish rendering a report and still lose the database response that
 confirms completion. Read durable state separately from what the handler appeared
 to do.
 
-```text
-Pending ──claim when due──→ Active ──confirmed success──→ Completed
-   ↑                         │
-   │                         ├──safe Retry──→ RetryScheduled ──due claim──→ Active
-   │                         ├──permanent failure / exhausted attempts──→ Dead
-   │                         └──quarantine──→ Isolated
-   └──expired lease recovery, within stalled budget── Active
-
-Pending / RetryScheduled ──explicit guarded cancellation──→ Cancelled
-```
+<TransitionDiagram
+  title="How a job changes state"
+  summary="Read each branch from the stored state through the event to the next stored state."
+  groups={[
+    {
+      from: { title: "Pending or RetryScheduled", detail: "Waiting for a claim" },
+      transitions: [
+        { when: "Claim when due", to: { title: "Active", tone: "violet" } },
+        { when: "Guarded cancellation", to: { title: "Cancelled" } }
+      ]
+    },
+    {
+      from: { title: "Active", detail: "Claimed under a fixed lease", tone: "violet" },
+      transitions: [
+        { when: "Confirm success", to: { title: "Completed", tone: "green" } },
+        {
+          when: "Confirm retry within policy",
+          to: { title: "RetryScheduled", tone: "amber" }
+        },
+        { when: "Recover expired lease within stall budget", to: { title: "Pending" } },
+        {
+          when: "Permanent failure or policy exhausted",
+          to: { title: "Dead", tone: "amber" }
+        },
+        { when: "Quarantine invalid work", to: { title: "Isolated", tone: "amber" } }
+      ]
+    }
+  ]}
+/>
 
 This is a reading guide. Database transitions require the expected ownership or
 operator guard; the diagram grants no mutation authority.
@@ -63,4 +84,4 @@ Isolated and Cancelled are excluded from automatic cleanup. Deleting identity
 evidence ends its deduplication protection.
 
 Continue with [retries](/docs/execution/retries) and
-[recovery](/docs/execution/recovery) for handling uncertainty.
+[recovery](/docs/execution/recovery) for handling uncertainty, or compare the [same job under four outcomes](/docs/deep-dives/job-states).

@@ -1,0 +1,27 @@
+---
+title: Job states and failure outcomes
+description: Separate what the handler reported from what the database knows.
+---
+
+import DeepDiveTrace from "../../../components/docs/DeepDiveTrace.astro"
+
+The handler's result tells the worker what it observed. The stored state tells you what was durably applied. Those can disagree when acknowledgement is lost.
+
+<DeepDiveTrace name="outcomes" />
+
+## Decide based on what you know
+
+| Observation                                                       | Report or investigate                             | What to check in storage                                    |
+| ----------------------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------- |
+| Provider rejected before accepting the message; repeating is safe | `Retry`                                           | `RetryScheduled` if policy allows, otherwise `Dead`         |
+| The same address will always be rejected                          | `Dead`                                            | Terminal state after confirmed finalization                 |
+| Job data can't be decoded                                         | Investigate the artifact and its compatible codec | `Isolated`; the handler need not have run                   |
+| No response and no proof that repeating is safe                   | `OutcomeUnknown`; reconcile with the provider     | Can remain `Active`; there is no `OutcomeUnknown` row state |
+
+## A lost provider response isn't a lost database acknowledgement
+
+If the provider response is lost, you don't know whether the external effect happened. A lease expiry lets the queue progress, but it can't undo a delivered message. Use provider idempotency or application reconciliation.
+
+If the provider confirms success but the response to the **finalization write** is lost, reconcile the original storage operation. Re-running the handler doesn't tell you whether that write committed. A terminal row answers a question about the queue, not everything that happened outside it.
+
+See [all durable states](/docs/concepts/lifecycle) and [recovery after lost confirmation](/docs/execution/recovery).

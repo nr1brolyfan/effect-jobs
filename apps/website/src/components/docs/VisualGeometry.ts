@@ -7,12 +7,38 @@ interface Connection {
   readonly color: string
   readonly at: number
   readonly label: string
+  readonly lane?: number
 }
 export const connectionMap: Record<Variant, ReadonlyArray<Connection>> = {
   overview: [
-    { id: "save", from: "api", to: "database", color: "#64aaff", at: 1, label: "order" },
-    { id: "claim", from: "job", to: "worker", color: "#e7bd65", at: 3, label: "job" },
-    { id: "send", from: "worker", to: "email", color: "#b39aff", at: 4, label: "mail" }
+    {
+      id: "request",
+      from: "client",
+      to: "api",
+      color: "#64aaff",
+      at: 1,
+      label: "POST /orders",
+      lane: -1
+    },
+    {
+      id: "save",
+      from: "api",
+      to: "database",
+      color: "#64aaff",
+      at: 2,
+      label: "order + job"
+    },
+    {
+      id: "response",
+      from: "api",
+      to: "client",
+      color: "#69c6a5",
+      at: 3,
+      label: "201 Created",
+      lane: 1
+    },
+    { id: "claim", from: "job", to: "worker", color: "#e7bd65", at: 4, label: "job" },
+    { id: "send", from: "worker", to: "email", color: "#b39aff", at: 5, label: "mail" }
   ],
   transaction: [
     { id: "claim", from: "job", to: "worker", color: "#e7bd65", at: 4, label: "job" }
@@ -78,23 +104,37 @@ export const useGeometry = (
           Math.abs(to.left - from.left) > from.width * 0.6 &&
           !(to.top >= from.bottom + 10 && to.left < from.right)
         const forward = horizontal ? to.left > from.left : to.top > from.top
+        const crossSize = horizontal
+          ? Math.min(from.height, to.height)
+          : Math.min(from.width, to.width)
+        const offset = (connection.lane ?? 0) * Math.min(34, crossSize / 4)
         const a = {
           x:
             (horizontal
               ? forward
                 ? from.right
                 : from.left
-              : from.left + from.width / 2) - box.left,
+              : from.left + from.width / 2 + offset) - box.left,
           y:
-            (horizontal ? from.top + from.height / 2 : forward ? from.bottom : from.top) -
-            box.top
+            (horizontal
+              ? from.top + from.height / 2 + offset
+              : forward
+                ? from.bottom
+                : from.top) - box.top
         }
         const b = {
           x:
-            (horizontal ? (forward ? to.left : to.right) : to.left + to.width / 2) -
-            box.left,
+            (horizontal
+              ? forward
+                ? to.left
+                : to.right
+              : to.left + to.width / 2 + offset) - box.left,
           y:
-            (horizontal ? to.top + to.height / 2 : forward ? to.top : to.bottom) - box.top
+            (horizontal
+              ? to.top + to.height / 2 + offset
+              : forward
+                ? to.top
+                : to.bottom) - box.top
         }
         const bend = horizontal ? (a.x + b.x) / 2 : (a.y + b.y) / 2
         path(connection.id).setAttribute(

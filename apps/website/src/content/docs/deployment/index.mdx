@@ -1,0 +1,30 @@
+---
+title: Choose a deployment
+description: Choose where jobs are stored and what starts the worker.
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+
+Start with where your **application data** already lives. To commit a domain write and a job together, the two writes must use the same transaction. Then choose what wakes the worker.
+
+<CardGrid>
+  <LinkCard
+    title="Node.js / Bun + PostgreSQL"
+    href="/docs/deployment/postgresql"
+    description="Keep PostgreSQL as the store and poll from a long-lived process. Fits a VPS or container."
+  />
+  <LinkCard
+    title="Cloudflare + Alchemy + PostgreSQL"
+    href="/docs/deployment/cloudflare-postgresql"
+    description="Keep PostgreSQL as the store, connect through Hyperdrive, and use a Durable Object to coordinate wakeups."
+  />
+  <LinkCard
+    title="Cloudflare + Alchemy + DO SQLite"
+    href="/docs/deployment/cloudflare-sqlite"
+    description="Keep domain data and jobs in one object's SQLite database. Run a bounded drain on demand."
+  />
+</CardGrid>
+
+For Cloudflare, use **PostgreSQL + Hyperdrive** if the domain write is already in PostgreSQL. Choose **DO SQLite** when the same object owns the domain write and the jobs; a single SQLite object doesn't give you a transaction across objects or stores.
+
+The job definitions, handlers and retry policy can stay the same. The store binding, transaction boundary and wake strategy change. If you haven't built a producer and handler yet, follow [Your first job](/docs#your-first-job) first.

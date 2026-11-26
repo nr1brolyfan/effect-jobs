@@ -4,7 +4,15 @@ import { styles } from "./VisualStyles.js"
 import { RegistryProvider, useAtom } from "@effect/atom-react"
 import * as Atom from "effect/reactivity/Atom"
 import { createElement, useId, useRef } from "react"
-import { Braces, Database, Bot, Mail, FileText, ReceiptText } from "lucide-react"
+import {
+  Braces,
+  Database,
+  Bot,
+  Mail,
+  FileText,
+  ReceiptText,
+  AppWindow
+} from "lucide-react"
 import { registerPlaybackHost } from "../illustrations/PlaybackHost.js"
 import { useVisibility } from "../illustrations/Playback.js"
 import { useGeometry, connectionMap } from "./VisualGeometry.js"
@@ -21,6 +29,7 @@ interface Props {
 }
 const playbackAtom = Atom.make({ step: 0, mode: "commit" as Outcome, playing: false })
 const icons = {
+  client: AppWindow,
   api: Braces,
   database: Database,
   worker: Bot,
@@ -142,10 +151,8 @@ function Illustration(props: Props) {
           `jv-stage jv-${props.variant}`,
           stylex.props(
             styles.stage,
-            isOverview && styles.overviewSelected,
             isTransaction && styles.transactionSelected,
             isHandoff && styles.handoffSelected,
-            isOverview && styles.overviewSelected2,
             isHandoff && styles.handoffSelected2,
             isTransaction && styles.transactionSelected2
           ).className
@@ -176,56 +183,58 @@ function Illustration(props: Props) {
               />
             </marker>
           </defs>
-          {connections.map((connection) => (
-            <g key={connection.id}>
-              <path
-                className={["jv-wire", stylex.props(styles.wire).className]
-                  .filter(Boolean)
-                  .join(" ")}
-                data-connection={connection.id}
-                data-active={enabled && playback.step >= connection.at}
-                stroke={
-                  enabled && playback.step >= connection.at ? connection.color : "#646b77"
-                }
-                markerEnd={`url(#${marker})`}
-              />
-              <g className="jv-packet" data-packet={connection.id} opacity="0">
-                <rect
-                  {...stylex.props(styles.packet)}
-                  x="-22"
-                  y="-11"
-                  width="44"
-                  height="22"
-                  rx="4"
-                  fill="#131519"
-                  strokeWidth="1.2"
-                  stroke={connection.color}
+          {connections.map((connection) => {
+            const width = Math.max(44, connection.label.length * 6 + 12)
+            return (
+              <g key={connection.id}>
+                <path
+                  className={["jv-wire", stylex.props(styles.wire).className]
+                    .filter(Boolean)
+                    .join(" ")}
+                  data-connection={connection.id}
+                  data-active={enabled && playback.step >= connection.at}
+                  stroke={
+                    enabled && playback.step >= connection.at
+                      ? connection.color
+                      : "#646b77"
+                  }
+                  markerEnd={`url(#${marker})`}
                 />
-                <text {...stylex.props(styles.packet2)} fill={connection.color}>
-                  {connection.label}
-                </text>
+                <g className="jv-packet" data-packet={connection.id} opacity="0">
+                  <rect
+                    {...stylex.props(styles.packet)}
+                    x={-width / 2}
+                    y="-11"
+                    width={width}
+                    height="22"
+                    rx="4"
+                    fill="#131519"
+                    strokeWidth="1.2"
+                    stroke={connection.color}
+                  />
+                  <text {...stylex.props(styles.packet2)} fill={connection.color}>
+                    {connection.label}
+                  </text>
+                </g>
               </g>
-            </g>
-          ))}
+            )
+          })}
         </svg>
         {props.variant === "overview" && (
           <>
             <div
               className={[
-                "jv-node jv-api jv-blue",
-                stylex.props(
-                  styles.database,
-                  (view.nodes["api"] ?? false) === true && styles.nodeSelected,
-                  isOverview && styles.nodeSelected2
-                ).className
+                "jv-node jv-client jv-blue",
+                stylex.props(styles.database, view.nodes["client"] && styles.nodeSelected)
+                  .className
               ]
                 .filter(Boolean)
                 .join(" ")}
-              data-node="api"
-              data-active={view.nodes["api"] ?? false}
+              data-node="client"
+              data-active={view.nodes["client"] ?? false}
             >
-              <Icon name="api" />
-              <strong {...stylex.props(styles.element4)}>API</strong>
+              <Icon name="client" />
+              <strong {...stylex.props(styles.element4)}>Browser</strong>
               <code {...stylex.props(styles.element5)}>POST /orders</code>
               <span
                 className={[
@@ -249,14 +258,23 @@ function Illustration(props: Props) {
             </div>
             <div
               className={[
-                "jv-database",
-                stylex.props(
-                  styles.database2,
-                  isOverview && styles.databaseSelected,
-                  isOverview && styles.databaseSelected2,
-                  isOverview && styles.databaseSelected3
-                ).className
+                "jv-node jv-api jv-blue",
+                stylex.props(styles.database, view.nodes["api"] && styles.nodeSelected)
+                  .className
               ]
+                .filter(Boolean)
+                .join(" ")}
+              data-node="api"
+              data-active={view.nodes["api"] ?? false}
+            >
+              <Icon name="api" />
+              <strong {...stylex.props(styles.element4)}>Order API</strong>
+              <span {...stylex.props(styles.status)} data-label="apiState">
+                {view.labels["apiState"]}
+              </span>
+            </div>
+            <div
+              className={["jv-database", stylex.props(styles.database2).className]
                 .filter(Boolean)
                 .join(" ")}
               data-node="database"
@@ -433,12 +451,7 @@ function Illustration(props: Props) {
             <div
               className={[
                 "jv-database jv-transaction-box",
-                stylex.props(
-                  styles.database5,
-                  isOverview && styles.databaseSelected,
-                  isOverview && styles.databaseSelected2,
-                  isOverview && styles.databaseSelected3
-                ).className
+                stylex.props(styles.database5).className
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -814,7 +827,7 @@ function Illustration(props: Props) {
           .join(" ")}
       >
         {props.variant === "overview"
-          ? "Order + job commit → API responds → worker sends email."
+          ? "The customer gets a response after commit, without waiting for email."
           : props.variant === "transaction"
             ? "Commit saves both records. Confirmed rollback saves neither."
             : "Confirmation and invoice creation are independent. Invoice creation enqueues delivery."}

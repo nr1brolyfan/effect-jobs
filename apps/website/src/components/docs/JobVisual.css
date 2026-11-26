@@ -20,3 +20,49 @@
 .jv [hidden] {
   display: none !important;
 }
+.jv strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.jv {
+  container-type: inline-size;
+}
+.jv .jv-overview {
+  grid-template-areas: "client database worker" "api database email";
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 0.9fr);
+  grid-template-rows: auto auto;
+  gap: 42px 52px;
+}
+.jv-overview [data-node="client"] {
+  grid-area: client;
+}
+.jv-overview [data-node="api"] {
+  grid-area: api;
+}
+.jv-overview [data-node="database"] {
+  grid-area: database;
+}
+.jv-overview [data-node="worker"] {
+  grid-area: worker;
+}
+.jv-overview [data-node="email"] {
+  grid-area: email;
+}
+.jv .jv-overview .jv-wires {
+  z-index: 2;
+}
+
+@container (max-width: 580px) {
+  .jv .jv-overview {
+    grid-template-areas: "client api" "worker database" "email database";
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+    grid-template-rows: auto auto auto;
+    gap: 30px 26px;
+  }
+  .jv .jv-overview > .jv-node {
+    padding: 12px;
+  }
+  .jv-overview [data-node="database"] {
+    align-self: start;
+  }
+}

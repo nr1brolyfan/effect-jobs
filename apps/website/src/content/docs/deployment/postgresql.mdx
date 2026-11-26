@@ -1,0 +1,64 @@
+---
+title: Deploy a PostgreSQL worker on Node.js or Bun
+description: Run the producer and polling worker on a VPS or in containers.
+---
+
+import { CodeExample } from "../../../components/docs/index"
+
+Run the API and job worker as separate processes, or give each role its own Scope in one host. Both use the same database and table mapping. Your supervisor owns process restarts; PostgreSQL owns due times and leases.
+
+## Prepare the example
+
+Copy the [Orders example](https://github.com/nr1brolyfan/effect-jobs/tree/main/apps/website/examples/docs/orders). From that directory, add the library and set `DATABASE_URL` to a fresh PostgreSQL database. Both processes use this database.
+
+```sh
+bun add --exact effect-jobs
+```
+
+Apply the example’s tables **once**, before running either process. If you’re using your own migrations, apply the SQL exported by `packages/database/src/Migrations.ts` through your migration runner instead.
+
+```sh
+bun -e 'import { migrationSql } from "./packages/database/src/Migrations.ts"; console.log(migrationSql)' > orders.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 --single-transaction -f orders.sql
+```
+
+Within the API process, the domain queries and enqueue share one transaction client. The worker opens its own connection to the same database. See [PostgreSQL migrations](/docs/persistence/postgresql) when integrating with an existing schema.
+
+## Send one order and confirm delivery
+
+Submit one order, then run the worker once. The example records email locally instead of sending it:
+
+```sh
+OPERATION_ID=submission-1 ORDER_ID=order-1 bun --conditions=development apps/api/src/main.ts
+WORKER_MODE=confirmation bun --conditions=development apps/worker/src/main.ts
+```
+
+Verify the handler’s result independently of the drain:
+
+```sql
+SELECT o.order_id, j.state, m.subject
+FROM orders AS o
+JOIN jobs AS j ON j.operation_id = o.operation_id AND j.slot = 'send-confirmation'
+JOIN synthetic_mail AS m ON m.delivery_key = j.id
+WHERE o.operation_id = 'submission-1';
+```
+
+Expect `order-1`, `Completed` and `Order confirmation`. The basic create path doesn't write an application receipt; the expanded Orders example does. A claim count by itself does not verify delivery.
+
+## Keep the worker running
+
+The Orders example builds a worker with handlers and storage. It can process a bounded batch or poll continuously. Polling acquires its lifetime from the surrounding Effect Scope.
+
+<CodeExample
+  sourcePath="orders/apps/worker/src/main.ts"
+  region="composition"
+  role="Worker composition"
+/>
+
+```sh
+WORKER_MODE=poll bun --conditions=development apps/worker/src/main.ts
+```
+
+Run this process under your service supervisor. Use a fresh operation ID and order ID to submit another order while it polls. Start with low concurrency and raise it based on database and provider headroom, not just queue length. On shutdown, close the worker Scope before closing the database pool. Try the [worker limits lab](/docs/deep-dives/worker-limits) before adding replicas.
+
+[Read the Orders walkthrough](/docs#your-first-job) or [check the production checklist](/docs/operations/production-checklist).

@@ -1,0 +1,125 @@
+---
+import "./LabUI.css"
+
+interface Node {
+  title: string
+  detail?: string
+  tone?: "violet" | "green" | "amber"
+}
+
+interface Props {
+  title: string
+  summary?: string
+  groups: Array<{
+    from: Node
+    transitions: Array<{ when: string; to: Node }>
+  }>
+}
+
+const { title, summary, groups } = Astro.props
+---
+
+<figure class="wd diagram">
+  <figcaption>
+    <strong>{title}</strong>
+    {summary && <span>{summary}</span>}
+  </figcaption>
+  {groups.map(({ from, transitions }) => (
+    <div class="diagram-group" role="group" aria-label={`From ${from.title}`}>
+      <div class="wd-node origin">
+        <strong data-tone={from.tone}>{from.title}</strong>
+        {from.detail && <small>{from.detail}</small>}
+      </div>
+      <div class="branches" role="list" aria-label="Outcomes">
+        {transitions.map(({ when, to }) => (
+          <div class="branch" role="listitem">
+            <span class="connector" aria-hidden="true">
+              <svg viewBox="0 0 8 12" width="8" height="12" fill="none">
+                <path d="m2 2 4 4-4 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <span class="condition">{when}</span>
+            <div class="wd-node destination">
+              <strong data-tone={to.tone}>{to.title}</strong>
+              {to.detail && <small>{to.detail}</small>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ))}
+</figure>
+
+<style>
+  .diagram.diagram figcaption {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 15px;
+  }
+  .diagram.diagram figcaption strong { font-size: 14px; }
+  .diagram.diagram figcaption span { color: var(--wd-muted); }
+  .diagram-group {
+    --connector-width: 37px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2.6fr);
+    align-items: center;
+  }
+  .diagram.diagram .diagram-group + .diagram-group {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--wd-line);
+  }
+  .origin, .destination {
+    display: grid;
+    gap: 4px;
+    padding: 10px 12px;
+    overflow-wrap: anywhere;
+  }
+  .diagram.diagram .wd-node strong { font: 600 12px/1.45 var(--wd-mono); }
+  .diagram.diagram small { color: var(--wd-muted); font-size: 11px; }
+  .branches { position: relative; display: grid; }
+  .branches::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 10px;
+    border-top: 1px solid var(--wd-wire);
+  }
+  .branch {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--connector-width) minmax(0, 1.15fr) minmax(0, 1fr);
+    align-items: center;
+    padding-block: 3px;
+  }
+  .branch:not(:only-child)::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 10px;
+    border-left: 1px solid var(--wd-wire);
+  }
+  .branch:first-child::before { top: 50%; }
+  .branch:last-child::before { bottom: 50%; }
+  .connector {
+    position: relative;
+    margin-left: 10px !important;
+    border-top: 1px solid var(--wd-wire);
+    color: var(--wd-wire);
+  }
+  .connector svg { position: absolute; right: -1px; top: -6.5px; }
+  .diagram.diagram .condition { padding: 0 10px; color: var(--wd-muted); font-size: 12px; }
+  @container (max-width: 525px) {
+    .diagram-group { --connector-width: 26px; grid-template-columns: minmax(0, 1fr); }
+    .branches::before { content: none; }
+    .branch:not(:only-child)::before, .branch:only-child::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 10px;
+      border-left: 1px solid var(--wd-wire);
+    }
+    .branch:last-child::before { bottom: 50%; }
+    .branch { grid-template-columns: var(--connector-width) minmax(0, 1fr) minmax(0, 1.05fr); }
+    .diagram.diagram .condition { padding-inline: 6px; }
+    .destination { padding-inline: 8px; }
+  }
+</style>

@@ -1,0 +1,44 @@
+---
+title: Worker limits and throughput
+description: See how concurrency, drain size and recovery change the work a worker can take on.
+---
+
+import WorkerLimitsLab from "../../../components/docs/WorkerLimitsLab.astro"
+
+One worker can run several jobs at once without claiming the whole queue. Follow each job ID from PostgreSQL to a worker, then back to PostgreSQL when the worker finalizes it. Use **Pause** or **Step** to inspect an individual event.
+
+<WorkerLimitsLab />
+
+The simulation runs one drain per worker, all against the same queue. Changing a slider starts a fresh run; it doesn't reconfigure work already in flight.
+
+**Jobs/min** is the average across the full simulated drain: completed jobs divided by its modeled duration. Handlers take 0.9–1.2 simulated seconds. Playback speed doesn't affect the rate, and the result isn't a production benchmark.
+
+## Concurrency: slots per worker and queue
+
+Set `concurrency` when you build the worker. It's the number of permits that **one worker instance** has **for one queue**. All drains of that queue on that instance share those permits. The worker acquires one before attempting a claim and holds it through execution and finalization. A slot can therefore be occupied while the card says `0 running`: a claim or finalization can be in flight without a handler running.
+
+**Try it:** raise **Concurrency** from 3 to 5 with **Max jobs per drain** at 8. More jobs can overlap, but the drain still starts at most eight. Now set **Max jobs per drain** to 2: the extra slots don't help this drain.
+
+## Max jobs per drain: how many can start
+
+`maxJobs` is a budget for **one call to `drain`**, not a batch size for a PostgreSQL query. A drain claims one job at a time, starts it, then claims another when it has a free permit. When a job finishes, the drain can reuse its permit, but it doesn't get that start back. `Started this drain: 8/8` means the budget was spent, not that eight jobs are active or even that all eight succeeded.
+
+The drain can stop claiming earlier if it finds no eligible job or has to back off. On a normal return it waits for the executions it already started. Reaching the cap returns `MoreWork`, which means another bounded drain may be worthwhile, **not** that there's definitely more work or that the current drain succeeded on every job.
+
+**Try it:** raise **Max jobs per drain** from 8 to 12 at concurrency 3. More job IDs cross the wire, but the peak stays at three. For a request-triggered worker, a larger cap can make the invocation last longer; it's not a substitute for an invocation deadline.
+
+## Recovery limit: how many expired leases to revisit
+
+`recoveryLimit` is a separate budget for the queue being drained. Before an explicit `drain` starts claiming, it tries to recover expired leases. At 8, PostgreSQL selects up to eight expired rows and updates them in **one recovery transaction**, not eight separate recovery calls. Larger budgets are split into storage batches of at most 500 rows. If recovery fails, the drain backs off before claiming.
+
+Recovery clears an expired lease and increments the job's stall counter, not its finalized-attempt counter. The job returns to `Pending` if it still has stall budget, or becomes `Dead` if it doesn't. Recovery itself uses no `maxJobs` slot; a **later claim** of that same job does. It's not [retry backoff](/docs/execution/retries), and it doesn't establish whether an earlier attempt already caused an external effect.
+
+**Try it:** raise **Recovery limit** to 8. The amber response shows how many expired leases were recovered. In this run those jobs are ready again, so **Ready** goes up. The 64 initially ready jobs sort ahead of them, so they won't be claimed in the displayed drain. **Recovered this run** is a counter, not a separate queue.
+
+## Workers: independent instances on a shared queue
+
+**Workers** isn't a `drain` option. The slider adds independently constructed worker instances, like replicas of the same service. They compete for the same eligible jobs in PostgreSQL without sharing permits. With three workers, `concurrency = 8`, and one drain each at `maxJobs = 16`, that's **up to 24 concurrent executions and up to 48 starts**. With 64 initially ready jobs, those three drains leave at least 16 of the original jobs for another drain. Adding three calls to `drain` on **one** worker would not give that instance 24 permits.
+
+**Try it:** add a worker without changing the other sliders, then compare **peak running** and **jobs/min**. In production, more workers also compete for database connections and downstream capacity. If a provider requires a fleet-wide limit, enforce it separately; per-worker permits won't do that.
+
+Start with a small `maxJobs` if you're fitting work into a request deadline. Before raising concurrency or adding replicas, measure how long the oldest due job has waited, database connection pressure, and provider latency or throttling. See [worker execution](/docs/execution/workers) for option bounds and polling behavior, and [lease recovery](/docs/execution/recovery) for the ownership rules.

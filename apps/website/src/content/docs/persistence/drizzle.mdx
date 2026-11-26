@@ -1,6 +1,6 @@
 ---
-title: Use Effect-native Drizzle with the same PgClient
-description: Qualified native query composition, optional schema declarations and exact version limits.
+title: Using Drizzle
+description: Run Drizzle queries and enqueue jobs in the same PostgreSQL transaction.
 ---
 
 import { CodeExample } from "../../../components/docs/index"
@@ -9,6 +9,8 @@ Keep Drizzle for typed order queries and migrations while the queue joins the
 same native PostgreSQL transaction. Schema declarations alone do not bind a
 transaction: wire the runtime client explicitly.
 
+Use the Drizzle dependency from the [Orders example’s `package.json`](https://github.com/nr1brolyfan/effect-jobs/blob/main/apps/website/examples/docs/orders/package.json). If you start from the example, its dependencies are already configured.
+
 ## Choose one client before opening a transaction
 
 For the bundled driver, use `DrizzlePostgresClient` and `makeWithDefaults` from
@@ -16,10 +18,8 @@ For the bundled driver, use `DrizzlePostgresClient` and `makeWithDefaults` from
 `PostgreSqlNative`. This is the route used by the Cloudflare Alchemy example;
 it does not require `pg` or `@effect/sql-pg`.
 
-The playground uses `@effect/sql-pg` instead: on rc.6 an interrupted query can
-still be running on PostgreSQL when the invocation ends, and the bundled client
-has not passed the playground's WebSocket Durable Object hibernation test.
-Never retry a transaction on the other driver after a failure.
+The Orders tutorial uses `@effect/sql-pg` instead. Choose one client for each
+transaction; switching drivers does not tell you whether a write committed.
 
 ## Build the order tutorial with PgClient
 
@@ -47,13 +47,9 @@ with equal options does not establish transaction identity. Joining jobs adds
 no BEGIN, savepoint, independent COMMIT or replay. The application retains pool,
 migration, timeout and outer error/reconciliation ownership.
 
-The supported transaction owner is `client.withTransaction` with Drizzle queries
-in the same Effect context. Separately, the bundled `drizzle-orm/postgres/effect`
-driver qualification exercises the ordinary `db.transaction` callback on Node,
-Bun and workerd. With one scoped client, it checks that the domain row, job,
-payload and receipt share a PostgreSQL connection and transaction. The type probes check the inferred error and service
-channels. This evidence does not extend to nesting, isolation options or other
-drivers. See the disconnected rollback limitation below.
+Use `client.withTransaction` with Drizzle queries in the same Effect context.
+If the connection drops, an error is not proof of rollback. Check the original
+operation’s receipt; if the outcome stays unknown, do not replay it blindly.
 
 ## Optional declarations for migrations
 
@@ -75,29 +71,6 @@ Drizzle is optional: core imports and the PostgreSQL runtime do not import it.
 A non-Drizzle application can use the SQL migration helper and a qualified
 application adapter. The root `effect-jobs` export is empty; import focused public
 subpaths rather than internal modules.
-
-## Exact supported graph and limits
-
-The current local candidate targets Effect **4.1.3**, optional native
-**`@effect/sql-pg@4.1.3`**, and exactly Drizzle **`1.0.0-rc.6-effect-jobs.1`**. The PgClient
-native matrix uses Node **24.15.0**, Bun **1.4.2**, PostgreSQL **16.15** and pg
-**8.23.0**. Use ordinary peer resolution, one physical Effect instance and the
-intended native peers, without force installs or dependency overrides. This
-qualification uses the exact local candidate tarball, not the registry release.
-
-Own-source strict/exact-optional contracts (A+B) use the accepted dependency
-`skipLibCheck: true` setting, with actual negative compiler checks. Full foreign
-declaration checking (C, `skipLibCheck: false`) is a separate release gate.
-The [commit-pinned tarball](/docs/start/installation/) repairs the three missing
-builder declarations from the registry rc.6 package. The UI consumer's Redux
-diagnostics are separate.
-
-Real PostgreSQL qualification covers same-connection atomic writes, rollback,
-concurrent duplicates/conflicts, interruption and synthetic lost response after
-durable COMMIT. It does not qualify arbitrary drivers or versions, nested/options
-semantics, real network/server crashes or production use. On the qualified rc.6 fork the bundled
-driver can also return only the application error when a disconnected session's
-`ROLLBACK` fails. That error is not an acknowledgement of rollback.
 
 Return to [transaction ownership](/docs/persistence/transactions/) before adapting
 this graph to application requests.

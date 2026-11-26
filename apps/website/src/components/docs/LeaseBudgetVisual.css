@@ -1,0 +1,118 @@
+.lb.wd .wd-setting-title {
+  flex-wrap: wrap;
+  gap: 2px 6px;
+}
+.lb.wd .lb-nodes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr);
+  align-items: center;
+  margin-top: 18px;
+}
+.lb .wd-node {
+  align-self: stretch;
+}
+.lb .wd-node dl {
+  padding: 8px 12px;
+}
+.lb .wd-node dd {
+  white-space: nowrap;
+}
+.lb .lb-bridge {
+  border-top: 1px solid var(--wd-wire);
+  text-align: center;
+  height: 0;
+}
+.lb .lb-bridge span {
+  display: inline-block;
+  transform: translateY(-50%);
+  border: 1px solid #786890;
+  color: var(--wd-violet);
+  border-radius: 4px;
+  background: #19181e;
+  padding: 2px 6px;
+  font: 10px var(--wd-mono);
+}
+.lb.wd .lb-timeline {
+  margin: 16px 0;
+}
+.lb-axis {
+  display: flex;
+  justify-content: space-between;
+  font: 11px var(--wd-mono);
+  color: var(--wd-muted);
+}
+.lb.wd .lb-lanes {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.lb-lanes::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: var(--lb-expiry);
+  border-left: 1px solid #e4d8f7;
+}
+.lb-lane {
+  display: flex;
+  height: 8px;
+  background: #35313c;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.lb-lease {
+  background: #a791c3;
+}
+.lb-elapsed {
+  background: #8690a1;
+}
+.lb-attempt {
+  background: #8469ba;
+}
+.lb-response {
+  background: #64a891;
+}
+.lb.wd .wd-legend {
+  margin-top: 9px;
+  color: var(--wd-muted);
+}
+.lb .wd-legend i {
+  border: 0;
+}
+.lb-clock {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--wd-muted);
+  font: 11px var(--wd-mono);
+}
+.lb-clock svg {
+  height: 14px;
+  width: 14px;
+}
+@container (max-width: 480px) {
+  .lb.wd .lb-nodes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lb .lb-bridge {
+    height: 26px;
+    border-top: 0;
+    position: relative;
+    display: grid;
+    place-items: center;
+  }
+  .lb .lb-bridge::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    border-left: 1px solid var(--wd-wire);
+  }
+  .lb .lb-bridge span {
+    transform: none;
+    z-index: 1;
+  }
+}

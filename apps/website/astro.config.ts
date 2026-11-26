@@ -36,12 +36,31 @@ export default defineConfig({
   markdown: { syntaxHighlight: false },
   outDir: "./dist/site",
   trailingSlash: "never",
+  // The native assets layer also needs exact legacy aliases in public/_redirects.
+  redirects: {
+    "/docs/start/installation": "/docs#install",
+    "/docs/start/tutorial": "/docs",
+    "/docs/start/first-job": "/docs",
+    "/docs/reference": "/docs/reference/modules"
+  },
   vite: {
     // The renderer imports virtual options, which must be bundled for prerendering.
     environments: { prerender: { resolve: { noExternal: ["@astrojs/react"] } } },
     plugins: [extraction]
   },
   integrations: [
+    {
+      name: "docs-preview-prefetch",
+      hooks: {
+        "astro:config:setup": ({ command, updateConfig }) => {
+          // Rendering a prefetched page can collect new StyleX rules and trigger
+          // a dev-server reload while the pointer is still over the link.
+          if (command === "dev") {
+            updateConfig({ prefetch: false })
+          }
+        }
+      }
+    },
     productionAssets(),
     sitemap({ filter: (page) => new URL(page).pathname !== "/docs/jobs" }),
     react(),
@@ -96,8 +115,7 @@ export default defineConfig({
         ThemeSelect: "./src/components/docs/ThemeSelect.astro"
       },
       sidebar: [
-        { label: "Overview", link: "/docs" },
-        { label: "Start here", items: [{ autogenerate: { directory: "docs/start" } }] },
+        { label: "Getting Started", link: "/docs" },
         {
           label: "Core concepts",
           items: [{ autogenerate: { directory: "docs/concepts" } }]

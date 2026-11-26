@@ -79,24 +79,10 @@ export const styles = stylex.create({
     minWidth: "0",
     minHeight: "290px"
   },
-  // .jv-overview
-  overviewSelected: {
-    gridTemplateColumns: "1fr 1.55fr 1fr",
-    gridTemplateRows: "1fr 1fr"
-  },
   // .jv-transaction
   transactionSelected: { gridTemplateColumns: "1.8fr 1fr", gap: "80px" },
   // .jv-handoff
   handoffSelected: { gridTemplateColumns: "1fr 1fr 1fr", gridTemplateRows: "1fr 1fr" },
-  // .jv-overview
-  overviewSelected2: {
-    gridTemplateColumns: {
-      "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "1fr 1fr"
-    },
-    gridTemplateRows: {
-      "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "auto auto"
-    }
-  },
   // .jv-handoff
   handoffSelected2: {
     gridTemplateColumns: {
@@ -161,14 +147,6 @@ export const styles = stylex.create({
     transition: {
       default: "border-color 180ms,\n    background-color 180ms,\n    opacity 180ms",
       "@media (prefers-reduced-motion: reduce)": "none"
-    },
-    gridColumn: {
-      default: "1",
-      "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "1"
-    },
-    gridRow: {
-      default: "1 / 3",
-      "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "1"
     }
   },
   // .jv-node[data-active="true"]
@@ -226,23 +204,6 @@ export const styles = stylex.create({
     borderStyle: "solid",
     borderColor: "#51485e",
     borderRadius: "10px"
-  },
-  // .jv-overview .jv-database
-  databaseSelected: { gridColumn: "2", gridRow: "1 / 3" },
-  // .jv-overview .jv-database
-  databaseSelected2: {
-    gridColumn: {
-      "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "2"
-    },
-    gridRow: {
-      "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "1"
-    }
-  },
-  // .jv-overview .jv-database
-  databaseSelected3: {
-    alignSelf: {
-      "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "stretch"
-    }
   },
   // .jv :where(div, span, code, strong, button, svg) | .jv-db-title | .jv-db-title
   dbTitle: {
@@ -371,14 +332,6 @@ export const styles = stylex.create({
     transition: {
       default: "border-color 180ms,\n    background-color 180ms,\n    opacity 180ms",
       "@media (prefers-reduced-motion: reduce)": "none"
-    },
-    gridColumn: {
-      default: "3",
-      "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "2"
-    },
-    gridRow: {
-      default: "1",
-      "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "2"
     }
   },
   // .jv :where(div, span, code, strong, button, svg) | .jv-node, .jv-database | .jv-node | .jv-email | .jv-email | .jv-node
@@ -403,14 +356,6 @@ export const styles = stylex.create({
     transition: {
       default: "border-color 180ms,\n    background-color 180ms,\n    opacity 180ms",
       "@media (prefers-reduced-motion: reduce)": "none"
-    },
-    gridColumn: {
-      default: "3",
-      "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "1"
-    },
-    gridRow: {
-      default: "2",
-      "@media (max-width: 1100px) and (min-width: 800px), (max-width: 600px)": "2"
     }
   },
   // .jv :where(div, span, code, strong, button, svg) | .jv-node, .jv-database | .jv-transaction-box

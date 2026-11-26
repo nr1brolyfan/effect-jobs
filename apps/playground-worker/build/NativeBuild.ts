@@ -87,7 +87,7 @@ try {
     redirectControl
       .trim()
       .split("\n")
-      .some((line) => !/^\S+ \/_pages\/[a-f0-9]{64} 200$/.test(line))
+      .some((line) => !/^\S+ \/_pages\/[a-f0-9]{64}\/[a-f0-9]{64} 200$/.test(line))
   ) {
     throw new Error("Invalid generated native platform controls")
   }

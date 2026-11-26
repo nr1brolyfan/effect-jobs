@@ -7,10 +7,27 @@ import { readOwnerPreservation } from "./Preservation.mjs"
 // Retain the standalone oracle and register it with the workspace runner too.
 const { test } = await import(process.env.VITEST ? "vitest" : "node:test")
 
-test("Defining jobs has its dedicated reference, separate from Getting started", async () => {
+test("Definition modules stay in the API reference, separate from Getting Started", async () => {
   const sidebar = await readFile("apps/website/src/components/docs/Sidebar.astro", "utf8")
-  assert(sidebar.includes('["Defining jobs", "/docs/reference/definitions"]'))
-  assert(sidebar.includes('["Getting started", "/docs/start/tutorial"]'))
+  assert(
+    sidebar.includes(
+      'href="/docs" aria-current={gettingStarted ? "page" : undefined}>Getting Started'
+    )
+  )
+  const groups = JSON.parse(
+    await readFile(
+      "apps/website/src/content/docs/reference/module-navigation.json",
+      "utf8"
+    )
+  )
+  const definition = groups.find((group) => group.href === "/docs/reference/definitions")
+  assert(definition)
+  for (const title of ["Job", "JobQueue", "JobProducer", "JobGroup", "JobApi"]) {
+    assert(
+      definition.modules.some((module) => module.title === title),
+      title
+    )
+  }
   assert(!sidebar.includes("#1-place-an-order-without-waiting-for-email"))
   assert(!sidebar.includes("Durable by design"))
   assert(!sidebar.includes("Effect-native. PostgreSQL-backed."))
@@ -21,15 +38,6 @@ test("Defining jobs has its dedicated reference, separate from Getting started",
     "utf8"
   )
   assert(reference.includes("title: Definitions and production"))
-  for (const heading of [
-    "## Job\n",
-    "## JobQueue",
-    "## JobProducer",
-    "## JobGroup",
-    "## JobApi"
-  ]) {
-    assert(reference.includes(heading))
-  }
 })
 
 test("docs use a supported Github Dark theme without painting token spans", async () => {

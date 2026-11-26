@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { frames, stateOf } from "../../src/components/landing/Storyboard.js"
 import { maximum, presentation } from "../../src/components/docs/VisualState.js"
+import { drainTrace } from "../../src/components/docs/WorkerDrainTrace.js"
 
 describe("landing storyboard contracts", () => {
   it("bounds execution to two slots and never assigns a slot twice", () => {
@@ -28,6 +29,29 @@ describe("landing storyboard contracts", () => {
 })
 
 describe("documentation illustration contracts", () => {
+  it("keeps expired-lease recovery separate from claim caps and slot usage", () => {
+    const { frames, peak } = drainTrace({
+      concurrency: 8,
+      maxJobs: 16,
+      recovery: 8,
+      workers: 3
+    })
+    expect(frames[1]?.workers.map((worker) => worker.packets)).toEqual(
+      Array.from({ length: 3 }, () => [{ kind: "recover", text: "≤8 leases" }])
+    )
+    expect(frames[2]).toMatchObject({ pending: 88, recovered: 24, expired: 0, active: 0 })
+    expect(peak).toBe(24)
+    expect(frames.at(-1)).toMatchObject({ pending: 40, completed: 48, active: 0 })
+    const claimed = frames.flatMap((frame) =>
+      frame.workers.flatMap((worker) =>
+        worker.packets
+          .filter((packet) => packet.kind === "claim")
+          .map((packet) => packet.text)
+      )
+    )
+    expect(claimed).toHaveLength(48)
+    expect(new Set(claimed).size).toBe(48)
+  })
   it("confirmed rollback exposes neither record nor a claimable job", () => {
     for (const step of [3, maximum("transaction")]) {
       const view = presentation("transaction", step, "rollback")
@@ -52,10 +76,15 @@ describe("documentation illustration contracts", () => {
     expect(view.dim).toBe(false)
   })
   it("keeps the API response, external side effect and durable completion distinct", () => {
-    expect(presentation("overview", 2, "commit").labels["response"]).toBe("201 Created")
-    expect(presentation("overview", 2, "commit").labels["emailState"]).toBe("—")
-    expect(presentation("overview", 4, "commit").labels["emailState"]).toBe("Sent")
-    expect(presentation("overview", 4, "commit").labels["jobState"]).toBe("Active")
-    expect(presentation("overview", 5, "commit").labels["jobState"]).toBe("Completed")
+    expect(presentation("overview", 1, "commit").labels["response"]).toBe(
+      "Waiting for API"
+    )
+    expect(presentation("overview", 1, "commit").labels["jobState"]).toBe("—")
+    expect(presentation("overview", 2, "commit").labels["jobState"]).toBe("Pending")
+    expect(presentation("overview", 3, "commit").labels["response"]).toBe("201 Created")
+    expect(presentation("overview", 3, "commit").labels["emailState"]).toBe("—")
+    expect(presentation("overview", 5, "commit").labels["emailState"]).toBe("Sent")
+    expect(presentation("overview", 5, "commit").labels["jobState"]).toBe("Active")
+    expect(presentation("overview", 6, "commit").labels["jobState"]).toBe("Completed")
   })
 })

@@ -9,12 +9,14 @@ import * as JobApi from "effect-jobs/JobApi"
 import * as FailureCode from "effect-jobs/FailureCode"
 import { JobFailures, type JobFailure } from "effect-jobs/JobFailure"
 
+const reportIdPattern = /^[a-z0-9-]{1,64}$/
+
 // #region definition
 // Workers select this named queue; it groups jobs, not business requests.
 export const ReportsQueue = Effect.runSync(JobQueue.make("reports"))
 export type ReportPayload = typeof ReportPayload.Type
 export const ReportPayload = Schema.Struct({
-  reportId: Schema.String.pipe(Schema.check(Schema.isPattern(/^[a-z0-9-]{1,64}$/))),
+  reportId: Schema.String.pipe(Schema.check(Schema.isPattern(reportIdPattern))),
   rows: Schema.Array(
     Schema.Struct({
       product: Schema.String,

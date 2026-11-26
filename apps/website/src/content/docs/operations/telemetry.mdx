@@ -39,6 +39,12 @@ end-to-end report completion counter. A successful claim means the claim operati
 succeeded; it does not mean report generation succeeded. Nested finalization
 boundaries produce separate observations and must not be summed as unique jobs.
 
+## Start with three dashboard views
+
+1. **Are jobs waiting?** Measure oldest due age and due backlog from the authoritative store through an application-owned query. Break it down by a bounded set of queues. A healthy `claim` span alone can't tell you whether more work is waiting.
+2. **Where is time going?** Compare `permit-wait`, `claim` and `invoke` latency. Growing permit waits with stable storage and provider latency suggest a capacity limit; growing claim and reconciliation latency instead points to storage or connection pressure.
+3. **Are external effects succeeding?** Use the application's confirmed delivery or write counter for end-to-end outcomes. Track library `unknown` and recovery failures separately; don't count either as provider failure or success.
+
 ## Group by bounded fields
 
 | Field                      | Emitted vocabulary                                                                                                                                                                    |

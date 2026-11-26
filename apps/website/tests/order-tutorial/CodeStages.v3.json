@@ -1,0 +1,23 @@
+[
+  {
+    "sourcePath": "orders/packages/orders/src/contracts/jobs.ts",
+    "region": "shared-contract",
+    "appendRegion": "invoice-contracts",
+    "beforeSourcePath": "orders/packages/orders/src/contracts/jobs.ts",
+    "beforeRegion": "shared-contract",
+    "role": "Shared contract",
+    "beforeSha256": "01f2c3f4a302038b719c783e701b501dcdf02e9046330520f7ab7baaab24196d",
+    "afterSha256": "b3984084739f0044ae872e3998301f4bcdb8869f4d3d27b3363060520541a35f",
+    "added": [27, 28, 29, 30, 32, 33, 34, 35]
+  },
+  {
+    "sourcePath": "orders/apps/api/src/orders/Definitions.ts",
+    "region": "invoice-producer",
+    "beforeSourcePath": "orders/apps/api/src/orders/Definitions.ts",
+    "beforeRegion": "confirmation-producer",
+    "role": "Producer",
+    "beforeSha256": "cced38a972a96d5587ee0a7556151dae8d21b0bd71a63cbb18ca75e8299b7fa0",
+    "afterSha256": "f6399da35eb5da98596b5ff42a8d1298de7de4f658019c1f69d547bf9ea03cc5",
+    "added": [1, 5, 6, 7, 8]
+  }
+]

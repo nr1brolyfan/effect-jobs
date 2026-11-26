@@ -21,6 +21,8 @@ export const ConfirmationWorkerLayer = Layer.unwrap(
   Effect.gen(function* () {
     const { ConfirmationApi } = yield* OrderJobs
     const jobs = yield* PostgreSqlJobs.PostgreSqlJobs
+
+    // The catalog declares what can run; the handler Layer installs the implementation.
     return JobWorker.layer(ConfirmationApi, {
       queues: [{ queue: OrdersQueue, concurrency: 2 }]
     }).pipe(
@@ -30,6 +32,8 @@ export const ConfirmationWorkerLayer = Layer.unwrap(
     )
   })
 )
+
+// Building the Layer doesn't claim jobs. The drain is the execution boundary.
 export const drainConfirmations = JobWorker.drain(OrdersQueue, {
   maxJobs: 20,
   recoveryLimit: 20
@@ -41,6 +45,7 @@ export const WorkerLayer = Layer.unwrap(
   Effect.gen(function* () {
     const { ApplicationJobs } = yield* OrderJobs
     const jobs = yield* PostgreSqlJobs.PostgreSqlJobs
+
     return JobWorker.layer(ApplicationJobs, {
       queues: [{ queue: OrdersQueue, concurrency: 2 }]
     }).pipe(
@@ -54,11 +59,15 @@ export const WorkerLayer = Layer.unwrap(
     )
   })
 )
+
 export const drainOrders = JobWorker.drain(OrdersQueue, {
   maxJobs: 20,
   recoveryLimit: 20
 }).pipe(Effect.provide(WorkerLayer))
+// #endregion composition
 
+// #region polling
+// Keep the polling Layer scoped to this process; shutdown closes it.
 export const pollOrders = Effect.never.pipe(
   Effect.provide(
     JobPolling.layer([OrdersQueue], {
@@ -69,7 +78,7 @@ export const pollOrders = Effect.never.pipe(
   ),
   Effect.scoped
 )
-// #endregion composition
+// #endregion polling
 
 export const WorkerApplicationLayer = Layer.mergeAll(
   PersistenceLayer,

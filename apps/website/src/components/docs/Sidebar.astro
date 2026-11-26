@@ -1,17 +1,76 @@
 ---
 import * as stylex from "@stylexjs/stylex"
 import { styles } from "./ShellStyles.js"
+import referenceGroups from "../../content/docs/reference/module-navigation.json"
 const groups = [
-  { title: "Start", links: [["Introduction", "/docs"], ["Getting started", "/docs/start/tutorial"]] },
-  { title: "Produce", links: [["Defining jobs", "/docs/reference/definitions"], ["Enqueueing & transactions", "/docs/persistence/transactions"]] },
-  { title: "Run", links: [["Workers & handlers", "/docs/execution/workers"], ["Retries & recovery", "/docs/execution/recovery"]] },
-  { title: "Operate", links: [["PostgreSQL & Drizzle", "/docs/persistence/drizzle"], ["Production checklist", "/docs/operations/production-checklist"], ["Monitoring & troubleshooting", "/docs/operations/troubleshooting"]] },
-  { title: "Reference", links: [["API design decisions", "/docs/concepts/api-design-decisions"], ["API reference", "/docs/reference"]] }
+  { title: "Deployment", links: [["Choose a deployment", "/docs/deployment"], ["Node.js / Bun + PostgreSQL", "/docs/deployment/postgresql"], ["Cloudflare + PostgreSQL", "/docs/deployment/cloudflare-postgresql"], ["Cloudflare + DO SQLite", "/docs/deployment/cloudflare-sqlite"]] },
+  { title: "Concepts", links: [["Jobs, producers & queues", "/docs/concepts/model"], ["Job APIs & handlers", "/docs/concepts/handlers"], ["Transactions & deduplication", "/docs/persistence/transactions"], ["Lifecycle & recovery", "/docs/concepts/lifecycle"], ["Retries & failure outcomes", "/docs/execution/retries"], ["Payloads & versioning", "/docs/concepts/payloads"], ["API design decisions", "/docs/concepts/api-design-decisions"]] },
+  { title: "Deep Dives", links: [["Worker limits & throughput", "/docs/deep-dives/worker-limits"], ["Job states & failure outcomes", "/docs/deep-dives/job-states"], ["Durable retries, step by step", "/docs/deep-dives/durable-retries"], ["Timeouts, leases & response budget", "/docs/deep-dives/budgets"], ["Migrations & rolling upgrades", "/docs/deep-dives/migrations"], ["Payload encryption", "/docs/deep-dives/encryption"]] },
+  { title: "Production", links: [["Production checklist", "/docs/operations/production-checklist"], ["Migrations & upgrades", "/docs/persistence/postgresql"], ["Using Drizzle", "/docs/persistence/drizzle"], ["Observability", "/docs/operations/telemetry"], ["Troubleshooting & recovery", "/docs/operations/troubleshooting"]] }
 ]
 const current = Astro.url.pathname.replace(/\/$/, "")
+const gettingStarted = current === "/docs"
+const moduleIndex = "/docs/reference/modules"
+const examples = "/docs/reference/examples"
+const referenceGroup = referenceGroups.find(({ href, modules }) =>
+  current === href || modules.some((module) => module.href === current)
+)
 ---
+<div class:list={["ej-nav-group", stylex.attrs(styles.ejNavGroup).class]}>
+  <a {...stylex.attrs(styles.ejNavGroup5, gettingStarted && styles.ejNavGroupSelected)} href="/docs" aria-current={gettingStarted ? "page" : undefined}>Getting Started</a>
+</div>
 {groups.map((group) => <section class:list={["ej-nav-group", stylex.attrs(styles.ejNavGroup).class]} aria-label={group.title}>
   <h2 {...stylex.attrs(styles.ejNavGroup2)}>{group.title}</h2>
   <ul {...stylex.attrs(styles.ejNavGroup3)}>{group.links.map((link) => <li {...stylex.attrs(styles.ejNavGroup4)}><a {...stylex.attrs(styles.ejNavGroup5, current === link[1] && styles.ejNavGroupSelected)} href={link[1]} aria-current={current === link[1] ? "page" : undefined}>{link[0]}</a></li>)}</ul>
 </section>)}
-<a class:list={["ej-examples-link", stylex.attrs(styles.ejNavExamples).class]} href="/docs/reference/examples">Complete checked examples <span aria-hidden="true">↗︎</span></a>
+<section class:list={["ej-nav-group", stylex.attrs(styles.ejNavGroup).class]} aria-label="API Reference">
+  <h2 {...stylex.attrs(styles.ejNavGroup2)}>API Reference</h2>
+  <ul {...stylex.attrs(styles.ejNavGroup3)}>
+    <li {...stylex.attrs(styles.ejNavGroup4)}>
+      <a {...stylex.attrs(styles.ejNavGroup5, current === moduleIndex && styles.ejNavGroupSelected)} href={moduleIndex} aria-current={current === moduleIndex ? "page" : undefined}>Public modules</a>
+      {referenceGroup && (
+        <ul {...stylex.attrs(styles.ejNavGroup3, styles.ejNavModuleList)} aria-label={referenceGroup.title}>
+          <li>
+            <a {...stylex.attrs(styles.ejNavGroup5, styles.ejNavModuleCategory, current === referenceGroup.href && styles.ejNavGroupSelected)} href={referenceGroup.href} aria-current={current === referenceGroup.href ? "page" : undefined}>{referenceGroup.title}</a>
+          </li>
+          {referenceGroup.modules.map(({ title, href }) => <li>
+            <a {...stylex.attrs(styles.ejNavGroup5, styles.ejNavModule, current === href && styles.ejNavGroupSelected)} href={href} aria-current={current === href ? "page" : undefined}>{title}</a>
+          </li>)}
+        </ul>
+      )}
+    </li>
+    <li {...stylex.attrs(styles.ejNavGroup4)}>
+      <a {...stylex.attrs(styles.ejNavGroup5, current === examples && styles.ejNavGroupSelected)} href={examples} aria-current={current === examples ? "page" : undefined}>Checked examples</a>
+    </li>
+  </ul>
+</section>
+
+<!-- The custom sidebar replaces Starlight's own scroll persister. Restore only the pane. -->
+<script is:inline>
+  (() => {
+    const pane = document.getElementById("starlight__sidebar")
+    if (!pane) {
+      return
+    }
+    const key = "effect-jobs:docs-sidebar-scroll"
+    const desktop = matchMedia("(min-width: 50rem)")
+    try {
+      const saved = Number(sessionStorage.getItem(key))
+      if (desktop.matches && Number.isFinite(saved) && saved >= 0) {
+        pane.scrollTop = saved
+      }
+    } catch {
+      // The sidebar still works with storage disabled.
+    }
+    addEventListener("pagehide", () => {
+      if (!desktop.matches) {
+        return
+      }
+      try {
+        sessionStorage.setItem(key, String(pane.scrollTop))
+      } catch {
+        // Scroll persistence is optional.
+      }
+    })
+  })()
+</script>

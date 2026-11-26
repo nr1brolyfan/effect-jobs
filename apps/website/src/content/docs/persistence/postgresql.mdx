@@ -88,8 +88,7 @@ The diagnostic carries no relation names, SQL, payloads or provider errors.
 
 Install the local worker's declared handlers and queues separately. Validate
 [producer route coverage and running consumers](/docs/execution/workers/) in
-the intended deployment, and use the [response-budget preflight](https://github.com/nr1brolyfan/effect-jobs/issues/36)
-for outstanding policy compatibility before raising the worker reserve.
+the intended deployment. Before raising the worker reserve, check it against outstanding jobs' persisted policies; see [timeouts and leases](/docs/deep-dives/budgets).
 
 See [atomic transactions](/docs/persistence/transactions/) before writing an order
 and enqueuing its job. See [workers](/docs/execution/workers/) for the separate

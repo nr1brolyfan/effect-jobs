@@ -1,0 +1,29 @@
+---
+title: Timeouts, leases and response budget
+description: Budget execution time separately from database response time and ownership.
+---
+
+import LeaseBudgetLab from "../../../components/docs/LeaseBudgetLab.astro"
+
+Start by separating **work**, **ownership** and **storage response time**. `attemptTimeout` bounds the attempt, including validation, execution and the bounded finalization protocol. It is not a grant of that entire time to external I/O. `leaseDuration` is a fixed, non-renewing ownership window. `operationResponseBudget` is storage response headroom, not a handler timeout.
+
+<LeaseBudgetLab />
+
+## Try a slow claim
+
+With the initial settings, the policy leaves **1,000 ms** after the attempt.
+After **100 ms** has elapsed since claim, **900 ms** remains for the response
+budget: **200 ms** more than required. Raise elapsed time to **400 ms**. The
+policy is still valid, but that particular claim no longer has enough headroom.
+
+## Policy admission and claim admission are different
+
+At configuration, the check is `leaseDuration − attemptTimeout ≥ operationResponseBudget`, with a lease strictly longer than the attempt timeout. At dispatch it's **remaining lease**, after time already spent on the claim, that must cover the attempt plus the response budget. The worker must not start the handler on a claim that can't meet this check. The storage protocol may reconcile or release that claim; a short lease doesn't make the claim disappear.
+
+For example, set **Lease duration** to 2,700 ms and elapsed to 0. The configuration meets the minimum exactly. Move elapsed to 100 ms: it still passes the first check, but no longer the second. A lease that has already expired cannot authorize finalization.
+
+## Choose the budgets from the outside in
+
+Start from the platform invocation deadline. Set a downstream deadline that leaves room inside the attempt for validation and the finalization protocol. Budget the claim using observed storage latency; don't rely on a configuration that only works at equality. Keep the driver's acquisition, statement and transaction-control timeouts finite too. The reserve isn't a replacement for those limits.
+
+Reduce the batch size if a drain can't fit inside the invocation. Don't shorten a lease to force faster retries: it can make healthy claims unusable, and expiry never proves an external request didn't happen. See [worker limits](/docs/deep-dives/worker-limits) and [lease recovery](/docs/execution/recovery).

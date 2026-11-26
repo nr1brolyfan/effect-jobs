@@ -1,0 +1,34 @@
+---
+title: Payload encryption
+description: Trace protected payload content, visible metadata and application-owned key rotation.
+---
+
+import DeepDiveTrace from "../../../components/docs/DeepDiveTrace.astro"
+
+Payload protection is explicit. The application chooses which fields require protection and provides the protection service. Installing `effect-jobs` does not encrypt every job or provision keys.
+
+<DeepDiveTrace name="encryption" />
+
+## Follow a protected value
+
+| Stage        | What happens                                                                                                                                                                                           |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Producer** | Schema and the configured protection service encode the protected value. Prefer passing an ID to the worker if you can avoid persisting the sensitive value altogether.                                |
+| **Database** | The job stores an encoded payload and semantic projection. Protection of payload fields does not hide routing metadata, job states or timestamps. Keep secrets out of operation IDs and failure codes. |
+| **Worker**   | The compatible codec decodes the original persisted payload before the handler. If old ciphertext still needs execution, workers need the ability to decode it after key rotation.                     |
+
+Treat key storage, rotation, and compatibility with old ciphertext as application responsibilities. Do not print decrypted content to troubleshoot a failing codec. An invalid artifact is an investigation case, not a reason to loop an external retry.
+
+## Choose the boundary
+
+- **Store an ID** if the worker can load the sensitive data from its source of truth. Decide whether it needs the current value or a snapshot from enqueue time.
+- Use **`JobPayload.encrypted`** to bind a domain field to an application codec. The producer seals the encoded value; the worker opens it before decoding the field and calling the handler.
+- Use **`JobPayload.protected`** for a representation your app already protects. It tells the library where to read the fingerprint; the marker doesn't encrypt or validate a security design.
+
+Separate seal keys from stable keyed fingerprint semantics. A randomized ciphertext can change even for the same value; it is not a stable deduplication fingerprint. A fingerprint can still reveal equality to someone who sees it. Neither the projection nor the envelope replaces authentication of the ciphertext by the application codec.
+
+## Rotate without stranding jobs
+
+Deploy workers that can open K1 and K2 before producers start sealing with K2. Keep K1 available for due jobs, delayed jobs, and jobs that can return after recovery. A retry reuses the stored envelope; it doesn't get re-encrypted by your newer producer. Treat replay and recovery of backups as separate decisions before retiring K1.
+
+[Explore the payload codec contracts](/docs/reference/payloads).

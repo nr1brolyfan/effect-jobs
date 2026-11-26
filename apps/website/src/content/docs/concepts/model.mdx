@@ -5,6 +5,8 @@ sidebar:
   order: 1
 ---
 
+import TransitionDiagram from "../../../components/docs/TransitionDiagram.astro"
+
 A report API and a report worker need to agree on what work means. They do not
 need to share an HTTP server, a renderer or provider credentials.
 
@@ -32,6 +34,8 @@ const reportSetup = Effect.gen(function* () {
 })
 ```
 
+Even a producer with just one slot needs `JobProducer`: the job definition says what work means; the producer says which business operation can enqueue it and supplies its route and policy. The worker doesn't need that producer definition to run the job.
+
 ## Which contract runs and which write deduplicates?
 
 A stored **`JobAddress`** is `(queue, name, version)`. The worker claims from the
@@ -44,11 +48,34 @@ is retained, matching name, version, payload format and semantic payload return
 the original job ID. A difference in those fields conflicts. The first queue,
 policy and initial availability remain in effect.
 
-```text
-First enqueue to reports                    → Inserted(J1)
-Matching replay targeting reports-priority  → AlreadyPresent(J1)
-J1 remains on reports.
-```
+<TransitionDiagram
+  title="A matching replay keeps the original queue"
+  summary="Both requests use the same producer identity and matching content."
+  groups={[
+    {
+      from: { title: "First enqueue", detail: "Target queue: reports" },
+      transitions: [
+        {
+          when: "No existing job",
+          to: { title: "Inserted(J1)", detail: "J1 is stored on reports", tone: "green" }
+        }
+      ]
+    },
+    {
+      from: { title: "Matching replay", detail: "Target queue: reports-priority" },
+      transitions: [
+        {
+          when: "Original evidence is retained",
+          to: {
+            title: "AlreadyPresent(J1)",
+            detail: "J1 stays on reports",
+            tone: "violet"
+          }
+        }
+      ]
+    }
+  ]}
+/>
 
 Two slots may enqueue the same name. Two slots do not create ordering or a flow.
 Use separate consequences for generation and delivery, with an explicit
@@ -63,4 +90,4 @@ the worker and explicitly runs a finite drain or scoped polling runtime.
 The `concurrency` option limits concurrent claims and executions for a queue
 within one worker instance. Each replica has its own limit. See
 [workers](/docs/execution/workers) for lifetime and shutdown, or
-[first job](/docs/start/first-job) for a concrete composition.
+[Getting Started](/docs#your-first-job) for a concrete composition.

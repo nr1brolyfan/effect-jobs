@@ -188,6 +188,7 @@
     "qualify:docs:orders": "node apps/website/tests/order-tutorial/Qualify.ts",
     "qualify:docs:examples": "node apps/website/tests/docs-reference/Qualify.ts",
     "check:docs:reference": "node apps/website/tests/docs-reference/Reference.ts --check",
+    "generate:docs:reference": "node apps/website/tests/docs-reference/Reference.ts",
     "site:routes": "node apps/website/tests/site/Routes.ts",
     "check:docs:snippets": "vitest run --project website-unit apps/website/tests/modernization/Docs.unit.ts",
     "playground:fixtures": "bun run --cwd apps/playground build:fixtures",

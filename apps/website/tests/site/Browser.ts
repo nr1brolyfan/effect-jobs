@@ -174,8 +174,7 @@ try {
   for (const route of [
     "concepts/api-design-decisions",
     "persistence/transactions",
-    "start/tutorial",
-    "start/first-job",
+    "",
     "start/why-background-jobs"
   ]) {
     const page = await browser.newPage({
@@ -183,7 +182,7 @@ try {
       reducedMotion: "reduce"
     })
     page.on("pageerror", (error) => failures.push(error.message))
-    const response = await page.goto(origin + "/docs/" + route)
+    const response = await page.goto(origin + (route ? "/docs/" + route : "/docs"))
     assert(response)
     assert.equal(
       await response.text(),
@@ -239,13 +238,17 @@ try {
           })
         }
       } else if (route !== "start/why-background-jobs") {
-        const panel = page.locator(".expressive-code").first()
         const sourceByRoute: Record<string, readonly [string, string]> = {
           "persistence/transactions": ["apps/api/src/orders/PlaceOrder.ts", "request"],
-          "start/tutorial": ["apps/api/src/orders/Orders.ts", "request"],
-          "start/first-job": ["apps/api/src/orders/Orders.ts", "request"]
+          "": ["apps/api/src/orders/Orders.ts", "request"]
         }
         const [sourcePath, region] = sourceByRoute[route]!
+        const panel = page
+          .locator(".expressive-code")
+          .filter({
+            has: page.locator(".title").getByText(sourcePath, { exact: true })
+          })
+          .first()
         const expected = extractRegion(
           readFileSync(
             resolve(repository, "apps/website/examples/docs/orders", sourcePath),
@@ -338,7 +341,7 @@ try {
             path: `${evidence}/${route.replaceAll("/", "-")}-${width}-middle.png`
           })
         }
-        if (route === "start/tutorial") {
+        if (route === "") {
           await page
             .locator('[data-job-visual="handoff"]')
             .screenshot({ path: `${evidence}/order-flow-${width}.png` })
@@ -409,8 +412,7 @@ try {
   for (const route of [
     "concepts/api-design-decisions",
     "persistence/transactions",
-    "start/tutorial",
-    "start/first-job",
+    "",
     "operations/production-checklist",
     "start/why-background-jobs"
   ]) {
@@ -418,7 +420,7 @@ try {
       javaScriptEnabled: false,
       viewport: { width: 390, height: 844 }
     })
-    await noJs.goto(origin + "/docs/" + route)
+    await noJs.goto(origin + (route ? "/docs/" + route : "/docs"))
     await expect(noJs.getByRole("heading", { level: 1 })).toBeVisible()
     if (!baseline) {
       assertTypography(await noJs.evaluate(inspectTypography))
@@ -451,9 +453,7 @@ try {
       }
     })
     await page.goto(origin + "/docs")
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "Durable jobs, explicit ownership"
-    )
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Getting Started")
     assert.equal(
       await page.evaluate(() => document.documentElement.dataset.theme),
       "dark"
@@ -533,10 +533,131 @@ try {
     })
     await page.close()
   }
+  for (const width of [1440, 390]) {
+    const navigation = await browser.newPage({ viewport: { width, height: 850 } })
+    navigation.on("pageerror", (error) => failures.push(error.message))
+    await navigation.goto(`${origin}/docs/reference`)
+    await expect(navigation).toHaveURL(`${origin}/docs/reference/modules`)
+    const reference = navigation.getByRole("region", { name: "API Reference" })
+    const openMobileMenu = async () => {
+      if (width < 768) {
+        await navigation.locator(".sl-menu-button").click()
+      }
+    }
+    await openMobileMenu()
+    await expect(reference.getByRole("link", { name: "Public modules" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    )
+    await expect(
+      reference.getByRole("link", { name: "Overview", exact: true })
+    ).toHaveCount(0)
+
+    await navigation.goto(`${origin}/docs/reference/modules/postgre-sql-drizzle-schema`)
+    await openMobileMenu()
+    const active = reference.locator('a[aria-current="page"]')
+    await expect(active).toHaveText("PostgreSqlDrizzleSchema")
+    await expect(active).toBeVisible()
+    await expect(
+      reference.getByRole("link", { name: "PostgreSqlJobs", exact: true })
+    ).toBeVisible()
+    await expect(
+      reference.getByRole("link", { name: "JobWorker", exact: true })
+    ).toHaveCount(0)
+    if (width >= 800) {
+      const sidebar = navigation.locator("#starlight__sidebar")
+      await sidebar.evaluate((pane) => {
+        pane.scrollTop = 350
+      })
+      assert.equal(await sidebar.evaluate((pane) => pane.scrollTop), 350)
+      await navigation.goto(`${origin}/docs/reference/modules/postgre-sql-jobs`)
+      await expect.poll(() => sidebar.evaluate((pane) => pane.scrollTop)).toBe(350)
+      await navigation.evaluate(() => window.scrollTo(0, 300))
+      await navigation.goto(`${origin}/docs/reference`)
+      await expect(navigation).toHaveURL(`${origin}/docs/reference/modules`)
+      await expect.poll(() => sidebar.evaluate((pane) => pane.scrollTop)).toBe(350)
+      assert.equal(await navigation.evaluate(() => window.scrollY), 0)
+    }
+    await navigation.close()
+
+    const page = await browser.newPage({
+      viewport: { width, height: 850 },
+      reducedMotion: "reduce"
+    })
+    page.on("pageerror", (error) => failures.push(error.message))
+    const openLab = async (slug: string) => {
+      const response = await page.goto(`${origin}/docs/deep-dives/${slug}`)
+      assert.equal(response?.status(), 200)
+      const lab = page.locator("figure.wd")
+      await lab.scrollIntoViewIfNeeded()
+      await expect(lab.locator("xpath=ancestor::astro-island")).not.toHaveAttribute(
+        "ssr",
+        ""
+      )
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width)
+      return lab
+    }
+    const worker = await openLab("worker-limits")
+    await worker.getByRole("slider", { name: "Workers", exact: true }).press("End")
+    await expect(worker.getByRole("region", { name: "Worker 3" })).toBeVisible()
+    await expect(
+      worker.getByRole("group", { name: "Simulated drain statistics" })
+    ).toContainText("peak running")
+
+    const budgets = await openLab("budgets")
+    const elapsed = budgets.getByRole("slider", { name: "Elapsed since claim" })
+    for (let i = 0; i < 3; i++) {
+      await elapsed.press("ArrowRight")
+    }
+    await expect(budgets.getByRole("status")).toContainText("Missing 100 ms")
+
+    const retry = await openLab("durable-retries")
+    for (let i = 0; i < 4; i++) {
+      await retry.getByRole("button", { name: "Step" }).click()
+    }
+    await expect(retry.getByRole("region", { name: "PostgreSQL" })).toContainText(
+      "RetryScheduled"
+    )
+    await expect(retry.getByRole("region", { name: "Worker" })).toContainText(
+      "Too early to claim"
+    )
+
+    const outcomes = await openLab("job-states")
+    await outcomes.getByRole("button", { name: "Lost response" }).click()
+    for (let i = 0; i < 3; i++) {
+      await outcomes.getByRole("button", { name: "Step" }).click()
+    }
+    await expect(outcomes.getByRole("region", { name: "PostgreSQL" })).toContainText(
+      "Active"
+    )
+    await expect(outcomes.getByRole("region", { name: "Worker" })).toContainText(
+      "OutcomeUnknown"
+    )
+
+    const rollout = await openLab("migrations")
+    await rollout.getByRole("button", { name: "Producer first" }).click()
+    for (let i = 0; i < 2; i++) {
+      await rollout.getByRole("button", { name: "Step" }).click()
+    }
+    await expect(rollout.getByRole("region", { name: "Worker fleet" })).toContainText(
+      "v1 only"
+    )
+    await expect(rollout.locator("figcaption")).toContainText("v2 remains pending")
+
+    const encryption = await openLab("encryption")
+    await encryption.getByRole("button", { name: "Remove K1 too soon" }).click()
+    for (let i = 0; i < 3; i++) {
+      await encryption.getByRole("button", { name: "Step" }).click()
+    }
+    await expect(encryption.getByRole("region", { name: "Worker" })).toContainText(
+      "Open failed"
+    )
+    await page.close()
+  }
   const page = await browser.newPage({ javaScriptEnabled: false })
   await page.goto(origin + "/docs")
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
-  await expect(page.getByRole("link", { name: "Understand the problem" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Your first job" })).toBeVisible()
   await page.close()
   assert.deepEqual(failures, [])
   writeFileSync(
