@@ -119,9 +119,14 @@ it("routes one queue-independent contract through two explicitly configured queu
         ["second", "first"]
       )
       assert.equal(finalizations.length, 2)
+      const now = yield* Clock.currentTimeMillis
       for (const request of finalizations) {
         assert.equal(request.before.finalizedAttempts, 0)
         assert.equal(request.finalization._tag, "Complete")
+        const completed = Result.getOrThrow(
+          Lifecycle.finalize(request.before, request.ownership, request.finalization, now)
+        )
+        assert.equal(completed.state, "Completed")
         assert.equal((yield* store.reconcileFinalization(request))._tag, "Applied")
       }
     })
