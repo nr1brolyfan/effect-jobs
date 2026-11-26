@@ -7,7 +7,7 @@ import {
 } from "../../JobContract.js"
 import { JobEnqueue, JobPersistenceError } from "../../JobEnqueue.js"
 import { JobId } from "../../JobId.js"
-import { JobAddress, QueueName } from "../../JobIdentity.js"
+import { JobAddress, ProducerIdentity, QueueName } from "../../JobIdentity.js"
 import * as Lifecycle from "../../JobLifecycle.js"
 import { EpochMillis, maximumMillis } from "../../JobPolicy.js"
 import * as Storage from "../../JobStorage.js"
@@ -25,16 +25,20 @@ const responseBudgetMillis = 100
 const decodeId = Schema.decodeSync(JobId)
 const decodeArtifact = Schema.decodeUnknownResult(PreparedArtifact)
 const copyPrepared = (input: unknown): Result.Result<PreparedJob, Schema.SchemaError> =>
-  Result.map(decodeArtifact(input), ({ availableAt, encoded, ...metadata }) => ({
-    ...metadata,
-    ...(availableAt === undefined ? {} : { availableAt }),
-    encoded: {
-      ...encoded,
-      payloadBytes: new Uint8Array(encoded.payloadBytes),
-      semanticProjectionBytes: new Uint8Array(encoded.semanticProjectionBytes)
+  Result.map(decodeArtifact(input), (prepared) => {
+    const { availableAt, encoded, ...metadata } = prepared
+    return {
+      ...metadata,
+      ...(availableAt === undefined ? {} : { availableAt }),
+      encoded: {
+        ...encoded,
+        payloadBytes: new Uint8Array(encoded.payloadBytes),
+        semanticProjectionBytes: new Uint8Array(encoded.semanticProjectionBytes)
+      }
     }
-  }))
+  })
 const sameAddress = Schema.toEquivalence(JobAddress)
+const sameIdentity = Schema.toEquivalence(ProducerIdentity)
 const sameSnapshot = Schema.toEquivalence(Lifecycle.JobSnapshot)
 const invalidInput = () => new Store.JobStoreProtocolError({ reason: "invalid-input" })
 const lifecycleFailure = (error: Lifecycle.JobLifecycleError) =>
@@ -49,20 +53,19 @@ const withTime = <A, E>(run: (now: number) => Result.Result<A, E>) =>
     Effect.sync(() => run(clock.currentTimeMillisUnsafe()))
   ).pipe(Effect.flatMap(Effect.fromResult))
 
-const claimed = ({ snapshot, prepared }: Row) =>
+const claimed = (row: Row) =>
   Result.gen(function* () {
-    const copy = yield* Lifecycle.validateSnapshot(snapshot)
+    const copy = yield* Lifecycle.validateSnapshot(row.snapshot)
     const ownership = yield* Lifecycle.ownershipOf(copy)
     return {
       snapshot: copy,
       ownership,
-      prepared: yield* copyPrepared(prepared)
+      prepared: yield* copyPrepared(row.prepared)
     } satisfies Store.ClaimedJob
   })
 
 const make = Effect.gen(function* () {
   const rows = new Map<JobId, Row>()
-  const identities = new Map<string, Row>()
 
   const store: Store.JobStoreService = {
     claim: (input) =>
@@ -216,12 +219,9 @@ const make = Effect.gen(function* () {
             })
         )
         const { producer, catalog, encoded, policy } = prepared
-        const key = JSON.stringify([
-          producer.operation,
-          producer.operationId,
-          producer.slot
-        ])
-        const existing = identities.get(key)
+        const existing = Array.from(rows.values()).find((row) =>
+          sameIdentity(row.prepared.producer, producer)
+        )
         if (existing !== undefined) {
           if (
             existing.prepared.catalog.name !== catalog.name ||
@@ -272,7 +272,6 @@ const make = Effect.gen(function* () {
           }
         }
         rows.set(jobId, row)
-        identities.set(key, row)
         return EnqueueResult.Inserted({ jobId })
       })
     )
