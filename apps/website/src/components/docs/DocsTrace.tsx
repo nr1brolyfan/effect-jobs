@@ -36,7 +36,9 @@ export default function DocsTrace({ trace }: { readonly trace: Trace }) {
   const edge = packet ? Math.min(packet.from, packet.to) : -1
 
   useEffect(() => {
-    if (!playing || last) return
+    if (!playing || last) {
+      return
+    }
     const next = window.setTimeout(() => seek(step + 1), 1350)
     return () => window.clearTimeout(next)
   }, [playing, last, step, selected])
@@ -120,7 +122,9 @@ export default function DocsTrace({ trace }: { readonly trace: Trace }) {
           ended={last}
           atStart={step === 0}
           onToggle={() => {
-            if (last) seek(0)
+            if (last) {
+              seek(0)
+            }
             play(last || !playing)
           }}
           onNext={() => {

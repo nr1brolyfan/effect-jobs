@@ -24,11 +24,15 @@ export default function WorkerDrainVisual() {
   const ended = step === last
 
   useEffect(() => {
-    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) setPlaying(true)
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setPlaying(true)
+    }
   }, [])
 
   useEffect(() => {
-    if (!playing || ended) return
+    if (!playing || ended) {
+      return
+    }
     const timer = window.setTimeout(() => setStep(step + 1), step <= 2 ? 850 : 500)
     return () => window.clearTimeout(timer)
   }, [ended, playing, step, frames])
@@ -220,7 +224,9 @@ export default function WorkerDrainVisual() {
           playing={playing}
           ended={ended}
           onToggle={() => {
-            if (ended) setStep(0)
+            if (ended) {
+              setStep(0)
+            }
             setPlaying(ended || !playing)
           }}
           onNext={() => {

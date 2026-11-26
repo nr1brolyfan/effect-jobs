@@ -51,16 +51,18 @@ for (const file of readdirSync(built, { recursive: true, encoding: "utf8" }).fil
   receipt.served[file] = hash(served)
 }
 const inspectIntro = async (page: import("@playwright/test").Page) => {
-  const list = page.locator(".sl-markdown-content > ol").first()
+  const list = page
+    .locator(".sl-markdown-content > ol")
+    .filter({ hasText: "Dual-write problem" })
   assert.equal(await list.locator(":scope > li").count(), 3)
   const names = [
     "Dual-write problem",
     "A slow provider means a long loading screen",
-    "The confirmation email does not need to arrive immediately"
+    "The request owns work that can wait"
   ]
   for (const [index, name] of names.entries()) {
     const item = list.locator(":scope > li").nth(index)
-    await expect(item.getByRole("heading", { name, exact: true, level: 2 })).toBeVisible()
+    await expect(item.locator("strong").filter({ hasText: name }).first()).toBeVisible()
     assert.equal(await item.locator("xpath=ancestor::details").count(), 0)
   }
   const text = (await list.innerText()).replace(/\s+/g, " ")
@@ -68,14 +70,14 @@ const inspectIntro = async (page: import("@playwright/test").Page) => {
     "dual-write problem",
     "not one atomic operation",
     "application crashes between them",
-    "provider rejects the send",
+    "email provider rejects the send",
     "Even a healthy provider can be slow",
     "already saved",
     "does not mean the order failed",
     "loading screen for many seconds",
     "poor checkout experience",
-    "a small delay is acceptable",
-    "does not need to arrive at that exact moment",
+    "not immediate email delivery",
+    "durable background work",
     "detached in-process task"
   ]) {
     assert(text.includes(phrase), phrase)
@@ -83,8 +85,8 @@ const inspectIntro = async (page: import("@playwright/test").Page) => {
   const geometry = await list.evaluate((element) => ({
     overflow: document.documentElement.scrollWidth > innerWidth,
     items: [...element.children].map((item) => {
-      const heading = item.querySelector("h2")
-      const paragraph = item.querySelector("p")
+      const heading = item.querySelector("strong")
+      const paragraph = item.querySelector("p:nth-of-type(2)")
       const h = heading!.getBoundingClientRect(),
         p = paragraph!.getBoundingClientRect()
       const style = getComputedStyle(paragraph!)
@@ -98,10 +100,14 @@ const inspectIntro = async (page: import("@playwright/test").Page) => {
         breaks: paragraph!.querySelectorAll("br").length
       }
     }),
-    followsCode: element.previousElementSibling!.matches(".expressive-code")
+    followsCode: Boolean(
+      element
+        .parentElement!.querySelector('.expressive-code:has(pre[data-language="ts"])')!
+        .compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING
+    )
   }))
   assert.equal(geometry.overflow, false)
-  assert.equal(geometry.followsCode, true, "problems immediately follow checked example")
+  assert.equal(geometry.followsCode, true, "problems follow the checked example")
   for (const [index, item] of geometry.items.entries()) {
     assert(item.proseTop >= item.headingBottom)
     if (index) {
@@ -132,21 +138,25 @@ try {
   const navigation = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
   await navigation.context().grantPermissions(["clipboard-read", "clipboard-write"])
   await navigation.goto(origin + "/docs")
-  await navigation.getByRole("link", { name: "Getting started", exact: true }).click()
-  assert.equal(
-    new URL(navigation.url()).pathname.replace(/\/$/, ""),
-    "/docs/start/tutorial"
-  )
+  await navigation.getByRole("link", { name: "Getting Started", exact: true }).click()
+  assert.equal(new URL(navigation.url()).pathname.replace(/\/$/, ""), "/docs")
   await expect(navigation.getByRole("heading", { level: 1 })).toHaveText(
-    "Getting started"
+    "Getting Started"
   )
   const headings = await navigation.locator(".sl-markdown-content h2").allTextContents()
-  assert.equal(headings[0], "Dual-write problem")
+  assert.deepEqual(headings.slice(0, 4), [
+    "Overview",
+    "Prerequisites",
+    "Install",
+    "Your first job"
+  ])
   assert.deepEqual(
     headings.filter((h) => /^\d\./.test(h)).map((h) => Number(h[0])),
     [1, 2, 3, 4, 5, 6]
   )
-  const firstCode = navigation.locator(".expressive-code").first()
+  const firstCode = navigation
+    .locator('.expressive-code:has(pre[data-language="ts"])')
+    .first()
   await expect(firstCode).toContainText("apps/api/src/orders/Orders.ts")
   await expect(firstCode).toContainText("export const placeOrder")
   await expect(firstCode).toContainText("emails.sendOrderConfirmation(input.orderId)")
@@ -190,9 +200,8 @@ try {
       "utf8"
     )
   )
-  const stages = migration.stages
-  assert.equal(stages.length, originalStages.length)
-  for (const [index, stage] of stages.entries()) {
+  assert.equal(migration.stages.length, originalStages.length)
+  for (const [index, stage] of migration.stages.entries()) {
     const original = originalStages[index]
     assert.equal(stage.sourcePath, original.sourcePath)
     assert.equal(stage.beforeSourcePath, original.beforeSourcePath)
@@ -204,6 +213,12 @@ try {
       original.added
     )
   }
+  const stages = JSON.parse(
+    readFileSync(
+      join(root, "apps/website/tests/order-tutorial/CodeStages.v3.json"),
+      "utf8"
+    )
+  )
   const canonical = (path: string, region?: string) =>
     extractRegion(
       readFileSync(join(root, "apps/website/examples/docs", path), "utf8"),
@@ -224,6 +239,9 @@ try {
       "independently frozen line inventory"
     )
     const panel = markedPanels.nth(index)
+    await expect(panel.locator(".title")).toHaveText(
+      stage.sourcePath.replace(/^orders\//, "")
+    )
     const rendered = await panel.locator(".ec-line").evaluateAll((lines) =>
       lines.map((line, i) => ({
         number: i + 1,
@@ -251,7 +269,10 @@ try {
   }
   receipt.codeStages = stages
   const initialContract = await contractPanel.innerText()
-  const article = await navigation.locator(".sl-markdown-content").innerText()
+  const article = (await navigation.locator(".sl-markdown-content").innerText()).replace(
+    /\s+/g,
+    " "
+  )
   assert(
     article.indexOf("emails.sendOrderConfirmation(input.orderId)") <
       article.indexOf("detached in-process")
@@ -268,7 +289,11 @@ try {
   assert(
     !/onConflictDoNothing|matchesSubmission|OrderConflict|\.select\(/.test(createCode)
   )
-  assert(article.includes("duplicate rejection, not idempotent response replay"))
+  assert(
+    article
+      .replace(/\s+/g, " ")
+      .includes("duplicate rejection, not idempotent response replay")
+  )
   assert(initialContract.indexOf("JobQueue.make") < initialContract.indexOf("Job.make"))
   assert(
     initialContract.includes("export const OrderPolicy") &&
@@ -285,7 +310,8 @@ try {
     "/docs/start/first-job/",
     "/docs/start/tutorial/"
   ]) {
-    await navigation.goto(origin + path + "#2-handle-the-job-in-the-worker")
+    await navigation.goto(origin + path)
+    await expect(navigation).toHaveURL(/\/docs\/?$/)
     await expect(navigation.locator('[id="2-handle-the-job-in-the-worker"]')).toHaveCount(
       1
     )
@@ -294,7 +320,7 @@ try {
   }
   await navigation.close()
   for (const width of [1920, 1440, 1024, 390]) {
-    for (const route of ["start/tutorial", "persistence/transactions"]) {
+    for (const route of ["", "persistence/transactions"]) {
       const page = await browser.newPage({
         viewport: { width, height: width < 500 ? 844 : 1000 },
         reducedMotion: "reduce"
@@ -305,11 +331,11 @@ try {
       assert(response)
       assert.equal(response.status(), 200)
       await page.evaluate(() => document.fonts.ready)
-      const title = route.replaceAll("/", "-") + "-" + width
-      if (route === "start/tutorial") {
+      const title = (route || "getting-started").replaceAll("/", "-") + "-" + width
+      if (!route) {
         const changed = page
           .locator(".expressive-code")
-          .filter({ hasText: /PlaceOrder\.enqueue\(\{\s+slot: "send-confirmation"/ })
+          .filter({ has: page.locator(".ec-line.ins") })
           .first()
         await changed.screenshot({ path: join(output, title + "-diff.png") })
         assert.equal(
@@ -323,7 +349,9 @@ try {
         }))
         assert.notEqual(markerStyle.indicator, "none", "non-color addition indicator")
         const intro = await inspectIntro(page)
-        const problems = page.locator(".sl-markdown-content > ol").first()
+        const problems = page
+          .locator(".sl-markdown-content > ol")
+          .filter({ hasText: "Dual-write problem" })
         const viewport = page.viewportSize()
         // Fit the complete list so fixed mobile chrome cannot cover its final lines.
         const bounds = await problems.boundingBox()
@@ -341,7 +369,7 @@ try {
       await page.screenshot({ path: join(output, title + "-top.png") })
       const middle = page
         .locator(".sl-markdown-content h2")
-        .filter({ hasText: route === "start/tutorial" ? "3. Add" : "Try replay" })
+        .filter({ hasText: route ? "Try replay" : "3. Add" })
       await middle.evaluate((element) => {
         element.scrollIntoView()
         scrollBy(0, -145)
@@ -401,7 +429,7 @@ try {
         viewport: { width, height: 1000 }
       })
       await noJs.goto(origin + "/docs/" + route)
-      if (route === "start/tutorial") {
+      if (!route) {
         receipt.intro.push({ width, javaScript: false, ...(await inspectIntro(noJs)) })
         assert.equal(await noJs.locator(".ej-code-stage").count(), 0)
         assert.equal(

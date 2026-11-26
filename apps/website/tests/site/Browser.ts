@@ -540,7 +540,9 @@ try {
     await expect(navigation).toHaveURL(`${origin}/docs/reference/modules`)
     const reference = navigation.getByRole("region", { name: "API Reference" })
     const openMobileMenu = async () => {
-      if (width < 768) await navigation.locator(".sl-menu-button").click()
+      if (width < 768) {
+        await navigation.locator(".sl-menu-button").click()
+      }
     }
     await openMobileMenu()
     await expect(reference.getByRole("link", { name: "Public modules" })).toHaveAttribute(
@@ -604,11 +606,15 @@ try {
 
     const budgets = await openLab("budgets")
     const elapsed = budgets.getByRole("slider", { name: "Elapsed since claim" })
-    for (let i = 0; i < 3; i++) await elapsed.press("ArrowRight")
+    for (let i = 0; i < 3; i++) {
+      await elapsed.press("ArrowRight")
+    }
     await expect(budgets.getByRole("status")).toContainText("Missing 100 ms")
 
     const retry = await openLab("durable-retries")
-    for (let i = 0; i < 4; i++) await retry.getByRole("button", { name: "Step" }).click()
+    for (let i = 0; i < 4; i++) {
+      await retry.getByRole("button", { name: "Step" }).click()
+    }
     await expect(retry.getByRole("region", { name: "PostgreSQL" })).toContainText(
       "RetryScheduled"
     )
@@ -618,8 +624,9 @@ try {
 
     const outcomes = await openLab("job-states")
     await outcomes.getByRole("button", { name: "Lost response" }).click()
-    for (let i = 0; i < 3; i++)
+    for (let i = 0; i < 3; i++) {
       await outcomes.getByRole("button", { name: "Step" }).click()
+    }
     await expect(outcomes.getByRole("region", { name: "PostgreSQL" })).toContainText(
       "Active"
     )
@@ -629,8 +636,9 @@ try {
 
     const rollout = await openLab("migrations")
     await rollout.getByRole("button", { name: "Producer first" }).click()
-    for (let i = 0; i < 2; i++)
+    for (let i = 0; i < 2; i++) {
       await rollout.getByRole("button", { name: "Step" }).click()
+    }
     await expect(rollout.getByRole("region", { name: "Worker fleet" })).toContainText(
       "v1 only"
     )
@@ -638,8 +646,9 @@ try {
 
     const encryption = await openLab("encryption")
     await encryption.getByRole("button", { name: "Remove K1 too soon" }).click()
-    for (let i = 0; i < 3; i++)
+    for (let i = 0; i < 3; i++) {
       await encryption.getByRole("button", { name: "Step" }).click()
+    }
     await expect(encryption.getByRole("region", { name: "Worker" })).toContainText(
       "Open failed"
     )

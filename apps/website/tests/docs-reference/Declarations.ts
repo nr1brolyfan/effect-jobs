@@ -2,17 +2,15 @@ import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { API, SymbolFlags, type Checker } from "typescript/unstable/sync"
+import { API, SymbolFlags, type Checker, type Symbol } from "typescript/unstable/sync"
 import {
   isClassDeclaration,
   isTypeQueryNode,
   isVariableDeclaration
 } from "typescript/unstable/ast"
 
-const resolveAlias = (
-  checker: Checker,
-  symbol: NonNullable<ReturnType<Checker["getSymbolAtLocation"]>>
-) => (symbol.flags & SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol)
+const resolveAlias = (checker: Checker, symbol: Symbol) =>
+  symbol.flags & SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol
 
 /** Extract exact declarations from a fresh emit; never read a potentially stale dist/. */
 export const openDeclarations = (root: string) => {
@@ -78,7 +76,9 @@ export const openDeclarations = (root: string) => {
                 for (const item of referenced
                   ? resolveAlias(checker, referenced).declarations
                   : []) {
-                  if (!item.path.startsWith(`${emit}/`)) continue
+                  if (!item.path.startsWith(`${emit}/`)) {
+                    continue
+                  }
                   const original = item.resolve()
                   if (original && original !== node) {
                     resolved.add(
@@ -95,7 +95,9 @@ export const openDeclarations = (root: string) => {
                 for (const clause of node.heritageClauses ?? []) {
                   for (const base of clause.types) {
                     const parent = checker.getSymbolAtLocation(base.expression)
-                    if (!parent?.name.endsWith("_base")) continue
+                    if (!parent?.name.endsWith("_base")) {
+                      continue
+                    }
                     const helper = parent.valueDeclaration?.resolve()
                     if (
                       helper &&

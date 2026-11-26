@@ -36,6 +36,7 @@ export default defineConfig({
   markdown: { syntaxHighlight: false },
   outDir: "./dist/site",
   trailingSlash: "never",
+  // The native assets layer also needs exact legacy aliases in public/_redirects.
   redirects: {
     "/docs/start/installation": "/docs#install",
     "/docs/start/tutorial": "/docs",
@@ -54,7 +55,9 @@ export default defineConfig({
         "astro:config:setup": ({ command, updateConfig }) => {
           // Rendering a prefetched page can collect new StyleX rules and trigger
           // a dev-server reload while the pointer is still over the link.
-          if (command === "dev") updateConfig({ prefetch: false })
+          if (command === "dev") {
+            updateConfig({ prefetch: false })
+          }
         }
       }
     },

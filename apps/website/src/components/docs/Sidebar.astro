@@ -4,7 +4,7 @@ import { styles } from "./ShellStyles.js"
 import referenceGroups from "../../content/docs/reference/module-navigation.json"
 const groups = [
   { title: "Deployment", links: [["Choose a deployment", "/docs/deployment"], ["Node.js / Bun + PostgreSQL", "/docs/deployment/postgresql"], ["Cloudflare + PostgreSQL", "/docs/deployment/cloudflare-postgresql"], ["Cloudflare + DO SQLite", "/docs/deployment/cloudflare-sqlite"]] },
-  { title: "Concepts", links: [["Jobs, producers & queues", "/docs/concepts/model"], ["Job APIs & handlers", "/docs/concepts/handlers"], ["Transactions & deduplication", "/docs/persistence/transactions"], ["Lifecycle & recovery", "/docs/concepts/lifecycle"], ["Retries & failure outcomes", "/docs/execution/retries"], ["Payloads & versioning", "/docs/concepts/payloads"]] },
+  { title: "Concepts", links: [["Jobs, producers & queues", "/docs/concepts/model"], ["Job APIs & handlers", "/docs/concepts/handlers"], ["Transactions & deduplication", "/docs/persistence/transactions"], ["Lifecycle & recovery", "/docs/concepts/lifecycle"], ["Retries & failure outcomes", "/docs/execution/retries"], ["Payloads & versioning", "/docs/concepts/payloads"], ["API design decisions", "/docs/concepts/api-design-decisions"]] },
   { title: "Deep Dives", links: [["Worker limits & throughput", "/docs/deep-dives/worker-limits"], ["Job states & failure outcomes", "/docs/deep-dives/job-states"], ["Durable retries, step by step", "/docs/deep-dives/durable-retries"], ["Timeouts, leases & response budget", "/docs/deep-dives/budgets"], ["Migrations & rolling upgrades", "/docs/deep-dives/migrations"], ["Payload encryption", "/docs/deep-dives/encryption"]] },
   { title: "Production", links: [["Production checklist", "/docs/operations/production-checklist"], ["Migrations & upgrades", "/docs/persistence/postgresql"], ["Using Drizzle", "/docs/persistence/drizzle"], ["Observability", "/docs/operations/telemetry"], ["Troubleshooting & recovery", "/docs/operations/troubleshooting"]] }
 ]
@@ -49,17 +49,23 @@ const referenceGroup = referenceGroups.find(({ href, modules }) =>
 <script is:inline>
   (() => {
     const pane = document.getElementById("starlight__sidebar")
-    if (!pane) return
+    if (!pane) {
+      return
+    }
     const key = "effect-jobs:docs-sidebar-scroll"
     const desktop = matchMedia("(min-width: 50rem)")
     try {
       const saved = Number(sessionStorage.getItem(key))
-      if (desktop.matches && Number.isFinite(saved) && saved >= 0) pane.scrollTop = saved
+      if (desktop.matches && Number.isFinite(saved) && saved >= 0) {
+        pane.scrollTop = saved
+      }
     } catch {
       // The sidebar still works with storage disabled.
     }
     addEventListener("pagehide", () => {
-      if (!desktop.matches) return
+      if (!desktop.matches) {
+        return
+      }
       try {
         sessionStorage.setItem(key, String(pane.scrollTop))
       } catch {

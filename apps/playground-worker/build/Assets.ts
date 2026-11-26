@@ -18,15 +18,21 @@ export const compactHeaderPolicies = (policies: ReadonlySet<string>) => {
       rule.route.endsWith("*") && rule.headers.includes("\n  content-type: text/html")
     if (isIndexAlias || isHtmlPrefix) {
       const base = isIndexAlias ? rule.route.slice(0, -11) : rule.route.slice(0, -1)
-      const covering = kept.findLastIndex(
-        (other) =>
-          other.headers === rule.headers &&
-          other.route.endsWith("*") &&
-          (other.route === `${base}*` || base.startsWith(other.route.slice(0, -1) + "/"))
-      )
-      if (covering !== -1) {
-        const conflict = kept.slice(covering + 1).some((other) => {
-          if (other.headers === rule.headers) return false
+      const covering = kept
+        .map((other, index) => ({ ...other, index }))
+        .reverse()
+        .find(
+          (other) =>
+            other.headers === rule.headers &&
+            other.route.endsWith("*") &&
+            (other.route === `${base}*` ||
+              base.startsWith(other.route.slice(0, -1) + "/"))
+        )
+      if (covering) {
+        const conflict = kept.slice(covering.index + 1).some((other) => {
+          if (other.headers === rule.headers) {
+            return false
+          }
           const wildcard = other.route.indexOf("*")
           if (wildcard === -1) {
             return isIndexAlias
@@ -42,7 +48,9 @@ export const compactHeaderPolicies = (policies: ReadonlySet<string>) => {
           }
           return base.startsWith(prefix) || prefix.startsWith(base)
         })
-        if (!conflict) continue
+        if (!conflict) {
+          continue
+        }
       }
     }
     kept.push(rule)

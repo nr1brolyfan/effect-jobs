@@ -55,7 +55,7 @@ try {
       }
     })
     assert(position.before!.includes("For local runs"))
-    assert(position.after!.includes("1. Place an order without waiting for email"))
+    assert(position.after!.includes("Keep heavy dependencies out of the API"))
 
     await expect(label(overview, "order")).toHaveText("—")
     await expect(label(overview, "jobState")).toHaveText("—")

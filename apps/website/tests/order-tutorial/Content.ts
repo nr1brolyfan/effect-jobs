@@ -91,7 +91,11 @@ try {
     if (!embeds.length) {
       continue
     }
-    const htmlFile = "docs/" + file.replace(/\.mdx$/, "/index.html")
+    const htmlFile =
+      "docs/" +
+      (/(^|\/)index\.mdx$/.test(file)
+        ? file.replace(/\.mdx$/, ".html")
+        : file.replace(/\.mdx$/, "/index.html"))
     await page.setContent(readFileSync(join(built, htmlFile), "utf8"))
     const rendered = await page.locator(".expressive-code").evaluateAll((panels) =>
       panels

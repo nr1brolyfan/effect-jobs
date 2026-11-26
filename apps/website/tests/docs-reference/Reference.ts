@@ -7,7 +7,10 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { resolve, join } from "node:path"
 import { API, SymbolFlags } from "typescript/unstable/sync"
 import { publicModules } from "../../../../scripts/SourceExports.mjs"
-import { openDeclarations } from "./Declarations.ts"
+
+const { openDeclarations } = (await import(
+  new URL("./Declarations.ts", import.meta.url).href
+)) as typeof import("./Declarations.js")
 
 const root = resolve(import.meta.dirname, "../../../..")
 const output = join(root, "apps/website/src/content/docs/reference")
@@ -210,13 +213,16 @@ for (const [slug, group] of Object.entries(groups)) {
         if (
           symbol.description !==
           "Public integration contract; see the exported declaration."
-        )
+        ) {
           page += `${escaped(symbol.description)}\n\n`
-        if (declaredAs !== symbol.name)
+        }
+        if (declaredAs !== symbol.name) {
           page += `Exported as \`${symbol.name}\`; declared as \`${declaredAs}\`.\n\n`
+        }
         page += `\`\`\`ts title="Type declaration"\n${signature}\n\`\`\`\n\n`
-        if (resolved)
+        if (resolved) {
           page += `<details>\n<summary>Expand referenced declaration</summary>\n\n\`\`\`ts title="Referenced declaration"\n${resolved}\n\`\`\`\n\n</details>\n\n`
+        }
       }
       savePage(join(moduleOutput, `${slugForModule}.mdx`), page)
     }
@@ -275,14 +281,19 @@ generated.set(
   join(output, "public-exports.json"),
   JSON.stringify(inventory, null, 2) + "\n"
 )
-if (!check) mkdirSync(moduleOutput, { recursive: true })
+if (!check) {
+  mkdirSync(moduleOutput, { recursive: true })
+}
 assert(
   readdirSync(moduleOutput).every((file) => generated.has(join(moduleOutput, file))),
   "Stale module pages: remove obsolete generated files"
 )
 for (const [path, bytes] of generated) {
-  if (check) assert.equal(readFileSync(path, "utf8"), bytes, `Stale reference: ${path}`)
-  else writeFileSync(path, bytes)
+  if (check) {
+    assert.equal(readFileSync(path, "utf8"), bytes, `Stale reference: ${path}`)
+  } else {
+    writeFileSync(path, bytes)
+  }
 }
 console.log(
   `${inventory.length} public entrypoints, ${inventory.reduce((n, item) => n + item.symbols.length, 0)} exported names: reference ${check ? "consistent" : "generated"}`

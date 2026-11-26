@@ -64,7 +64,9 @@ export function drainTrace(limits: Limits) {
         continue
       }
       for (const [slot, job] of worker.slots.entries()) {
-        if (!job || job.next !== tick) continue
+        if (!job || job.next !== tick) {
+          continue
+        }
         changed = true
         if (job.phase === "claim") {
           worker.slots[slot] = {
@@ -104,7 +106,9 @@ export function drainTrace(limits: Limits) {
         (worker.started === limits.maxJobs || pending === 0) &&
         worker.slots.every((slot) => slot === null)
     )
-    if (done) durationSeconds = tick * tickSeconds
+    if (done) {
+      durationSeconds = tick * tickSeconds
+    }
   }
   return {
     frames,
