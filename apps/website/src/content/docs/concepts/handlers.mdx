@@ -45,6 +45,36 @@ handler layer. To change providers or use a test double, supply a different
 `TransactionalEmails` layer before building the handler layer. The job contract,
 producer, and handler stay the same.
 
+## Share setup across handlers
+
+When multiple jobs in a group use the same service, return an Effect from the
+`JobGroup.handlers` builder. This example assumes `BillingJobs` declares `receipt`
+and `reminder`, and `BillingDelivery` can send both:
+
+```ts
+import { Effect } from "effect"
+import * as JobGroup from "effect-jobs/JobGroup"
+import { BillingJobs } from "./BillingJobs.js"
+import { BillingDelivery } from "./BillingDelivery.js"
+
+export const BillingHandlers = JobGroup.handlers(
+  BillingJobs,
+  Effect.fn("Billing.installHandlers")(function* (handlers) {
+    const delivery = yield* BillingDelivery
+
+    return handlers
+      .handle("receipt", (job) => delivery.sendReceipt(job.payload))
+      .handle("reminder", (job) => delivery.sendReminder(job.payload))
+  })
+)
+```
+
+Supply `BillingDelivery` when composing the handler layer. The setup runs when
+that layer is built; the two callbacks reuse the service and run only when their
+respective jobs are executed. Chain one `.handle` per alias: the builder still
+requires every alias in the group and infers its payload type. Open resources
+that belong to a single job, such as a transaction, inside that job's handler.
+
 ## Choose what each worker can run
 
 `JobApi` is a catalog, not a runner. `JobGroup.handlers` installs implementations for one group. Build the catalog and its handler Layers from the **same group declarations**, then give the worker storage and all handlers for the selected catalog.
