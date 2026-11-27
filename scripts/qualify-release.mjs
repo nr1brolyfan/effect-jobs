@@ -137,7 +137,8 @@ writeFileSync(
       version: manifest.version,
       absentPeerExportCount: imports.length,
       docsTypecheck: "PASS skipLibCheck:false",
-      testing: "typed producer assertions without pg, Drizzle or Vitest Node+Bun PASS",
+      testing:
+        "recorder assertions and standalone delayed enqueue/drain without pg, Drizzle or Vitest Node+Bun PASS",
       worker:
         "public installed execution/scoped shutdown/span and metric privacy PASS Node+Bun",
       inertness:

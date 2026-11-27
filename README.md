@@ -297,3 +297,25 @@ The recorder runs real producer preparation but returns synthetic job IDs. It
 does not run workers, model database transactions or check deduplication. Use
 the real adapter for commit, rollback and concurrency tests. The recorder needs
 no Vitest peer: use Vitest, `node:test`, or any other test runner.
+
+## Test a producer and worker together
+
+Use `Testing.memoryLayer` when a test needs to enqueue through the public
+producer and execute the real `JobWorker.drain`. Provide the same Layer build to
+the producer call and to worker construction. It supplies `JobEnqueue` and
+`JobStorage`. Separate builds start empty. Each build has a 100 ms storage
+response budget, so use a policy with at least that much room between the
+attempt timeout and the lease duration.
+
+Enqueue with `enqueueStandalone` and call `drain` explicitly. The Layer keeps
+jobs, identity matches and lifecycle state in memory between drains. It uses
+Effect's clock for availability, retry delays and lease expiry. With
+`TestClock`, set a positive epoch using `TestClock.setTime` before enqueueing,
+then advance the clock and drain again. For assertions about what a service
+enqueues, including calls that use a joined transaction, use the recorder above.
+
+Use real backends to verify transaction rollback, database time, ownership
+fencing under database contention and crash durability. Use controlled fault
+injection to exercise acknowledgement loss and its reconciliation paths.
+The memory Layer supports standalone enqueue only, retains rows for the
+lifetime of the build and starts no background work.

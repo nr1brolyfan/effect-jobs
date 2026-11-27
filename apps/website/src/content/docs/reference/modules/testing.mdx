@@ -76,6 +76,18 @@ Fresh recorder per Layer build. Runs normal producer preparation, but never pers
 export declare const layer: Layer.Layer<EnqueueRecorder | JobEnqueue, never, never>
 ```
 
+## memoryLayer
+
+Non-durable test storage for standalone enqueue and bounded worker drain. Provide one Layer build to both paths. Samples Effect Clock and reserves 100 ms for storage responses. Supports no joined transaction or cleanup.
+
+```ts title="Type declaration"
+export declare const memoryLayer: Layer.Layer<
+  JobEnqueue | import("./JobStorage.js").JobStorage,
+  import("./JobStorage.js").JobStorageConfigurationError,
+  never
+>
+```
+
 ## RecordedEnqueue
 
 Prepared request metadata. The synthetic job ID is local to this recorder.
