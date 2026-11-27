@@ -17,6 +17,34 @@ The Orders API enqueues a confirmation without importing the mail service. Its w
   role="Worker handler"
 />
 
+## Swap the delivery provider
+
+The handler depends on the application's `TransactionalEmails` service, not on a
+provider SDK. Supply the implementation when composing the worker:
+
+```ts
+import { Layer } from "effect"
+import { TransactionalEmails } from "#worker/orders/TransactionalEmails"
+import { ConfirmationHandlerLayer } from "#worker/orders/jobs/SendConfirmation"
+import { sendWithGateway } from "./GatewayAdapter.js"
+
+const GatewayEmailsLayer = Layer.succeed(TransactionalEmails, {
+  send: sendWithGateway
+})
+
+export const MailHandlers = ConfirmationHandlerLayer.pipe(
+  Layer.provide(GatewayEmailsLayer)
+)
+```
+
+`GatewayAdapter` is your code: implement `TransactionalEmails.send` with your
+gateway and map its errors to the service's typed failures. Forward the delivery
+key if the provider supports idempotency; a lost response does not mean the
+message was rejected. Give `MailHandlers` to the worker in place of the original
+handler layer. To change providers or use a test double, supply a different
+`TransactionalEmails` layer before building the handler layer. The job contract,
+producer, and handler stay the same.
+
 ## Choose what each worker can run
 
 `JobApi` is a catalog, not a runner. `JobGroup.handlers` installs implementations for one group. Build the catalog and its handler Layers from the **same group declarations**, then give the worker storage and all handlers for the selected catalog.

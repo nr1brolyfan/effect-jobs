@@ -1,8 +1,8 @@
 import * as Cloudflare from "@alchemy.run/cloudflare"
-import { Config, Effect } from "effect"
-import { connection } from "./Database.js"
+import { Effect } from "effect"
 import { openInvocation } from "./Invocation.js"
 import { OperationUnconfirmed } from "./Domain.js"
+import { SharedConfig } from "./SharedConfig.js"
 import { makeWake } from "./Wake.js"
 
 import type { CallbackError } from "alchemy/Callback"
@@ -20,15 +20,13 @@ export class BillingCoordinator extends Cloudflare.DurableObject<
 export default BillingCoordinator.make(
   Effect.gen(function* () {
     // Stable configuration only in construction. No SQL is acquired here.
-    const database = yield* connection
-    const databaseUrl = database.connectionString
-    const providerUrl = yield* Config.String("EXAMPLE_PROVIDER_URL")
+    const config = yield* SharedConfig
     return Effect.gen(function* () {
       // Per-instance init registers the callback before any RPC/alarm delivery.
       const wake = yield* makeWake(
         Effect.scoped(
           Effect.gen(function* () {
-            const invocation = yield* openInvocation({ databaseUrl, providerUrl })
+            const invocation = yield* openInvocation(config)
             const result = yield* invocation.drain
             const hint = yield* invocation.observe
             return { result, hint }
