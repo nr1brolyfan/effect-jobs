@@ -1,7 +1,7 @@
 // @effect-diagnostics unstableApiUsage:off
 // The native HTTP/SQL APIs are intentionally pinned to Effect 4.1.0.
 import * as Cloudflare from "@alchemy.run/cloudflare"
-import { Config, Effect } from "effect"
+import { Effect } from "effect"
 import { HttpServerRequest, HttpServerResponse } from "effect/http"
 import {
   admitDevelopment,
@@ -9,8 +9,8 @@ import {
   decodeRequest,
   OperationUnconfirmed
 } from "./Domain.js"
-import { connection } from "./Database.js"
 import { openInvocation } from "./Invocation.js"
+import { SharedConfig } from "./SharedConfig.js"
 import CoordinatorLayer, { BillingCoordinator } from "./Coordinator.js"
 import type { HttpEffect } from "alchemy/Http"
 import type { RuntimeContext } from "alchemy/RuntimeContext"
@@ -27,9 +27,7 @@ export default InvoiceApplication.make(
   },
   Effect.gen(function* () {
     const coordinators = yield* BillingCoordinator
-    const database = yield* connection
-    const databaseUrl = database.connectionString
-    const providerUrl = yield* Config.String("EXAMPLE_PROVIDER_URL")
+    const config = yield* SharedConfig
     return {
       // A real traffic path bootstraps the dormant DO before accepting production.
       fetch: Effect.gen(function* () {
@@ -43,7 +41,7 @@ export default InvoiceApplication.make(
           .pipe(Effect.mapError(() => new OperationUnconfirmed()))
         const result = yield* Effect.scoped(
           Effect.gen(function* () {
-            const invocation = yield* openInvocation({ databaseUrl, providerUrl })
+            const invocation = yield* openInvocation(config)
             return yield* invocation.issue(tenantId, input)
           })
         ).pipe(
