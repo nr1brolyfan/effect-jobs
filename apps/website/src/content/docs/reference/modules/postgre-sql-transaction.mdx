@@ -70,6 +70,10 @@ export declare class PostgreSqlFailure extends PostgreSqlFailure_base<{
   /** Present when readiness confirms a mismatch against the configured schema. */
   readonly readiness?:
     | {
+        readonly reason: "attempt-history-migration-required"
+        readonly check: "attempt-history"
+      }
+    | {
         readonly reason: "invalid-column-definition"
         readonly check: "created-at" | "lineage"
       }
@@ -82,7 +86,9 @@ export declare class PostgreSqlFailure extends PostgreSqlFailure_base<{
         readonly reason: "missing-required-index"
         readonly check: "lineage" | "claim" | "recovery" | "cleanup"
       }
-}> {}
+}> {
+  get message(): string
+}
 ```
 
 ## PostgreSqlInvalidHandle

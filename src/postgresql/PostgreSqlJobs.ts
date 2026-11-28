@@ -11,12 +11,17 @@ import type { JobsTransaction } from "../JobTransaction.js"
 import { PostgreSqlApplication, type PostgreSqlError } from "./PostgreSqlTransaction.js"
 import {
   PostgreSqlConfigurationError,
+  attemptHistoryTableName,
   relations,
   tables,
   type TableOptions,
   type Tables
 } from "./PostgreSqlSchema.js"
-import type { JobCleanupService, JobStoreService } from "../JobStore.js"
+import {
+  JobStoreProtocolError,
+  type JobCleanupService,
+  type JobStoreService
+} from "../JobStore.js"
 import {
   insertPreparing,
   JobsTransactionTypeId,
@@ -29,6 +34,23 @@ import { durationMillis } from "../internal/policy/Retry.js"
 import * as Storage from "../JobStorage.js"
 import * as Schedule from "../JobSchedule.js"
 import { makeSchedule } from "./internal/Schedule.js"
+import {
+  captureSettings,
+  makeAttemptHistory,
+  makeHistoryWriter,
+  readyHistory,
+  type AttemptHistoryCapture,
+  type AttemptHistoryService
+} from "./internal/AttemptHistory.js"
+
+export type {
+  AttemptHistoryCapture,
+  AttemptHistoryCursor,
+  AttemptHistoryEntry,
+  AttemptHistoryPage,
+  AttemptHistoryRead,
+  AttemptHistoryService
+} from "./internal/AttemptHistory.js"
 
 const persistenceError = (error: PostgreSqlError): JobPersistenceError =>
   new JobPersistenceError({
@@ -158,6 +180,8 @@ const neutralOperators = (
 export interface Options extends TableOptions {
   /** Positive integer reserve used by claim admission and worker execution. */
   readonly operationResponseBudget: Duration.Duration
+  /** Per-instance worker capture. Defaults to off. */
+  readonly attemptHistory?: AttemptHistoryCapture
 }
 /**
  * Configured persistence and callback bridge. Readiness, workers and cleanup are
@@ -180,6 +204,8 @@ export interface Service {
   readonly store: JobStoreService<PostgreSqlError>
   /** Optional, separately selected. Never installed implicitly or run by imports. */
   readonly cleanup: JobCleanupService<PostgreSqlError>
+  /** Explicit read and cleanup operations against the optional migrated relation. */
+  readonly attemptHistory: AttemptHistoryService
   /** Opt-in read-only bounded health sample; app selects ONE reporter per queue/storage. */
   readonly health: ReturnType<typeof makeHealth>
   /** Read-only queue wake hints; this raw port retains native PostgreSQL errors. */
@@ -251,6 +277,12 @@ export const make = (options: Options) =>
     const operationResponseBudget = options.operationResponseBudget
     const budget = durationMillis(operationResponseBudget)
     const { jobs, payloads } = relations(mapping)
+    const capture = yield* captureSettings(options.attemptHistory)
+    const historyRelation = Effect.try({
+      try: () => `"${mapping.schema}"."${attemptHistoryTableName(mapping)}"`,
+      catch: () => new PostgreSqlConfigurationError({ field: "attemptHistory" })
+    })
+    const history = capture.mode === "off" ? undefined : yield* historyRelation
     const joinTransaction: Service["joinTransaction"] = (handle, body) =>
       adapter.validate(handle).pipe(
         Effect.flatMap((query) =>
@@ -292,7 +324,15 @@ export const make = (options: Options) =>
           )
           .pipe(neutralProducer)
     }
-    const store = makeStore(adapter, jobs, payloads, budget)
+    const store = makeStore(
+      adapter,
+      jobs,
+      payloads,
+      budget,
+      history === undefined || capture.mode === "off"
+        ? undefined
+        : makeHistoryWriter(history, capture)
+    )
     const storage = yield* Storage.make({
       store,
       operationResponseBudget
@@ -301,12 +341,22 @@ export const make = (options: Options) =>
     )
     const operators = makeOperators(adapter, jobs, payloads, budget)
     const neutral = neutralOperators(operators)
+    const readiness = ready(adapter, jobs, payloads)
     return PostgreSqlJobs.of({
       operationResponseBudgetMillis: budget,
       storage,
       operators,
       producer,
-      ready: ready(adapter, jobs, payloads),
+      ready:
+        history === undefined
+          ? readiness
+          : readiness.pipe(Effect.andThen(readyHistory(adapter, jobs, history))),
+      attemptHistory: makeAttemptHistory(
+        adapter,
+        historyRelation.pipe(
+          Effect.mapError(() => new JobStoreProtocolError({ reason: "invalid-input" }))
+        )
+      ),
       tables: mapping,
       store,
       cleanup: makeCleanup(adapter, jobs),

@@ -16,7 +16,7 @@ live in `src/postgresql/internal/`; these paths are not public deep exports.
 - `PostgreSqlJobs`: `make(options)` / `layerNoDeps(options)` produce
   `PostgreSqlJobs` and require `PostgreSqlApplication`. The value exposes an
   explicit `ready` Effect, the generic `store`, optional separately selected
-  `cleanup`, read-only `schedule`, `joinTransaction(handle, callback)` and
+  `cleanup`, optional [attempt history](./postgresql-attempt-history.md), read-only `schedule`, `joinTransaction(handle, callback)` and
   `withTransaction(callback)`. The Layer also provides the configured portable
   `JobStorage` and `JobSchedule`, plus producer/operator services.
 - `PostgreSqlTransaction`: the trusted application-adapter extension contract,

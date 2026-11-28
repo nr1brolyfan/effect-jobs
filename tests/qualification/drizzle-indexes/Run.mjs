@@ -9,7 +9,14 @@ import {
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
+import {
+  appendFileSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync
+} from "node:fs"
 import { join, resolve } from "node:path"
 
 const root = resolve(import.meta.dirname, "../../..")
@@ -62,7 +69,7 @@ writeFileSync(
   `
 import { sql } from "drizzle-orm"
 import { index } from "drizzle-orm/pg-core"
-import { makeJobTables } from "effect-jobs/PostgreSqlDrizzleSchema"
+import { makeAttemptHistoryTable, makeJobTables } from "effect-jobs/PostgreSqlDrizzleSchema"
 const tables = makeJobTables({ schema: "indexes_fixture", extraIndexes: (jobs) => [
   index("app_jobs_by_state").on(jobs.state.asc(), jobs.id.desc()),
   index("app_jobs_pending").on(sql\`lower(\${jobs.operation})\`).where(sql\`\${jobs.state} = 'Pending'\`)
@@ -123,6 +130,34 @@ assert.deepEqual(files(join(work, "migrations")), before)
 for (const p of before) {
   assert.equal(createHash("sha256").update(readFileSync(p)).digest("hex"), hashes[p])
 }
+appendFileSync(
+  join(work, "schema.ts"),
+  "export const attemptHistory = makeAttemptHistoryTable(tables)\n"
+)
+run("generate-history", kit, ["generate"])
+const added = files(join(work, "migrations")).filter((p) => !before.includes(p))
+const historyMigrations = added.filter((p) => p.endsWith(".sql"))
+assert.equal(historyMigrations.length, 1)
+const historyDdl = readFileSync(historyMigrations[0], "utf8")
+assert.match(historyDdl, /CREATE TABLE "indexes_fixture"\."[^"]+_attempts"/i)
+assert.match(
+  historyDdl,
+  /REFERENCES "indexes_fixture"\."jobs"\s*\("id"\) ON DELETE CASCADE/i
+)
+assert.match(historyDdl, /PRIMARY KEY\("job_id","lifecycle_version"\)/i)
+assert.match(historyDdl, /CREATE INDEX "[^"]+_attempt_exp"/i)
+assert.doesNotMatch(
+  historyDdl,
+  /(?:ALTER TABLE|DROP TABLE|CREATE TABLE) "indexes_fixture"\."(?:jobs|job_payloads)"/i
+)
+for (const p of before) {
+  assert.equal(createHash("sha256").update(readFileSync(p)).digest("hex"), hashes[p])
+}
+const recorded = files(join(work, "migrations"))
+const unchangedHistory = run("generate-history-unchanged", kit, ["generate"])
+assert.match(unchangedHistory, /no (schema )?changes/i)
+assert.deepEqual(files(join(work, "migrations")), recorded)
+
 writeFileSync(
   join(work, "receipt.json"),
   JSON.stringify(
@@ -134,7 +169,12 @@ writeFileSync(
       customAndMandatoryDDL: true,
       snapshotRetainsCustom: true,
       repeatedGenerationNoDrop: true,
-      hashes
+      hashes,
+      historyMigration: {
+        sha256: createHash("sha256").update(historyDdl).digest("hex"),
+        additive: true,
+        repeatedGenerationNoDrop: true
+      }
     },
     null,
     2

@@ -9,6 +9,108 @@ description: Public TypeScript declarations for effect-jobs/PostgreSqlJobs.
 
 **Import path:** `effect-jobs/PostgreSqlJobs` · [Source](https://github.com/nr1brolyfan/effect-jobs/blob/main/src/postgresql/PostgreSqlJobs.ts) · [Checked examples](/docs/reference/examples)
 
+## AttemptHistoryCapture
+
+Per-instance capture settings. Omitted settings default to off.
+
+```ts title="Type declaration"
+export type AttemptHistoryCapture =
+  | {
+      readonly mode: "off"
+    }
+  | {
+      readonly mode: "problems" | "all"
+      readonly ttlMillis: number
+    }
+```
+
+## AttemptHistoryCursor
+
+Opaque continuation. Pass it back for the same job.
+
+```ts title="Type declaration"
+export type AttemptHistoryCursor = typeof Cursor.Type
+```
+
+## AttemptHistoryEntry
+
+Persisted worker outcome projected onto the stable operational read contract.
+
+```ts title="Type declaration"
+export type AttemptHistoryEntry = {
+  readonly jobId: JobId
+  readonly lifecycleVersion: number
+  /** Sampled database time in Unix epoch milliseconds. */
+  readonly occurredAt: number
+} & (
+  | ({
+      readonly kind: "Finalization"
+      /** Persisted finalization ordinal, starting at 1. */
+      readonly finalizedAttempt: number
+    } & (
+      | {
+          readonly state: "Completed"
+          readonly failureCode: null
+          readonly retryAt: null
+        }
+      | {
+          readonly state: "RetryScheduled"
+          readonly failureCode: FailureCode
+          readonly retryAt: number
+        }
+      | {
+          readonly state: "Dead" | "Isolated"
+          readonly failureCode: FailureCode
+          readonly retryAt: null
+        }
+    ))
+  | {
+      readonly kind: "LeaseRecovery"
+      readonly state: "Pending" | "Dead"
+      readonly stalledCount: number
+      readonly failureCode: FailureCode | null
+    }
+)
+```
+
+## AttemptHistoryPage
+
+Descending version page. Entries may expire or be removed between reads.
+
+```ts title="Type declaration"
+export interface AttemptHistoryPage {
+  readonly entries: ReadonlyArray<AttemptHistoryEntry>
+  readonly nextCursor: AttemptHistoryCursor | null
+}
+```
+
+## AttemptHistoryRead
+
+Reads up to 500 unexpired entries for one job.
+
+```ts title="Type declaration"
+export interface AttemptHistoryRead {
+  readonly jobId: JobId
+  readonly limit: number
+  readonly before?: AttemptHistoryCursor
+}
+```
+
+## AttemptHistoryService
+
+Explicit PostgreSQL history reads and retention maintenance.
+
+```ts title="Type declaration"
+export interface AttemptHistoryService {
+  readonly read: (
+    request: AttemptHistoryRead
+  ) => Effect.Effect<AttemptHistoryPage, PostgreSqlError | JobStoreProtocolError>
+  readonly cleanup: (
+    limit: number
+  ) => Effect.Effect<number, PostgreSqlError | JobStoreProtocolError>
+}
+```
+
 ## layerNoDeps
 
 Produces PostgreSqlJobs while requiring PostgreSqlApplication. Supply a qualified application adapter separately; neither the driver nor a transaction engine is bundled.
@@ -41,6 +143,8 @@ Storage mapping and its single positive operation response budget.
 export interface Options extends TableOptions {
   /** Positive integer reserve used by claim admission and worker execution. */
   readonly operationResponseBudget: Duration.Duration
+  /** Per-instance worker capture. Defaults to off. */
+  readonly attemptHistory?: AttemptHistoryCapture
 }
 ```
 
@@ -78,6 +182,8 @@ export interface Service {
   readonly store: JobStoreService<PostgreSqlError>
   /** Optional, separately selected. Never installed implicitly or run by imports. */
   readonly cleanup: JobCleanupService<PostgreSqlError>
+  /** Explicit read and cleanup operations against the optional migrated relation. */
+  readonly attemptHistory: AttemptHistoryService
   /** Opt-in read-only bounded health sample; app selects ONE reporter per queue/storage. */
   readonly health: ReturnType<typeof makeHealth>
   /** Read-only queue wake hints; this raw port retains native PostgreSQL errors. */

@@ -2,6 +2,9 @@
 
 ## 0.1.0-alpha.6 (unpublished candidate)
 
+- Add opt-in PostgreSQL worker finalization and lease-recovery history with an
+  additive [migration and retention API](./specs/postgresql-attempt-history.md).
+
 - Refresh the npm README with a Bun quick start, typed order jobs, and links to
   the PostgreSQL and Durable Object examples.
 - Clarify that an operation with one slot still uses `JobProducer`.
