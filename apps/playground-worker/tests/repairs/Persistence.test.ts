@@ -97,6 +97,7 @@ const setup = (override: Partial<RepairTransaction> = {}) =>
       producer: { enqueue: unexpected, enqueueStandalone: unexpected },
       store,
       cleanup: { cleanup: unexpected },
+      attemptHistory: { read: unexpected, cleanup: unexpected },
       operators: {
         correctedRedrive: () =>
           Effect.sync(() => {
