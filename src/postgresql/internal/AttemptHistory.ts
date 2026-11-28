@@ -271,13 +271,14 @@ export const readyHistory = (
            SELECT c.oid FROM pg_catalog.pg_class c
            WHERE c.oid=pg_catalog.to_regclass($1) AND c.relkind='r'
          ), attrs AS (
-           SELECT attname::text AS name, attnum, atttypid, attnotnull, attgenerated
+           SELECT attname::text AS name, attnum, atttypid, attnotnull, attgenerated, attidentity
            FROM pg_catalog.pg_attribute JOIN relation ON attrelid=relation.oid
            WHERE attnum>0 AND NOT attisdropped
          )
          SELECT
            (SELECT count(*)=9 AND bool_and(
-             a.name IS NOT NULL AND atttypid=e.ty::regtype AND attnotnull=e.required AND attgenerated=''
+             a.name IS NOT NULL AND atttypid=e.ty::regtype AND attnotnull=e.required
+             AND attgenerated='' AND attidentity <> 'a'
            ) FROM (VALUES
              ('job_id','text',true), ('lifecycle_version','bigint',true),
              ('occurred_at','bigint',true), ('expires_at','bigint',true),
