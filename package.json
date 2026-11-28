@@ -145,6 +145,7 @@
     "specs/api-refinements.md",
     "specs/operator-contract.md",
     "specs/postgresql-jobs.md",
+    "specs/postgresql-attempt-history.md",
     "specs/retry-policy.md",
     "docs/observability.md",
     "docs/observability-checklist.md"

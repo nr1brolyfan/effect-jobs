@@ -1334,8 +1334,44 @@
   {
     "subpath": "effect-jobs/PostgreSqlJobs",
     "filename": "src/postgresql/PostgreSqlJobs.ts",
-    "sha256": "54781a2da4f34094ef6d2c2eebc725d230123432e2871a5f4f836d1e5e76f736",
+    "sha256": "6d35949ebc004627c8359bdcc27b49bd9f0c8391e39d33cb9be9c7ffb8e9e27a",
     "symbols": [
+      {
+        "name": "AttemptHistoryCapture",
+        "kind": "type",
+        "category": "models",
+        "description": "Per-instance capture settings. Omitted settings default to off."
+      },
+      {
+        "name": "AttemptHistoryCursor",
+        "kind": "type",
+        "category": "models",
+        "description": "Opaque continuation. Pass it back for the same job."
+      },
+      {
+        "name": "AttemptHistoryEntry",
+        "kind": "type",
+        "category": "models",
+        "description": "Persisted worker outcome projected onto the stable operational read contract."
+      },
+      {
+        "name": "AttemptHistoryPage",
+        "kind": "type",
+        "category": "models",
+        "description": "Descending version page. Entries may expire or be removed between reads."
+      },
+      {
+        "name": "AttemptHistoryRead",
+        "kind": "type",
+        "category": "models",
+        "description": "Reads up to 500 unexpired entries for one job."
+      },
+      {
+        "name": "AttemptHistoryService",
+        "kind": "type",
+        "category": "models",
+        "description": "Explicit PostgreSQL history reads and retention maintenance."
+      },
       {
         "name": "layerNoDeps",
         "kind": "value",
@@ -1371,7 +1407,7 @@
   {
     "subpath": "effect-jobs/PostgreSqlTransaction",
     "filename": "src/postgresql/PostgreSqlTransaction.ts",
-    "sha256": "8f555f908003c5c1cae2366e754eaa1b01e5600670e1ffcf0ec3015b7dace07c",
+    "sha256": "bb1c25378021d315761ea2c6f71955d05d3eabb7d7627c438835a154947ec73d",
     "symbols": [
       {
         "name": "ApplicationAdapter",
@@ -1439,8 +1475,20 @@
   {
     "subpath": "effect-jobs/PostgreSqlSchema",
     "filename": "src/postgresql/PostgreSqlSchema.ts",
-    "sha256": "96034ba531af70da506626127f992b87ad1cc0ca7512e64505c60bc397e770b7",
+    "sha256": "ad98cdbb8c41f7a68339dd1608706daf1f2455c28610311ab575b7faae7e293c",
     "symbols": [
+      {
+        "name": "attemptHistoryMigration",
+        "kind": "value",
+        "category": "operations",
+        "description": "Creates the optional, initially empty history relation. Run once after the jobs migration."
+      },
+      {
+        "name": "attemptHistoryTableName",
+        "kind": "value",
+        "category": "operations",
+        "description": "Validated physical name of the optional relation for this jobs mapping."
+      },
       {
         "name": "creationTimeMigration",
         "kind": "value",
@@ -1506,13 +1554,19 @@
   {
     "subpath": "effect-jobs/PostgreSqlDrizzleSchema",
     "filename": "src/postgresql/PostgreSqlDrizzleSchema.ts",
-    "sha256": "fbfe7e68ea6f805f97cd3e37508a9af3973df9732eb9a6ad83d156d41cb6b082",
+    "sha256": "0dd18792d50406d257951aaaf280648d58fdcbd07ff4a8cc4e1cdf3ab6f3c1a2",
     "symbols": [
       {
         "name": "JobsIndexColumns",
         "kind": "type",
         "category": "models",
         "description": "Actual typed required jobs columns supplied to the extraIndexes callback."
+      },
+      {
+        "name": "makeAttemptHistoryTable",
+        "kind": "value",
+        "category": "constructors",
+        "description": "Optional Drizzle declaration. Export it alongside the same jobs mapping and apply\nthe generated migration before enabling capture."
       },
       {
         "name": "makeJobTables",

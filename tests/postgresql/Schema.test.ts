@@ -2,7 +2,10 @@ import { describe, expect, test } from "vitest"
 import { sql } from "drizzle-orm"
 import { index } from "drizzle-orm/pg-core"
 import { getTableConfig } from "drizzle-orm/pg-core"
-import { makeJobTables } from "../../src/postgresql/PostgreSqlDrizzleSchema.js"
+import {
+  makeAttemptHistoryTable,
+  makeJobTables
+} from "../../src/postgresql/PostgreSqlDrizzleSchema.js"
 import * as Schema from "../../src/postgresql/PostgreSqlSchema.js"
 
 describe("optional fixed Drizzle declarations", () => {
@@ -107,4 +110,36 @@ test("index-name collisions are not silently removed or advertised as library fa
       .jobs
   )
   expect(config.indexes.filter((i) => i.config.name === name)).toHaveLength(2)
+})
+
+test("optional attempt history Drizzle mapping has the qualified parent cascade and expiry index", () => {
+  const storage = makeJobTables({
+    schema: "billing",
+    jobsTable: "tasks",
+    payloadsTable: "artifacts"
+  })
+  const history = getTableConfig(makeAttemptHistoryTable(storage))
+  expect(history.name).toBe(Schema.attemptHistoryTableName(storage.mapping))
+  expect(history.schema).toBe("billing")
+  expect(history.columns.map((column) => column.name)).toEqual([
+    "job_id",
+    "lifecycle_version",
+    "occurred_at",
+    "expires_at",
+    "kind",
+    "state",
+    "ordinal",
+    "failure_code",
+    "retry_at"
+  ])
+  expect(history.primaryKeys[0]?.columns.map((column) => column.name)).toEqual([
+    "job_id",
+    "lifecycle_version"
+  ])
+  expect(history.foreignKeys[0]?.onDelete).toBe("cascade")
+  expect(history.foreignKeys[0]?.reference().foreignTable).toBe(storage.jobs)
+  expect(history.indexes[0]?.config.name).toBe(
+    `${Schema.indexPrefix(storage.mapping)}_attempt_exp`
+  )
+  expect(Schema.migration(storage.mapping)).not.toContain(history.name)
 })

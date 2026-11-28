@@ -14,6 +14,8 @@ import type {
 } from "../PostgreSqlTransaction.js"
 import { claimArtifact, dbTime, fromResult, snapshot, writeSnapshot } from "./Rows.js"
 
+import type { makeHistoryWriter } from "./AttemptHistory.js"
+
 const inputError = () => new Store.JobStoreProtocolError({ reason: "invalid-input" })
 const decode = <S extends Schema.Top>(schema: S, value: unknown) =>
   Schema.decodeUnknownEffect(schema, { onExcessProperty: "error" })(value).pipe(
@@ -78,7 +80,8 @@ export const makeStore = (
   adapter: ApplicationAdapter,
   jobs: string,
   payloads: string,
-  budget: number
+  budget: number,
+  writeHistory?: ReturnType<typeof makeHistoryWriter>
 ): Store.JobStoreService<PostgreSqlError> => {
   const select = `SELECT j.*,p.format_version,p.payload,p.projection FROM ${jobs} j LEFT JOIN ${payloads} p ON p.job_id=j.id`
   const locked = (query: TransactionQuery, id: string) =>
@@ -253,6 +256,9 @@ export const makeStore = (
               Lifecycle.finalize(before, request.ownership, request.finalization, now)
             )
             yield* writeSnapshot(query, jobs, after)
+            if (writeHistory !== undefined) {
+              yield* writeHistory(query, "Finalization", after)
+            }
             if (
               after.state === "Completed" ||
               after.state === "RetryScheduled" ||
@@ -329,6 +335,9 @@ export const makeStore = (
               yield* isolate(query, jobs, row.id, now)
             } else {
               yield* writeSnapshot(query, jobs, plan.success)
+              if (writeHistory !== undefined) {
+                yield* writeHistory(query, "LeaseRecovery", plan.success)
+              }
             }
           }
           return rows.length

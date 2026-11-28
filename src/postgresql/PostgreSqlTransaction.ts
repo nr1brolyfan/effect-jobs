@@ -15,6 +15,10 @@ export class PostgreSqlFailure extends Data.TaggedError("PostgreSqlFailure")<{
   /** Present when readiness confirms a mismatch against the configured schema. */
   readonly readiness?:
     | {
+        readonly reason: "attempt-history-migration-required"
+        readonly check: "attempt-history"
+      }
+    | {
         readonly reason: "invalid-column-definition"
         readonly check: "created-at" | "lineage"
       }
@@ -29,7 +33,13 @@ export class PostgreSqlFailure extends Data.TaggedError("PostgreSqlFailure")<{
         readonly reason: "missing-required-index"
         readonly check: "lineage" | "claim" | "recovery" | "cleanup"
       }
-}> {}
+}> {
+  override get message(): string {
+    return this.readiness?.check === "attempt-history"
+      ? "PostgreSQL attempt history requires the compatible application-applied attemptHistoryMigration (or equivalent Drizzle migration)"
+      : super.message
+  }
+}
 /**
  * Typed rejection of foreign, unqualified, inactive or ambient transaction handles.
  *

@@ -9,6 +9,22 @@ description: Public TypeScript declarations for effect-jobs/PostgreSqlSchema.
 
 **Import path:** `effect-jobs/PostgreSqlSchema` · [Source](https://github.com/nr1brolyfan/effect-jobs/blob/main/src/postgresql/PostgreSqlSchema.ts) · [Checked examples](/docs/reference/examples)
 
+## attemptHistoryMigration
+
+Creates the optional, initially empty history relation. Run once after the jobs migration.
+
+```ts title="Type declaration"
+export declare const attemptHistoryMigration: (mapping?: Tables) => string
+```
+
+## attemptHistoryTableName
+
+Validated physical name of the optional relation for this jobs mapping.
+
+```ts title="Type declaration"
+export declare const attemptHistoryTableName: (mapping: Tables) => string
+```
+
 ## creationTimeMigration
 
 Adds truthful creation metadata without inventing times for existing rows. Applications run this once in their own migration transaction. Runtime never migrates; readiness requires this nullable bigint column before use.
@@ -70,6 +86,7 @@ export declare class PostgreSqlConfigurationError extends PostgreSqlConfiguratio
     | "operationResponseBudgetMillis"
     | "operationResponseBudget"
     | "operationTimeout"
+    | "attemptHistory"
 }> {}
 ```
 

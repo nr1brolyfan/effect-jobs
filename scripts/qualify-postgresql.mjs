@@ -113,6 +113,7 @@ for (const pathName of [
   "tests/qualification/Resource.mjs",
   "tests/qualification/Resource.d.mts",
   "tests/postgresql/Jobs.test.ts",
+  "tests/postgresql/AttemptHistory.test.ts",
   "tests/core/codec/PayloadCodec.test.ts",
   "tests/postgresql/Adapter.ts",
   "tests/contracts/ClaimReserve.ts",
@@ -132,6 +133,9 @@ for (const pathName of [
   )
   writeFileSync(destination, source)
 }
+const upgradeFixture = "tests/postgresql/fixtures/BeforeAttemptHistory.sql"
+mkdirSync(join(directory, "tests/postgresql/fixtures"), { recursive: true })
+copyFileSync(join(root, upgradeFixture), join(directory, upgradeFixture))
 mkdirSync(join(directory, "specs"), { recursive: true })
 copyFileSync(
   join(directory, "node_modules/effect-jobs/specs/postgresql-jobs.md"),
@@ -145,7 +149,7 @@ symlinkSync(
 writeFileSync(
   join(directory, "vitest.config.ts"),
   `import { defineConfig } from "vitest/config"
-export default defineConfig({ test: { include: ["tests/postgresql/Jobs.test.ts", "tests/core/codec/PayloadCodec.test.ts"] } })\n`
+export default defineConfig({ test: { include: ["tests/postgresql/Jobs.test.ts", "tests/postgresql/AttemptHistory.test.ts", "tests/core/codec/PayloadCodec.test.ts"] } })\n`
 )
 writeFileSync(
   join(directory, "types.ts"),
@@ -199,7 +203,7 @@ writeFileSync(
   join(directory, "drizzle-import.mjs"),
   `
 import assert from "node:assert/strict"
-import { makeJobTables } from "effect-jobs/PostgreSqlDrizzleSchema"
+import { makeAttemptHistoryTable, makeJobTables } from "effect-jobs/PostgreSqlDrizzleSchema"
 import { getTableConfig } from "drizzle-orm/pg-core"
 const tables = makeJobTables({ schema: "installed", jobsTable: "tasks", payloadsTable: "artifacts" })
 const jobs = getTableConfig(tables.jobs)
@@ -212,6 +216,11 @@ assert.equal(jobs.indexes.length, 4)
 assert.equal(jobs.checks.length, 11)
 assert.equal(jobs.foreignKeys.length, 1)
 assert.equal(jobs.foreignKeys[0].onDelete, "set null")
+const history = getTableConfig(makeAttemptHistoryTable(tables))
+assert.equal(history.schema, "installed")
+assert.equal(history.foreignKeys[0].onDelete, "cascade")
+assert.equal(history.foreignKeys[0].reference().foreignTable, tables.jobs)
+assert.deepEqual(history.primaryKeys[0].columns.map((column) => column.name), ["job_id", "lifecycle_version"])
 console.log("installed Drizzle mapping/constraints PASS")
 `
 )

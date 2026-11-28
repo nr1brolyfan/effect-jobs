@@ -6,6 +6,7 @@ const report = () => ({
   testResults: [
     "tests/postgresql/Jobs.test.ts",
     "tests/postgresql/CreationTime.test.ts",
+    "tests/postgresql/AttemptHistory.test.ts",
     "tests/postgresql/Observability.test.ts",
     "tests/postgresql/Schema.test.ts",
     "tests/postgresql/operators/Operators.test.ts",

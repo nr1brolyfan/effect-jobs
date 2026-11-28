@@ -13,6 +13,7 @@ import {
   jsonb,
   pgSchema,
   pgTable,
+  primaryKey,
   text,
   unique
 } from "drizzle-orm/pg-core"
@@ -21,7 +22,12 @@ import type {
   PgBuildExtraConfigColumns,
   IndexBuilder
 } from "drizzle-orm/pg-core"
-import { indexPrefix, tables, type TableOptions } from "./PostgreSqlSchema.js"
+import {
+  attemptHistoryTableName,
+  indexPrefix,
+  tables,
+  type TableOptions
+} from "./PostgreSqlSchema.js"
 import type { PersistedJobPolicy } from "../JobPolicy.js"
 
 const bytes = customType<{ data: Uint8Array; driverData: Buffer }>({
@@ -153,4 +159,41 @@ export const makeJobTables = (options: Options = {}) => {
     ]
   )
   return Object.freeze({ mapping, jobs, payloads })
+}
+
+/** Optional Drizzle declaration. Export it alongside the same jobs mapping and apply
+ * the generated migration before enabling capture.
+ * @category constructors
+ */
+export const makeAttemptHistoryTable = (jobTables: ReturnType<typeof makeJobTables>) => {
+  const { mapping, jobs } = jobTables
+  const table: PgTableFn<string | undefined> =
+    mapping.schema === "public" ? pgTable : pgSchema(mapping.schema).table
+  return table(
+    attemptHistoryTableName(mapping),
+    {
+      jobId: text("job_id")
+        .notNull()
+        .references(() => jobs.id, { onDelete: "cascade" }),
+      lifecycleVersion: bigint("lifecycle_version", { mode: "number" }).notNull(),
+      occurredAt: bigint("occurred_at", { mode: "number" }).notNull(),
+      expiresAt: bigint("expires_at", { mode: "bigint" }).notNull(),
+      kind: text("kind").notNull(),
+      state: text("state").notNull(),
+      ordinal: bigint("ordinal", { mode: "number" }).notNull(),
+      failureCode: text("failure_code"),
+      retryAt: bigint("retry_at", { mode: "number" })
+    },
+    (h) => [
+      primaryKey({
+        name: `${indexPrefix(mapping)}_attempt_pk`,
+        columns: [h.jobId, h.lifecycleVersion]
+      }),
+      index(`${indexPrefix(mapping)}_attempt_exp`).on(
+        h.expiresAt,
+        h.jobId,
+        h.lifecycleVersion
+      )
+    ]
+  )
 }

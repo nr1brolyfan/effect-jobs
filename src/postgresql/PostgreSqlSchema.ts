@@ -19,6 +19,7 @@ export class PostgreSqlConfigurationError extends Data.TaggedError(
     | "operationResponseBudgetMillis"
     | "operationResponseBudget"
     | "operationTimeout"
+    | "attemptHistory"
 }> {}
 /**
  * Optional lowercase PostgreSQL identifiers; defaults to public.jobs/job_payloads.
@@ -207,3 +208,36 @@ CREATE INDEX "${prefix}_source" ON ${jobs} (source_job_id) WHERE source_job_id I
  */
 export const creationTimeMigration = (mapping: Tables = tables()): string =>
   `ALTER TABLE ${relations(mapping).jobs} ADD COLUMN created_at bigint;`
+
+/** Validated physical name of the optional relation for this jobs mapping.
+ * @category operations
+ */
+export const attemptHistoryTableName = (mapping: Tables): string => {
+  const checked = tables(mapping)
+  const name = `${indexPrefix(checked)}_attempts`
+  if (name === checked.jobsTable || name === checked.payloadsTable) {
+    throw new PostgreSqlConfigurationError({ field: "attemptHistory" })
+  }
+  return name
+}
+
+/** Creates the optional, initially empty history relation. Run once after the jobs migration.
+ * @category operations
+ */
+export const attemptHistoryMigration = (mapping: Tables = tables()): string => {
+  const checked = tables(mapping)
+  const history = `"${checked.schema}"."${attemptHistoryTableName(checked)}"`
+  return `CREATE TABLE ${history} (
+  job_id text NOT NULL REFERENCES ${relations(checked).jobs}(id) ON DELETE CASCADE,
+  lifecycle_version bigint NOT NULL,
+  occurred_at bigint NOT NULL,
+  expires_at bigint NOT NULL,
+  kind text NOT NULL,
+  state text NOT NULL,
+  ordinal bigint NOT NULL,
+  failure_code text,
+  retry_at bigint,
+  CONSTRAINT "${indexPrefix(checked)}_attempt_pk" PRIMARY KEY (job_id, lifecycle_version)
+);
+CREATE INDEX "${indexPrefix(checked)}_attempt_exp" ON ${history} (expires_at, job_id, lifecycle_version);`
+}
